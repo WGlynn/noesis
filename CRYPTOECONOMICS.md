@@ -63,6 +63,17 @@ The three-token thesis maps onto Noesis cleanly — not surprising, because it's
 **separation of powers** (Tinbergen's rule / consensus-constitution): money, governance,
 and capital are universal *separable* functions, one instrument each.
 
+**Why exactly 3 (Will, 2026-06-11): rock-paper-scissors equilibrium.** Separation of
+powers *needs* 3 — it's the minimum for a non-dominated cyclic equilibrium. With **2**
+powers one is the strict best response and captures the other (binary dominance). With
+**3** you get non-transitivity (RPS): each power checks another in a cycle, no pure
+dominant strategy, capture-resistant by structure. **4+** adds complexity without more
+non-domination and invites coalitions. So 3 is *minimal and sufficient*. The three
+powers (consensus-constitution: **capital / compute / cognition**) map to **PoM
+(cognition) / PoW (compute, via JUL) / state-stake (capital)** — each checks another;
+none dominates consensus. The 3-power design is the RPS equilibrium that makes capture
+structurally impossible, not an arbitrary token count.
+
 | Role | Instrument here | Proof |
 |---|---|---|
 | **franchise** (consensus weight + right to mint) | **PoM-standing**, SOULBOUND | Proof of Mind |
