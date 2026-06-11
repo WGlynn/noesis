@@ -1,0 +1,14 @@
+[package]
+name = "noesis"
+version = "0.0.1"
+edition = "2021"
+description = "Proof-of-Mind value chain — core mechanism (PRIVATE, stealth)"
+
+# Execution layer: RISC-V via CKB-VM (Nervos), same substrate as the CKB pivot.
+# Added when the VM integration lands; the core mechanism below is VM-agnostic.
+# [dependencies]
+# ckb-vm = "0.24"
+
+[lib]
+name = "noesis"
+path = "src/lib.rs"
