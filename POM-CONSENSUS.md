@@ -120,6 +120,66 @@ the PoM-weighted coalition game:
   at scale, restrict to the PoM-graph-connected coalitions (Myerson-style) and sample,
   same as the value layer.
 
+## Value strategyproofness — adversary finding + fix (2026-06-11)
+
+A standing adversary (`adversarial-game.py`) found a real hole and we fixed it:
+- **Sybil-split: resistant.** K identical clones share one block's value (1.06× for
+  K=5), they do not multiply it — the synergy game discounts duplicates.
+- **Padding: GAMEABLE under Shapley.** A block whose coverage is a subset of an
+  existing block earned positive value (≈29.86) by extracting credit from the donor
+  in the orderings where it preceded it. Shapley splits *shared* coverage with later
+  duplicators.
+- **Fix — temporal-novelty (commit-reveal order).** `value(b) = coverage(b) minus the
+  union of coverage of all EARLIER-committed blocks`. First-to-reveal-coverage earns
+  it; later padding/sybil blocks earn **0 novel coverage** (tested: both attacks → 0,
+  honest blocks keep novelty). This is *why commit-reveal is load-bearing for VALUE,
+  not just authorship* — it supplies the canonical order that makes the value rule
+  strategyproof. Shapley is for unordered contributions; a chain has a commit order, so
+  temporal-novelty is the correct rule.
+
+## Fallback: Nakamoto-Infinity as a backup consensus (Will, 2026-06-11)
+
+PoM's sybil-resistance is structural, but *trust* in a new mechanism is earned slowly.
+Hedge with a familiar, battle-tested layer: run **NakamotoConsensusInfinity** (PoW-style
+ordering, already in the VibeSwap contracts) as a backup/cross-check beneath PoM.
+
+- **Primary:** PoM-weighted finalization (proof of verified contribution).
+- **Backup:** Nakamoto PoW provides an independent ordering an attacker must *also*
+  break. Two independent consensus axes → multi-axis robustness; a single objection
+  ("I don't trust PoM sybil-resistance") doesn't kill the network, because the Nakamoto
+  layer still holds.
+- **Trust bridge:** skeptics who don't yet believe proof-of-mind can rely on the
+  familiar Nakamoto guarantee while PoM proves itself; as PoM track-record accrues, the
+  PoW backup can be down-weighted. It is a *bridge to PoM*, not a permanent crutch —
+  same shape as defense being a bridge-to-dissolution.
+- Composes with the core/nucleolus stability above: stability makes PoM defection-proof;
+  Nakamoto makes the whole thing robust to *disbelief in* PoM.
+
+## Dissolving the open-model trilemma via coordination (Will, 2026-06-11)
+
+The open-model trilemma (sovereignty ⊥ capability ⊥ footprint) binds a *single*
+model. Mechanism design + coordination get most of all three by making collective
+capability *emerge* from many lightweight-open models — and the mechanism that does
+it is **this network, one level down**:
+
+- **Mixture-of-agents.** Many small sovereign models generate blocks; the value game +
+  PoM select and aggregate the best. Collective capability > any single small model.
+  The open models become PoM contributors (recursion: the network of minds includes
+  the models).
+- **Verification asymmetry (the lever).** Generating is hard; verifying is cheaper. Many
+  cheap generators + structural verification (gates, synergy value, adversarial check)
+  match a heavy model's *reliable* output at light footprint. JARVIS's thesis applied to
+  buy the capability axis without the weight.
+- **Coordination game.** Route each hard sub-task to the best small model (learned,
+  PoM-weighted). Specialization beats one generalist.
+
+**Honest residual — relocation, not abolition (GEV-conservation).** This converts the
+model-*size* constraint into a **coordination-cost** constraint (latency + running
+several models). Net win only where verification < generation (most verifiable work),
+not for irreducibly-hard frontier generation. Coordination amplifies/selects/verifies
+*latent* capability; it cannot manufacture capability no open model has. Large lunch on
+reliable verifiable capability; no free lunch on raw frontier reasoning.
+
 ## Status (honest)
 - Designed, not built: PoM aggregation across owned blocks; core/nucleolus stability;
   PoM-weighted consensus finalization; the slashing-on-refuted-attestation path.

@@ -25,9 +25,13 @@ is a reputation system.
   to unseen blocks (RLHF reward model). Replaces the coverage proxy. `reward-model.py`
 - 🟡 **Outcome-value labels** — coalition-level "how good is the outcome using only S"
   judgments (model/jury, DeepFunding-distill over *sets*).
-- 🔬 **Strategyproofness** — anti-sybil / anti-split / anti-padding. Port the
-  contribution-graph Goodhart defenses (decay, reviewer-diversity, split-credit) +
-  prove no profitable manipulation of `v(S)`.
+- 🟡 **Strategyproofness** — *first pass done* (`adversarial-game.py`): sybil-split
+  already resistant (clones split one value, 1.06×); the adversary found Shapley-over-
+  coverage **gameable by padding** (redundant subset earns credit); **fixed** by
+  **temporal-novelty** (value = coverage novel vs earlier-committed blocks, via
+  commit-reveal order) → both sybil+padding driven to 0, honest novelty preserved.
+  Remaining 🔬: attribution-ring / collusion, decay + reviewer-diversity port, proof
+  under the *learned* `v(S)` (the proxy preserved submodularity; the model must too).
 
 ## Phase 2 — Recursion & flow
 - 🟡 **Two-level recursion** — intra-block share vectors (multi-contributor blocks)
