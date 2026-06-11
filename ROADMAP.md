@@ -25,13 +25,21 @@ is a reputation system.
   to unseen blocks (RLHF reward model). Replaces the coverage proxy. `reward-model.py`
 - 🟡 **Outcome-value labels** — coalition-level "how good is the outcome using only S"
   judgments (model/jury, DeepFunding-distill over *sets*).
-- 🟡 **Strategyproofness** — *first pass done* (`adversarial-game.py`): sybil-split
-  already resistant (clones split one value, 1.06×); the adversary found Shapley-over-
-  coverage **gameable by padding** (redundant subset earns credit); **fixed** by
-  **temporal-novelty** (value = coverage novel vs earlier-committed blocks, via
-  commit-reveal order) → both sybil+padding driven to 0, honest novelty preserved.
-  Remaining 🔬: attribution-ring / collusion, decay + reviewer-diversity port, proof
-  under the *learned* `v(S)` (the proxy preserved submodularity; the model must too).
+- ✅ **Strategyproofness — production rule shipped** (`value-v3.py`). The canonical
+  value rule is **temporal-novelty** (value = coverage novel vs earlier-committed
+  blocks, via commit-reveal order), strategyproof **by construction**: sybil-split,
+  padding, AND collusion-ring all earn 0 (tested live in `adversarial-game.py` AND
+  built into `value-v3`); honest blocks keep value. Resolved the inter/intra split:
+  inter-block = temporal-novelty (ordered, strategyproof); intra-block co-authors =
+  Myerson (simultaneous, synergy).
+  - 🟡 **New open item (found by building it):** strict novelty zeroes *honest-but-
+    redundant* blocks (e.g. an honest block adding no new coverage → 0). Tradeoff:
+    strict-novelty incentive vs not-punishing-honest-redundancy. Candidate fix:
+    value = novelty × **quality** (the learned reward model weights novel coverage),
+    optionally + a small participation floor. This is the natural junction where the
+    strategyproofness layer (novelty) and the capability layer (reward model) compose.
+  - 🔬 remaining: proof under the *learned* `v(S)` (must preserve the novelty
+    property); decay + reviewer-diversity port for the quality weighting.
 
 ## Phase 2 — Recursion & flow
 - 🟡 **Two-level recursion** — intra-block share vectors (multi-contributor blocks)
