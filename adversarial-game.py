@@ -128,6 +128,24 @@ def main():
     nv2 = novelty(blocks + ["PAD"], cd2)
     print(f"  padding block's novel value (attacker, want 0): {nv2['PAD']}  -> "
           f"{'DEFEATED' if nv2['PAD'] == 0 else 'still leaks ' + str(nv2['PAD'])}")
+    # attack 3 re-test: COLLUSION RING — K blocks that recombine existing coverage
+    # and mutually attribute (no NEW coverage), committed after the honest set.
+    cd3 = {b: _cov_of_real(b) for b in blocks}
+    pool = set()
+    for b in blocks:
+        pool |= cd3[b]
+    pool = list(pool)
+    rnd = random.Random(99)
+    ring = []
+    for k in range(K):
+        rnd.shuffle(pool)
+        cd3[f"RING{k}"] = set(pool[:len(pool) // 3])   # recombined existing coverage, nothing new
+        ring.append(f"RING{k}")
+    nv3 = novelty(blocks + ring, cd3)
+    ring_val = sum(nv3[r] for r in ring)
+    print(f"  collusion-ring novel value ({K} mutually-attributing blocks, want 0): {ring_val}  -> "
+          f"{'DEFEATED (ring adds no NEW coverage -> 0)' if ring_val == 0 else 'still leaks ' + str(ring_val)}")
+
     # honest blocks still earn their genuine novelty (not zeroed)
     honest_nv = novelty(blocks, {b: _cov_of_real(b) for b in blocks})
     print(f"  honest blocks still earn novelty (not zeroed): "
