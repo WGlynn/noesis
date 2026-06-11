@@ -47,10 +47,40 @@ without earned PoM; sybil/padding/collusion mint 0 via temporal-novelty) — wit
 energy/miner subsystem. PoW here is strictly redundant.
 
 The one genuine gap a medium of exchange has — **price stability** (volatile bytes =
-poor money) — is covered by the *existing* token architecture: JUL is already the
-money/stability layer (JUL=money, VIBE=gov, state-rent=capital). Stability is
-*available, not invented*. Minimal core = **soulbound PoM + transferable bytes**; add
-nothing. (First-available-trap / dissolve-don't-accrete.)
+poor money) — is *intended* to be answered by JUL (the money/stability layer in the
+broader three-token thesis: JUL=money, VIBE=gov, state-rent=capital). **Honest status:
+JUL is NOT integrated into this system yet** — it's a planned dependency, not a present
+component. So: the minimal core (**soulbound PoM + transferable bytes**) needs no PoW
+*now*; a stability layer (JUL, or equivalent) is the planned answer for the
+medium-of-exchange's price-stability, still to be added. Don't claim it's there.
+🟡 roadmap: integrate JUL (or a stability mechanism) as the exchange/unit-of-account
+layer. (First-available-trap: PoW is the thing to NOT add; stability is the thing still
+owed.)
+
+## The three-token model holds — and where PoW actually lives (Will, 2026-06-11)
+
+The three-token thesis maps onto Noesis cleanly — not surprising, because it's
+**separation of powers** (Tinbergen's rule / consensus-constitution): money, governance,
+and capital are universal *separable* functions, one instrument each.
+
+| Role | Instrument here | Proof |
+|---|---|---|
+| **franchise** (consensus weight + right to mint) | **PoM-standing**, SOULBOUND | Proof of Mind |
+| **capital / state** | **state-bytes** (PoM-minted, transferable; 1 = 1 byte) | (minted by PoM) |
+| **money / medium-of-exchange** | **JUL** (fiat-stable, PoW-objective) | **Proof of Work** |
+| **governance** | **VIBE** | (governance) |
+
+**Correction to "no PoW needed."** That holds for the **consensus + state** layer — PoM
+handles it, PoW would be redundant there. But the **money** layer is different: **JUL is
+PoW-objective by design**, so *adding JUL brings PoW back* — at the money layer, orthogonal
+to PoM. Two proofs, two jobs:
+- **PoM = proof of mind** → secures contribution, state-minting, consensus (the franchise).
+- **PoW = proof of work** → grounds objective, stable money (JUL).
+
+GEV-conservation: PoW is **conserved, relocated** to where it belongs (money), not
+eliminated. So the honest answer to "do we need PoW?": *not for consensus/state; yes, it
+comes with JUL when we add the money layer.* The two proofs coexist cleanly, each doing
+the one thing it's actually good at.
 
 ## Honest open items
 - **Floor:** genuine contributors shouldn't be zeroed by a quiet period; a decay floor

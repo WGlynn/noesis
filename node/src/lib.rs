@@ -150,3 +150,57 @@ mod tests {
         assert_eq!(shard_of(&cell(7, 1, 0, b"x"), 4), 3);
     }
 }
+
+/// Bitcoin-shaped ownership (port of block-ownership.py): current owner = genesis
+/// folded over a signed transfer log. The owner set is a fold over transaction
+/// history — nothing mutable to forge. Idiomatic Rust: iterators, not a mutable loop.
+pub mod ownership {
+    /// A signed reassignment of a cell to a new owner. Only the CURRENT owner may
+    /// author one (the lock script verifies the signature on-chain; the fold models it).
+    #[derive(Clone, Debug)]
+    pub struct Transfer {
+        pub cell_id: u64,
+        pub prev_owner: [u8; 32],
+        pub new_owner: [u8; 32],
+        pub timestamp: u64,
+    }
+
+    /// Current owner = last transfer's new_owner (by timestamp), else the genesis owner.
+    pub fn current_owner(cell_id: u64, genesis: [u8; 32], transfers: &[Transfer]) -> [u8; 32] {
+        transfers
+            .iter()
+            .filter(|t| t.cell_id == cell_id)
+            .max_by_key(|t| t.timestamp)
+            .map(|t| t.new_owner)
+            .unwrap_or(genesis)
+    }
+
+    /// Valid iff authored by the CURRENT owner (Bitcoin: control = key).
+    pub fn valid_transfer(t: &Transfer, genesis: [u8; 32], prior: &[Transfer]) -> bool {
+        current_owner(t.cell_id, genesis, prior) == t.prev_owner
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        #[test]
+        fn fold_gives_latest_owner() {
+            let (g, a, b) = ([1u8; 32], [2u8; 32], [3u8; 32]);
+            let ts = vec![
+                Transfer { cell_id: 7, prev_owner: g, new_owner: a, timestamp: 10 },
+                Transfer { cell_id: 7, prev_owner: a, new_owner: b, timestamp: 20 },
+            ];
+            assert_eq!(current_owner(7, g, &ts), b);
+            assert_eq!(current_owner(99, g, &ts), g); // never transferred -> genesis
+        }
+        #[test]
+        fn only_current_owner_can_transfer() {
+            let (g, a, attacker) = ([1u8; 32], [2u8; 32], [9u8; 32]);
+            let prior = vec![Transfer { cell_id: 7, prev_owner: g, new_owner: a, timestamp: 10 }];
+            let stale = Transfer { cell_id: 7, prev_owner: g, new_owner: attacker, timestamp: 20 };
+            let valid = Transfer { cell_id: 7, prev_owner: a, new_owner: attacker, timestamp: 20 };
+            assert!(!valid_transfer(&stale, g, &prior)); // stale owner rejected
+            assert!(valid_transfer(&valid, g, &prior));  // current owner accepted
+        }
+    }
+}
