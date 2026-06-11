@@ -74,6 +74,52 @@ Connections: [P·economic-theory-of-mind] · [P·airgap-problem-blockchain-vs-re
 (ToM airgap closed) · [P·honesty-as-structural-load-bearing-property] · the
 existing MessagingPoM / proof-of-mind line (now given a concrete, computable score).
 
+## Slashing & commit-reveal (AFK item 4)
+
+PoM is earned and *revocable*. The slashable events, and what each costs:
+
+- **Invalid reveal.** Authorship uses commit-reveal: `hash(block‖secret)` + signature
+  + timestamp is published before content. Committing then failing to reveal valid
+  content (or revealing content that doesn't match the commit) forfeits a bond and
+  earns zero PoM for that slot — this is the same 50%-invalid-reveal slash as the
+  batch exchange, applied to block authorship. It makes authorship un-front-runnable
+  *and* costly to spam.
+- **Refuted attestation.** A block whose attestation is later refuted (the merkle/
+  signature doesn't verify, or the provenance is shown false) revokes the PoM that
+  block contributed, retroactively, and slashes the owner's bond.
+- **Refuted value claim.** A block whose *outcome value* is successfully challenged
+  (an independent evaluator shows the claimed contribution is false/hallucinated)
+  zeroes that block's `v` and revokes its PoM. This needs a **commit-dispute-finalize**
+  window (the merkle-dispute-window primitive): value is provisional until a challenge
+  window closes; challengers post a bond; the loser of a challenge is slashed.
+- **Append-only safety.** Credit is append-only (earned at finalization), so slashing
+  is a *forward* revocation event recorded on-chain, never a silent rewrite — the
+  history of what was slashed and why is itself auditable.
+
+Net: PoM can only be earned by verifiable contribution and can be *lost* by proven
+dishonesty. Honesty is the profitable strategy; dishonesty is bonded-and-slashable.
+
+## Stability — no profitable fork (AFK item 8)
+
+PoM-weighted agreement must be **defection-proof**: no coalition of validators should
+profit by deviating from the canonical chain. We impose a stability constraint over
+the PoM-weighted coalition game:
+
+- **Core.** Require the PoM allocation to lie in the *core* of the validator game —
+  no sub-coalition can secure more by going it alone (forking). When the core is
+  non-empty, no profitable fork exists by construction.
+- **Nucleolus fallback.** The core can be empty. When it is, select the **nucleolus**
+  — the allocation that lexicographically minimizes the worst coalition's
+  dissatisfaction (its excess). This is the maximally-stable point even when perfect
+  stability is unattainable, and it is unique.
+- **Why both.** Core = "is any fork profitable?" (a yes/no stability test). Nucleolus
+  = "given some instability is unavoidable, minimize the largest incentive to defect."
+  Compose them: core when it exists, nucleolus otherwise. Added *because consensus
+  requires it* — pure attribution (PoM score alone) does not need a stability concept.
+- **Cost.** Core/nucleolus are expensive in general (LP / iterated-LP over coalitions);
+  at scale, restrict to the PoM-graph-connected coalitions (Myerson-style) and sample,
+  same as the value layer.
+
 ## Status (honest)
 - Designed, not built: PoM aggregation across owned blocks; core/nucleolus stability;
   PoM-weighted consensus finalization; the slashing-on-refuted-attestation path.
