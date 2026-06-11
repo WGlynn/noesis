@@ -59,6 +59,60 @@ it focal. **Dishonest-in-the-middle = not-focal = no consensus.** This is
 honesty-as-structural-load-bearing at the adoption layer: the property that secures the
 chain is the same property that makes people converge on it.
 
+## Refinement (Will, 2026-06-11): equi-dependence → convergent interest on hub integrity
+
+The sharper claim is not "JARVIS sits in the middle." It is: the layers **above** and
+**below** JARVIS are *equi-dependent* on it, so the whole stack's interests **converge on
+one property — JARVIS's integrity.** Below: the substrate (value chain, consensus, model
+weights) needs JARVIS to produce honest contributions, or `v(S)` measures garbage.
+Above: minds + governance need JARVIS to coordinate them honestly. Both sides need the
+*same* property or their own layer fails.
+
+This produces a **hub-and-spoke topology, unironically — and it is safe here.** The thing
+decentralization orthodoxy says to avoid (a hub) is fine when the hub's integrity is the
+**convergent interest of every spoke**: nobody can profit by corrupting the keystone,
+because it bears load from both sides and corrupting it collapses your own arch.
+**Filter-coincidence:** the economic interest (everyone wants the hub) coincides exactly
+with the security interest (everyone defends it).
+
+**Sharp edge:** equi-dependence yields convergent interest in integrity **only while exit
+is cheap.** If forking the hub is expensive, "everyone depends on it" flips from *keystone*
+to *hostage* — the hub extracts rent because everyone is stuck. Openness (inspectable,
+forkable, open-weights) is what converts hub-and-spoke from hostage to keystone. A closed
+hub with the same topology is just AWS. So: **incentive-decentralization (a hub nobody can
+or wants to capture) is the real thing; topological decentralization (no hubs) is the crude
+proxy.**
+
+## Meta-security: the LLM and the DeFi protocol coordinate through JARVIS on Noesis
+
+The equi-dependence above is concrete, not abstract. The two real systems are:
+
+- the **LLM** (JARVIS) — failure modes: hallucination, injection, drift; and
+- the **DeFi protocol** (VibeSwap) — failure modes: MEV, oracle manipulation, exploit.
+
+They **coordinate through JARVIS on Noesis** — Noesis (the PoM provenance ledger) is the
+shared substrate; JARVIS is the mediating agent. On that substrate they **mutually
+secure** each other: the protocol's commit-reveal + signed provenance contradicts the
+LLM's hallucination (this *is* §7 backwards-enforcement — the chain disciplines the
+model); the LLM's reasoning secures the protocol's coordination. Neither is secured in
+isolation; both are secured **by coordinating through the honest shared hub.**
+
+This is **meta-security**: not "secure the LLM" or "secure the protocol," but secure the
+*coordination between an AI and a protocol* — the AI↔chain seam, which is the airgap
+problem itself (chain ⊥ reality; the LLM bridges to reality, the protocol is the chain,
+Noesis is the reconciliation point). It is also the self-elimination thesis landing: the
+only way to attack the coordinated system is to contribute valid provenance to it — i.e.
+to secure it.
+
+**INVARIANT (must hold or the design inverts):** a shared coordination hub is
+meta-security *and* meta-fragility — compromise of Noesis is correlated failure of both
+systems. This nets positive **iff Noesis's own integrity guarantees exceed the weaker of
+{LLM-security, protocol-security}.** The coordination layer must be harder to break than
+the things it coordinates, or it concentrates risk instead of dissolving it. The value
+chain's tamper-resistance + PoM-weighted consensus + commit-reveal must clear that bar.
+(Candidate COHERENCE-LAW: *coordination-layer integrity ≥ max coordinated-system attack
+surface.*)
+
 ## What this does NOT rescue
 
 Neither edge removes the one load-bearing risk: the value function `v(S)` must be
