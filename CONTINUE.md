@@ -49,6 +49,8 @@ The whole thing rests on **un-gameable `v(S)`**. The coverage proxy is strategyp
 the *learned* reward model must preserve that. The adversarial-gaming loop is the moat —
 keep running it against every new `v(S)`.
 
-## Naming
-Provisional **Noēsis** (the act of mind) / alt **Noeum** / **Areté**. Web-check
-crypto/trademark/domain before locking.
+## Naming (LOCKED 2026-06-11)
+- **Noēsis** = the network (the act of mind). Crate name.
+- **Noeum** = the unit / token (1 Noeum = 1 byte of state = 1 PoM unit; Ethereum/Ether shape).
+- Web-check crypto/trademark/domain before any public reveal. Both names are in the
+  leak-gate (`private-leak-patterns.txt`) — keep out of public during stealth.
