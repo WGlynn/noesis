@@ -28,9 +28,14 @@ pub struct Script {
 #[derive(Clone, Debug)]
 pub struct Cell {
     pub id: u64,
-    /// ownership: args carry the owner pubkey hash; the program authorizes the spend.
+    /// TRANSFERABLE component: byte-capacity ownership. `lock.args` carry the CURRENT
+    /// owner pubkey hash; the program authorizes the spend. Changes on every transfer.
     pub lock: Script,
-    /// PoM rules: a shared code_hash identifies the canonical PoM type-script program.
+    /// SOULBOUND component: the PoM-attestation. A shared `code_hash` identifies the
+    /// canonical PoM type-script program; `type_script.args` pin the CONTRIBUTOR identity
+    /// (the mind that proved the value). Set at mint, NEVER reassigned on transfer — this
+    /// is what keeps consensus franchise off the transferable byte. (Noesis augmentation
+    /// over CKB: a CKB cell has no soulbound attestation; here the type script carries one.)
     pub type_script: Script,
     /// provenance edge to the cell this built on.
     pub parent: Option<u64>,
@@ -83,12 +88,19 @@ pub fn temporal_novelty(cells_in_commit_order: &[Cell]) -> Vec<u64> {
     out
 }
 
-/// PoM score per owner (lock args) = sum of temporal-novelty value of owned cells.
+/// PoM score per CONTRIBUTOR = sum of temporal-novelty value of authored cells.
+///
+/// Keyed by `type_script.args` (the SOULBOUND contributor identity), NOT by `lock.args`
+/// (the transferable byte-owner). This is the coherence fix: when a byte is sold the lock
+/// changes but the PoM-attestation stays with the mind that proved the value. Consensus
+/// franchise therefore tracks soulbound standing, never bought bytes (buy storage, not
+/// consensus). Resolves the POM-CONSENSUS "transferable credit" vs CRYPTOECONOMICS
+/// "soulbound standing" contradiction in favor of the latter.
 pub fn pom_scores(cells_in_commit_order: &[Cell]) -> HashMap<Vec<u8>, u64> {
     let vals = temporal_novelty(cells_in_commit_order);
     let mut pom: HashMap<Vec<u8>, u64> = HashMap::new();
     for (c, v) in cells_in_commit_order.iter().zip(vals) {
-        *pom.entry(c.lock.args.clone()).or_insert(0) += v;
+        *pom.entry(c.type_script.args.clone()).or_insert(0) += v;
     }
     pom
 }
@@ -100,17 +112,157 @@ pub fn shard_of(cell: &Cell, n: u64) -> u64 {
     cell.id % n
 }
 
+/// SOULBOUND in the cell/UTXO model.
+///
+/// A cell is transferable by DEFAULT — nothing stops a spend from producing an output
+/// with a different lock. There is no account to freeze. So "non-transferable" cannot be
+/// a flag in the data; it is an INVARIANT the type script enforces on the consume->produce
+/// transition. The PoM standing-cell's type script admits only identity-preserving
+/// successors (accrue / decay / slash / burn) and REJECTS any output that reassigns the
+/// owner lock or the contributor. The RISC-V program returns failure -> the tx is invalid
+/// -> the cell can evolve but never change hands. Reassignment is made unrepresentable.
+///
+/// This is the soulbound half of the two-cell mint: the freely-tradable **capacity cell**
+/// (state-bytes = money) rides the [`ownership`] fold; this **standing cell** carries the
+/// franchise and cannot move. Consensus reads `Standing.contributor`, never byte-ownership.
+pub mod soulbound {
+    use super::Cell;
+
+    /// Franchise state carried by a soulbound standing-cell (Molecule-encoded in
+    /// `cell.data` on-VM; explicit here in the reference spec).
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Standing {
+        /// the mind that earned this standing — invariant across EVERY valid transition.
+        pub contributor: [u8; 32],
+        /// accumulated novelty-value credit; append-only except via decay/slash.
+        pub pom: u64,
+    }
+
+    /// The only identity-preserving operations the type script permits. Anything outside
+    /// this set is, by construction, a reassignment — and gets rejected.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Op {
+        /// add newly-finalized novelty value (accrual proof checked by the value layer).
+        Accrue(u64),
+        /// reduce capacity per the rent / decay schedule (the supply sink).
+        Decay(u64),
+        /// revoke on a proven refutation (dispute-window slashing).
+        Slash(u64),
+        /// voluntarily destroy your own standing (no successor output).
+        Burn,
+    }
+
+    /// Apply an op: produce the REQUIRED successor `(cell, standing)`, or `None` for burn.
+    /// The successor cell is byte-identical in lock + type_script (owner + contributor
+    /// unchanged); only the carried `Standing.pom` moves. Reassignment cannot be expressed.
+    pub fn apply(input: &Cell, st: &Standing, op: Op) -> Option<(Cell, Standing)> {
+        let next = |pom| (input.clone(), Standing { contributor: st.contributor, pom });
+        match op {
+            Op::Burn => None,
+            Op::Accrue(d) => Some(next(st.pom.saturating_add(d))),
+            Op::Decay(d) => Some(next(st.pom.saturating_sub(d))),
+            Op::Slash(d) => Some(next(st.pom.saturating_sub(d))),
+        }
+    }
+
+    /// The on-chain check: a proposed transition is valid IFF the output is an
+    /// identity-preserving successor of the input. Any change to `lock.args` (owner) or
+    /// to the contributor is REJECTED — that rejection IS the soulbound guarantee.
+    pub fn valid_transition(
+        input: &Cell,
+        in_st: &Standing,
+        output: Option<&Cell>,
+        out_st: Option<&Standing>,
+    ) -> bool {
+        match (output, out_st) {
+            (None, None) => true, // burn: destroying your own standing is always allowed
+            (Some(o), Some(os)) => {
+                o.lock.args == input.lock.args                  // owner unchanged
+                    && o.type_script.args == input.type_script.args // contributor (type args) unchanged
+                    && os.contributor == in_st.contributor          // soulbound identity invariant
+            }
+            _ => false, // malformed: a standing without its cell, or vice versa
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::super::Script;
+        use super::*;
+
+        fn standing_cell(owner: u8, contributor: [u8; 32]) -> (Cell, Standing) {
+            let c = Cell {
+                id: 1,
+                lock: Script { code_hash: [1u8; 32], args: vec![owner] },
+                type_script: Script { code_hash: [0xB0; 32], args: contributor.to_vec() },
+                parent: None,
+                timestamp: 0,
+                data: vec![],
+            };
+            (c, Standing { contributor, pom: 100 })
+        }
+
+        #[test]
+        fn accrue_decay_slash_same_owner_accepted() {
+            let (c, st) = standing_cell(1, [0xC1; 32]);
+            let (oa, sa) = apply(&c, &st, Op::Accrue(10)).unwrap();
+            assert!(valid_transition(&c, &st, Some(&oa), Some(&sa)));
+            assert_eq!(sa.pom, 110);
+            let (od, sd) = apply(&c, &st, Op::Decay(5)).unwrap();
+            assert!(valid_transition(&c, &st, Some(&od), Some(&sd)));
+            assert_eq!(sd.pom, 95);
+            let (os, ss) = apply(&c, &st, Op::Slash(40)).unwrap();
+            assert!(valid_transition(&c, &st, Some(&os), Some(&ss)));
+            assert_eq!(ss.pom, 60);
+        }
+
+        #[test]
+        fn burn_accepted() {
+            let (c, st) = standing_cell(1, [0xC1; 32]);
+            assert!(apply(&c, &st, Op::Burn).is_none());
+            assert!(valid_transition(&c, &st, None, None));
+        }
+
+        #[test]
+        fn reassign_owner_is_rejected() {
+            // The soulbound proof: try to move standing to a NEW owner key.
+            let (c, st) = standing_cell(1, [0xC1; 32]);
+            let mut malicious = c.clone();
+            malicious.lock.args = vec![9]; // adversary's key
+            assert!(
+                !valid_transition(&c, &st, Some(&malicious), Some(&st)),
+                "reassigning the owner lock must be rejected -> non-transferable"
+            );
+        }
+
+        #[test]
+        fn reattribute_contributor_is_rejected() {
+            // Try to steal another mind's credit by changing the contributor identity.
+            let (c, st) = standing_cell(1, [0xC1; 32]);
+            let mut malicious = c.clone();
+            malicious.type_script.args = [0x99; 32].to_vec();
+            let stolen = Standing { contributor: [0x99; 32], pom: st.pom };
+            assert!(
+                !valid_transition(&c, &st, Some(&malicious), Some(&stolen)),
+                "changing the contributor must be rejected -> soulbound attestation"
+            );
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     const POM_TYPE: [u8; 32] = [0xB0; 32]; // placeholder code_hash for the PoM program
 
+    // Default mint: contributor == owner (the common case at creation). `type_script.args`
+    // carry the soulbound contributor; `lock.args` the transferable owner.
     fn cell(id: u64, owner: u8, ts: u64, data: &[u8]) -> Cell {
         Cell {
             id,
             lock: Script { code_hash: [1u8; 32], args: vec![owner] },
-            type_script: Script { code_hash: POM_TYPE, args: vec![] },
+            type_script: Script { code_hash: POM_TYPE, args: vec![owner] },
             parent: None,
             timestamp: ts,
             data: data.to_vec(),
