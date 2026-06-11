@@ -50,7 +50,18 @@ the *learned* reward model must preserve that. The adversarial-gaming loop is th
 keep running it against every new `v(S)`.
 
 ## Naming (LOCKED 2026-06-11)
-- **Noēsis** = the network (the act of mind). Crate name.
+- **Noēsis** = the network (the act of mind). Crate name; private repo `WGlynn/noesis`.
 - **Noeum** = the unit / token (1 Noeum = 1 byte of state = 1 PoM unit; Ethereum/Ether shape).
-- Web-check crypto/trademark/domain before any public reveal. Both names are in the
-  leak-gate (`private-leak-patterns.txt`) — keep out of public during stealth.
+- **Web-checked 2026-06-11:** no established crypto token named Noesis or Noeum (only a
+  Solana NFT-game "Quantum Noesis" using the $SNS token, and a one-off Noesis NFT) →
+  appears available. Trademark/domain check still TODO before any public reveal.
+- Both names are in the leak-gate (`~/.claude/state/private-leak-patterns.txt`) — keep
+  out of public during stealth.
+
+## OPEN DECISION — token↔proof mapping (do first next session)
+`CRYPTOECONOMICS.md` has Will's **cleaner mapping** (PoM = byte/contribution, VIBE =
+governance/validation, JUL = PoW) — a PROPOSAL that **diverges from implemented NCI**
+(`a442fc5b`: VIBE=PoM, CKBn=PoS, JUL=PoW). Decide: re-map NCI or keep separate. **Verify
+against the NCI contracts (tokenomics-zero-tolerance) before any code.** Pin
+buy-storage-not-consensus: consensus weight = VIBE+validation (soulbound), not held
+PoM-bytes.
