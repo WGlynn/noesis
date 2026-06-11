@@ -8,6 +8,24 @@ A unified system that turns JARVIS's own session history into a verifiable, owne
 valued contribution economy — and, through that, a realistic basis for decentralized
 consensus and for backwards-enforcing the model layer from the governance layer.
 
+## Framing: the value chain Bitcoin is mistaken for (Will, 2026-06-11)
+
+Bitcoin is a *possession* chain — it records who holds which token, ordered by burned
+energy; value is exogenous (the market prices it), and the "work" is decoupled from
+anything useful. What people *think* Bitcoin is — a ledger where valuable work earns
+provable, accruing, flowing value, where "proof of work" means proof you *did*
+something worth something — is a folk myth. **This network makes that myth literal.**
+Value is created (blocks), measured *endogenously* (Myerson/Shapley over real
+outcome-synergy), owned (UTXO), flows (transfer + two-level recursion), and secures
+consensus (PoM, not PoW). Proof of **Mind** replaces proof of wasted energy.
+
+Load-bearing caveat: a literal value chain must *measure* value trustworthily — the
+one hard problem Bitcoin sidesteps by being mere possession (the market measures value
+off-chain; we measure it on-chain). Un-gameable `v(S)` is the entire bet. Get it right
+and this stands; fudge it and it's a reputation system. Lineage: PoW → proof-of-useful-
+work (CogCoin / Economitra: information density as work) → **Proof of Mind** (verified
+synergy-valued contribution) is the apex.
+
 ## The stack (each layer demonstrated, not asserted)
 
 1. **Block + provenance.** A block is the unit a session produces:
@@ -100,6 +118,30 @@ the contribution-graph Goodhart defenses (decay, reviewer-diversity, split-credi
 sampling · temporal (round-to-round) → fairness-fixed-point / iterated-Shapley.
 
 Net: **Data-Shapley + RLHF reward-modeling on a provenance graph.** Known math, assembled.
+
+## Multi-contributor & self-referential blocks (Will's design hypotheticals, 2026-06-11)
+
+**A block with multiple contributors.** Single-owner UTXO is too coarse. A block
+locks to a *share-vector* — a set of (contributor, share) pairs, like a multi-output
+tx / cap table. The within-block shares are computed by the SAME value mechanism one
+level down: the contributors are players in an *intra-block* coalition game, shares =
+Shapley/Myerson of their marginal contribution to that block's output. The economy is
+**two-level recursive**: outcome → blocks (inter-block Myerson) → contributors
+(intra-block Myerson). This is DeepFunding's transitive recursion + the influence-DAG,
+now load-bearing. PoM then sums a contributor's shares across all blocks.
+
+**A block whose content is itself about contributions.** It plays TWO roles in TWO
+layers, and decoupling them is the point (elicitation-stack):
+1. **Value layer** scores the block's OWN marginal contribution to the outcome (a
+   meta-contribution, scored like any block).
+2. **Elicitation layer** consumes the block's CONTENT as a judgment when scoring the
+   blocks it references (a signal, not a value).
+Circularity guard (a block must not be the sole scorer of its own value): independent
+evaluators for attribution-blocks + eigenvector/PageRank damping over the attribution
+graph + the synergy game discounting self-referential coalitions (a ring of
+self-attributing blocks has low *outcome* value). Same Goodhart defenses as the
+contribution-graph, applied recursively. Open: formalize the two-level recursion +
+the eigenvector value-flow (EigenTrust-style) for the attribution graph.
 
 ## Status (honest)
 
