@@ -93,6 +93,30 @@ eliminated. So the honest answer to "do we need PoW?": *not for consensus/state;
 comes with JUL when we add the money layer.* The two proofs coexist cleanly, each doing
 the one thing it's actually good at.
 
+## Token↔proof mapping — Will's cleaner version (PROPOSAL, verify before coding)
+
+Will 2026-06-11: name each token by its proof, transparently.
+
+| Proof | Token | Earned by | Role |
+|---|---|---|---|
+| **Proof of Mind** | **PoM** (= Noeum, the byte) | verified contribution (temporal-novelty) | state-capacity: 1 PoM = 1 byte. Tradable (medium of exchange for state). |
+| **Proof of Stake/Participation** | **VIBE** | voting + validating | governance / consensus franchise |
+| **Proof of Work** | **JUL** | SHA-256 mining, energy-pegged | money / stability layer |
+
+Consensus = RPS-weighted combination of the three proofs (NCI's 60/30/10 is the
+*weighting*; independent of labels). Three powers (contribution / validation / work)
+check each other — none dominates.
+
+**⚠ DIVERGES from implemented NCI** (`a442fc5b`: VIBE=PoM 60% / CKBn=PoS 30% / JUL=PoW
+10%). Will's version reassigns: PoM becomes the contribution-token-AND-state-byte (merges
+NCI's VIBE-PoM with CKBn-state); VIBE becomes the validation/governance token. Decision
+needed: re-map NCI to this cleaner scheme, or keep NCI and let Noesis differ. **Verify
+against the NCI contracts before any code (tokenomics-zero-tolerance).**
+
+**⚠ Buy-storage-not-consensus must be re-checked under this mapping:** PoM=byte is
+TRADABLE (state), so **consensus weight must come from VIBE + validation (soulbound)**,
+not from holding PoM-bytes — else buyable bytes = buyable consensus. Pin this in spec.
+
 ## Honest open items
 - **Floor:** genuine contributors shouldn't be zeroed by a quiet period; a decay floor
   (cf. Lawson-floor) or a minimum-capacity grant per active contributor. 🟡
