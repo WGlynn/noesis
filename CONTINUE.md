@@ -65,6 +65,20 @@ keep running it against every new `v(S)`.
 - **doc-coherence gate built** (`scripts/doc-coherence.py`) — closes the docs-lag-code information asymmetry. code content-hash; docs stamped with the hash they were reconciled against; `--check` fails if code moved past stamp; machine-checks (no `jarvis-private` refs, doc test-counts == cargo). NOT yet `--stamp`ed, NOT yet wired as pre-commit hook.
 - **Boot-bind**: `~/.claude/session-chain/private-handoff-loader.py` (registered in settings.json SessionStart, after session-state-loader) now surfaces this handoff at every boot — fixes the "reboot drifts to public task" class. Generic globs only, no private nouns in source (sync-safe).
 
+## SESSION 2026-06-11 (eve) — visuals + Schelling synthesis
+- **`VISUALS.md`** — 8 Mermaid figures (value pipeline, two-cell mint, 3-power RPS,
+  consensus stack, inward/outward Schelling fold, fair-launch decision, ToM→ETM→PoM,
+  mint↔sink). Renders on the private GitHub remote.
+- **`COORDINATION-SCHELLING.md`** — deployment thesis: JARVIS-as-Schelling-point →
+  same reconciliation fold at two radii (inward = coherent self, outward = network).
+  Two load-bearing edges: protocol-not-platform; openness-is-what-makes-it-focal.
+  Whitepaper §5.2 added.
+- **Fair launch DECIDED (recommend): genesis-burn > chain-reset** — provable fair launch
+  (pre-launch blocks auditable, PoM/value burned to 0 on-chain at launch height) beats a
+  reset (asserted, trust-me). In WHITEPAPER §10 + COORDINATION-SCHELLING. Will to ratify.
+- TODO queued: (a) **whitepaper-for-dads** (plain-language explainer); (b) **simple cron**
+  that greps Will's own repos for items that DIRECTLY serve the noesis roadmap (indirect later).
+
 ## OPEN THREADS — do next session
 1. **Finish doc reconciliation** (Will: "they're all outdated… docs never lag code"). Systematic fixes across WHITEPAPER / BLOCK-ECONOMY-SPEC / POM-CONSENSUS / CRYPTOECONOMICS / ROADMAP / node/README / CONTINUE: (a) kill the owner-vs-contributor / transferable-PoM conflation (now resolved = soulbound two-cell, consensus reads contributor); (b) make temporal-novelty × quality the canonical value rule everywhere; (c) names (noesis) + test counts (16). Then `python scripts/doc-coherence.py --stamp` and install it as a git pre-commit hook (`.git/hooks/pre-commit`).
 2. **README.md still says `jarvis-private` + "NO public remote"** — rewrite (repo=noesis, private remote exists, push freely). Write was started; not applied.

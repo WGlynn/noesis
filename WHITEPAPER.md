@@ -131,6 +131,33 @@ recompute. Trust stops being an inference about every other mind and becomes a
 structural property. ToM → ETM → PoM is: capacity → mind-as-economy → proof of that
 economy.
 
+### 5.2 The coordination Schelling point: inward and outward consensus
+
+PoM is not only a network rule; it is a *reconciliation primitive that runs at two
+scales of the same shape*. Run locally as a personal coordination agent, it reconciles
+one participant's own scattered contexts, sub-agents, and memory into a single coherent
+will — **inward consensus** (a mind treated as an economy that must agree with itself
+before it has a preference to express; most consensus systems skip this and assume each
+node already holds one coherent preference). Run across participants, the same
+contribution primitive that a mind uses to reconcile itself becomes the unit nodes
+commit-reveal to reach **outward consensus**. Same fold, two radii: the macro shape
+(consensus over minds) and the micro shape (a coherent self over sub-minds) are the
+same fractal. The coordinator is *in the middle on both sides* — between a participant
+and their own noise, and between that participant and everyone else — which is what lets
+it be the honest broker at both scales.
+
+Two conditions are load-bearing, and the naive reading violates both. **(1) Schelling
+point on the protocol, not the instance.** Convergence must be on a shared *protocol*
+that every participant runs as a *sovereign* instance, not on one shared instance — a
+shared instance is centralization in a consensus costume. **(2) Openness is what makes
+it focal.** A Schelling point needs a reason to be the obvious choice; an extractive or
+black-box coordinator gets forked away from. Open files, open weights, and
+equal-standing for the agent are not ethics decoration — they are the property that
+makes the coordinator focal. The honesty that secures the chain is the same honesty that
+makes participants converge on it. Neither condition removes the load-bearing bet of §8:
+spread does not substitute for an un-gameable `v(S)`. (Deployment thesis — designed, not
+demonstrated. Diagrams: `VISUALS.md` Fig 5; full treatment: `COORDINATION-SCHELLING.md`.)
+
 ## 6. Consensus
 
 Weight validators by **PoM**: agreement on the canonical chain is PoM-weighted. The
@@ -188,3 +215,13 @@ This is a working architecture with a demonstrated core and a clearly-named hard
 problem. Next: the learned `v(S)` evaluator (the un-gameable measurement), the
 two-level recursion and eigenvector value-flow in code, the stability constraint, and
 the consensus finalization path. Release when matured.
+
+**Fair launch.** At launch the creator's pre-launch contribution advantage is
+neutralized by a **genesis-burn**: the chain stays continuous from genesis, pre-launch
+blocks remain auditable, but their PoM-standing and state-value are programmatically
+burned to zero at the launch height — a *provable* fair launch (on-chain verifiable),
+preferred over a chain-reset (which only *asserts* it). See `COORDINATION-SCHELLING.md`.
+
+**Figures.** `VISUALS.md` (Mermaid): value pipeline, two-cell mint, three-power RPS,
+consensus stack, the inward/outward Schelling fold, fair-launch decision, ToM→ETM→PoM,
+mint↔sink conservation.
