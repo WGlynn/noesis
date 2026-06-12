@@ -58,5 +58,5 @@ read the source.
 ## Build
 
 ```
-cd node && cargo test    # 42/42 passing: value/PoM/synergy/flow/soulbound/ownership/consensus + adversary + RSAW self-audit (eclipse, sybil, slashability, quorum-floor)
+cd node && cargo test    # 44/44 passing: value/PoM/synergy/flow/soulbound/ownership/consensus + adversary (sybil/padding/collusion/provenance-forgery/quality-bound) + RSAW self-audit (eclipse, slashability, quorum-floor)
 ```

@@ -1421,4 +1421,39 @@ mod adversary {
         let v = temporal_novelty(&order);
         assert!(v.iter().all(|&x| x > 0), "every honest cell earns genuine novelty");
     }
+
+    // --- more adversarial rounds on the value/synergy layer (2026-06-11) ---
+
+    #[test]
+    fn provenance_forgery_earns_no_synergy_credit() {
+        // An attacker block forges a parent edge to a high-coverage block to ride its Myerson
+        // component and steal credit, but adds NO new coverage (copies a subset). Submodular
+        // union over the connected component => the forger's marginal is ~0.
+        let rich = b"alpha-bravo-charlie-delta-echo-foxtrot-golf-hotel";
+        let honest = cell(0, 1, 0, rich);
+        let mut forger = cell(1, 9, 1, &rich[..12].to_vec()); // subset content (coverage ⊆ rich)
+        forger.parent = Some(0); // FORGED provenance edge to the rich block
+        let cells = vec![honest, forger];
+        let phi = crate::synergy::sampled_value(&cells, 3000, true); // Myerson (graph-restricted)
+        assert!(
+            phi[1] < phi[0] * 0.25,
+            "provenance-forgery with no new coverage earns negligible Myerson credit (forger {} vs honest {})",
+            phi[1], phi[0]
+        );
+    }
+
+    #[test]
+    fn quality_boost_cannot_exceed_2x_novelty() {
+        // value = novelty * (1 + quality), quality in [0,1] => at most 2x novelty. An attacker
+        // maximizing the quality model can never escape the strategyproof novelty floor: a
+        // novelty-0 cell stays 0, and a novel cell is bounded at 2x.
+        let order = honest();
+        let nov = temporal_novelty(&order);
+        let max_quality = vec![1.0f64; order.len()];
+        let v = crate::value::value_v4(&order, &max_quality);
+        for i in 0..order.len() {
+            assert!(v[i] <= nov[i] as f64 * 2.0 + 1e-9, "quality boost is bounded by 2x novelty");
+            assert!(v[i] >= nov[i] as f64, "value is at least the novelty floor");
+        }
+    }
 }
