@@ -285,8 +285,42 @@ not for irreducibly-hard frontier generation. Coordination amplifies/selects/ver
 *latent* capability; it cannot manufacture capability no open model has. Large lunch on
 reliable verifiable capability; no free lunch on raw frontier reasoning.
 
+## The value layer reuses this machinery (2026-06-12)
+
+The same finalization mechanism that secures the chain secures the VALUE layer — proof
+over vote at the scale of a single dispute. This is the recursion ([[economic-theory-of-mind]]):
+consensus and value-judgment are the same coordination problem at two scales.
+
+- **Dispute verdicts reuse `finalizes_hybrid`.** When a contributor challenges a value
+  payout as garbage (DISPUTE-SLASHING.md), the verdict is decided by the EXACT consensus
+  finalization above — 2/3 supermajority + eclipse quorum-floor — over a PoM-only judge
+  set (vested standing). No new finalization rule; the value layer borrows the one that
+  is already adversarially audited here.
+- **The escalation court reuses the AND-mix.** A round-1 PoM-only veto by a >1/3 cartel
+  is appealed to the FULL NCI mix tribunal (PoW 10 / PoS 30 / PoM 60, same 2/3 bar). A
+  PoM cartel holds only 0.6×its-share of that court ⇒ vetoing requires cross-dimension
+  capture, which is THIS layer's already-priced global assumption. The value layer
+  introduces NO new capture surface — it inherits the strongest tribunal the consensus
+  layer already provides.
+- **Slashing reuses `soulbound::Op::Slash` + the dispute window.** The "slashing-on-
+  refuted-attestation path" below is now built at the value layer: refuted endorsement ⇒
+  causal-share slash on the certifier's soulbound standing, within a vesting window, with
+  exit blocked while exposed (`valid_transition_under_dispute`).
+- **Ceiling is shared, stated once.** ≥2/3 cross-dimension capture defeats every tribunal
+  at both layers — the single global trust assumption, pinned in code as a never-flips
+  test. Consensus and value rest on the same floor; neither weakens it.
+
 ## Status (honest)
-- Designed, not built: PoM aggregation across owned blocks; core/nucleolus stability;
-  PoM-weighted consensus finalization; the slashing-on-refuted-attestation path.
-- Depends on: the synergy outcome-value v(S) (v1, in progress) being real, or PoM
-  inherits the additive-Shapley ceremony problem. Get v(S) right first.
+- **Built + tested (node/, 2026-06-12):** PoM-weighted finalization (`consensus`: 2/3 +
+  quorum-floor, retention-decay, equivocation, log-scaling); core/nucleolus stability
+  (`stability`); the value-layer slashing path end-to-end (`dispute` + escalation +
+  `soulbound::valid_transition_under_dispute`); value strategyproofness skeleton
+  (v5 flow-gate → v6 priced identity → role-bounded evaluator → concurrent-claims
+  settlement). Test count current in `node/README.md`.
+- **Designed, not built:** PoM aggregation across owned blocks at production scale; the
+  ckb-vm type-script (on-VM validation); JUL money-layer integration.
+- Depends on: the synergy outcome-value v(S) being real. The coverage proxy + realized-flow
+  gate is the strategyproof skeleton; the LEARNED outcome-evaluator (Phase-1 core bet) is
+  bounded to advance/evidence roles so it cannot mint even if corrupt. Get v(S) right first
+  remains the load-bearing risk — now with the authority boundary that makes it safe to
+  iterate.
