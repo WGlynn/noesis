@@ -2,6 +2,7 @@
   "reconciled_code_hash": "5fa91f84651badc4b2b92d1d2c1246475264dc527bdf29e8b521b75daeb43c22",
   "docs": [
     "BLOCK-ECONOMY-SPEC.md",
+    "CKB-VM-PORT.md",
     "COHERENCE-LAWS.md",
     "CONSENSUS-REVIEW.md",
     "CONTINUE.md",

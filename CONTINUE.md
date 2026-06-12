@@ -34,9 +34,18 @@
     will need fixed-point/deterministic arithmetic — noted in HANDOFF frontier #2.
   - Confirmed-ok: short-payload edges (n<2 ⇒ passes, harmless), calibration honesty already
     scoped corpus-relative, empty-corpus None handled.
-- **Story-loop armed by Will (menu-pick 2): 10 increments.** 3 done. Queue hint in
-  `~/.claude/state/story-loop.json`. Next: survivor-named work or ckb-vm API verification
-  (read-first, no assumed APIs; fixed-point requirement now on record).
+- **Loop 4/10 — ckb-vm APIs VERIFIED from source (no code yet, by design): `CKB-VM-PORT.md`.**
+  Read on-disk crate source (`~/.cargo/registry`): ckb-vm 0.24.14 (`run(program,args,mem)`,
+  ISA_IMC|A|B|MOP + VERSION2 + WXorXMemory, `DefaultMachineBuilder::syscall` = our syscall
+  plug point, cycle metering), ckb-std 0.16.4 (`high_level::load_cell_data/load_script`,
+  entry/alloc macros — matches the proven vibeswap recipe), ckb-script 1.1.0
+  (`TransactionScriptsVerifier::new(...).verify(max_cycles)`). On-VM/off-VM authority split
+  + per-function fixed-point map written down (similarity floor = exact cross-multiplied
+  integers; entropy floor needs a Q16.16 log2 table — boundary-exactness flagged for its own
+  adversarial tick). Next code increments ordered in-doc: (1) off-VM `value_fixed` mirror +
+  equivalence tests, (2) ckb-vm host harness smoke test, (3) pom-typescript no_std crate.
+- **Story-loop: 4 done, 6 remain.** Next per doc: `value_fixed` integer mirror of the
+  intake rule + f64-equivalence tests.
 - **HANDOFF frontier #4 SHIPPED**: `semantic::semantic_floor` AND-composed into
   `production_value` (new `entropy_theta` param) — after the similarity floor, BEFORE the
   quality boost. Incompressible noise now earns 0 at the canonical rule even at max quality;
