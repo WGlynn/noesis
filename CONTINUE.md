@@ -78,6 +78,15 @@ keep running it against every new `v(S)`.
   reset (asserted, trust-me). In WHITEPAPER §10 + COORDINATION-SCHELLING. Will to ratify.
 - TODO queued: (a) **whitepaper-for-dads** (plain-language explainer); (b) **simple cron**
   that greps Will's own repos for items that DIRECTLY serve the noesis roadmap (indirect later).
+- **DONE (a)** `WHITEPAPER-FOR-DAD.md` + Desktop PDF (`Noesis-in-Plain-English.pdf`).
+- **DONE (b)** `scripts/harvest-noesis.py` (code-only, 9 mechanism buckets, ~614 candidates)
+  + daily cron `41445bfe` (durable; 7-day auto-expire — add self-perpetuation for permanence).
+  Output `NOESIS-HARVEST.md` (gitignored, regenerable).
+- **DONE — Rust port continued:** `synergy` module = block-value-v2.py (submodular coverage
+  value + **Myerson** graph-restricted Shapley, Data-Shapley sampling, deterministic SplitMix64
+  PRNG, no `rand` dep). Tests prove cooperative game is load-bearing: synergy-Shapley ≠ additive
+  Copeland (L1>0.02), Myerson restricts value to provenance, redundant→low marginal, sampling
+  deterministic. **node tests 16/16 → 20/20.** Next un-ported: value-flow.py (eigenvector + 2-level recursion).
 
 ## OPEN THREADS — do next session
 1. **Finish doc reconciliation** (Will: "they're all outdated… docs never lag code"). Systematic fixes across WHITEPAPER / BLOCK-ECONOMY-SPEC / POM-CONSENSUS / CRYPTOECONOMICS / ROADMAP / node/README / CONTINUE: (a) kill the owner-vs-contributor / transferable-PoM conflation (now resolved = soulbound two-cell, consensus reads contributor); (b) make temporal-novelty × quality the canonical value rule everywhere; (c) names (noesis) + test counts (16). Then `python scripts/doc-coherence.py --stamp` and install it as a git pre-commit hook (`.git/hooks/pre-commit`).

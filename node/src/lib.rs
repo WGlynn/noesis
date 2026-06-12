@@ -529,6 +529,218 @@ pub mod value {
     }
 }
 
+/// Synergy aggregation (port of block-value-v2.py): a SUBMODULAR outcome-value with
+/// MYERSON credit, sampled Data-Shapley style. This is the inter-block aggregation of
+/// §4: value flows along the provenance DAG, pivotal blocks earn more, redundant blocks
+/// earn little — and crucially the cooperative machinery is *load-bearing* (synergy
+/// Shapley differs from the additive win-share). Distinct from [`temporal_novelty`]
+/// (commit-order floor); this is the synergy game over coverage unions.
+///
+/// `v(S) = |union of coverage(cells in S)|` is submodular (a redundant block adds
+/// little). The Myerson restricted game `v^g(S)` sums `v` over the connected components
+/// of `S` under parent edges, so disconnected coalitions cannot pool value. Exact
+/// Shapley is `O(2^N)`; we estimate by permutation sampling (Data-Shapley) with a
+/// deterministic PRNG so runs are reproducible (no `rand` dependency).
+pub mod synergy {
+    use super::{coverage, Cell, CovId};
+    use std::collections::{HashMap, HashSet};
+
+    /// SplitMix64 — tiny deterministic PRNG. Reproducible sampling without a crate dep.
+    fn splitmix64(state: &mut u64) -> u64 {
+        *state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = *state;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^ (z >> 31)
+    }
+
+    /// Submodular coverage value of a sub-coalition (size of the union of coverage sets).
+    fn v_coverage(cells: &[Cell], idxs: &[usize]) -> u64 {
+        let mut u: HashSet<CovId> = HashSet::new();
+        for &i in idxs {
+            u.extend(coverage(&cells[i].data));
+        }
+        u.len() as u64
+    }
+
+    fn find(parent: &mut HashMap<usize, usize>, mut x: usize) -> usize {
+        while parent[&x] != x {
+            let g = parent[&parent[&x]];
+            parent.insert(x, g); // path halving
+            x = g;
+        }
+        x
+    }
+
+    /// Connected components of `idxs` under provenance (parent) edges: a cell and its
+    /// parent are joined iff BOTH are present in the coalition.
+    fn components(cells: &[Cell], idxs: &[usize]) -> Vec<Vec<usize>> {
+        let in_s: HashMap<u64, usize> = idxs.iter().map(|&i| (cells[i].id, i)).collect();
+        let mut parent: HashMap<usize, usize> = idxs.iter().map(|&i| (i, i)).collect();
+        for &i in idxs {
+            if let Some(pid) = cells[i].parent {
+                if let Some(&j) = in_s.get(&pid) {
+                    let (ri, rj) = (find(&mut parent, i), find(&mut parent, j));
+                    parent.insert(ri, rj);
+                }
+            }
+        }
+        let mut groups: HashMap<usize, Vec<usize>> = HashMap::new();
+        for &i in idxs {
+            let r = find(&mut parent, i);
+            groups.entry(r).or_default().push(i);
+        }
+        groups.into_values().collect()
+    }
+
+    /// Myerson restricted value: only provenance-connected sub-coalitions create value.
+    fn v_graph(cells: &[Cell], idxs: &[usize]) -> u64 {
+        components(cells, idxs)
+            .iter()
+            .map(|c| v_coverage(cells, c))
+            .sum()
+    }
+
+    /// Data-Shapley permutation sampling. `restricted = true` ⇒ Myerson (graph game);
+    /// `false` ⇒ plain submodular Shapley. Deterministic in `(cells, samples)`.
+    pub fn sampled_value(cells: &[Cell], samples: usize, restricted: bool) -> Vec<f64> {
+        let n = cells.len();
+        let mut phi = vec![0.0f64; n];
+        if n == 0 || samples == 0 {
+            return phi;
+        }
+        let val = |idxs: &[usize]| -> u64 {
+            if restricted {
+                v_graph(cells, idxs)
+            } else {
+                v_coverage(cells, idxs)
+            }
+        };
+        for t in 0..samples {
+            let mut seed = 1000u64.wrapping_add(t as u64);
+            let mut perm: Vec<usize> = (0..n).collect();
+            for i in (1..n).rev() {
+                let r = (splitmix64(&mut seed) % (i as u64 + 1)) as usize;
+                perm.swap(i, r);
+            }
+            let mut running: Vec<usize> = Vec::with_capacity(n);
+            let mut prev = 0.0f64;
+            for &b in &perm {
+                running.push(b);
+                let cur = val(&running) as f64;
+                phi[b] += cur - prev;
+                prev = cur;
+            }
+        }
+        phi.iter().map(|x| x / samples as f64).collect()
+    }
+
+    /// Normalize a value vector into shares summing to 1 (0 vector ⇒ 0 shares).
+    pub fn shares(phi: &[f64]) -> Vec<f64> {
+        let tot: f64 = phi.iter().sum();
+        if tot <= 0.0 {
+            return vec![0.0; phi.len()];
+        }
+        phi.iter().map(|x| x / tot).collect()
+    }
+
+    /// Additive baseline: Copeland win-share over coverage size. This is what a naive
+    /// "pairwise wins" game collapses to — the thing synergy must beat to earn its keep.
+    pub fn copeland_shares(cells: &[Cell]) -> Vec<f64> {
+        let cov: Vec<usize> = cells.iter().map(|c| coverage(&c.data).len()).collect();
+        let wins: Vec<f64> = (0..cells.len())
+            .map(|i| cov.iter().enumerate().filter(|(j, &cj)| *j != i && cov[i] > cj).count() as f64)
+            .collect();
+        shares(&wins)
+    }
+
+    /// L1 distance between two share vectors (the "is the cooperative game load-bearing?"
+    /// statistic: synergy Shapley should diverge from additive Copeland).
+    pub fn l1(a: &[f64], b: &[f64]) -> f64 {
+        a.iter().zip(b).map(|(x, y)| (x - y).abs()).sum()
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::super::{Cell, Script};
+        use super::*;
+
+        fn cell(id: u64, parent: Option<u64>, data: &[u8]) -> Cell {
+            Cell {
+                id,
+                lock: Script { code_hash: [1u8; 32], args: vec![] },
+                type_script: Script { code_hash: [0xB0; 32], args: vec![] },
+                parent,
+                timestamp: id,
+                data: data.to_vec(),
+            }
+        }
+
+        // Two near-duplicate cells + one unique. Additive (cov-size) over-credits the
+        // duplicates; submodular Shapley makes them SHARE their overlapping coverage.
+        fn overlapping() -> Vec<Cell> {
+            vec![
+                cell(0, None, b"alpha-bravo-charlie-delta-echo"),
+                cell(1, None, b"alpha-bravo-charlie-delta-echo-foxtrot"), // ~dup of 0
+                cell(2, None, b"uniform-victor-whiskey-xray-yankee"),     // disjoint, unique
+            ]
+        }
+
+        #[test]
+        fn synergy_shapley_differs_from_additive_copeland() {
+            let cells = overlapping();
+            let sh = shares(&sampled_value(&cells, 2000, false));
+            let cop = copeland_shares(&cells);
+            assert!(
+                l1(&sh, &cop) > 0.02,
+                "submodular Shapley must diverge from additive win-share (L1={})",
+                l1(&sh, &cop)
+            );
+            // the unique disjoint cell should out-earn each redundant near-duplicate
+            assert!(sh[2] > sh[0] && sh[2] > sh[1], "pivotal/unique cell earns more than redundant ones");
+        }
+
+        #[test]
+        fn redundant_cell_gets_low_shapley_marginal() {
+            // cell 1 ⊇ cell 0 in coverage and a 3rd is disjoint: cell 0 is mostly redundant.
+            let cells = overlapping();
+            let phi = sampled_value(&cells, 2000, false);
+            assert!(phi.iter().all(|&x| x >= -1e-9), "marginals are non-negative for a monotone game");
+            assert!(phi[0] < phi[2], "redundant cell earns a smaller marginal than the unique one");
+        }
+
+        #[test]
+        fn myerson_restricts_value_to_provenance() {
+            // Same two overlapping cells. With NO edge they are separate components, so the
+            // graph game double-counts their shared coverage; WITH an edge they merge into
+            // one component and the overlap is counted once -> Myerson shares change.
+            let disconnected = vec![
+                cell(0, None, b"alpha-bravo-charlie-delta-echo"),
+                cell(1, None, b"alpha-bravo-charlie-delta-echo-foxtrot"),
+            ];
+            let connected = vec![
+                cell(0, None, b"alpha-bravo-charlie-delta-echo"),
+                cell(1, Some(0), b"alpha-bravo-charlie-delta-echo-foxtrot"), // 1's parent = 0
+            ];
+            let my_disc = shares(&sampled_value(&disconnected, 2000, true));
+            let my_conn = shares(&sampled_value(&connected, 2000, true));
+            assert!(
+                l1(&my_disc, &my_conn) > 0.02,
+                "provenance edges change Myerson credit (L1={})",
+                l1(&my_disc, &my_conn)
+            );
+        }
+
+        #[test]
+        fn sampling_is_deterministic() {
+            let cells = overlapping();
+            let a = sampled_value(&cells, 500, true);
+            let b = sampled_value(&cells, 500, true);
+            assert_eq!(a, b, "deterministic PRNG ⇒ identical results across runs");
+        }
+    }
+}
+
 /// Standing adversarial moat (port of adversarial-game.py). Build-don't-claim: we TEST
 /// sybil-resistance, we do not assert it. Each attack appends attacker cells AFTER the
 /// honest set (commit-reveal order), so they earn 0 novel coverage by construction;
