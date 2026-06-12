@@ -79,14 +79,20 @@ distinction, not the numbers, is load-bearing:
   any split (60/30/10, 45/35/20, 33/33/33) is capture-neutral. Its only jobs are
   participation incentive and tie-break / liveness.
 - **Under OR-additive** weighting — NCI as-built, `W(node) = 0.10·PoW + 0.30·PoS +
-  0.60·PoM` (`NakamotoConsensusInfinity.sol:19`, `POM_WEIGHT_BPS = 6000`) — the split **is**
-  power: a dimension whose saturation weight ≥ 50% can reach majority on that dimension
-  alone. NCI softens this with log₂ scaling on PoW and PoM (diminishing returns,
-  anti-plutocracy) but does **not** make it AND.
+  0.60·PoM` (`NakamotoConsensusInfinity.sol:19`) summed as a weighted vote and finalized at a
+  **2/3 supermajority** (`FINALIZATION_THRESHOLD_BPS = 6667`, `finalizeProposal`) — the split
+  **is** power: a dimension whose weight reaches the finalization threshold can finalize on
+  that dimension alone. **NCI is threshold-hardened, not naive-majority OR:** the 2/3 bar
+  sits *above* PoM's 60% ceiling, so no single dimension finalizes alone — capture needs PoM
+  **plus** >6.67% of a second dimension (AND-at-the-margin). Retention-decay on the PoW+PoM
+  portions (idle attacker's weight fades) and log₂ scaling (anti-plutocracy) raise the bar
+  further. It is still substitutable (OR), just bounded by the supermajority — not full AND.
 - **Invariant.** Either (a) declare AND-composition at the finalizing layer (the structural
-  fix — preferred), **or** (b) if additive weighting is retained, no single proof's
-  saturation weight may be ≥ 50% of total (the patch — drops PoM 60 → < 50). At least one
-  must hold, or the RPS claim (L1) is decoration.
+  fix — preferred), **or** (b) if additive weighting is retained, no single proof's weight may
+  reach the **finalization threshold** (the patch). NCI already satisfies this for single
+  dimensions — its 2/3 bar (6667 BPS) sits above PoM's 60% ceiling — so the residual OR-risk
+  is *coalition* (PoM + a second dimension), not single-dimension. At least one must hold, or
+  the RPS claim (L1) is decoration.
 - **Corollary (33/33/33).** Symmetric weights are neither necessary (AND makes the split
   cosmetic) nor sufficient (a symmetric OR-vote still cycles for liveness and still lets any
   2-of-3 collude to 66%). Capture-resistance comes from cycle *independence*, not weight
@@ -139,11 +145,12 @@ reward-only") survives *only* with these attached:
    OR-additive and remains UNDEFENDED** until either the AND-migration (a) ships or the cap
    (b) is imposed. L12 must not be quoted to wave away the deployed contract's genuine
    60%-vote exposure.
-5. **The <50% single-proof cap (patch b) is insufficient under correlation.** Under OR, any
-   colludable subset over threshold captures; with correlation (objection 2) one actor
-   supplies several dimensions, so the safe cap is on *any colludable coalition*, not any
-   single proof — unenforceable by one number. **This is the argument for AND (a) over the
-   cap (b):** the patch is a stopgap; AND is the fix.
+5. **The sub-threshold single-proof cap (patch b) is insufficient under correlation.** Under
+   OR, any colludable subset reaching the threshold captures; NCI's 2/3 bar stops *single*
+   dimensions (60% < 66.67%) but not a PoM-plus-second-dimension coalition, and with
+   correlation (objection 2) one actor supplies several dimensions — so the safe cap is on
+   *any colludable coalition*, not any single proof — unenforceable by one number. **This is
+   the argument for AND (a) over the cap (b):** the patch is a stopgap; AND is the fix.
 6. **Tie-break is a smuggled vote.** "AND for safety, weighted for liveness" leaks power if
    the tie-break is weight-proportional — PoM at 60% then decides every contested block.
    **Clause:** any scalar combination in the protocol (tie-break, fork-choice) MUST be
@@ -169,3 +176,10 @@ OR-additive NCI. The honest one-liner *with its preconditions attached*.
   NCI as-built is OR-additive (W = 0.10·PoW + 0.30·PoS + 0.60·PoM), so Noesis declaring
   AND is a real divergence from NCI, not a relabel. Crystallized by Will: *"60% PoM is
   only dangerous if it's a 60% vote."*
+- 2026-06-11 — **L12 refined after reading the NCI finalize path** (`finalizeProposal`,
+  `FINALIZATION_THRESHOLD_BPS = 6667`, `_retentionAdjustedVoteWeight`). NCI is OR-additive
+  *but threshold-hardened*: the 2/3 supermajority sits above PoM's 60% ceiling, so no single
+  dimension finalizes alone (the earlier "≥50% → majority" framing was wrong for a 2/3 bar).
+  Cap (b) restated as "no single proof's weight ≥ the finalization threshold" — already met
+  for single dimensions; residual risk is *coalition* (PoM + a second dimension), which is
+  the standing argument for AND (a) over the cap.
