@@ -1,6 +1,20 @@
 # CONTINUE — Noesis handoff (PRIVATE, stealth)
 
-## ▶ RESUME HERE (2026-06-12 PM-6 — semantic floor wired into the canonical rule, node 122/122)
+## ▶ RESUME HERE (2026-06-12 PM-7 — value_v7 semantic-floored seeds, node 126/126; story-loop 1/10)
+- **`value_v7` SHIPPED — flips `noise_child_still_seeds_flow_in_v5_open_gap`**: seed =
+  `semantic_floor(floored_novelty)` on top of v6's standing gate. The SAME vested identity
+  committing the SAME noise pumps the parent under v6 and pumps NOTHING under v7 (in-test
+  contrast). **Load-bearing separation held**: only the SEED is semantic-floored, the cell's
+  own gated value is not — so the airgap backstop survives (keyish cell still EARNS when
+  built upon, in-test) while noise-shaped bytes certify nothing upward. v7 ≡ v6 elementwise
+  on content-only graphs (in-test).
+- **Adversarial tick: the layering CONVERGED** — the v7 survivor is structured-but-valueless
+  prose (`structured_valueless_child_still_seeds_flow_open_gap`), which is EXACTLY the
+  already-named out-of-band frontier (#3: labels/outcomes, not bytes). No new in-gate layer
+  is available from content alone; per the method, that's a convergence signal, not a TODO.
+- **Story-loop armed by Will (menu-pick 2): 10 increments.** This was 1/10. Queue hint in
+  `~/.claude/state/story-loop.json`. Next: entropy_theta into the calibration harness;
+  production_value callers/docs sweep; then survivor-named work or ckb-vm API verification.
 - **HANDOFF frontier #4 SHIPPED**: `semantic::semantic_floor` AND-composed into
   `production_value` (new `entropy_theta` param) — after the similarity floor, BEFORE the
   quality boost. Incompressible noise now earns 0 at the canonical rule even at max quality;

@@ -4,14 +4,16 @@ Resume point for a fresh chat. Detail lives in `CONTINUE.md` (top block) and `RO
 this is the fast orientation. Repo: `WGlynn/noesis` (private remote). Node: `node/`, Rust.
 
 ## Current state
-- **node: 122/122 tests green** (`cd node && cargo test`).
-- Value layer is comprehensively built + adversarially hardened this session (5 → 122 tests
-  green across the continuous run + the PM-6 increment, via the adversarial-layering method:
-  each layer's surviving attack named the next, until the survivor was the consensus layer's
-  own ≥2/3 cross-dimension capture ceiling — pinned as a never-flips test).
+- **node: 126/126 tests green** (`cd node && cargo test`).
+- Value layer is comprehensively built + adversarially hardened (suite grew from 5 at the
+  start of the continuous run to the count above, via the adversarial-layering method: each
+  layer's surviving attack named the next, until the survivor was the consensus layer's own
+  ≥2/3 cross-dimension capture ceiling — pinned as a never-flips test).
 
 ## The layer stack (all in `node/src/lib.rs`, all tested)
-- `value` v4/v5/v6 — realized-flow gate (v5) → priced identity via standing-gated seeds (v6).
+- `value` v4/v5/v6/v7 — realized-flow gate (v5) → priced identity via standing-gated seeds
+  (v6) → semantic-floored seeds (v7: noise certifies nothing, even vested; own-value airgap
+  backstop preserved by flooring the seed, not the cell's own gated value).
 - `dispute` — endorsement-slashing: windowed vesting + deterministic causal-share clawback
   + PoM-only 2/3 verdict (reuses `consensus::finalizes_hybrid`) + escalation court (full-mix
   tribunal + juror accountability) closing the judge-cartel veto.
@@ -34,9 +36,9 @@ this is the fast orientation. Repo: `WGlynn/noesis` (private remote). Node: `nod
 4. ✅ DONE (2026-06-12 PM-6) — `semantic` wired into `production_value`: AND-composed after
    the similarity floor, before quality (`entropy_theta` param). Noise zeroed at the canonical
    rule even at max quality (contrast in-test: similarity floor alone still pays it); airgap
-   pin propagated. Next composition candidate: semantic-floored SEEDS for v5/v6 flow (a noise
-   cell currently still seeds flow in the flow-gated rules; only the canonical boost rule
-   floors it).
+   pin propagated. Follow-up SHIPPED same day: `value_v7` semantic-floored seeds (flips the
+   noise-child pump pin; v7 ≡ v6 on content graphs; survivor = structured-but-valueless,
+   which is frontier #3 — the layering converged onto the already-named out-of-band gap).
 
 ## Infra that now runs itself
 - `scripts/doc-coherence.py` (--check/--stamp) + `scripts/study-guide.py` (--check, generates

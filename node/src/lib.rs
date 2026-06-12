@@ -785,6 +785,61 @@ pub mod value {
         total_standing / standing_floor
     }
 
+    /// `value_v7` — semantic-floored SEEDS, closing the pinned gap
+    /// `noise_child_still_seeds_flow_in_v5_open_gap`: under v5/v6 an incompressible-noise
+    /// child still carried a positive flow seed, so a vested identity could pump a parent's
+    /// gate with garbage commits (priced by v6's standing floor, but real). v7 composes the
+    /// semantic floor into the SEED on top of v6's standing gate:
+    ///
+    ///   seed_i = semantic_floor(floored_novelty_i, data_i, entropy_theta)
+    ///            if standing(contributor_i) ≥ standing_floor, else 0
+    ///   value  = floored_novelty × g(downstream flow over the floored seeds)
+    ///
+    /// Load-bearing separation (the design caution written into the pin): the cell's SEED —
+    /// what it certifies upward to its parents — is semantic-floored; its OWN base novelty
+    /// is NOT. That preserves the semantic airgap's backstop: a wrongly-floored useful cell
+    /// (key/hash-shaped value) still EARNS through downstream use, because its own value is
+    /// floored_novelty × g(flow), untouched by the semantic floor — it just cannot CERTIFY
+    /// others while its bytes are indistinguishable from noise. Earning needs use;
+    /// certifying needs being legible-as-content AND vested. On fully-compressible-content
+    /// graphs v7 ≡ v6 (in-test).
+    /// Residual (pinned): a structured-but-valueless child — novel, compressible prose with
+    /// no meaning — still seeds flow; bytes cannot catch it. That is the out-of-band
+    /// frontier (labels / realized outcomes), see
+    /// `structured_valueless_child_still_seeds_flow_open_gap`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn value_v7(
+        cells_in_commit_order: &[super::Cell],
+        standing: &std::collections::HashMap<Vec<u8>, u64>,
+        standing_floor: u64,
+        theta: f64,
+        entropy_theta: f64,
+        d: f64,
+        iters: usize,
+        half: f64,
+    ) -> Vec<f64> {
+        let floored = super::temporal_novelty_with_similarity_floor(cells_in_commit_order, theta);
+        let seed: Vec<f64> = floored
+            .iter()
+            .zip(cells_in_commit_order)
+            .map(|(&n, c)| {
+                let s = standing.get(&c.type_script.args).copied().unwrap_or(0);
+                if s >= standing_floor {
+                    super::semantic::semantic_floor(n, &c.data, entropy_theta) as f64
+                } else {
+                    0.0
+                }
+            })
+            .collect();
+        let downstream =
+            super::flow::downstream_flow_external(cells_in_commit_order, &seed, d, iters);
+        floored
+            .iter()
+            .zip(&downstream)
+            .map(|(&n, &f)| n as f64 * flow_gate(f, half))
+            .collect()
+    }
+
     #[cfg(test)]
     mod tests {
         use super::super::{Cell, Script};
@@ -973,6 +1028,91 @@ pub mod value {
                 pumped[0] > alone[0],
                 "OPEN GAP: incompressible-noise child pumps the parent's flow gate \
                  (semantic floor not yet composed into v5/v6 seeds)"
+            );
+        }
+
+        // ---- value_v7: semantic-floored seeds (closes the noise-child pump) ----
+
+        const ENTROPY_THETA: f64 = 0.95;
+
+        #[test]
+        fn value_v7_noise_child_no_longer_pumps_the_parent() {
+            // FLIPS `noise_child_still_seeds_flow_in_v5_open_gap` at the v7 rule: the SAME
+            // vested identity committing the SAME noise child pumps the parent under v6
+            // (standing-priced but real) and pumps NOTHING under v7 (seed semantic-floored).
+            let noise: Vec<u8> = (0u8..64).map(|i| i.wrapping_mul(37).wrapping_add(11)).collect();
+            let order = vec![
+                cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta"),
+                cellc(1, 9, 1, Some(0), &noise), // VESTED identity commits noise ON the parent
+            ];
+            let st = standing_of(&[(1, FLOOR), (9, FLOOR)]); // attacker fully vested
+            let v6 = value_v6(&order, &st, FLOOR, THETA, DAMP, ITERS, HALF);
+            assert!(v6[0] > 0.0, "v6: vested noise child still pumps the parent (the gap)");
+            let v7 = value_v7(&order, &st, FLOOR, THETA, ENTROPY_THETA, DAMP, ITERS, HALF);
+            assert_eq!(v7[0], 0.0, "v7: noise certifies nothing, even from a vested identity");
+        }
+
+        #[test]
+        fn value_v7_airgap_backstop_survives_keyish_cell_still_earns() {
+            // The load-bearing separation: a high-entropy-but-VALUABLE cell (key/hash shaped,
+            // the semantic floor's pinned false-positive) still EARNS when a vested other
+            // mind builds real content on it — its OWN novelty is not semantic-floored, only
+            // its seed is. Flooring the seed ≠ flooring the cell's own gated value.
+            let keyish: Vec<u8> = (0u8..32).map(|i| i.wrapping_mul(67).wrapping_add(29)).collect();
+            let order = vec![
+                cellc(0, 1, 0, None, &keyish),
+                cellc(1, 2, 1, Some(0), b"library-built-on-the-published-key-material"),
+            ];
+            let st = standing_of(&[(1, FLOOR), (2, FLOOR)]);
+            let v7 = value_v7(&order, &st, FLOOR, THETA, ENTROPY_THETA, DAMP, ITERS, HALF);
+            assert!(
+                v7[0] > 0.0,
+                "backstop intact: wrongly-floored useful cell is paid through realized use"
+            );
+            // ...but the keyish cell cannot CERTIFY: a parent whose only child is keyish gets 0.
+            let order2 = vec![
+                cellc(0, 1, 0, None, b"echo-foxtrot-golf-hotel"),
+                cellc(1, 2, 1, Some(0), &keyish),
+            ];
+            let v7b = value_v7(&order2, &st, FLOOR, THETA, ENTROPY_THETA, DAMP, ITERS, HALF);
+            assert_eq!(v7b[0], 0.0, "noise-shaped bytes certify nothing upward (seed floored)");
+        }
+
+        #[test]
+        fn value_v7_equals_v6_on_compressible_content() {
+            // On a fully-compressible (genuine-content) graph the semantic seed floor is
+            // inert: v7 ≡ v6 elementwise.
+            let order = vec![
+                cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta"),
+                cellc(1, 2, 1, Some(0), b"echo-foxtrot-golf-hotel"),
+                cellc(2, 3, 2, Some(1), b"india-juliet-kilo-lima-mike"),
+            ];
+            let st = standing_of(&[(1, FLOOR), (2, FLOOR), (3, 0)]); // mixed vesting too
+            let v6 = value_v6(&order, &st, FLOOR, THETA, DAMP, ITERS, HALF);
+            let v7 = value_v7(&order, &st, FLOOR, THETA, ENTROPY_THETA, DAMP, ITERS, HALF);
+            for (a, b) in v6.iter().zip(&v7) {
+                assert!((a - b).abs() < 1e-12, "content-only graph: v7 must equal v6");
+            }
+        }
+
+        #[test]
+        fn structured_valueless_child_still_seeds_flow_open_gap() {
+            // PINNED GAP (the v7 survivor, named by the adversarial tick): a vested identity
+            // committing NOVEL, COMPRESSIBLE, meaningless prose still seeds flow — bytes
+            // cannot distinguish structured-pointless from structured-valuable. This is the
+            // known out-of-band frontier (outcome labels / realized external value, not a
+            // content gate): HANDOFF frontier #3. Bounded as before by v6 standing pricing +
+            // dispute slashing on refutation; not free, but not structurally closed.
+            let order = vec![
+                cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta"),
+                cellc(1, 9, 1, Some(0), b"the-quick-brown-fox-says-nothing-of-value-today"),
+            ];
+            let st = standing_of(&[(1, FLOOR), (9, FLOOR)]);
+            let v7 = value_v7(&order, &st, FLOOR, THETA, ENTROPY_THETA, DAMP, ITERS, HALF);
+            assert!(
+                v7[0] > 0.0,
+                "OPEN GAP: structured-but-valueless child pumps the parent under v7; \
+                 closing it needs labels/outcomes, not bytes"
             );
         }
 
