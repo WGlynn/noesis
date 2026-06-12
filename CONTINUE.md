@@ -1,6 +1,22 @@
 # CONTINUE — Noesis handoff (PRIVATE, stealth)
 
-## ▶ RESUME HERE (2026-06-12 PM-2 — dispute module shipped, node 92/92)
+## ▶ RESUME HERE (2026-06-12 PM-3 — escalation court shipped, node 97/97)
+- **JUDGE-CARTEL COUNTER IMPLEMENTED** (design §7): round-1 PoM-only veto is no longer
+  final — appeal escalates to the AND-composed full-mix tribunal (`Tribunal::FullMix` =
+  NCI mix; a 40%-standing cartel is only 24% of that court ⇒ overturned, in-test);
+  **juror accountability** = overturned veto bloc slashed `rate × voted-pom` (the
+  load-bearing piece — attaches to the VOTE, so identity separation doesn't evade);
+  conflicted jurors excluded (hygiene); appeal bonds double (2^k griefing bound).
+  **Ceiling stated in code, never flips:**
+  `full_consensus_capture_defeats_the_escalation_court_global_assumption` — ≥2/3
+  cross-dimension capture defeats every tribunal; that is the consensus layer's own
+  global assumption, no NEW surface introduced. **92 → 97 green.**
+- **Value-layer hardening arc COMPLETE for this pass** (v5 flow gate → v6 priced
+  identity → dispute slashing → QA hardenings → cell-layer wiring → escalation court).
+  Remaining Phase-1 frontier returns to the LEARNED v(S): outcome-evaluator replacing
+  the coverage proxy (the core bet), plus W/B/α/β calibration on real data.
+
+## ▶ RESUME HERE (2026-06-12 PM-2 — dispute module shipped, node 92/92 then)
 - **ENDORSEMENT-SLASHING IMPLEMENTED** (`dispute` module, design = `DISPUTE-SLASHING.md`):
   windowed vesting (spendable at E+W; refutation inside W cancels unvested only — vested is
   finality-protected), challenge bond, PoM-only 2/3 + quorum-floor verdict (reuses

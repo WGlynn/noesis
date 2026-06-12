@@ -1,11 +1,13 @@
 # Dispute-window endorsement-slashing — design (pre-implementation)
 
 > Status: IMPLEMENTED (2026-06-12, same day) — `node/` `dispute` module, full §6 plan
-> green. Closes the residual pinned by
-> `adversary::vested_certifier_endorsing_garbage_open_gap` (negative-EV at the dispute
-> layer; the gate-level pin stays as surface documentation). §5.3's judge-cartel residual
-> is now PINNED IN CODE: `adversary::judge_cartel_protects_its_own_garbage_open_gap`
-> (a >1/3 vested-standing bloc vetoes refutation; flips when a structural counter lands).
+> green, §5b critical-qa hardenings applied, **§7 escalation court + juror accountability
+> SHIPPED** (the judge-cartel structural counter: round-1 veto overturned at the
+> AND-composed full-mix tribunal; overturned jurors slashed; bonds double; conflicted
+> jurors excluded). The cartel pin stays as round-1 surface documentation; the remaining
+> ceiling is the system's GLOBAL assumption, stated in code:
+> `full_consensus_capture_defeats_the_escalation_court_global_assumption` (never flips —
+> ≥2/3 cross-dimension capture is the consensus layer's own ceiling).
 > Parent docs: ROADMAP Phase 1 (gate hardening), POM-CONSENSUS (finalization machinery),
 > COHERENCE-LAWS (L-invariants referenced below).
 
@@ -136,3 +138,47 @@ standing cells directly.
 - Griefing: failed challenge costs B; honest cell's vesting unharmed.
 - Honest-certifier safety: no refutation ⇒ no slash, ever (regression).
 - Inequality invariant: α, λ, β, B satisfy §4 for the implemented attack shapes.
+
+## 7. Judge-cartel structural counter — escalation court + juror accountability
+
+Closes §5.3's pinned residual (`judge_cartel_protects_its_own_garbage_open_gap`): a >1/3
+vested-standing bloc vetoing refutation of its own ring.
+
+### Mechanism (three pieces, one load-bearing)
+1. **Juror-exclusion (hygiene, not load-bearing):** jurors with a provenance edge into the
+   challenged target are excluded from the round-1 denominator — no one judges their own
+   case. Evadeable by separating worker-identities from judge-identities, so this is a
+   cheap filter only.
+2. **Escalation court (structural):** a failed refutation may be APPEALED with a doubled
+   bond. The appeal tribunal is NOT PoM-only — it is the AND-composed full mix
+   (`consensus::NCI`: PoW 10 / PoS 30 / PoM 60, 2/3 bar + quorum floor). A PoM cartel
+   holding >1/3 of standing holds only ~0.6×its-share of the appeal weight; vetoing there
+   requires cross-dimension capture, which is the consensus layer's already-priced global
+   assumption. NO NEW capture surface is introduced — the value layer borrows the
+   strongest tribunal the system already has.
+3. **Juror accountability (load-bearing):** when a verdict is overturned on appeal, the
+   jurors who voted with the overturned majority are slashed proportionally to their
+   vote weight. The cartel's round-1 veto is therefore a STANDING BET that anyone can
+   call by escalating. Equilibrium: the veto doesn't fire. This attaches to the VOTE,
+   not the edge — so worker/judge identity separation (which evades exclusion) does not
+   evade accountability.
+
+### Why this dissolves the class (not detects instances)
+The cartel's veto power becomes a delay plus a bonded liability; conviction authority
+terminates at a tribunal whose capture is the system's global assumption anyway. The
+profitable-trajectory test fails for every instance of the class: veto ⇒ slashed on
+appeal; don't veto ⇒ ring is refuted. Detection-independence per
+[class-dissolution-vs-case-defeat].
+
+### Honest tensions
+- **Ceiling stated plainly:** if the FULL three-dimension tribunal is captured (2/3 of
+  the AND-composed mix), no appeal exists. That is full consensus capture — the global
+  assumption every layer already rests on; pinned in code as
+  `full_consensus_capture_defeats_the_escalation_court_global_assumption` (passes today,
+  BY DESIGN — it documents the ceiling, it does not flip).
+- **Chilling honest jurors:** slashing wrong-but-honest votes discourages participation.
+  Mitigations: slash rate < 1 and proportional; overturn requires a 2/3 supermajority at
+  a STRONGER court (close calls don't overturn); appeal bonds double (frivolous
+  escalation is expensive).
+- **Griefing via escalation spam:** bounded by doubling bonds; a griefer pays 2^k × B to
+  drag a dispute k rounds with no new evidence.

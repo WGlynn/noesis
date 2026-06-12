@@ -2399,6 +2399,87 @@ pub mod dispute {
         }
     }
 
+    // ============ §7 — escalation court + juror accountability ============
+    // The judge-cartel structural counter (design doc §7). Round 1 is PoM-only (cheap);
+    // its veto is NOT final: an appeal escalates to the AND-composed full-mix tribunal
+    // (consensus::NCI), where a PoM cartel holds only 0.6 × its standing share — vetoing
+    // there requires cross-dimension capture, the consensus layer's already-priced global
+    // assumption. Juror accountability is the load-bearing piece: an overturned verdict
+    // slashes the jurors who voted it, so a round-1 veto is a standing bet anyone can
+    // call by escalating. Equilibrium: the veto doesn't fire — class dissolved, not
+    // instance-detected.
+
+    /// Which court hears the round. Round 1 = `PomOnly`; appeals = `FullMix` (NCI).
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Tribunal {
+        PomOnly,
+        FullMix,
+    }
+
+    /// §7.2 — verdict at a given tribunal. Same finalization machinery, different mix.
+    pub fn verdict_refutes_at(
+        tribunal: Tribunal,
+        voters_for: &[consensus::Validator],
+        all: &[consensus::Validator],
+        now: u64,
+        horizon: u64,
+        quorum_floor_bps: u64,
+    ) -> bool {
+        let mix = match tribunal {
+            Tribunal::PomOnly => POM_ONLY,
+            Tribunal::FullMix => consensus::NCI,
+        };
+        consensus::finalizes_hybrid(
+            voters_for,
+            all,
+            mix,
+            now,
+            horizon,
+            false,
+            consensus::TWO_THIRDS_BPS,
+            quorum_floor_bps,
+        )
+    }
+
+    /// §7.1 — juror-exclusion (hygiene, not load-bearing): a juror whose contributor key
+    /// has a provenance edge into the challenged target does not sit on its case.
+    /// `juror_keys` joins validator ids to contributor identities. Evadeable by
+    /// worker/judge identity separation — which is why accountability (below) attaches to
+    /// the VOTE, not the edge.
+    pub fn conflicted_juror_ids(
+        cells: &[Cell],
+        target: u64,
+        juror_keys: &[(u64, Vec<u8>)],
+    ) -> Vec<u64> {
+        juror_keys
+            .iter()
+            .filter(|(_, key)| {
+                cells
+                    .iter()
+                    .any(|child| child.parent == Some(target) && child.type_script.args == *key)
+            })
+            .map(|(id, _)| *id)
+            .collect()
+    }
+
+    /// §7.2 — appeal bonds double per round: dragging a dispute k rounds with no new
+    /// evidence costs 2^k × B. The griefing bound.
+    pub fn appeal_bond(prev_bond: f64) -> f64 {
+        prev_bond * 2.0
+    }
+
+    /// §7.3 — juror accountability (LOAD-BEARING): when an appeal overturns a verdict,
+    /// the jurors who voted with the overturned majority are slashed proportionally to
+    /// the PoM weight they voted with: `slash_i = rate × pom_i`, rate clamped to [0,1].
+    /// Attaches to the vote, not the edge — identity separation does not evade it.
+    pub fn juror_slash_on_overturn(
+        overturned_majority: &[consensus::Validator],
+        rate: f64,
+    ) -> Vec<(u64, f64)> {
+        let r = rate.clamp(0.0, 1.0);
+        overturned_majority.iter().map(|v| (v.id, r * v.pom)).collect()
+    }
+
     #[cfg(test)]
     mod tests {
         use super::super::{Cell, Script};
@@ -2621,6 +2702,78 @@ pub mod dispute {
             let sub = vec![all[0].clone()]; // 40% < 2/3 ⇒ does not
             assert!(verdict_refutes(&minority, &all, 0, 0, 4000));
             assert!(!verdict_refutes(&sub, &all, 0, 0, 4000));
+        }
+
+        // ---- §7 escalation court + juror accountability (judge-cartel counter) ----
+
+        /// Honest side: 60% of PoM plus ALL PoW and PoS. Cartel: 40% of PoM, nothing else.
+        fn courtroom() -> (Vec<consensus::Validator>, Vec<consensus::Validator>) {
+            let v = |id, pow, pos, pom| consensus::Validator {
+                id,
+                pow,
+                pos,
+                pom,
+                last_heartbeat: 0,
+                staked_balance: 1000.0,
+            };
+            let honest = vec![v(1, 50.0, 50.0, 30.0), v(2, 50.0, 50.0, 30.0)];
+            let cartel = vec![v(9, 0.0, 0.0, 40.0)];
+            (honest, cartel)
+        }
+
+        #[test]
+        fn cartel_veto_holds_at_round_one_but_is_overturned_on_appeal() {
+            // THE COUNTER (§7.2). Round 1 (PoM-only): honest 60% < 2/3 — the >1/3 cartel
+            // vetoes, exactly the pinned gap. Appeal (full NCI mix): the cartel's 40% of
+            // standing is only 0.6×0.4 = 24% of the court; honest PoW+PoS+PoM = 76% ≥ 2/3
+            // ⇒ refutation lands. Cross-dimension capture is the only remaining veto, and
+            // that is the consensus layer's already-priced global assumption.
+            let (honest, cartel) = courtroom();
+            let mut all = honest.clone();
+            all.extend(cartel);
+            assert!(
+                !verdict_refutes_at(Tribunal::PomOnly, &honest, &all, 0, 0, 4000),
+                "round 1: the cartel's >1/3 PoM veto holds (the pinned surface)"
+            );
+            assert!(
+                verdict_refutes_at(Tribunal::FullMix, &honest, &all, 0, 0, 4000),
+                "appeal: AND-composed tribunal overturns the PoM-only veto"
+            );
+        }
+
+        #[test]
+        fn overturned_jurors_are_slashed_proportionally_to_their_vote() {
+            // §7.3 — the load-bearing piece: the cartel's round-1 veto bloc is slashed
+            // when the appeal overturns it. The veto is a bonded liability, not a wall;
+            // identity separation does not help because the slash attaches to the VOTE.
+            let (_, cartel) = courtroom();
+            let slashes = juror_slash_on_overturn(&cartel, 0.25);
+            assert_eq!(slashes.len(), 1);
+            assert_eq!(slashes[0].0, 9, "the vetoing juror is named");
+            assert!((slashes[0].1 - 10.0).abs() < 1e-9, "rate × pom = 0.25 × 40");
+            // rate clamped: a misconfigured rate cannot over-slash
+            let clamped = juror_slash_on_overturn(&cartel, 7.0);
+            assert!((clamped[0].1 - 40.0).abs() < 1e-9, "slash never exceeds voted pom");
+        }
+
+        #[test]
+        fn conflicted_jurors_are_excluded_from_the_case() {
+            // §7.1 hygiene: the certifier who endorsed the challenged target does not sit
+            // on its case; an uninvolved juror does.
+            let (order, _) = attack_graph(); // target 10, certifier key [5]
+            let juror_keys = vec![(1u64, vec![1u8]), (5u64, vec![5u8])];
+            let conflicted = conflicted_juror_ids(&order, 10, &juror_keys);
+            assert_eq!(conflicted, vec![5], "edge-connected juror excluded; bystander sits");
+        }
+
+        #[test]
+        fn appeal_bonds_double_per_round() {
+            // §7.2 griefing bound: k evidence-free rounds cost 2^k × B.
+            let mut b = 4.0;
+            for _ in 0..3 {
+                b = appeal_bond(b);
+            }
+            assert!((b - 32.0).abs() < 1e-9, "3 appeals: 4 → 32 (2^3 × B)");
         }
     }
 }
@@ -2985,9 +3138,51 @@ mod adversary {
         let honest_for = vec![all[0].clone(), all[1].clone()];
         assert!(
             !crate::dispute::verdict_refutes(&honest_for, &all, 0, 0, 4000),
-            "KNOWN GAP: a >1/3 vested-standing cartel vetoes refutation of its own garbage; \
-             closing it needs a structural counter (juror exclusion / escalation / \
-             dilution-indexed slashing), not just the economic bounds"
+            "KNOWN GAP (round-1 surface): a >1/3 vested-standing cartel vetoes refutation \
+             at the PoM-only court; the §7 escalation court + juror accountability makes \
+             the veto a bonded liability — see \
+             dispute::tests::cartel_veto_holds_at_round_one_but_is_overturned_on_appeal"
+        );
+        // CLOSED at the §7 layer (2026-06-12): the appeal escalates to the AND-composed
+        // full-mix tribunal (cartel needs cross-dimension capture) and the overturned
+        // veto bloc is slashed (juror accountability). This pin stays as round-1 surface
+        // documentation; the remaining ceiling is pinned below as the system's GLOBAL
+        // assumption (`full_consensus_capture_..._global_assumption`).
+    }
+
+    #[test]
+    fn full_consensus_capture_defeats_the_escalation_court_global_assumption() {
+        // CEILING PIN (design §7, honest tensions). This is NOT a gap that flips — it
+        // documents the system's global trust assumption, stated in code: if a cartel
+        // holds ≥ 2/3 of the AND-composED full mix (PoW and PoS and PoM), the escalation
+        // court is theirs too and no appeal exists above it. Every layer of this chain
+        // rests on sub-2/3 cross-dimension honesty; the escalation court deliberately
+        // introduces NO new assumption beyond it. If this test ever needs to flip, the
+        // fix is not a mechanism — it is the consensus layer itself.
+        let v = |id, pow, pos, pom| crate::consensus::Validator {
+            id,
+            pow,
+            pos,
+            pom,
+            last_heartbeat: 0,
+            staked_balance: 1000.0,
+        };
+        let cartel = vec![v(9, 80.0, 80.0, 80.0)]; // ≥2/3 of every dimension
+        let honest = vec![v(1, 20.0, 20.0, 20.0)];
+        let mut all = cartel.clone();
+        all.extend(honest.clone());
+        // The cartel can refuse to convict its own ring even at the strongest court:
+        assert!(
+            !crate::dispute::verdict_refutes_at(
+                crate::dispute::Tribunal::FullMix,
+                &honest,
+                &all,
+                0,
+                0,
+                4000
+            ),
+            "GLOBAL ASSUMPTION: ≥2/3 cross-dimension capture defeats every tribunal; \
+             this is the consensus layer's own ceiling, not a dispute-layer gap"
         );
     }
 
