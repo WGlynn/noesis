@@ -29,6 +29,16 @@ insight); PoM is the right to occupy it. Your accumulated PoM is your state budg
   here you *contribute* your way in. Sybil/padding/collusion mint 0 (temporal-novelty),
   so you can't fake your way to state capacity.
 
+```mermaid
+flowchart LR
+  CONTRIB["Novel verified contribution"] -->|"MINT"| LIVE["Live PoM / state-bytes<br/>(1 PoM = 1 byte)"]
+  LIVE -->|"DECAY = state-rent sink"| RECLAIM["Reclaimed capacity"]
+  RECLAIM -.-> COMMONS["State commons<br/>(re-allocatable)"]
+  COMMONS -.-> CONTRIB
+  N["Endogenous mint needs a sink. Decay bounds total live PoM<br/>and forces ongoing contribution to retain state."]
+  LIVE -.-> N
+```
+
 ## Medium of exchange: soulbound PoM + transferable bytes (NO PoW needed)
 
 "PoM can't be bought" was conflating two things. Split them:
@@ -40,6 +50,22 @@ insight); PoM is the right to occupy it. Your accumulated PoM is your state budg
 - **State-capacity (bytes/cells) = TRANSFERABLE.** The medium of exchange. You *earn the
   right* to mint bytes via PoM; once minted the bytes trade freely. So you can **buy
   storage, not consensus.** A commodity (state) is liquid; mind-standing is not.
+
+```mermaid
+flowchart TD
+  M["Verified contribution<br/>(temporal-novelty × quality)"] --> SPLIT{{"Two-cell mint"}}
+  SPLIT --> STAND["STANDING cell — SOULBOUND<br/>franchise = consensus weight + right-to-mint<br/>keyed by contributor; cannot be reassigned"]
+  SPLIT --> CAP["CAPACITY cell — TRANSFERABLE<br/>1 byte of state; rides the ownership fold"]
+  STAND --> CW["Consensus weight"]
+  CAP --> EX["Trades freely — buy storage"]
+  STAND -.->|"cannot move"| X["✗ sell consensus<br/>(would collapse to PoS)"]
+  classDef sb fill:#1f2937,stroke:#60a5fa,color:#e5e7eb;
+  classDef tr fill:#1f2937,stroke:#34d399,color:#e5e7eb;
+  classDef no fill:#3f1d1d,stroke:#f87171,color:#fecaca;
+  class STAND,CW sb
+  class CAP,EX tr
+  class X no
+```
 
 **Do we need a PoW currency? No — it's the unnecessary tack-on.** PoW's only job is to
 make a token costly-to-fake. **PoM-gated minting already does that** (can't mint bytes
@@ -73,6 +99,18 @@ powers (consensus-constitution: **capital / compute / cognition**) map to **PoM
 (cognition) / PoW (compute, via JUL) / state-stake (capital)** — each checks another;
 none dominates consensus. The 3-power design is the RPS equilibrium that makes capture
 structurally impossible, not an arbitrary token count.
+
+```mermaid
+flowchart LR
+  subgraph RPS["Capture-resistant cycle — no dominant strategy"]
+    COG["COGNITION<br/>PoM-standing (soulbound)<br/>Proof of Mind"] -->|"checks"| CAP["CAPITAL<br/>state-bytes<br/>proof of state-stake"]
+    CAP -->|"checks"| COMP["COMPUTE<br/>JUL (PoW, money layer)<br/>Proof of Work"]
+    COMP -->|"checks"| COG
+  end
+  GOV["VIBE — governance<br/>(separate instrument)"] -. "orthogonal" .-> RPS
+  N["2 → binary capture · 3 → non-transitive, capture-resistant · 4+ → coalitions.<br/>JUL / PoW NOT yet integrated (honest open item)."]
+  RPS -.-> N
+```
 
 | Role | Instrument here | Proof |
 |---|---|---|
