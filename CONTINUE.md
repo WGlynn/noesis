@@ -1,5 +1,28 @@
 # CONTINUE — Noesis handoff (PRIVATE, stealth)
 
+## ▶ RESUME HERE (2026-06-11 night — AFK full-auto run)
+Shipped this session (all pushed to `WGlynn/noesis`):
+- **Visuals embedded INSIDE every doc** (not a central file): WHITEPAPER (4), BLOCK-ECONOMY-SPEC
+  (2), POM-CONSENSUS (4), CRYPTOECONOMICS (3 + misconception callout), COORDINATION-SCHELLING
+  (4), COHERENCE-LAWS (AND-vs-OR), ROADMAP (2), WHITEPAPER-FOR-DAD (2), node/README (1), README
+  (system map + rewritten landing page), CONTINUE (status map). Mermaid; renders on GitHub.
+- **COHERENCE-LAWS L12 + L1 amend — "composition before weighting (AND over OR)."** Resolves
+  *"does 60/30/10 break RPS?"*: **verified vs `NakamotoConsensusInfinity.sol:19`** — NCI is
+  OR-additive (`W = 0.10·PoW + 0.30·PoS + 0.60·PoM`), so Noesis declaring AND is a real
+  divergence, not a relabel. One-liner (Will): *"60% PoM is only dangerous if it's a 60% vote."*
+  Plus a 6-objection devil's-advocate hardening (liveness ≠ safety-AND; independence is
+  load-bearing on L2 ∧ L5; per-dimension provisioning floor; no laundering of NCI's OR-risk;
+  the <50% single-proof cap is insufficient under correlation; tie-break must be
+  content-independent, never weight-proportional).
+- **Rust port: `value-flow.py` → `node/` `flow` module** — eigenvector value-flow (damped,
+  bounds self-reference = §8 guard mechanical) + two-level recursion (2-player closed form +
+  N-contributor reusing the synergy game). **node 22/22 → 28/28.**
+
+Next: verify 60/30/10 *semantics* (reward-share vs finalization-vote) directly in the NCI
+finalize path before any tokenomics code; consider folding the L12 provisioning-floor into a
+machine coherence check; then the type-script PoM (RISC-V) + PoM-weighted finalization.
+(Separately, the ethresearch GEV Part 4 draft on Desktop was formatted — outside this repo.)
+
 ## ▶ RESUME HERE (2026-06-11 eve — chat rotated at 214k ctx)
 Shipped this session (all pushed to `WGlynn/noesis`, head `7842e4e`):
 - **VISUALS.md** (8 Mermaid figs) + Desktop render `noesis-figures.html`.
@@ -40,10 +63,11 @@ flowchart LR
     d2["Ed25519 signing + tamper-resistance"]
     d3["Synergy value v2 + Myerson (sampled)"]
     d4["temporal-novelty (strategyproof)"]
-    d5["Rust node: Cell · soulbound · synergy (20/20)"]
+    d5["Rust node: ownership · soulbound · synergy (28/28)"]
+    d6["value-flow: eigenvector + two-level recursion (ported)"]
   end
   subgraph TODO["🟡 Designed / next"]
-    t1["value-flow.py → Rust (eigenvector + 2-level)"]
+    t1["reward-model outcome-evaluator (close garbage-novelty gap)"]
     t2["learned v(S) preserves strategyproofness"]
     t3["type-script PoM program (RISC-V)"]
     t4["PoM-weighted finalization + core/nucleolus"]
