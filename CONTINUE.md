@@ -19,9 +19,24 @@
   calibration math + pinned**: one keyish payload in the content corpus ⇒ band = `None` ⇒
   no theta separates by bytes — the formal reason the floor is seed-only + flow-backstopped,
   never a verdict. Honest scope: corpus-relative evidence, not proof.
-- **Story-loop armed by Will (menu-pick 2): 10 increments.** 2 done. Queue hint in
-  `~/.claude/state/story-loop.json`. Next: critical-qa over the semantic arc (PM-6→7), then
-  survivor-named work or ckb-vm API verification (read-first, no assumed APIs).
+- **Loop 3/10 — critical-qa on the semantic arc (node 129/129): 1 real break found + pinned,
+  2 honest annotations, verdict revise→shipped.**
+  - **R-adversarial (REAL, verified numerically then pinned)**: encoding-evasion — hex-encode
+    or zero-dilute the same garbage and entropy drops 1.0→≈0.57, under any workable theta,
+    while shingle novelty survives (`encoded_noise_evades_the_entropy_floor_open_gap`).
+    The floor's claim NARROWED in-doc: it stops accidental/lazy noise and raises the
+    attacker's move to "encode it" — economic layers (v6 standing, dispute slashing) stay
+    the binding defense vs the aware adversary. Encoded noise ≡ structured-but-valueless ⇒
+    re-enters the already-named out-of-band frontier (no new layer owed).
+  - **R-composition (doc fix)**: dual-"canonical" ambiguity resolved — production_value =
+    canonical-at-INTAKE (boost form); v5→v7 = SETTLEMENT form (vests as use realizes).
+  - **R-mechanism (annotation)**: the whole value layer is f64; the ckb-vm type-script port
+    will need fixed-point/deterministic arithmetic — noted in HANDOFF frontier #2.
+  - Confirmed-ok: short-payload edges (n<2 ⇒ passes, harmless), calibration honesty already
+    scoped corpus-relative, empty-corpus None handled.
+- **Story-loop armed by Will (menu-pick 2): 10 increments.** 3 done. Queue hint in
+  `~/.claude/state/story-loop.json`. Next: survivor-named work or ckb-vm API verification
+  (read-first, no assumed APIs; fixed-point requirement now on record).
 - **HANDOFF frontier #4 SHIPPED**: `semantic::semantic_floor` AND-composed into
   `production_value` (new `entropy_theta` param) — after the similarity floor, BEFORE the
   quality boost. Incompressible noise now earns 0 at the canonical rule even at max quality;

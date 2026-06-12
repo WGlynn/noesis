@@ -639,6 +639,10 @@ pub mod value {
     /// The semantic floor's pinned airgap (high-entropy-but-valuable payloads false-positived)
     /// propagates here by construction; realized-flow (v5/v6) is the backstop. Structured-but-
     /// valueless novelty remains the honest out-of-band gap (labels/flow, not bytes).
+    /// Role clarification (critical-qa 2026-06-12): this is the INTAKE-time boost form —
+    /// what a cell looks worth at commit. The flow-gated rules (v5→v7) are the SETTLEMENT
+    /// form — what it actually vests as use realizes. Both are enforced; "canonical" here
+    /// means canonical-at-intake, not the final word on the cell's value.
     pub fn production_value(
         cells_in_commit_order: &[super::Cell],
         theta: f64,
@@ -3385,6 +3389,15 @@ pub mod claims {
 /// it is a heuristic floor backstopped by realized-flow (a wrongly-floored useful cell
 /// still earns through downstream use in v5/v6), NOT the whole answer. Structured content
 /// that is novel-but-pointless is NOT caught here — that needs labels/flow, not bytes.
+///
+/// SECOND honest bound (critical-qa 2026-06-12, pinned): the floor only catches NAIVE
+/// noise. An adversary-aware generator hex-encodes or zero-dilutes the same garbage and
+/// drops well under any workable theta (≈0.57 vs 0.95, in-test) while keeping its shingle
+/// novelty — encoded noise IS structured-but-valueless content, so it re-enters through
+/// the frontier above. The floor's real guarantee is therefore narrow and should be
+/// claimed narrowly: it zeroes accidental/lazy noise and raises the attacker's move from
+/// "dump entropy" to "encode it", nothing more. The economic layers (v6 standing price,
+/// dispute slashing) remain the binding defense against the aware adversary.
 pub mod semantic {
     /// Shannon byte entropy normalized to [0,1] by the max achievable for this length
     /// (`log2(min(n,256))`). 1.0 = every byte distinct (random-looking); low = structured/
@@ -3565,6 +3578,28 @@ pub mod semantic {
             assert!(
                 calibrate_theta(&content, &noise_refs).is_none(),
                 "PINNED: with high-entropy value in-corpus, byte-entropy cannot separate"
+            );
+        }
+
+        #[test]
+        fn encoded_noise_evades_the_entropy_floor_open_gap() {
+            // PINNED GAP (critical-qa 2026-06-12): the SAME garbage cell the floor catches
+            // raw sails under it once hex-encoded or zero-diluted — byte entropy halves
+            // while shingle novelty survives. Encoded noise is structured-but-valueless
+            // content, i.e. it re-enters through the already-named out-of-band frontier.
+            // Claim the floor narrowly: it stops accidental/lazy noise, not the aware
+            // adversary; v6 standing pricing + dispute slashing stay the binding defense.
+            let raw: Vec<u8> = (0u8..64).map(|i| i.wrapping_mul(37).wrapping_add(11)).collect();
+            assert!(is_incompressible(&raw, THETA), "raw noise is caught");
+            let hexed: Vec<u8> = raw.iter().flat_map(|b| format!("{b:02x}").into_bytes()).collect();
+            assert!(
+                !is_incompressible(&hexed, THETA),
+                "OPEN GAP: hex-encoded noise passes the floor (entropy ~0.57)"
+            );
+            let diluted: Vec<u8> = raw.iter().copied().chain(std::iter::repeat(0u8).take(64)).collect();
+            assert!(
+                !is_incompressible(&diluted, THETA),
+                "OPEN GAP: zero-diluted noise passes the floor (entropy ~0.57)"
             );
         }
 

@@ -4,7 +4,7 @@ Resume point for a fresh chat. Detail lives in `CONTINUE.md` (top block) and `RO
 this is the fast orientation. Repo: `WGlynn/noesis` (private remote). Node: `node/`, Rust.
 
 ## Current state
-- **node: 128/128 tests green** (`cd node && cargo test`).
+- **node: 129/129 tests green** (`cd node && cargo test`).
 - Value layer is comprehensively built + adversarially hardened (suite grew from 5 at the
   start of the continuous run to the count above, via the adversarial-layering method: each
   layer's surviving attack named the next, until the survivor was the consensus layer's own
@@ -30,7 +30,9 @@ this is the fast orientation. Repo: `WGlynn/noesis` (private remote). Node: `nod
 1. **Real outcome-LABEL data** (DeepFunding-distill-over-sets) — `outcome` model is built;
    real preference data is the unbuilt input. External dependency.
 2. **On-VM type-script (ckb-vm)** — the RISC-V validation program. Needs the ckb-vm crate
-   APIs verified against the Nervos source; do NOT assume them.
+   APIs verified against the Nervos source; do NOT assume them. Port-time requirement
+   (critical-qa 2026-06-12): the value layer is f64 throughout — on-VM consensus code needs
+   fixed-point/deterministic arithmetic, plan the conversion as part of this item.
 3. **Structured-but-valueless novelty** — the `semantic` floor catches noise, not structured
    pointless content. That genuinely needs labels/flow (out-of-band), not a content gate.
 4. ✅ DONE (2026-06-12 PM-6) — `semantic` wired into `production_value`: AND-composed after
