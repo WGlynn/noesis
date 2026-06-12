@@ -783,6 +783,212 @@ pub mod synergy {
     }
 }
 
+/// Eigenvector value-flow over the provenance DAG + two-level recursion
+/// (port of `value-flow.py`). Two pieces:
+///
+/// **FLOW.** A cell earns credit not only for its OWN value but for the value of what was
+/// built ON it: propagate backward along parent edges with damping `d < 1` (PageRank /
+/// EigenTrust style). `flow(b) = own(b) + d · Σ flow(children of b)`. Damping guarantees
+/// convergence AND bounds self-referential cycles — the §8 circularity guard made
+/// mechanical (a ring of self-attributing cells cannot pump its own flow unboundedly).
+///
+/// **RECURSION.** Split a cell's value among its INTRA-block contributors by the Shapley
+/// value of a sub-game with genuine synergy. Same cooperative machinery one level down ⇒
+/// the economy is two-level recursive: outcome → cells → contributors. The 2-player closed
+/// form (operator = prompt, model = response) mirrors the Python; [`recurse_shares`]
+/// generalizes to N contributors by reusing the [`super::synergy`] coverage game.
+pub mod flow {
+    use super::{coverage, Cell, CovId};
+    use std::collections::{HashMap, HashSet};
+
+    /// own-value proxy = coverage size of the cell's data (≥ 1 for non-empty) — the same
+    /// proxy the learned reward model replaces in production.
+    pub fn own_value(cell: &Cell) -> f64 {
+        coverage(&cell.data).len().max(1) as f64
+    }
+
+    /// parent_id → child indices, from the REAL parent linkage on the cells (self-loops
+    /// dropped). Children of a cell are the cells that built on it.
+    fn children_of(cells: &[Cell]) -> HashMap<u64, Vec<usize>> {
+        let mut ch: HashMap<u64, Vec<usize>> = HashMap::new();
+        for (i, c) in cells.iter().enumerate() {
+            if let Some(p) = c.parent {
+                if p != c.id {
+                    ch.entry(p).or_default().push(i);
+                }
+            }
+        }
+        ch
+    }
+
+    /// `flow(b) = own(b) + d · Σ_{c built on b} flow(c)` by damped Jacobi iteration.
+    /// `d < 1` ⇒ contraction ⇒ converges; a self-referential cycle stays bounded by `d`.
+    /// Returns `(own, flow)`, both index-aligned with `cells`.
+    pub fn value_flow(cells: &[Cell], d: f64, iters: usize) -> (Vec<f64>, Vec<f64>) {
+        let own: Vec<f64> = cells.iter().map(own_value).collect();
+        let mut flow = own.clone();
+        if cells.is_empty() {
+            return (own, flow);
+        }
+        let children = children_of(cells);
+        let id_to_idx: HashMap<u64, usize> =
+            cells.iter().enumerate().map(|(i, c)| (c.id, i)).collect();
+        for _ in 0..iters {
+            let mut next = own.clone();
+            for (pid, kids) in &children {
+                if let Some(&pi) = id_to_idx.get(pid) {
+                    let s: f64 = kids.iter().map(|&k| flow[k]).sum();
+                    next[pi] = own[pi] + d * s;
+                }
+            }
+            let delta = next
+                .iter()
+                .zip(&flow)
+                .map(|(a, b)| (a - b).abs())
+                .fold(0.0, f64::max);
+            flow = next;
+            if delta < 1e-9 {
+                break;
+            }
+        }
+        (own, flow)
+    }
+
+    fn cov_set(part: &[u8]) -> HashSet<CovId> {
+        coverage(part).into_iter().collect()
+    }
+
+    /// Two-level recursion, 2-player case: split a cell's value by the Shapley value of a
+    /// synergy sub-game. `v({a})=|cov(a)|`, `v({b})=|cov(b)|`, `v({a,b})=|cov(a) ∪ cov(b)|`.
+    /// Shapley(2): `φ_i = ½·v({i}) + ½·(v(N) − v({other}))`. Returns `(share_a, share_b,
+    /// synergy)` with `synergy = v(N) − (v(a)+v(b)) ≤ 0` (set-union coverage is sub-additive;
+    /// `< 0` ⇒ redundant overlap, `0` ⇒ disjoint/independent).
+    pub fn recurse_two(part_a: &[u8], part_b: &[u8]) -> (f64, f64, i64) {
+        let (ca, cb) = (cov_set(part_a), cov_set(part_b));
+        let v_a = ca.len() as f64;
+        let v_b = cb.len() as f64;
+        let v_both = ca.union(&cb).count() as f64;
+        let phi_a = 0.5 * v_a + 0.5 * (v_both - v_b);
+        let phi_b = 0.5 * v_b + 0.5 * (v_both - v_a);
+        let tot = if phi_a + phi_b > 0.0 { phi_a + phi_b } else { 1.0 };
+        let synergy = v_both as i64 - (v_a as i64 + v_b as i64);
+        (phi_a / tot, phi_b / tot, synergy)
+    }
+
+    /// N-contributor intra-block recursion: Shapley shares over the submodular
+    /// coverage-union sub-game among a cell's contributor payloads. Reuses
+    /// [`super::synergy`] (plain submodular Shapley, sampled) one level down — literally the
+    /// same machinery scoring intra-block authors that scores inter-block cells. Deterministic.
+    pub fn recurse_shares(parts: &[&[u8]], samples: usize) -> Vec<f64> {
+        use super::{Script};
+        let cells: Vec<Cell> = parts
+            .iter()
+            .enumerate()
+            .map(|(i, p)| Cell {
+                id: i as u64,
+                lock: Script { code_hash: [0u8; 32], args: vec![] },
+                type_script: Script { code_hash: [0u8; 32], args: vec![] },
+                parent: None, // contributors are an unordered coalition (no provenance edges)
+                timestamp: i as u64,
+                data: p.to_vec(),
+            })
+            .collect();
+        super::synergy::shares(&super::synergy::sampled_value(&cells, samples, false))
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::super::{Cell, Script};
+        use super::*;
+
+        fn cell(id: u64, parent: Option<u64>, data: &[u8]) -> Cell {
+            Cell {
+                id,
+                lock: Script { code_hash: [1u8; 32], args: vec![] },
+                type_script: Script { code_hash: [0xB0; 32], args: vec![] },
+                parent,
+                timestamp: id,
+                data: data.to_vec(),
+            }
+        }
+
+        // A root built upon by a mid cell, built upon by a leaf.
+        fn chain() -> Vec<Cell> {
+            vec![
+                cell(0, None, b"root-alpha-bravo"),
+                cell(1, Some(0), b"mid-charlie-delta"),
+                cell(2, Some(1), b"leaf-echo-foxtrot"),
+            ]
+        }
+
+        #[test]
+        fn parent_gets_uplift_leaf_does_not() {
+            let cells = chain();
+            let (own, flow) = value_flow(&cells, 0.85, 200);
+            assert!(flow[0] > own[0], "root earns credit for what built on it");
+            assert!(flow[1] > own[1], "mid earns credit for the leaf");
+            assert!((flow[2] - own[2]).abs() < 1e-9, "childless leaf -> flow == own");
+        }
+
+        #[test]
+        fn flow_converges_and_damping_bounds_self_reference() {
+            // A 2-cycle (a<->b) would diverge undamped; d<1 keeps it finite — the
+            // self-reference guard, mechanical.
+            let cyclic = vec![
+                cell(0, Some(1), b"aaa-bbb-ccc"),
+                cell(1, Some(0), b"ddd-eee-fff"),
+            ];
+            let (_own, flow) = value_flow(&cyclic, 0.85, 1000);
+            assert!(flow.iter().all(|x| x.is_finite()), "damped flow stays finite on a cycle");
+            assert!(flow.iter().all(|&x| x > 0.0));
+        }
+
+        #[test]
+        fn higher_damping_gives_more_uplift() {
+            let cells = chain();
+            let (_o1, f_lo) = value_flow(&cells, 0.5, 200);
+            let (_o2, f_hi) = value_flow(&cells, 0.9, 200);
+            assert!(f_hi[0] > f_lo[0], "more weight on descendants -> more uplift to the root");
+        }
+
+        #[test]
+        fn recurse_two_redundant_contributor_earns_less() {
+            // part_b's shingles ⊆ part_a: a is pivotal, b redundant.
+            let a = b"alpha-bravo-charlie-delta-echo";
+            let b = b"alpha-bravo";
+            let (sa, sb, syn) = recurse_two(a, b);
+            assert!(sa > sb, "pivotal contributor out-earns the redundant one");
+            assert!((sa + sb - 1.0).abs() < 1e-9, "shares normalize to 1");
+            assert!(syn <= 0, "set-union coverage is sub-additive: synergy <= 0");
+        }
+
+        #[test]
+        fn recurse_two_disjoint_is_balanced() {
+            let a = b"alpha-bravo-charlie";
+            let b = b"uniform-victor-whiskey";
+            let (sa, sb, syn) = recurse_two(a, b);
+            assert_eq!(syn, 0, "disjoint coverage -> zero synergy");
+            assert!((sa - sb).abs() < 0.20, "roughly balanced for similar-size disjoint parts");
+        }
+
+        #[test]
+        fn recurse_shares_generalizes_and_discounts_duplicates() {
+            // contributors 0 and 2 are identical; 1 is unique. The submodular game makes the
+            // duplicates SHARE their coverage, so the unique one earns >= each duplicate.
+            let parts: Vec<&[u8]> = vec![
+                b"alpha-bravo-charlie-delta",
+                b"echo-foxtrot-golf-hotel",
+                b"alpha-bravo-charlie-delta",
+            ];
+            let sh = recurse_shares(&parts, 2000);
+            assert_eq!(sh.len(), 3);
+            assert!((sh.iter().sum::<f64>() - 1.0).abs() < 1e-9, "shares normalize to 1");
+            assert!(sh[1] >= sh[0] - 1e-6 && sh[1] >= sh[2] - 1e-6, "unique >= each duplicate");
+            assert!((sh[0] - sh[2]).abs() < 0.05, "identical contributors earn ~equal shares");
+        }
+    }
+}
+
 /// Standing adversarial moat (port of adversarial-game.py). Build-don't-claim: we TEST
 /// sybil-resistance, we do not assert it. Each attack appends attacker cells AFTER the
 /// honest set (commit-reveal order), so they earn 0 novel coverage by construction;
