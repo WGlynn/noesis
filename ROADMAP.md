@@ -64,19 +64,26 @@ is a reputation system.
     is the core Phase-1 bet. Plus: decay + reviewer-diversity port for quality weighting.
 
 ## Phase 2 — Recursion & flow
-- 🟡 **Two-level recursion** — intra-block share vectors (multi-contributor blocks)
-  computed by the same Myerson game one level down.
-- 🟡 **Eigenvector value-flow** — value propagates backward through the provenance /
-  attribution DAG (EigenTrust / PageRank-style), with damping to defeat self-reference.
+- ✅ **Two-level recursion** — intra-block share vectors via the same Myerson game one level
+  down. Ported to Rust (`flow::recurse_two`, `recurse_shares`), tested.
+- ✅ **Eigenvector value-flow** — backward propagation through the provenance DAG with damping
+  (PageRank-style; defeats self-reference). Ported to Rust (`flow::value_flow`), tested.
 - 🔬 **Temporal flow** — round-to-round value (iterated-Shapley / fairness-fixed-point);
   bound drift.
 
 ## Phase 3 — Consensus
-- 🟡 **PoM-weighted finalization** — agreement on the canonical chain weighted by PoM.
-- 🟡 **Stability** — core / nucleolus constraint so no validator coalition profits by
-  deviating (defection-proof).
-- 🟡 **Slashing** — revoke PoM for refuted blocks (caught hallucinations, failed
-  reveals, invalid attestations); commit-reveal for live block authorship.
+- ✅ ref / 🟡 on-chain **PoM-weighted finalization** — 2/3-supermajority reference model
+  (`consensus::finalizes`, `finalizes_hybrid`), retention-decay, verified vs NCI
+  (`NakamotoConsensusInfinity.sol`); on-VM finalization still pending.
+- ✅ ref / 🟡 solver **Stability** — core membership + nucleolus max-excess reference model
+  (`stability` mod, tested); the LP / iterated-LP solver over the real PoM-weighted coalition
+  game (Myerson-restricted, sampled at scale) is pending.
+- ✅ ref / 🟡 on-chain **Slashing** — `slash` + equivocation / early-reject (`is_equivocation`,
+  `can_early_reject`), decay-orthogonal (A5); on-chain accounting + dispute window pending.
+
+> Full consensus findings, the fix-chain (each fix reveals the next attack), and the NCI
+> verification table: `CONSENSUS-REVIEW.md`. Reference models live in `node/` (49/49) and the
+> Solidity composition invariants in VibeSwap `test/consensus/NCICompositionInvariants.t.sol` (8/8).
 
 ## Phase 4 — Backwards-enforcement of the model
 - 🟡 **Training-signal export** — value-weighted dataset from high-PoM verified blocks.
