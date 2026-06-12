@@ -237,6 +237,24 @@ fades for *every* substrate, capital included). Three conditions make it coheren
   dilution of idle holders in the CKB model; this just extends "idle capital fades" up to the
   vote-weight layer for consistency.
 
+```mermaid
+flowchart TD
+  Q{{"Finalization basis<br/>(the denominator of the 2/3 bar)"}}
+  Q --> BASE["BASE total weight<br/>(NCI as-built)"]
+  Q --> EFF["EFFECTIVE (decayed) weight"]
+  Q --> HYB["max(EFFECTIVE, quorum-floor)"]
+  BASE --> B1["✓ eclipse-resistant<br/>(denominator can't shrink)"]
+  BASE --> B2["✗ halts under low participation"]
+  EFF --> E1["✓ no halt — present support finalizes"]
+  EFF --> E2["✗ ECLIPSE: shrink denominator → minority finalizes alone"]
+  HYB --> H1["✓ no halt AND ✓ eclipse-resistant"]
+  HYB --> H2["floor pins the denominator at a fraction of base"]
+  classDef good fill:#14302a,stroke:#34d399,color:#d1fae5;
+  classDef bad fill:#3f1d1d,stroke:#f87171,color:#fecaca;
+  class B1,E1,H1,H2 good
+  class B2,E2 bad
+```
+
 Constitutional note: US branches do *not* decay (a quiet Congress keeps full power; only periodic
 elections refresh legitimacy). Decaying all three powers is a *continuous-time, use-it-or-lose-it*
 franchise — closer to "elections every epoch" than to the US's multi-year heartbeat, and a stronger

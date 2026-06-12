@@ -216,6 +216,18 @@ flowchart TD
   SLASH --> S2["refuted value<br/>(dispute window)"]
 ```
 
+**Finalization basis (reference-modeled, tested).** Weighting by PoM is necessary but not
+sufficient. Once vote weight decays with staleness (so standing tracks live participation), the
+finalization rule must choose what its supermajority is a fraction *of*. A base-weight basis is
+eclipse-resistant but halts under low participation; an effective-weight basis closes the halt but
+lets an attacker shrink the denominator and finalize a minority (an eclipse). The stable choice is
+the hybrid `max(effective, quorum-floor)`, which pins the denominator at a fraction of base so
+neither failure occurs. Decay applies to the franchise (vote weight), never the staked balance, and
+symmetrically across dimensions so the effective mix is time-invariant. The composition is
+AND-gated, not a substitutable weighted sum: a single dimension below the supermajority cannot
+finalize alone. (See `COHERENCE-LAWS.md` L12; the full fix-chain, the NCI verification, and the
+tested reference models are in `CONSENSUS-REVIEW.md`.)
+
 ## 7. Backwards-enforcement of the model
 
 The value chain is also a *training signal*. Each block is provenance-complete,
