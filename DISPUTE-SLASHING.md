@@ -1,8 +1,11 @@
 # Dispute-window endorsement-slashing — design (pre-implementation)
 
-> Status: DESIGN (2026-06-12). Closes the residual pinned by
-> `adversary::vested_certifier_endorsing_garbage_open_gap` in `node/src/lib.rs`.
-> Implementation target: `node/` `dispute` module, next increment.
+> Status: IMPLEMENTED (2026-06-12, same day) — `node/` `dispute` module, full §6 plan
+> green. Closes the residual pinned by
+> `adversary::vested_certifier_endorsing_garbage_open_gap` (negative-EV at the dispute
+> layer; the gate-level pin stays as surface documentation). §5.3's judge-cartel residual
+> is now PINNED IN CODE: `adversary::judge_cartel_protects_its_own_garbage_open_gap`
+> (a >1/3 vested-standing bloc vetoes refutation; flips when a structural counter lands).
 > Parent docs: ROADMAP Phase 1 (gate hardening), POM-CONSENSUS (finalization machinery),
 > COHERENCE-LAWS (L-invariants referenced below).
 

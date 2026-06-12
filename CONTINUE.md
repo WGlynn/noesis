@@ -1,6 +1,20 @@
 # CONTINUE — Noesis handoff (PRIVATE, stealth)
 
-## ▶ RESUME HERE (2026-06-12 PM — value_v6 priced identity shipped, node 77/77)
+## ▶ RESUME HERE (2026-06-12 PM-2 — dispute module shipped, node 85/85)
+- **ENDORSEMENT-SLASHING IMPLEMENTED** (`dispute` module, design = `DISPUTE-SLASHING.md`):
+  windowed vesting (spendable at E+W; refutation inside W cancels unvested only — vested is
+  finality-protected), challenge bond, PoM-only 2/3 + quorum-floor verdict (reuses
+  `consensus::finalizes_hybrid`), DETERMINISTIC causal-share slash (zero-seed v6 recompute;
+  `bounded_shares` keeps Σ ≤ canceled), λ·share+α slashing, β-bounty, γ-compensation on
+  upheld, `apply_slashes` → standing. **The vested-certifier attack is now negative-EV when
+  caught, and §4's inequality holds at p=½ for any α>0 (in-test). 77 → 85 green.**
+- **New pinned gap (adversarial tick vs the dispute layer, same session):** JUDGE CARTEL —
+  a >1/3 vested-standing bloc vetoes every refutation of its own ring (2/3 bar cuts both
+  ways): `judge_cartel_protects_its_own_garbage_open_gap`. Economic bounds exist (§5.3);
+  structural counter pending. **Next increment candidates: juror-exclusion of
+  edge-connected standing / escalation court / dilution-indexed slashing.**
+
+## ▶ RESUME HERE (2026-06-12 PM — value_v6 priced identity shipped, node 77/77 then)
 - **`value_v6` BUILT + tested** — closes the v5 sybil-ring gap by PRICING IDENTITY:
   flow seeds are standing-gated (`seed = floored_novelty` iff contributor's soulbound
   standing ≥ floor, else 0). A3 economics reached the value layer
@@ -8,7 +22,7 @@
   standing is EARNED + soulbound, not purchasable capital. Ring cost 0 → K × earn-the-floor.
   Seed-gated not edge-gated ⇒ unvested newcomers still EARN (vested use pays them),
   certification transitive through unvested intermediaries, fully-vested graph ≡ v5.
-  **69 → 77 tests green.**
+  **69 → 77 green (now 85).**
 - **New pinned gap (adversarial tick vs v6, same session):** a VESTED certifier endorsing
   novel garbage into a fresh-key pocket still pays
   (`vested_certifier_endorsing_garbage_open_gap`). No longer free identity-minting — the

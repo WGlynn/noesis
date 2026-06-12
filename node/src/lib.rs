@@ -2065,6 +2065,359 @@ pub mod stability {
     }
 }
 
+/// Dispute-window endorsement-slashing (`DISPUTE-SLASHING.md`). Makes the vested-certifier
+/// attack pinned in `adversary::vested_certifier_endorsing_garbage_open_gap` NEGATIVE-EV:
+/// value vests W epochs after the flow that paid it; while any of it is unvested, a
+/// vested-standing holder may challenge with a bond; a PoM-weighted verdict — REUSING
+/// [`consensus::finalizes_hybrid`] (2/3 supermajority + eclipse quorum-floor), value-layer
+/// instance of the same machinery — refutes or upholds. On refutation the unvested value
+/// cancels and each certifier is slashed `λ × causal_share + α`, where the causal share is
+/// DETERMINISTIC (re-run [`value::value_v6`] with that certifier's standing removed; the
+/// difference is exactly what their endorsement minted — no oracle). §-refs = the design doc.
+pub mod dispute {
+    use super::{consensus, value, Cell};
+    use std::collections::HashMap;
+
+    /// §2 parameters. `window`=W, `lambda`=λ restitution, `alpha`=α deterrence,
+    /// `beta`=β challenger bounty share, `gamma`=γ nuisance compensation on upheld.
+    #[derive(Clone, Copy, Debug)]
+    pub struct Params {
+        pub window: u64,
+        pub lambda: f64,
+        pub alpha: f64,
+        pub beta: f64,
+        pub gamma: f64,
+    }
+
+    /// Value paid to `cell_id` by the v6 gate at `realized_epoch`; spendable at `+W`.
+    #[derive(Clone, Debug)]
+    pub struct VestingEntry {
+        pub cell_id: u64,
+        pub amount: f64,
+        pub realized_epoch: u64,
+    }
+
+    pub fn is_vested(e: &VestingEntry, now: u64, p: &Params) -> bool {
+        now >= e.realized_epoch + p.window
+    }
+
+    pub fn vested_total(entries: &[VestingEntry], cell: u64, now: u64, p: &Params) -> f64 {
+        entries
+            .iter()
+            .filter(|e| e.cell_id == cell && is_vested(e, now, p))
+            .map(|e| e.amount)
+            .sum()
+    }
+
+    pub fn unvested_total(entries: &[VestingEntry], cell: u64, now: u64, p: &Params) -> f64 {
+        entries
+            .iter()
+            .filter(|e| e.cell_id == cell && !is_vested(e, now, p))
+            .map(|e| e.amount)
+            .sum()
+    }
+
+    /// §2 challenge — admissible only while some of the target's value is still unvested.
+    /// Vested value is untouchable (the price of finality); W bounds exposure by construction.
+    #[derive(Clone, Debug)]
+    pub struct Challenge {
+        pub target: u64,
+        pub challenger: Vec<u8>,
+        pub bond: f64,
+        pub opened_epoch: u64,
+    }
+
+    pub fn challenge_admissible(entries: &[VestingEntry], c: &Challenge, p: &Params) -> bool {
+        unvested_total(entries, c.target, c.opened_epoch, p) > 0.0
+    }
+
+    /// §2 verdict: judges = vested standing, PoM-only mix, same 2/3 + quorum-floor
+    /// finalization the consensus layer uses. Proof-over-vote at the value layer.
+    pub const POM_ONLY: consensus::Mix = consensus::Mix { pow: 0.0, pos: 0.0, pom: 1.0 };
+
+    pub fn verdict_refutes(
+        voters_for: &[consensus::Validator],
+        all: &[consensus::Validator],
+        now: u64,
+        horizon: u64,
+        quorum_floor_bps: u64,
+    ) -> bool {
+        consensus::finalizes_hybrid(
+            voters_for,
+            all,
+            POM_ONLY,
+            now,
+            horizon,
+            false,
+            consensus::TWO_THIRDS_BPS,
+            quorum_floor_bps,
+        )
+    }
+
+    /// §2.2 causal share — the certifier's marginal effect on the target's v6 value,
+    /// computed by removing their standing and re-running the gate. Deterministic,
+    /// content-independent, no oracle. Clamped at 0.
+    #[allow(clippy::too_many_arguments)]
+    pub fn causal_share(
+        cells: &[Cell],
+        standing: &HashMap<Vec<u8>, u64>,
+        floor: u64,
+        theta: f64,
+        d: f64,
+        iters: usize,
+        half: f64,
+        target_idx: usize,
+        certifier: &[u8],
+    ) -> f64 {
+        let with = value::value_v6(cells, standing, floor, theta, d, iters, half)[target_idx];
+        let mut without = standing.clone();
+        without.remove(certifier);
+        let wo = value::value_v6(cells, &without, floor, theta, d, iters, half)[target_idx];
+        (with - wo).max(0.0)
+    }
+
+    /// Individual zero-seed marginals can over-count when certifiers overlap; scale them
+    /// down proportionally so `Σ shares ≤ canceled` (restitution never exceeds the harm).
+    pub fn bounded_shares(shares: &[(Vec<u8>, f64)], canceled: f64) -> Vec<(Vec<u8>, f64)> {
+        let total: f64 = shares.iter().map(|(_, s)| s).sum();
+        if total <= canceled || total <= 0.0 {
+            return shares.to_vec();
+        }
+        let scale = canceled / total;
+        shares.iter().map(|(w, s)| (w.clone(), s * scale)).collect()
+    }
+
+    /// Outcome of a closed dispute. `burned` keeps mint↔sink balanced (COHERENCE-LAWS):
+    /// everything canceled or slashed that is not paid out as bounty/compensation is burned.
+    #[derive(Clone, Debug, Default)]
+    pub struct Settlement {
+        pub canceled: f64,
+        pub slashes: Vec<(Vec<u8>, f64)>,
+        pub challenger_payout: f64,
+        pub author_compensation: f64,
+        pub burned: f64,
+    }
+
+    /// REFUTED path (§2): cancel the target's unvested value, slash each certifier
+    /// `λ × bounded_share + α`, return bond + β-bounty to the challenger, burn the rest.
+    pub fn resolve_refuted(
+        entries: &mut [VestingEntry],
+        c: &Challenge,
+        now: u64,
+        p: &Params,
+        certifier_shares: &[(Vec<u8>, f64)],
+    ) -> Settlement {
+        let mut canceled = 0.0;
+        for e in entries.iter_mut() {
+            if e.cell_id == c.target && !is_vested(e, now, p) {
+                canceled += e.amount;
+                e.amount = 0.0;
+            }
+        }
+        let bounded = bounded_shares(certifier_shares, canceled);
+        let mut slashes = Vec::new();
+        let mut total_slashed = 0.0;
+        for (who, share) in &bounded {
+            let amt = p.lambda * share + p.alpha;
+            slashes.push((who.clone(), amt));
+            total_slashed += amt;
+        }
+        let bounty = p.beta * total_slashed;
+        Settlement {
+            canceled,
+            slashes,
+            challenger_payout: c.bond + bounty,
+            author_compensation: 0.0,
+            burned: canceled + total_slashed - bounty,
+        }
+    }
+
+    /// UPHELD path (§2): challenger forfeits the bond (γ to the challenged author as
+    /// nuisance compensation, rest burned); the target's vesting clock is NOT reset.
+    pub fn resolve_upheld(c: &Challenge, p: &Params) -> Settlement {
+        Settlement {
+            canceled: 0.0,
+            slashes: Vec::new(),
+            challenger_payout: 0.0,
+            author_compensation: p.gamma * c.bond,
+            burned: (1.0 - p.gamma) * c.bond,
+        }
+    }
+
+    /// Apply slashes to the value-layer standing map (the cell-level equivalent is
+    /// [`super::soulbound::Op::Slash`] on each certifier's standing cell).
+    pub fn apply_slashes(standing: &mut HashMap<Vec<u8>, u64>, slashes: &[(Vec<u8>, f64)]) {
+        for (who, amt) in slashes {
+            if let Some(s) = standing.get_mut(who) {
+                *s = s.saturating_sub(amt.ceil() as u64);
+            }
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::super::{Cell, Script};
+        use super::*;
+
+        fn cellc(id: u64, contrib: u8, ts: u64, parent: Option<u64>, data: &[u8]) -> Cell {
+            Cell {
+                id,
+                lock: Script { code_hash: [1u8; 32], args: vec![contrib] },
+                type_script: Script { code_hash: [0xB0; 32], args: vec![contrib] },
+                parent,
+                timestamp: ts,
+                data: data.to_vec(),
+            }
+        }
+
+        const THETA: f64 = 0.8;
+        const DAMP: f64 = 0.85;
+        const ITERS: usize = 200;
+        const HALF: f64 = 8.0;
+        const FLOOR: u64 = 10;
+        const P: Params = Params { window: 10, lambda: 1.0, alpha: 0.5, beta: 0.5, gamma: 0.1 };
+
+        fn standing_of(pairs: &[(u8, u64)]) -> HashMap<Vec<u8>, u64> {
+            pairs.iter().map(|&(k, s)| (vec![k], s)).collect()
+        }
+
+        /// The exact attack from `adversary::vested_certifier_endorsing_garbage_open_gap`:
+        /// fresh-key garbage parent (idx 1, pocket), vested identity 5 endorses it (idx 2).
+        fn attack_graph() -> (Vec<Cell>, HashMap<Vec<u8>, u64>) {
+            let noise = |seed: u8, n: u8| -> Vec<u8> {
+                (0..n).map(|i| seed.wrapping_add(i.wrapping_mul(41))).collect()
+            };
+            let order = vec![
+                cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta"),
+                cellc(10, 8, 1, None, &noise(0xA0, 48)),
+                cellc(11, 5, 2, Some(10), &noise(0x10, 48)),
+            ];
+            let standing = standing_of(&[(1, 50), (5, 50)]);
+            (order, standing)
+        }
+
+        #[test]
+        fn windowed_vesting_value_spendable_only_after_w() {
+            // §6.1: flow realized at epoch E is spendable only at E + W.
+            let entries = vec![VestingEntry { cell_id: 7, amount: 12.0, realized_epoch: 100 }];
+            assert_eq!(vested_total(&entries, 7, 100, &P), 0.0, "at intake: nothing vested");
+            assert_eq!(vested_total(&entries, 7, 109, &P), 0.0, "inside W: still unvested");
+            assert_eq!(unvested_total(&entries, 7, 109, &P), 12.0);
+            assert_eq!(vested_total(&entries, 7, 110, &P), 12.0, "at E+W: vested");
+        }
+
+        #[test]
+        fn refutation_inside_window_cancels_unvested_only() {
+            // §6.2: a refutation cancels the unvested entries; already-vested value is
+            // untouchable (finality has a price; W bounds the exposure).
+            let mut entries = vec![
+                VestingEntry { cell_id: 7, amount: 5.0, realized_epoch: 0 },   // long vested
+                VestingEntry { cell_id: 7, amount: 12.0, realized_epoch: 100 }, // in window
+            ];
+            let c = Challenge { target: 7, challenger: vec![1], bond: 2.0, opened_epoch: 105 };
+            assert!(challenge_admissible(&entries, &c, &P));
+            let s = resolve_refuted(&mut entries, &c, 105, &P, &[]);
+            assert_eq!(s.canceled, 12.0, "only the unvested entry cancels");
+            assert_eq!(vested_total(&entries, 7, 105, &P), 5.0, "vested value untouched");
+        }
+
+        #[test]
+        fn causal_share_is_deterministic_and_bounded_by_target_value() {
+            // §6.3: zero-seed recomputation. The sole certifier's share equals the target's
+            // entire v6 value (without them the gate never opened), twice-computed identical.
+            let (order, standing) = attack_graph();
+            let v6 = value::value_v6(&order, &standing, FLOOR, THETA, DAMP, ITERS, HALF);
+            let s1 = causal_share(&order, &standing, FLOOR, THETA, DAMP, ITERS, HALF, 1, &[5]);
+            let s2 = causal_share(&order, &standing, FLOOR, THETA, DAMP, ITERS, HALF, 1, &[5]);
+            assert_eq!(s1, s2, "deterministic");
+            assert!(s1 > 0.0, "the endorsement minted value");
+            assert!((s1 - v6[1]).abs() < 1e-9, "sole certifier's share = full target value");
+            // bounded_shares: an over-counting pair is scaled down to the canceled amount.
+            let over = vec![(vec![5u8], 8.0), (vec![6u8], 8.0)];
+            let b = bounded_shares(&over, 10.0);
+            let tot: f64 = b.iter().map(|(_, s)| s).sum();
+            assert!((tot - 10.0).abs() < 1e-9, "Σ shares scaled to ≤ canceled");
+        }
+
+        #[test]
+        fn endorsement_slashing_makes_the_vested_certifier_ring_negative_ev() {
+            // §6.4 — THE FLIP of `vested_certifier_endorsing_garbage_open_gap`. The pinned
+            // attack still pays at the gate (that pin documents the value-layer surface);
+            // HERE the dispute layer claws it back: with λ=1 the slash alone refunds the
+            // entire minted value, and α makes the round strictly negative. Numeric §4
+            // inequality at p=1/2: EV = (1−p)·V − p·(V+α) = −α/2 < 0 for ANY α > 0.
+            let (order, mut standing) = attack_graph();
+            let gain = value::value_v6(&order, &standing, FLOOR, THETA, DAMP, ITERS, HALF)[1];
+            assert!(gain > 0.0, "pre-dispute: the pocket key was paid (the pinned surface)");
+
+            let mut entries =
+                vec![VestingEntry { cell_id: 10, amount: gain, realized_epoch: 100 }];
+            let c = Challenge { target: 10, challenger: vec![1], bond: 1.0, opened_epoch: 102 };
+            let share = causal_share(&order, &standing, FLOOR, THETA, DAMP, ITERS, HALF, 1, &[5]);
+            let s = resolve_refuted(&mut entries, &c, 102, &P, &[(vec![5], share)]);
+
+            assert_eq!(s.canceled, gain, "pocket payout fully canceled (was unvested)");
+            let slashed: f64 = s.slashes.iter().map(|(_, a)| a).sum();
+            assert!(
+                slashed >= gain + P.alpha - 1e-9,
+                "certifier slash (λ·share+α) ≥ minted value + α ⇒ attack EV < 0 when caught"
+            );
+            let v = gain; // §4: V = value the certification minted
+            let p_detect = 0.5;
+            let ev = (1.0 - p_detect) * v - p_detect * (v + P.alpha);
+            assert!(ev < 0.0, "§4 inequality: negative EV at p=1/2 for any α>0");
+
+            apply_slashes(&mut standing, &s.slashes);
+            assert!(
+                standing[&vec![5u8]] < 50,
+                "the certifier's soulbound standing actually decreased"
+            );
+        }
+
+        #[test]
+        fn griefing_failed_challenge_costs_the_bond() {
+            // §6.5: an upheld challenge burns most of the bond, compensates the author γ·B,
+            // pays the challenger nothing, and leaves the target's vesting unharmed.
+            let mut entries = vec![VestingEntry { cell_id: 7, amount: 9.0, realized_epoch: 100 }];
+            let c = Challenge { target: 7, challenger: vec![9], bond: 4.0, opened_epoch: 101 };
+            let s = resolve_upheld(&c, &P);
+            assert_eq!(s.challenger_payout, 0.0, "griefer loses the bond");
+            assert!((s.author_compensation - 0.4).abs() < 1e-9, "γ·B to the author");
+            assert!((s.burned - 3.6).abs() < 1e-9, "rest burned (mint↔sink)");
+            assert_eq!(unvested_total(&entries, 7, 101, &P), 9.0, "vesting unharmed");
+            entries[0].realized_epoch = 100; // clock NOT reset by the failed challenge
+            assert_eq!(vested_total(&entries, 7, 110, &P), 9.0, "vests on the original clock");
+        }
+
+        #[test]
+        fn honest_certifier_never_slashed_without_refutation() {
+            // §6.6 regression: no challenge ⇒ no slash path exists; vesting completes at W
+            // with amounts intact. Slashing is reachable ONLY through a refuted verdict.
+            let entries = vec![VestingEntry { cell_id: 3, amount: 7.0, realized_epoch: 50 }];
+            assert_eq!(vested_total(&entries, 3, 60, &P), 7.0, "full amount vests untouched");
+        }
+
+        #[test]
+        fn verdict_reuses_consensus_finalization_two_thirds_pom() {
+            // §6 (verdict): PoM-only judges; below 2/3 of vested standing does not refute,
+            // at/above 2/3 does. Same machinery, value-layer instance.
+            let judge = |id: u64, pom: f64| consensus::Validator {
+                id,
+                pow: 0.0,
+                pos: 0.0,
+                pom,
+                last_heartbeat: 0,
+                staked_balance: 1000.0,
+            };
+            let all = vec![judge(1, 40.0), judge(2, 30.0), judge(3, 30.0)];
+            let minority = vec![all[0].clone(), all[1].clone()]; // 70% > 2/3 ⇒ refutes
+            let sub = vec![all[0].clone()]; // 40% < 2/3 ⇒ does not
+            assert!(verdict_refutes(&minority, &all, 0, 0, 4000));
+            assert!(!verdict_refutes(&sub, &all, 0, 0, 4000));
+        }
+    }
+}
+
 /// Harness checker-routing (the JARVIS core thesis, modeled and tested). Routes a claim to the
 /// verification layer that can actually catch its error — structure (recompute/verify) where a
 /// verifiable referent exists, ensemble (diverse-model vote) where none does, both for reasoning —
@@ -2388,8 +2741,46 @@ mod adversary {
         let v6 = crate::value::value_v6(&order, &standing, 10, 0.8, 0.85, 200, 8.0);
         assert!(
             v6[1] > 0.0,
-            "KNOWN GAP: a vested certifier can still endorse garbage into a fresh-key pocket; \
-             closing it needs endorsement-slashing via the refuted-value dispute window"
+            "KNOWN GAP (v6 gate surface): a vested certifier can endorse garbage into a \
+             fresh-key pocket at the GATE; the dispute layer makes the round negative-EV — \
+             see dispute::tests::endorsement_slashing_makes_the_vested_certifier_ring_negative_ev"
+        );
+        // CLOSED at the dispute layer (2026-06-12): windowed vesting + causal-share slash
+        // claws back the minted value (λ=1) plus α. This pin stays as documentation of the
+        // gate-level surface; the LIVE residual is the judge-cartel
+        // (`judge_cartel_protects_its_own_garbage_open_gap` below).
+    }
+
+    #[test]
+    fn judge_cartel_protects_its_own_garbage_open_gap() {
+        // Adversarial-gaming tick vs the dispute layer (2026-06-12, same-session). The
+        // slashing design routes the verdict through 2/3-of-vested-standing finalization.
+        // The surviving move (pre-pinned in DISPUTE-SLASHING.md §5.3): a cartel holding
+        // > 1/3 of vested standing simply never convicts its own ring — refutation needs
+        // 2/3 FOR, so a >1/3 bloc vetoes every challenge against itself. Detection exists
+        // (challenges open), conviction doesn't. Bounded economically (capture cost,
+        // defection bounty, PoM self-dilution — §5.3) but not yet structurally.
+        //
+        // PINS the residual: passes today (cartel veto works), flips when a structural
+        // counter lands (e.g. juror-exclusion of edge-connected standing, escalation court,
+        // or dilution-indexed slashing). Next gate-hardening increment after the dispute
+        // module ships.
+        let judge = |id: u64, pom: f64| crate::consensus::Validator {
+            id,
+            pow: 0.0,
+            pos: 0.0,
+            pom,
+            last_heartbeat: 0,
+            staked_balance: 1000.0,
+        };
+        // Honest 60%, cartel 40% (> 1/3): every honest-unanimous vote still fails 2/3.
+        let all = vec![judge(1, 30.0), judge(2, 30.0), judge(3, 40.0)];
+        let honest_for = vec![all[0].clone(), all[1].clone()];
+        assert!(
+            !crate::dispute::verdict_refutes(&honest_for, &all, 0, 0, 4000),
+            "KNOWN GAP: a >1/3 vested-standing cartel vetoes refutation of its own garbage; \
+             closing it needs a structural counter (juror exclusion / escalation / \
+             dilution-indexed slashing), not just the economic bounds"
         );
     }
 
