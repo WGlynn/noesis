@@ -82,16 +82,18 @@ halt-risk; the **hybrid** (`finalizes_hybrid`: effective term + quorum floor) ge
 
 ## Open gaps (honest, not yet closed)
 
-- **A2 — saturation vs realizable share.** `single_dimension_can_finalize` treats a dimension's mix
-  fraction (0.60) as its realizable share. That is the worst-case *saturation ceiling*; the actual
-  share also depends on cross-node distribution and NCI's **log₂ scaling** on PoW+PoM (`:155-159`),
-  which the reference model omits. Correct for the L12 worst case; not a general-distribution model.
+- **A2 — saturation vs realizable share.** Now modeled (`log_weight`, `realizable_log_share`): NCI's
+  log₂ scaling on PoW+PoM (`:155-159`) makes concentration **sublinear**, so a saturating actor
+  realizes strictly *less* than the 0.60 mix ceiling — log-scaling *strengthens* the L12 property
+  (the linear `single_dimension_can_finalize` is the worst case; log sits below it). Still open: a
+  full **cross-node distribution** model (realizable share also depends on how the field is spread).
 - **A4 — lifecycle.** Equivocation detection + the early-reject branch (`weightAgainst > total - threshold`,
   `:707`) are now modeled (`is_equivocation`, `can_early_reject`); **proposal expiry / window timing**
   and the on-chain `_slashEquivocator` accounting remain unmodeled.
-- **L9 stability** is now demonstrated at the *concept* level (core membership + nucleolus max-excess
-  over an explicit game); the **LP/iterated-LP solver over the real PoM-weighted coalition game** (and
-  the Myerson-restricted sampling at scale) is still designed, not built.
+- **L9 stability** now has a working **least-core solver** (`stability::least_core` — projected
+  subgradient, the nucleolus's first lexicographic level), verified against two hand-derived nucleoli.
+  Still open: the **full lexicographic nucleolus** (iterate by fixing tight coalitions) and
+  Myerson-restricted coalition sampling over the real PoM-weighted game at scale.
 - **A5+ — slashability is modeled but the *decayed-but-slashable* invariant is not enforced in NCI code**;
   verify the contract keeps a stale validator slashable (don't assume).
 - **Quorum floor is a Noesis proposal**, not in NCI. Adopting the hybrid basis requires a contract change

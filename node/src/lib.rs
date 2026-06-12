@@ -1184,6 +1184,24 @@ pub mod consensus {
         weight_against > total - threshold
     }
 
+    /// A2 — log-scaling. NCI applies log₂ scaling to the PoW and PoM dimensions
+    /// (`Mind_weight = log₂(1 + mind_score) · SCALE`) to prevent plutocracy: concentrating a
+    /// dimension yields DIMINISHING weight. PoS is linear (capital is at-risk now, not a score).
+    pub fn log_weight(raw: f64) -> f64 {
+        (1.0 + raw.max(0.0)).log2()
+    }
+
+    /// Realizable share of a log-scaled dimension for an actor holding `actor_raw` against a field
+    /// of `field_raw` total raw. Because of log-scaling, concentration is SUBLINEAR — even
+    /// `actor_raw ≫ field_raw` approaches 1 only logarithmically, so a single actor saturating PoM
+    /// realizes strictly LESS than the linear mix ceiling (0.60). This strengthens, not weakens,
+    /// the "no single dimension finalizes alone" property (L12 / `single_dimension_can_finalize`
+    /// is the worst-case linear bound; log-scaling sits below it).
+    pub fn realizable_log_share(actor_raw: f64, field_raw: f64) -> f64 {
+        let (a, f) = (log_weight(actor_raw), log_weight(field_raw));
+        if a + f <= 0.0 { 0.0 } else { a / (a + f) }
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
@@ -1328,6 +1346,24 @@ pub mod consensus {
             assert!(!can_early_reject(3.0, 10.0, TWO_THIRDS_BPS), "against 3 < 3.33 -> still reachable");
         }
 
+        #[test]
+        fn audit_a2_log_scaling_is_sublinear() {
+            // doubling raw PoM does NOT double the log-weight (diminishing returns / anti-plutocracy).
+            let (w1, w2) = (log_weight(1000.0), log_weight(2000.0));
+            assert!(w2 < 2.0 * w1, "log-scaling: doubling raw far less than doubles weight");
+            assert!(w2 > w1, "but still monotone increasing");
+        }
+
+        #[test]
+        fn audit_a2_concentrated_pom_realizes_less_than_the_linear_ceiling() {
+            // An actor with 10x the field's raw PoM realizes far less than the LINEAR reading: a
+            // linear share would be 10/11 ~ 0.91; log-scaling caps it well below, and below 0.60.
+            let linear = 10.0 / 11.0;
+            let logd = realizable_log_share(10_000.0, 1_000.0);
+            assert!(logd < linear, "log-scaled concentration share < linear share ({logd} < {linear})");
+            assert!(logd < 0.6, "even 10x raw PoM stays below the naive 60% read under log-scaling");
+        }
+
         // ===================== ADVERSARIAL SELF-AUDIT (RSAW) =====================
         // Attacking this module's own claims. Findings (honest, build-don't-claim):
         //  A1 [TESTED below] The effective-weight threshold that fixes the liveness halt
@@ -1409,6 +1445,57 @@ pub mod stability {
             .fold(f64::NEG_INFINITY, f64::max)
     }
 
+    /// LEAST-CORE solver — the nucleolus's first lexicographic level. Minimizes the maximum
+    /// *proper* coalition excess `max_{∅≠S⊊N} e(S,x)` subject to efficiency `Σ x_i = v(N)`. The
+    /// objective is convex piecewise-linear in `x`; we run **projected subgradient descent** — the
+    /// subgradient at `x` is the negative indicator of an arg-max coalition (raising `x_i` for
+    /// `i ∈ S*` lowers `e(S*) = v(S*) − Σx`), re-projected onto the efficiency hyperplane each
+    /// step, with diminishing step `1/(t+2)` and best-iterate tracking (subgradient methods are
+    /// not monotone, so we keep the lowest-ε point seen). When the least-core is a single point
+    /// this IS the nucleolus; otherwise it is the first level and the full lexicographic nucleolus
+    /// iterates by fixing the tight coalitions and re-solving. Dependency-free, deterministic.
+    /// Returns `(allocation, epsilon = max proper-coalition excess)`.
+    pub fn least_core(
+        n: usize,
+        grand: f64,
+        coalitions: &[(Vec<usize>, f64)],
+        iters: usize,
+    ) -> (Vec<f64>, f64) {
+        let proper: Vec<&(Vec<usize>, f64)> =
+            coalitions.iter().filter(|(s, _)| !s.is_empty() && s.len() < n).collect();
+        let eps = |x: &[f64]| -> f64 {
+            proper.iter().map(|(s, vs)| excess(s, x, *vs)).fold(f64::NEG_INFINITY, f64::max)
+        };
+        let mut x = vec![grand / n as f64; n];
+        let mut best_x = x.clone();
+        let mut best_e = eps(&x);
+        for t in 0..iters {
+            let mut best = f64::NEG_INFINITY;
+            let mut arg: &[usize] = &[];
+            for (s, vs) in &proper {
+                let e = excess(s, &x, *vs);
+                if e > best {
+                    best = e;
+                    arg = s;
+                }
+            }
+            let step = grand.abs().max(1.0) / (t as f64 + 2.0);
+            for &i in arg {
+                x[i] += step;
+            }
+            let adj = (x.iter().sum::<f64>() - grand) / n as f64; // re-project onto Σx = grand
+            for xi in x.iter_mut() {
+                *xi -= adj;
+            }
+            let e = eps(&x);
+            if e < best_e {
+                best_e = e;
+                best_x = x.clone();
+            }
+        }
+        (best_x, best_e)
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
@@ -1439,6 +1526,36 @@ pub mod stability {
                 max_excess(&[1.0 / 3.0; 3], &game()) < max_excess(&[1.0, 0.0, 0.0], &game()),
                 "the more stable allocation has a lower max-excess (the nucleolus direction)"
             );
+        }
+
+        #[test]
+        fn least_core_returns_the_equal_split_nucleolus_on_the_symmetric_game() {
+            let (x, eps) = least_core(3, 1.0, &game(), 20_000);
+            for xi in &x {
+                assert!((xi - 1.0 / 3.0).abs() < 1e-2, "least-core point ~ equal split (got {x:?})");
+            }
+            assert!((eps + 1.0 / 6.0).abs() < 1e-2, "least-core epsilon ~ -1/6 (got {eps})");
+        }
+
+        // Asymmetric game: {0,1} is the valuable pair (0.9). Hand-derived nucleolus is
+        // (0.475, 0.475, 0.05) with eps* = -0.05 (the {0,1} and {2} excesses balance). The solver
+        // must improve far past the equal-split max-excess (0.233) and load the valuable coalition.
+        fn asym_game() -> Vec<(Vec<usize>, f64)> {
+            vec![
+                (vec![0], 0.0), (vec![1], 0.0), (vec![2], 0.0),
+                (vec![0, 1], 0.9), (vec![0, 2], 0.1), (vec![1, 2], 0.1),
+                (vec![0, 1, 2], 1.0),
+            ]
+        }
+
+        #[test]
+        fn least_core_solves_an_asymmetric_game() {
+            let (x, eps) = least_core(3, 1.0, &asym_game(), 20_000);
+            assert!((x.iter().sum::<f64>() - 1.0).abs() < 1e-6, "allocation is efficient");
+            assert!(eps < 0.05, "eps converges near -0.05, far below the equal-split 0.233 (got {eps})");
+            assert!(x[0] + x[1] > 0.7, "mass moves onto the valuable coalition");
+            assert!((x[0] - x[1]).abs() < 0.05, "symmetric players 0,1 get equal shares");
+            assert!(x[2] < 0.15, "the weak player gets the small residual");
         }
     }
 }

@@ -75,7 +75,7 @@ flowchart LR
     d4["temporal-novelty (strategyproof)"]
     d5["Rust node: ownership · soulbound · synergy (39/39)"]
     d6["value-flow: eigenvector + two-level recursion (ported)"]
-    d7["consensus: 2/3 finalization + retention-decay + A4 (equivocation/early-reject) + L9 core/nucleolus stability + RSAW self-audit (eclipse→quorum-floor, sybil, slashability) + value-layer adversary (provenance-forgery, quality-bound) (49/49)"]
+    d7["consensus: 2/3 finalization + retention-decay + A4 (equivocation/early-reject) + A2 log-scaling + L9 stability w/ nucleolus least-core solver + RSAW self-audit (eclipse→quorum-floor, sybil, slashability) + value-layer adversary (provenance-forgery, quality-bound) (53/53)"]
   end
   subgraph TODO["🟡 Designed / next"]
     t1["reward-model outcome-evaluator (close garbage-novelty gap)"]
