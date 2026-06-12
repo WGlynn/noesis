@@ -1,6 +1,25 @@
 # CONTINUE — Noesis handoff (PRIVATE, stealth)
 
-## ▶ RESUME HERE (2026-06-12 PM-4 — role-bounded evaluator shipped, node 101/101)
+## ▶ RESUME HERE (2026-06-12 PM-5 — learned outcome model shipped, node 114/114)
+- **PHASE-1 FRONTIER FIRST INCREMENT** (`outcome` module): the learned v(S) the coverage
+  proxy can't be. `coalition_features(S)` = SET-level structural features (breadth, synergy,
+  internal connectedness, lineage depth) the per-block proxy can't see; `train()` =
+  Bradley-Terry over pairwise coalition preferences (the outcome LABELS = the outside
+  signal); `v_outcome ∈ [0,1]`. Separates orphaned garbage from connected value on features
+  content can't fake; learns orderings the proxy can't express; generalizes to unseen
+  coalitions. **Safe by the authority boundary, not a robustness proof** — corrupt weights
+  routed through `evaluator::intake_advance` on a fresh identity = 0.
+- **Adversarial tick (same session):** fake-lineage garbage (chain of noise, each pointing
+  at the last) SPOOFS the connectedness/depth features and out-scores orphaned garbage —
+  pinned honest. CONTAINED: can't mint (bounded evaluator) + building the lineage is exactly
+  what v6 prices + dispute slashes. The new layer inherits the protection below it.
+- **Honest scope:** the model is built; real outcome-LABEL data (DeepFunding-distill-over-
+  sets) is the unbuilt input (synthetic structural labels only so far). It informs the
+  bounded evaluator; it does NOT replace the gate or auto-close the in-gate garbage-novelty
+  proxy pin. Next: real labels; OR Role-C AND-composed semantic floor (close at the gate);
+  OR on-VM type-script (ckb-vm). Study guide regenerates via `scripts/study-guide.py`.
+
+## ▶ RESUME HERE (2026-06-12 PM-4 — role-bounded evaluator shipped, node 101/101 then)
 - **PHASE-1 CORE BET REFRAMED + FIRST INCREMENT SHIPPED** (`OUTCOME-EVALUATOR.md` +
   `evaluator` module): the learned v(S) is NOT the gate (v5 settled that) — its authority
   is BOUNDED to (A) advance timing: intake liquidity `min(κ·score·floored_novelty,
