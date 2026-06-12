@@ -75,7 +75,7 @@ flowchart LR
     d4["temporal-novelty (strategyproof)"]
     d5["Rust node: ownership · soulbound · synergy (39/39)"]
     d6["value-flow: eigenvector + two-level recursion (ported)"]
-    d7["consensus: 2/3 finalization + retention-decay + RSAW self-audit (eclipse → quorum-floor)"]
+    d7["consensus: 2/3 finalization + retention-decay + RSAW self-audit (eclipse→quorum-floor, sybil, slashability) (42/42)"]
   end
   subgraph TODO["🟡 Designed / next"]
     t1["reward-model outcome-evaluator (close garbage-novelty gap)"]

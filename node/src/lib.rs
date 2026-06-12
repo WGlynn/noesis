@@ -1116,6 +1116,59 @@ pub mod consensus {
         (pw / tot, ps / tot, pm / tot)
     }
 
+    /// NCI `MIN_STAKE` (100e18; units here). Registration floor — the basis of sybil economics.
+    pub const MIN_STAKE: f64 = 100.0;
+
+    /// A3 — sybil economics. A validator below `MIN_STAKE` is ineligible (its weight does not
+    /// count); splitting one identity into K validators costs `K × MIN_STAKE`. Vote-weight is
+    /// additive, but the stake floor makes splitting non-free and caps K at
+    /// `floor(total_capital / MIN_STAKE)`.
+    pub fn eligible(v: &Validator) -> bool {
+        v.staked_balance >= MIN_STAKE
+    }
+    pub fn registration_cost(num_validators: usize) -> f64 {
+        num_validators as f64 * MIN_STAKE
+    }
+    pub fn max_sybils(total_capital: f64) -> u64 {
+        (total_capital / MIN_STAKE).floor() as u64
+    }
+
+    /// A5 — slashability is orthogonal to retention. A proven-bad validator is slashed (capital
+    /// reduced + proof inputs revoked) REGARDLESS of how stale its franchise is. Decay fades
+    /// influence; it must never be an exit from accountability.
+    pub fn slash(v: &mut Validator, amount: f64) {
+        v.staked_balance = (v.staked_balance - amount).max(0.0);
+        v.pow = 0.0;
+        v.pos = 0.0;
+        v.pom = 0.0;
+    }
+
+    /// A1 — hybrid finalization basis = `max(effective_total, quorum_floor)`, where the floor is
+    /// `quorum_floor_bps` of the BASE total. The floor stops an eclipse attacker from shrinking
+    /// the denominator below real honest participation, while the effective term still closes the
+    /// staleness liveness-halt. Promotes the self-audit's test-local fix to a real consensus param.
+    #[allow(clippy::too_many_arguments)]
+    pub fn finalizes_hybrid(
+        voters_for: &[Validator],
+        all: &[Validator],
+        m: Mix,
+        now: u64,
+        horizon: u64,
+        decay_pos: bool,
+        threshold_bps: u64,
+        quorum_floor_bps: u64,
+    ) -> bool {
+        let weight_for: f64 = voters_for
+            .iter()
+            .map(|v| effective_weight(v, m, now, horizon, decay_pos))
+            .sum();
+        let eff_total: f64 = all.iter().map(|v| effective_weight(v, m, now, horizon, decay_pos)).sum();
+        let base_total: f64 = all.iter().map(|v| base_weight(v, m)).sum();
+        let floor = base_total * quorum_floor_bps as f64 / BPS as f64;
+        let basis = eff_total.max(floor);
+        basis > 0.0 && weight_for >= basis * threshold_bps as f64 / BPS as f64
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
@@ -1201,6 +1254,46 @@ pub mod consensus {
             let all = cohort();
             assert!(finalizes(&all, &all, NCI, 0, 100, false, TWO_THIRDS_BPS, ThresholdBasis::Base));
             assert!(finalizes(&all, &all, NCI, 0, 100, true, TWO_THIRDS_BPS, ThresholdBasis::Effective));
+        }
+
+        #[test]
+        fn audit_a3_sybil_splitting_is_bounded_by_min_stake() {
+            // Splitting fixed capital into K validators costs K×MIN_STAKE and each must clear
+            // MIN_STAKE to be eligible -> K is capped at floor(capital / MIN_STAKE).
+            assert_eq!(max_sybils(350.0), 3, "350 capital / 100 MIN_STAKE -> at most 3 eligible identities");
+            assert_eq!(registration_cost(3), 300.0);
+            let under = val(0, 0.0, 50.0, 0.0, 0); // staked 50 < MIN_STAKE
+            assert!(!eligible(&under), "a validator below MIN_STAKE is ineligible");
+            let ok = Validator { staked_balance: 100.0, ..under };
+            assert!(eligible(&ok));
+        }
+
+        #[test]
+        fn audit_a5_stale_validator_is_still_slashable() {
+            // Decay fades the franchise but is NOT an accountability exit: a fully-stale
+            // validator (effective weight ~0) can still be slashed for a proven offense.
+            let mut v = val(0, 1.0, 5.0, 1.0, 0);
+            assert!(effective_weight(&v, NCI, 100, 100, true).abs() < 1e-9, "stale -> franchise ~0");
+            slash(&mut v, 3.0);
+            assert_eq!(v.staked_balance, 2.0, "stale validator still loses capital when slashed");
+            assert_eq!(base_weight(&v, NCI), 0.0, "slashing revokes proof inputs regardless of liveness");
+        }
+
+        #[test]
+        fn quorum_floor_param_closes_eclipse_and_keeps_liveness() {
+            // The real-param hybrid: under eclipse the floor blocks the lone attacker; with honest
+            // participation the floor is not binding and the set finalizes.
+            let attacker = val(0, 0.0, 10.0, 0.0, 100);
+            let all = vec![attacker.clone(), val(1, 0.0, 0.0, 10.0, 0), val(2, 0.0, 0.0, 10.0, 0)];
+            assert!(
+                !finalizes_hybrid(&[attacker.clone()], &all, NCI, 100, 100, true, TWO_THIRDS_BPS, 5000),
+                "quorum floor blocks the eclipse attacker (basis cannot shrink below the floor)"
+            );
+            let fresh = vec![val(0, 1.0, 1.0, 1.0, 0), val(1, 1.0, 1.0, 1.0, 0), val(2, 1.0, 1.0, 1.0, 0)];
+            assert!(
+                finalizes_hybrid(&fresh, &fresh, NCI, 0, 100, true, TWO_THIRDS_BPS, 5000),
+                "honest unanimous fresh set finalizes under the hybrid"
+            );
         }
 
         // ===================== ADVERSARIAL SELF-AUDIT (RSAW) =====================
