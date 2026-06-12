@@ -95,7 +95,10 @@
     noise smuggled at index 1 passes (`on_vm_floor_checks_only_input_zero_open_gap`).
     Next increment for onchain/pom-typescript: iterate GROUP inputs until
     INDEX_OUT_OF_BOUND + the cross-cell similarity-floor state.
-- **Story-loop: 9 done, 1 remains.**
+- **Story-loop COMPLETE: 10/10** (iteration 10 = checkpoint: WAL epoch + SESSION_STATE +
+  loop file deleted). **Next move on this repo:** (a) on-VM GROUP-input iteration — flips
+  `on_vm_floor_checks_only_input_zero_open_gap` — + cross-cell similarity-floor state via
+  syscalls; or (b) Q32.32 settlement-layer mirror (flow/v7). Both designed; pick by delta.
 - **HANDOFF frontier #4 SHIPPED**: `semantic::semantic_floor` AND-composed into
   `production_value` (new `entropy_theta` param) — after the similarity floor, BEFORE the
   quality boost. Incompressible noise now earns 0 at the canonical rule even at max quality;
