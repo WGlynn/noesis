@@ -989,6 +989,273 @@ pub mod flow {
     }
 }
 
+/// PoM-weighted consensus — finalization, retention-decay, and AND-vs-OR composition made
+/// concrete and TESTED (build-don't-claim). The docs mark consensus "designed, not built";
+/// this is the reference model with this session's findings baked in as regression tests:
+///   - the **2/3 supermajority** keeps any single dimension (PoM 60%) below the finalize bar
+///     (COHERENCE-LAWS L12 — no single dimension finalizes alone; capture needs a coalition);
+///   - NCI's **non-decaying PoS** drifts the effective mix toward capital under staleness
+///     (POM-CONSENSUS retention-decay surface), and **symmetric franchise-decay** fixes it;
+///   - a **base-weight** threshold halts under low participation; an **effective-weight**
+///     threshold does not (the paired fix).
+/// Models VOTE-WEIGHT only; the staked balance is a separate field decay never touches.
+pub mod consensus {
+    /// Per-dimension mix weights (fractions of combined weight; sum = 1). NCI = 0.10/0.30/0.60.
+    #[derive(Clone, Copy, Debug)]
+    pub struct Mix {
+        pub pow: f64,
+        pub pos: f64,
+        pub pom: f64,
+    }
+
+    /// NCI as-built (`NakamotoConsensusInfinity.sol`: POW/POS/POM = 1000/3000/6000 BPS).
+    pub const NCI: Mix = Mix { pow: 0.10, pos: 0.30, pom: 0.60 };
+    /// 2/3 supermajority in BPS (NCI `FINALIZATION_THRESHOLD_BPS`).
+    pub const TWO_THIRDS_BPS: u64 = 6667;
+    pub const BPS: u64 = 10_000;
+
+    /// A validator's three proof inputs (base, pre-mix) + liveness + an untouchable stake.
+    #[derive(Clone, Debug)]
+    pub struct Validator {
+        pub id: u64,
+        pub pow: f64,
+        pub pos: f64,
+        pub pom: f64,
+        pub last_heartbeat: u64,
+        /// staked capital — franchise decay NEVER reduces this (decay the vote, not the balance).
+        pub staked_balance: f64,
+    }
+
+    /// Combined base weight `W = pow·m.pow + pos·m.pos + pom·m.pom`.
+    pub fn base_weight(v: &Validator, m: Mix) -> f64 {
+        v.pow * m.pow + v.pos * m.pos + v.pom * m.pom
+    }
+
+    /// Linear retention: 1.0 fresh, → 0.0 as `elapsed → horizon`, clamped.
+    pub fn retention(elapsed: u64, horizon: u64) -> f64 {
+        if horizon == 0 {
+            return 1.0;
+        }
+        (1.0 - elapsed as f64 / horizon as f64).clamp(0.0, 1.0)
+    }
+
+    /// Retention-adjusted vote weight. `decay_pos=false` = NCI as-built (PoS/capital does not
+    /// decay; only PoW+PoM portions fade). `decay_pos=true` = the symmetric-decay fix.
+    pub fn effective_weight(v: &Validator, m: Mix, now: u64, horizon: u64, decay_pos: bool) -> f64 {
+        let ret = retention(now.saturating_sub(v.last_heartbeat), horizon);
+        let pos_portion = v.pos * m.pos;
+        let decayable = v.pow * m.pow + v.pom * m.pom;
+        if decay_pos {
+            (decayable + pos_portion) * ret
+        } else {
+            pos_portion + decayable * ret
+        }
+    }
+
+    /// Where the 2/3 bar is measured: against total BASE weight (NCI as-built) or total
+    /// EFFECTIVE (decayed) weight (the liveness fix).
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum ThresholdBasis {
+        Base,
+        Effective,
+    }
+
+    /// Does a proposal finalize? `weightFor` (effective) must reach `threshold_bps` of the basis.
+    #[allow(clippy::too_many_arguments)]
+    pub fn finalizes(
+        voters_for: &[Validator],
+        all: &[Validator],
+        m: Mix,
+        now: u64,
+        horizon: u64,
+        decay_pos: bool,
+        threshold_bps: u64,
+        basis: ThresholdBasis,
+    ) -> bool {
+        let weight_for: f64 = voters_for
+            .iter()
+            .map(|v| effective_weight(v, m, now, horizon, decay_pos))
+            .sum();
+        let basis_total: f64 = match basis {
+            ThresholdBasis::Base => all.iter().map(|v| base_weight(v, m)).sum(),
+            ThresholdBasis::Effective => all
+                .iter()
+                .map(|v| effective_weight(v, m, now, horizon, decay_pos))
+                .sum(),
+        };
+        basis_total > 0.0 && weight_for >= basis_total * threshold_bps as f64 / BPS as f64
+    }
+
+    /// The L12 question: can an actor owning 100% of ONE dimension finalize alone? True iff
+    /// that dimension's mix fraction reaches the threshold. PoM 0.60 vs 2/3 → false.
+    pub fn single_dimension_can_finalize(dim_fraction: f64, threshold_bps: u64) -> bool {
+        dim_fraction >= threshold_bps as f64 / BPS as f64
+    }
+
+    /// Effective mix shares `(pow, pos, pom)` of total effective weight — to observe drift.
+    pub fn effective_mix(
+        all: &[Validator],
+        m: Mix,
+        now: u64,
+        horizon: u64,
+        decay_pos: bool,
+    ) -> (f64, f64, f64) {
+        let (mut pw, mut ps, mut pm) = (0.0, 0.0, 0.0);
+        for v in all {
+            let ret = retention(now.saturating_sub(v.last_heartbeat), horizon);
+            let (rpw, rpm) = (v.pow * m.pow * ret, v.pom * m.pom * ret);
+            let rps = if decay_pos { v.pos * m.pos * ret } else { v.pos * m.pos };
+            pw += rpw;
+            ps += rps;
+            pm += rpm;
+        }
+        let tot = pw + ps + pm;
+        if tot <= 0.0 {
+            return (0.0, 0.0, 0.0);
+        }
+        (pw / tot, ps / tot, pm / tot)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        fn val(id: u64, pow: f64, pos: f64, pom: f64, hb: u64) -> Validator {
+            Validator { id, pow, pos, pom, last_heartbeat: hb, staked_balance: pos }
+        }
+        fn cohort() -> Vec<Validator> {
+            vec![val(0, 1.0, 1.0, 1.0, 0), val(1, 1.0, 1.0, 1.0, 0), val(2, 1.0, 1.0, 1.0, 0)]
+        }
+
+        #[test]
+        fn single_dimension_cannot_finalize_under_two_thirds() {
+            // L12, verified: PoM is 60% of the mix; the 2/3 bar (66.67%) sits above it.
+            assert!(!single_dimension_can_finalize(NCI.pom, TWO_THIRDS_BPS), "PoM 60% < 66.67% bar");
+            assert!(!single_dimension_can_finalize(NCI.pos, TWO_THIRDS_BPS));
+            assert!(!single_dimension_can_finalize(NCI.pow, TWO_THIRDS_BPS));
+        }
+
+        #[test]
+        fn single_dimension_would_finalize_under_simple_majority() {
+            // Why the supermajority matters: a 50% bar lets PoM (60%) capture alone (OR).
+            assert!(single_dimension_can_finalize(NCI.pom, 5000), "PoM 60% > 50% -> OR-capture");
+        }
+
+        #[test]
+        fn capture_needs_pom_plus_a_second_dimension() {
+            // AND-at-the-margin: PoM (0.60) + just over 6.67% of a second dimension clears 2/3.
+            assert!(!single_dimension_can_finalize(0.60, TWO_THIRDS_BPS));
+            assert!(single_dimension_can_finalize(0.60 + 0.07, TWO_THIRDS_BPS), "PoM + >6.67% of a 2nd dim");
+        }
+
+        #[test]
+        fn nci_as_built_drifts_toward_capital_under_staleness() {
+            // decay_pos=false: stale validators keep full PoS but lose PoW+PoM -> PoS's
+            // effective share rises above its base 0.30 (the drift surface).
+            let (_pw, ps, _pm) = effective_mix(&cohort(), NCI, 60, 100, false);
+            assert!(ps > NCI.pos + 1e-6, "capital's effective share drifts up under staleness: {ps} > 0.30");
+        }
+
+        #[test]
+        fn symmetric_decay_preserves_composition() {
+            // decay_pos=true (Will's fix): all three fade together -> effective mix == base mix.
+            let (pw, ps, pm) = effective_mix(&cohort(), NCI, 60, 100, true);
+            assert!(
+                (pw - NCI.pow).abs() < 1e-9 && (ps - NCI.pos).abs() < 1e-9 && (pm - NCI.pom).abs() < 1e-9,
+                "symmetric decay keeps the effective mix at 0.10/0.30/0.60"
+            );
+        }
+
+        #[test]
+        fn base_threshold_halts_under_staleness() {
+            // Unanimous support, but everyone is stale; a BASE-weight threshold is unreachable
+            // because weightFor (decayed) < 2/3 of base (undecayed) -> liveness halt.
+            let all = cohort();
+            assert!(
+                !finalizes(&all, &all, NCI, 90, 100, true, TWO_THIRDS_BPS, ThresholdBasis::Base),
+                "base-weight threshold halts under low effective participation"
+            );
+        }
+
+        #[test]
+        fn effective_threshold_avoids_halt() {
+            // Same stale-but-unanimous set; measuring against EFFECTIVE weight lets the present
+            // validators finalize (weightFor == basis_total -> 100% >= 66.67%).
+            let all = cohort();
+            assert!(
+                finalizes(&all, &all, NCI, 90, 100, true, TWO_THIRDS_BPS, ThresholdBasis::Effective),
+                "effective-weight threshold finalizes on unanimous present support"
+            );
+        }
+
+        #[test]
+        fn decay_touches_vote_weight_not_the_staked_balance() {
+            // The franchise decays; the capital does not (decay the vote, not the balance).
+            let v = val(7, 1.0, 5.0, 1.0, 0);
+            assert!(effective_weight(&v, NCI, 100, 100, true).abs() < 1e-9, "fully-stale franchise -> 0");
+            assert_eq!(v.staked_balance, 5.0, "staked balance untouched by franchise decay");
+        }
+
+        #[test]
+        fn honest_supermajority_finalizes_when_fresh() {
+            let all = cohort();
+            assert!(finalizes(&all, &all, NCI, 0, 100, false, TWO_THIRDS_BPS, ThresholdBasis::Base));
+            assert!(finalizes(&all, &all, NCI, 0, 100, true, TWO_THIRDS_BPS, ThresholdBasis::Effective));
+        }
+
+        // ===================== ADVERSARIAL SELF-AUDIT (RSAW) =====================
+        // Attacking this module's own claims. Findings (honest, build-don't-claim):
+        //  A1 [TESTED below] The effective-weight threshold that fixes the liveness halt
+        //     OPENS AN ECLIPSE SURFACE: shrink the denominator (make honest validators look
+        //     stale/absent) and an attacker reaches 2/3 of a shrunken basis ALONE. The base-
+        //     weight threshold is eclipse-resistant but halts; neither is free. The real fix
+        //     is a hybrid: effective-weight bar PLUS an absolute present-quorum floor so the
+        //     denominator cannot be shrunk below a minimum honest participation.
+        //  A2 [GAP] `single_dimension_can_finalize` treats a dimension's mix fraction (0.60)
+        //     as its realizable share. That is the SATURATION ceiling; the actual share also
+        //     depends on cross-node distribution and NCI's log-scaling on PoW+PoM. 0.60 is the
+        //     worst case for the L12 claim (correct to test), not the general case.
+        //  A3 [GAP] Sybil economics not modeled here: weight is additive across validators, so
+        //     splitting is neutral in this model, but real NCI has MIN_STAKE / MAX_VALIDATORS /
+        //     registration cost that this reference omits. The value layer's anti-sybil lives in
+        //     `temporal_novelty` + the `adversary` module, not here.
+        //  A4 [GAP] Lifecycle omitted: equivocation slashing, the early-reject branch
+        //     (weightAgainst > total - threshold), and proposal expiry are not modeled.
+        //  A5 [OPEN] Decay must not remove SLASHABILITY: a stale validator's franchise → 0 but
+        //     they must stay slashable, or staleness becomes a griefing exit. Not modeled.
+
+        #[test]
+        fn audit_a1_effective_threshold_opens_an_eclipse_surface() {
+            // attacker = pure capital, fresh; honest = PoM, eclipsed (made to look stale).
+            let attacker = val(0, 0.0, 10.0, 0.0, 100);
+            let mut all = vec![attacker.clone()];
+            all.push(val(1, 0.0, 0.0, 10.0, 0));
+            all.push(val(2, 0.0, 0.0, 10.0, 0));
+            let (now, horizon) = (100, 100); // honest fully stale (eclipsed); attacker fresh
+            let base = finalizes(&[attacker.clone()], &all, NCI, now, horizon, true, TWO_THIRDS_BPS, ThresholdBasis::Base);
+            let eff = finalizes(&[attacker.clone()], &all, NCI, now, horizon, true, TWO_THIRDS_BPS, ThresholdBasis::Effective);
+            assert!(!base, "base-weight threshold is eclipse-RESISTANT: attacker alone cannot finalize");
+            assert!(eff, "effective-weight threshold is eclipse-AMPLIFYING: attacker finalizes vs a shrunken basis");
+        }
+
+        #[test]
+        fn audit_a1_quorum_floor_closes_the_eclipse() {
+            // The hybrid mitigation: require weight_for to clear 2/3 of MAX(effective_total,
+            // quorum_floor). With a floor at the honest base, the shrunken denominator cannot
+            // be exploited and the lone attacker fails again.
+            let attacker = val(0, 0.0, 10.0, 0.0, 100);
+            let all = vec![attacker.clone(), val(1, 0.0, 0.0, 10.0, 0), val(2, 0.0, 0.0, 10.0, 0)];
+            let (now, horizon) = (100, 100);
+            let eff_total: f64 = all.iter().map(|v| effective_weight(v, NCI, now, horizon, true)).sum();
+            let quorum_floor: f64 = all.iter().map(|v| base_weight(v, NCI)).sum::<f64>() * 0.5; // present-quorum
+            let basis = eff_total.max(quorum_floor);
+            let weight_for = effective_weight(&attacker, NCI, now, horizon, true);
+            let finalizes_with_floor = weight_for >= basis * TWO_THIRDS_BPS as f64 / BPS as f64;
+            assert!(!finalizes_with_floor, "a present-quorum floor restores eclipse-resistance under the live bar");
+        }
+    }
+}
+
 /// Standing adversarial moat (port of adversarial-game.py). Build-don't-claim: we TEST
 /// sybil-resistance, we do not assert it. Each attack appends attacker cells AFTER the
 /// honest set (commit-reveal order), so they earn 0 novel coverage by construction;

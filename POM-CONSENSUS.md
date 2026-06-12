@@ -224,9 +224,15 @@ fades for *every* substrate, capital included). Three conditions make it coheren
 - **Decay the franchise, not the balance.** Decay PoS *vote-weight*, never the staked capital —
   you keep your stake, you lose *influence* when stale. A deliberate reframe from
   "capital-at-risk" to "capital-that-also-shows-up" (use-it-or-lose-it franchise for all three).
-- **Pair with an effective-weight threshold.** Symmetric decay *alone* worsens the liveness halt
-  (everything shrinks against a base-weight bar). Measure the 2/3 threshold against *effective*
-  (decayed) active weight — or a present-quorum. Together: drift closed AND halt closed.
+- **Pair with an effective-weight threshold — plus a quorum floor.** Symmetric decay *alone*
+  worsens the liveness halt (everything shrinks against a base-weight bar). Measuring the 2/3
+  threshold against *effective* (decayed) active weight closes the halt — **but a bare
+  effective-weight bar opens an eclipse surface**: an attacker who makes honest validators look
+  absent shrinks the denominator and reaches 2/3 of it alone (RSAW self-audit, demonstrated in
+  `node` `consensus::audit_a1_effective_threshold_opens_an_eclipse_surface`). The hybrid fix:
+  effective-weight bar over **max(effective_total, present-quorum floor)** so the denominator
+  cannot be shrunk below a minimum honest participation (`audit_a1_quorum_floor_closes_the_eclipse`).
+  Together: drift closed, halt closed, eclipse closed.
 - **Already true economically.** Capital already decays via state-rent / secondary-issuance
   dilution of idle holders in the CKB model; this just extends "idle capital fades" up to the
   vote-weight layer for consistency.

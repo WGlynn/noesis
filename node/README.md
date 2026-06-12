@@ -58,5 +58,5 @@ read the source.
 ## Build
 
 ```
-cd node && cargo test    # 5/5 passing: Cell value rule, PoM, shardability, ownership
+cd node && cargo test    # 39/39 passing: value/PoM/synergy/flow/soulbound/ownership/consensus + adversary + RSAW self-audit
 ```
