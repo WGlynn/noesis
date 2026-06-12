@@ -1,13 +1,13 @@
 # CONTINUE — Noesis handoff (PRIVATE, stealth)
 
-## ▶ RESUME HERE (2026-06-12 PM-2 — dispute module shipped, node 85/85)
+## ▶ RESUME HERE (2026-06-12 PM-2 — dispute module shipped, node 89/89)
 - **ENDORSEMENT-SLASHING IMPLEMENTED** (`dispute` module, design = `DISPUTE-SLASHING.md`):
   windowed vesting (spendable at E+W; refutation inside W cancels unvested only — vested is
   finality-protected), challenge bond, PoM-only 2/3 + quorum-floor verdict (reuses
   `consensus::finalizes_hybrid`), DETERMINISTIC causal-share slash (zero-seed v6 recompute;
   `bounded_shares` keeps Σ ≤ canceled), λ·share+α slashing, β-bounty, γ-compensation on
   upheld, `apply_slashes` → standing. **The vested-certifier attack is now negative-EV when
-  caught, and §4's inequality holds at p=½ for any α>0 (in-test). 77 → 85 green.**
+  caught, and §4 inequality holds at p=½ for any α>0 (in-test). 77 → 85 green (now 89 post-QA).**
 - **New pinned gap (adversarial tick vs the dispute layer, same session):** JUDGE CARTEL —
   a >1/3 vested-standing bloc vetoes every refutation of its own ring (2/3 bar cuts both
   ways): `judge_cartel_protects_its_own_garbage_open_gap`. Economic bounds exist (§5.3);

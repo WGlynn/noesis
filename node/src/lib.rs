@@ -2200,16 +2200,24 @@ pub mod dispute {
 
     /// REFUTED path (§2): cancel the target's unvested value, slash each certifier
     /// `λ × bounded_share + α`, return bond + β-bounty to the challenger, burn the rest.
+    ///
+    /// Critical-qa hardenings (2026-06-12):
+    /// - The exposure set SNAPSHOTS at `c.opened_epoch` — an open challenge LOCKS the
+    ///   target's then-unvested entries, so slow resolution cannot vest value out from
+    ///   under a live dispute (the open-late/resolve-after evasion).
+    /// - Zero-share certifiers are SKIPPED: α attaches to causation, not adjacency — a
+    ///   vested contributor whose edge minted nothing is never α-taxed.
+    /// - β is clamped to [0,1]: `burned ≥ canceled ≥ 0` always; the resolver can never
+    ///   become a mint by misconfiguration.
     pub fn resolve_refuted(
         entries: &mut [VestingEntry],
         c: &Challenge,
-        now: u64,
         p: &Params,
         certifier_shares: &[(Vec<u8>, f64)],
     ) -> Settlement {
         let mut canceled = 0.0;
         for e in entries.iter_mut() {
-            if e.cell_id == c.target && !is_vested(e, now, p) {
+            if e.cell_id == c.target && !is_vested(e, c.opened_epoch, p) {
                 canceled += e.amount;
                 e.amount = 0.0;
             }
@@ -2218,11 +2226,14 @@ pub mod dispute {
         let mut slashes = Vec::new();
         let mut total_slashed = 0.0;
         for (who, share) in &bounded {
+            if *share <= 0.0 {
+                continue;
+            }
             let amt = p.lambda * share + p.alpha;
             slashes.push((who.clone(), amt));
             total_slashed += amt;
         }
-        let bounty = p.beta * total_slashed;
+        let bounty = p.beta.clamp(0.0, 1.0) * total_slashed;
         Settlement {
             canceled,
             slashes,
@@ -2234,14 +2245,35 @@ pub mod dispute {
 
     /// UPHELD path (§2): challenger forfeits the bond (γ to the challenged author as
     /// nuisance compensation, rest burned); the target's vesting clock is NOT reset.
+    /// γ clamped to [0,1] (no mint-by-misconfiguration).
     pub fn resolve_upheld(c: &Challenge, p: &Params) -> Settlement {
+        let gamma = p.gamma.clamp(0.0, 1.0);
         Settlement {
             canceled: 0.0,
             slashes: Vec::new(),
             challenger_payout: 0.0,
-            author_compensation: p.gamma * c.bond,
-            burned: (1.0 - p.gamma) * c.bond,
+            author_compensation: gamma * c.bond,
+            burned: (1.0 - gamma) * c.bond,
         }
+    }
+
+    /// Critical-qa hardening (2026-06-12): slash-evasion-by-exit. `soulbound::Op::Burn`
+    /// is unconditionally allowed at the cell layer, so a certifier could torch their
+    /// standing between endorsement and verdict and leave the slash nothing to land on.
+    /// While a challenge is OPEN, any contributor with a provenance edge INTO the
+    /// challenged target is exit-blocked (burn / decay-exit denied). Cell-level wiring:
+    /// `soulbound::valid_transition` must consult this before admitting `Op::Burn` —
+    /// integration contract, enforced here in the reference spec.
+    pub fn standing_exit_blocked(
+        cells: &[Cell],
+        open_challenges: &[Challenge],
+        contributor: &[u8],
+    ) -> bool {
+        open_challenges.iter().any(|c| {
+            cells.iter().any(|child| {
+                child.parent == Some(c.target) && child.type_script.args == contributor
+            })
+        })
     }
 
     /// Apply slashes to the value-layer standing map (the cell-level equivalent is
@@ -2316,7 +2348,7 @@ pub mod dispute {
             ];
             let c = Challenge { target: 7, challenger: vec![1], bond: 2.0, opened_epoch: 105 };
             assert!(challenge_admissible(&entries, &c, &P));
-            let s = resolve_refuted(&mut entries, &c, 105, &P, &[]);
+            let s = resolve_refuted(&mut entries, &c, &P, &[]);
             assert_eq!(s.canceled, 12.0, "only the unvested entry cancels");
             assert_eq!(vested_total(&entries, 7, 105, &P), 5.0, "vested value untouched");
         }
@@ -2354,7 +2386,7 @@ pub mod dispute {
                 vec![VestingEntry { cell_id: 10, amount: gain, realized_epoch: 100 }];
             let c = Challenge { target: 10, challenger: vec![1], bond: 1.0, opened_epoch: 102 };
             let share = causal_share(&order, &standing, FLOOR, THETA, DAMP, ITERS, HALF, 1, &[5]);
-            let s = resolve_refuted(&mut entries, &c, 102, &P, &[(vec![5], share)]);
+            let s = resolve_refuted(&mut entries, &c, &P, &[(vec![5], share)]);
 
             assert_eq!(s.canceled, gain, "pocket payout fully canceled (was unvested)");
             let slashed: f64 = s.slashes.iter().map(|(_, a)| a).sum();
@@ -2395,6 +2427,68 @@ pub mod dispute {
             // with amounts intact. Slashing is reachable ONLY through a refuted verdict.
             let entries = vec![VestingEntry { cell_id: 3, amount: 7.0, realized_epoch: 50 }];
             assert_eq!(vested_total(&entries, 3, 60, &P), 7.0, "full amount vests untouched");
+        }
+
+        // ---- critical-qa hardenings (2026-06-12, post-implementation hostile review) ----
+
+        #[test]
+        fn open_challenge_snapshots_exposure_slow_resolution_cannot_evade() {
+            // QA R2: challenge opened at the last unvested moment, resolved AFTER E+W.
+            // Pre-fix: cancellation at `now` found everything vested ⇒ canceled 0, α-only
+            // slashes. Post-fix: exposure snapshots at opened_epoch ⇒ still canceled.
+            let mut entries = vec![VestingEntry { cell_id: 7, amount: 12.0, realized_epoch: 100 }];
+            let c = Challenge { target: 7, challenger: vec![1], bond: 2.0, opened_epoch: 109 };
+            assert!(challenge_admissible(&entries, &c, &P), "opened in-window: admissible");
+            // resolution happens at epoch 130, far past vesting — irrelevant by design now
+            let s = resolve_refuted(&mut entries, &c, &P, &[]);
+            assert_eq!(s.canceled, 12.0, "locked at open: slow verdict cannot vest it away");
+        }
+
+        #[test]
+        fn zero_share_certifier_is_never_alpha_taxed() {
+            // QA R3: α attaches to causation, not adjacency. A certifier whose edge minted
+            // nothing (share 0) must not appear in the slash list at all.
+            let mut entries = vec![VestingEntry { cell_id: 7, amount: 10.0, realized_epoch: 100 }];
+            let c = Challenge { target: 7, challenger: vec![1], bond: 2.0, opened_epoch: 101 };
+            let shares = vec![(vec![5u8], 10.0), (vec![6u8], 0.0)];
+            let s = resolve_refuted(&mut entries, &c, &P, &shares);
+            assert_eq!(s.slashes.len(), 1, "innocent zero-share certifier skipped");
+            assert_eq!(s.slashes[0].0, vec![5u8], "only the causal certifier is slashed");
+        }
+
+        #[test]
+        fn misconfigured_params_cannot_turn_the_resolver_into_a_mint() {
+            // QA R4: β,γ outside [0,1] are clamped — burned stays non-negative on both paths.
+            let bad = Params { window: 10, lambda: 1.0, alpha: 0.5, beta: 1.5, gamma: 2.0 };
+            let mut entries = vec![VestingEntry { cell_id: 7, amount: 10.0, realized_epoch: 100 }];
+            let c = Challenge { target: 7, challenger: vec![1], bond: 4.0, opened_epoch: 101 };
+            let s = resolve_refuted(&mut entries, &c, &bad, &[(vec![5u8], 10.0)]);
+            assert!(s.burned >= 0.0, "refuted path: clamped β keeps burn non-negative");
+            let u = resolve_upheld(&c, &bad);
+            assert!(u.burned >= 0.0, "upheld path: clamped γ keeps burn non-negative");
+            assert!(u.author_compensation <= c.bond, "compensation bounded by the bond");
+        }
+
+        #[test]
+        fn standing_exit_is_blocked_while_a_challenge_names_your_edge() {
+            // QA R1: slash-evasion-by-exit. The certifier (identity 5) endorsed the
+            // challenged target; their burn/decay-exit is blocked while the dispute is
+            // open. An uninvolved identity remains free to exit.
+            let (order, _) = attack_graph();
+            let c = Challenge { target: 10, challenger: vec![1], bond: 1.0, opened_epoch: 102 };
+            let open = vec![c];
+            assert!(
+                standing_exit_blocked(&order, &open, &[5]),
+                "certifier with an edge into the challenged target cannot exit"
+            );
+            assert!(
+                !standing_exit_blocked(&order, &open, &[1]),
+                "uninvolved standing exits freely"
+            );
+            assert!(
+                !standing_exit_blocked(&order, &[], &[5]),
+                "no open challenge: exit unblocked"
+            );
         }
 
         #[test]

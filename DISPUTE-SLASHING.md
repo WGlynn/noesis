@@ -103,6 +103,26 @@ Honest certifier:
    value supply, diluting every honest holder — the cartel pays the inflation it shelters).
    Pin as `judge_cartel_protects_its_own_garbage_open_gap` when the module lands.
 
+## 5b. Critical-qa hardenings (2026-06-12, post-implementation hostile review)
+
+Four weaknesses found by self-adversarial review and FIXED same-session, each with a
+regression test:
+1. **Exposure snapshots at challenge-open** — slow resolution can no longer vest value
+   out from under a live dispute (`open_challenge_snapshots_exposure_...`).
+2. **α attaches to causation, not adjacency** — zero-share certifiers are skipped
+   entirely (`zero_share_certifier_is_never_alpha_taxed`).
+3. **Param clamping** — β, γ clamped to [0,1]; the resolver can never become a mint by
+   misconfiguration (`misconfigured_params_cannot_turn_the_resolver_into_a_mint`).
+4. **Slash-evasion-by-exit blocked** — `standing_exit_blocked`: while a challenge is
+   open, any contributor with a provenance edge into the challenged target is denied
+   burn/decay-exit (`standing_exit_is_blocked_while_a_challenge_names_your_edge`).
+   Cell-level wiring (`soulbound::valid_transition` consulting it before `Op::Burn`) is
+   an INTEGRATION CONTRACT, stated in-code, not yet wired — honest open edge.
+
+Annotated (not fixed): the judge set's `pom` values and the value layer's standing map
+are bound by caller convention in the reference spec; on-chain the type-script reads
+standing cells directly.
+
 ## 6. Test plan (implementation gate — all must exist before the pinned test flips)
 
 - Windowed vesting: value realized at E spendable only at E+W; refutation inside W cancels.
