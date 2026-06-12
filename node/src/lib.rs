@@ -526,6 +526,48 @@ pub mod value {
             let v = value_v4(&order, &q);
             assert!(v.iter().all(|&x| x > 0.0), "all honest cells earn positive value");
         }
+
+        // ---- Adversarial-gaming loop vs the LEARNED v(S) (Roadmap Phase 1, line 41) ----
+
+        #[test]
+        fn learned_quality_preserves_the_novelty_floor() {
+            // The Phase-1 proof obligation: the *learned* quality model must not be able
+            // to rescue a redundant cell. Unlike the pinned-1.0 test, here quality is the
+            // ACTUAL trained Bradley-Terry output. A sybil clone committed last has novelty
+            // 0, and novelty MULTIPLIES, so it earns 0 at whatever quality the model assigns.
+            // This is the regression guard that the capability layer cannot breach the
+            // strategyproof floor.
+            let mut order = honest();
+            let clone = order[0].data.clone();
+            order.push(cell(99, 9, 99, &clone)); // sybil clone, committed last
+            let q = quality_scores(&order); // learned, not pinned
+            let v = value_v4(&order, &q);
+            let last = v.len() - 1;
+            assert_eq!(v[last], 0.0, "learned quality cannot rescue novelty-0 redundancy");
+            assert!(v[..last].iter().any(|&x| x > 0.0), "honest cells still earn value");
+        }
+
+        #[test]
+        fn garbage_novelty_is_the_documented_open_gap() {
+            // HONEST boundary (build-don't-claim). The strategyproof floor catches
+            // REDUNDANCY (sybil/padding/collusion → 0). It does NOT catch high-entropy
+            // garbage that is genuinely novel coverage but worthless: the coverage proxy
+            // rewards entropy it cannot distinguish from value. A 64-byte high-entropy cell
+            // committed last shares no shingles with the honest set, so it earns positive
+            // novelty. This test PINS that gap: it passes today (vulnerability present) and
+            // will FLIP when the learned OUTCOME-evaluator (not the coverage proxy) lands,
+            // forcing this boundary to be revisited. Roadmap Phase 1 🔬 remains open here.
+            let mut order = honest();
+            let garbage: Vec<u8> = (0u8..64).map(|i| i.wrapping_mul(37).wrapping_add(11)).collect();
+            order.push(cell(77, 9, 77, &garbage));
+            let q = vec![0.0; order.len()]; // even at ZERO quality, novelty alone earns value
+            let v = value_v4(&order, &q);
+            assert!(
+                *v.last().unwrap() > 0.0,
+                "KNOWN GAP: coverage-proxy v(S) cannot tell novel-garbage from novel-value; \
+                 closing it needs the learned outcome-evaluator (Phase 1, line 41)"
+            );
+        }
     }
 }
 

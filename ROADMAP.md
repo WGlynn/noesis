@@ -38,8 +38,15 @@ is a reputation system.
     value = novelty × **quality** (the learned reward model weights novel coverage),
     optionally + a small participation floor. This is the natural junction where the
     strategyproofness layer (novelty) and the capability layer (reward model) compose.
-  - 🔬 remaining: proof under the *learned* `v(S)` (must preserve the novelty
-    property); decay + reviewer-diversity port for the quality weighting.
+  - 🟡 remaining: proof under the *learned* `v(S)`. **Partial (node, 2026-06-11):**
+    `learned_quality_preserves_the_novelty_floor` regression-tests that the ACTUAL
+    trained Bradley-Terry quality cannot rescue a novelty-0 redundant cell (floor holds
+    under the learned model, not just pinned quality). Adversarial loop tick #1.
+  - 🔬 remaining (now PINNED): **garbage-novelty gap.** The floor catches redundancy,
+    not high-entropy novel-but-worthless content (coverage proxy rewards entropy).
+    `garbage_novelty_is_the_documented_open_gap` pins it: passes today (gap present),
+    flips when the learned OUTCOME-evaluator replaces the coverage proxy. Closing this
+    is the core Phase-1 bet. Plus: decay + reviewer-diversity port for quality weighting.
 
 ## Phase 2 — Recursion & flow
 - 🟡 **Two-level recursion** — intra-block share vectors (multi-contributor blocks)
