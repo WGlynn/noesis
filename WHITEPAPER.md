@@ -44,6 +44,25 @@ Proof of Mind is our answer. Its lineage: proof-of-work → proof-of-*useful*-wo
 synergy-weighted contribution) as the apex. The unit of work is a *block of thought*;
 the proof is that the thought contributed measurable value.
 
+**Architecture at a glance.** One unit of contribution becomes consensus weight and
+tradable state:
+
+```mermaid
+flowchart LR
+  A["Block of thought<br/>(contribution)"] --> B["Commit-reveal<br/>hash(block ‖ secret)"]
+  B --> C["Temporal-novelty value<br/>sybil / padding / collusion → 0"]
+  C --> D["× learned quality<br/>v = novelty × (1 + q)"]
+  D --> E["Myerson value<br/>(provenance DAG, synergy)"]
+  E --> F["PoM standing<br/>SOULBOUND · consensus weight"]
+  E --> G["State-bytes<br/>TRANSFERABLE · 1 PoM = 1 byte"]
+  F --> H["PoM-weighted consensus"]
+  G --> I["Medium of exchange<br/>buy storage, not consensus"]
+  classDef sb fill:#1f2937,stroke:#60a5fa,color:#e5e7eb;
+  classDef tr fill:#1f2937,stroke:#34d399,color:#e5e7eb;
+  class F,H sb
+  class G,I tr
+```
+
 ## 2. The block: a unit of provenance
 
 A block is the unit a participant produces: `{id, parent, timestamp, inputs, output,
@@ -71,6 +90,18 @@ the **same value mechanism one level down**: contributors are players in an
 *intra-block* coalition game, and their shares are the Myerson value of their marginal
 contributions to that block's output. The economy is two-level recursive: outcome →
 blocks → contributors.
+
+```mermaid
+flowchart TD
+  O["Outcome"] -->|"inter-block Myerson"| B1["Block 1"]
+  O -->|"inter-block Myerson"| B2["Block 2 (multi-author)"]
+  O -->|"inter-block Myerson"| B3["Block 3"]
+  B2 -->|"intra-block Myerson"| C1["author: prompt"]
+  B2 -->|"intra-block Myerson"| C2["author: generation"]
+  B2 -->|"intra-block Myerson"| C3["author: correction"]
+  N["Same value mechanism, one level down.<br/>PoM sums a contributor's shares across all blocks."]
+  C2 -.-> N
+```
 
 ## 4. Value: an endogenous, synergy-aware price
 
@@ -131,6 +162,13 @@ recompute. Trust stops being an inference about every other mind and becomes a
 structural property. ToM → ETM → PoM is: capacity → mind-as-economy → proof of that
 economy.
 
+```mermaid
+flowchart LR
+  TOM["Theory of Mind<br/>INFERENCE: guess if a mind is trustworthy<br/>(the airgap)"] --> ETM["Economic Theory of Mind<br/>mind = an economy whose outputs carry value"]
+  ETM --> POM["Proof of Mind<br/>verifiable economic PROOF of that economy<br/>(airgap closed: recompute, don't infer)"]
+  POM --> RES["Trust = structural property,<br/>not a per-mind guess"]
+```
+
 ### 5.2 The coordination Schelling point: inward and outward consensus
 
 PoM is not only a network rule; it is a *reconciliation primitive that runs at two
@@ -166,6 +204,17 @@ mechanism defection-proof — no validator coalition profits by deviating — a 
 nucleolus** stability constraint is imposed over the PoM-weighted coalition game. This
 is added precisely because consensus requires it; for pure attribution it is
 unnecessary (mechanisms are composed by required property, not kitchen-sinked).
+
+```mermaid
+flowchart TD
+  CHAIN["Tamper-evident signed owned chain<br/>(the ledger)"] --> W["PoM-weighted agreement<br/>(stake = accumulated Myerson value)"]
+  W --> STAB["Core / nucleolus stability<br/>no validator coalition profits by deviating"]
+  STAB --> FIN["Finalization"]
+  FIN -. liveness fallback .-> NI["Nakamoto-Infinity"]
+  SLASH["Slashing"] -.-> CHAIN
+  SLASH --> S1["invalid reveal"]
+  SLASH --> S2["refuted value<br/>(dispute window)"]
+```
 
 ## 7. Backwards-enforcement of the model
 
