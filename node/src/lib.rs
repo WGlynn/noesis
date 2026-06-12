@@ -3157,6 +3157,130 @@ pub mod claims {
     }
 }
 
+/// Semantic / compressibility floor (ROADMAP Phase 1, Role-C — the garbage-novelty gap
+/// AT the gate). The coverage proxy calls high-entropy noise "novel" because every shingle
+/// is unique. But genuine content (text, code, thought) REUSES bytes and so is compressible;
+/// near-random noise is incompressible. This floor zeroes a cell whose normalized byte
+/// entropy is at/above `theta` — the incompressible-noise subclass of valueless novelty.
+///
+/// It is a FLOOR: it can only ZERO suspected noise, never rescue anything, so it composes
+/// with temporal-novelty WITHOUT touching strategyproofness (AND, like the similarity
+/// floor). Honest bound (the airgap, pinned in tests): genuinely-novel HIGH-entropy but
+/// VALUABLE payloads — keys, hashes, compressed blobs — are false-positived. That is why
+/// it is a heuristic floor backstopped by realized-flow (a wrongly-floored useful cell
+/// still earns through downstream use in v5/v6), NOT the whole answer. Structured content
+/// that is novel-but-pointless is NOT caught here — that needs labels/flow, not bytes.
+pub mod semantic {
+    /// Shannon byte entropy normalized to [0,1] by the max achievable for this length
+    /// (`log2(min(n,256))`). 1.0 = every byte distinct (random-looking); low = structured/
+    /// repetitive. Empty or single-byte data is treated as fully structured (0.0).
+    pub fn normalized_entropy(data: &[u8]) -> f64 {
+        let n = data.len();
+        if n < 2 {
+            return 0.0;
+        }
+        let mut counts = [0u32; 256];
+        for &b in data {
+            counts[b as usize] += 1;
+        }
+        let nf = n as f64;
+        let h: f64 = counts
+            .iter()
+            .filter(|&&c| c > 0)
+            .map(|&c| {
+                let p = c as f64 / nf;
+                -p * p.log2()
+            })
+            .sum();
+        let max = (n.min(256) as f64).log2();
+        if max <= 0.0 {
+            0.0
+        } else {
+            h / max
+        }
+    }
+
+    /// True when the payload looks like incompressible noise (entropy ≥ theta).
+    pub fn is_incompressible(data: &[u8], theta: f64) -> bool {
+        normalized_entropy(data) >= theta
+    }
+
+    /// AND-compose the floor: pass `novelty` through unless the payload is incompressible
+    /// noise, in which case it is zeroed. Never raises novelty.
+    pub fn semantic_floor(novelty: u64, data: &[u8], theta: f64) -> u64 {
+        if is_incompressible(data, theta) {
+            0
+        } else {
+            novelty
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        const THETA: f64 = 0.95;
+
+        fn noise(seed: u8, n: u8) -> Vec<u8> {
+            (0u8..n).map(|i| seed.wrapping_add(i.wrapping_mul(53))).collect()
+        }
+
+        #[test]
+        fn structured_content_is_below_threshold_noise_is_at_ceiling() {
+            for s in [
+                &b"alpha-bravo-charlie"[..],
+                b"delta-echo-foxtrot",
+                b"big-feature-built-on-the-tiny-fix-uniform-victor",
+            ] {
+                assert!(normalized_entropy(s) < THETA, "real content reuses bytes ⇒ < theta");
+            }
+            assert!(normalized_entropy(&noise(0x10, 24)) >= THETA, "all-distinct noise ⇒ ceiling");
+            assert!(
+                normalized_entropy(&(0u8..64).map(|i| i.wrapping_mul(37).wrapping_add(11)).collect::<Vec<u8>>())
+                    >= THETA,
+                "the 64-byte garbage cell is incompressible"
+            );
+        }
+
+        #[test]
+        fn floor_zeroes_high_entropy_garbage_but_passes_real_content() {
+            // The garbage cell that earned full novelty under the coverage proxy
+            // (`garbage_novelty_is_the_documented_open_gap`) is zeroed here AT the gate.
+            assert_eq!(semantic_floor(7, &noise(0x80, 24), THETA), 0, "noise floored to 0");
+            assert_eq!(
+                semantic_floor(7, b"golf-hotel-india", THETA),
+                7,
+                "structured content keeps its novelty"
+            );
+        }
+
+        #[test]
+        fn floor_only_zeroes_never_rescues_and_is_and_composable() {
+            // Strategyproofness preserved: the floor cannot turn a 0 into anything positive.
+            assert_eq!(semantic_floor(0, b"golf-hotel-india", THETA), 0, "0 stays 0 (no rescue)");
+            // Composes after temporal-novelty: min-like, only ever lowers.
+            let nov = 9u64;
+            assert!(semantic_floor(nov, &noise(1, 32), THETA) <= nov);
+            assert!(semantic_floor(nov, b"structured-text-here", THETA) <= nov);
+        }
+
+        #[test]
+        fn honest_false_positive_high_entropy_value_is_floored_pinned() {
+            // THE AIRGAP, pinned. A genuinely-novel high-entropy VALUABLE payload — e.g. a
+            // 32-byte key/hash — is indistinguishable from noise BY CONTENT, so this floor
+            // zeroes it too. That is why it is a heuristic backstopped by realized-flow
+            // (the cell still earns if other minds build on it), not the whole answer.
+            let keyish: Vec<u8> = (0u8..32).map(|i| i.wrapping_mul(67).wrapping_add(29)).collect();
+            assert_eq!(
+                semantic_floor(5, &keyish, THETA),
+                0,
+                "KNOWN TRADEOFF: high-entropy-but-valuable content is false-positived at the \
+                 gate; realized-flow (v5/v6) is the backstop, content alone cannot tell them apart"
+            );
+        }
+    }
+}
+
 /// Learned OUTCOME model over coalitions (`OUTCOME-EVALUATOR.md` §4, Phase-1 frontier).
 /// The coverage proxy cannot tell high-entropy garbage-novelty from value-novelty by
 /// CONTENT alone (`garbage_novelty_is_the_documented_open_gap`). The only thing that can

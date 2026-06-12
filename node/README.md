@@ -58,5 +58,5 @@ read the source.
 ## Build
 
 ```
-cd node && cargo test    # 115/115 passing: value (v4 boost, v5 realized-flow gate, v6 priced-identity standing-gated seeds) + dispute (windowed vesting, challenge/verdict, causal-share slash)/PoM/synergy/flow/soulbound/ownership/consensus (2/3 finalization, retention-decay, A4 equivocation/early-reject, A2 log-scaling) + stability (core + nucleolus least-core solver) + adversary (sybil/padding/collusion/provenance-forgery/quality-bound + pinned: vested-certifier-endorsing-garbage) + RSAW self-audit (eclipse, slashability, quorum-floor) + evaluator (role-bounded advance) + outcome (learned coalition v(S), Bradley-Terry over set-features, corrupt-model harmless)
+cd node && cargo test    # 119/119 passing: value (v4 boost, v5 realized-flow gate, v6 priced-identity standing-gated seeds) + dispute (windowed vesting, challenge/verdict, causal-share slash)/PoM/synergy/flow/soulbound/ownership/consensus (2/3 finalization, retention-decay, A4 equivocation/early-reject, A2 log-scaling) + stability (core + nucleolus least-core solver) + adversary (sybil/padding/collusion/provenance-forgery/quality-bound + pinned: vested-certifier-endorsing-garbage) + RSAW self-audit (eclipse, slashability, quorum-floor) + evaluator (role-bounded advance) + outcome (learned coalition v(S), Bradley-Terry over set-features, corrupt-model harmless)
 ```

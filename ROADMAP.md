@@ -57,11 +57,19 @@ is a reputation system.
     `learned_quality_preserves_the_novelty_floor` regression-tests that the ACTUAL
     trained Bradley-Terry quality cannot rescue a novelty-0 redundant cell (floor holds
     under the learned model, not just pinned quality). Adversarial loop tick #1.
-  - 🔬 remaining (now PINNED): **garbage-novelty gap.** The floor catches redundancy,
+  - 🟡 partial / 🔬 remaining: **garbage-novelty gap.** The floor catches redundancy,
     not high-entropy novel-but-worthless content (coverage proxy rewards entropy).
-    `garbage_novelty_is_the_documented_open_gap` pins it: passes today (gap present),
-    flips when the learned OUTCOME-evaluator replaces the coverage proxy. Closing this
-    is the core Phase-1 bet. Plus: decay + reviewer-diversity port for quality weighting.
+    `garbage_novelty_is_the_documented_open_gap` pins it. **Role-C increment shipped
+    (2026-06-12): `semantic` module — a compressibility floor.** Genuine content reuses
+    bytes (compressible); near-random noise does not. `semantic_floor` zeroes a cell whose
+    normalized byte-entropy ≥ θ, AND-composed (only zeroes, never rescues ⇒ strategyproof).
+    This CLOSES the incompressible-NOISE subclass at the gate (the 64-byte garbage cell
+    now → 0). Honest bounds, pinned in tests: (a) genuinely-novel HIGH-entropy *valuable*
+    payloads (keys/hashes/blobs) are false-positived — content cannot tell them from noise
+    (the airgap); realized-flow (v5/v6) is the backstop. (b) STRUCTURED novel-but-pointless
+    content is NOT caught here — that genuinely needs labels/flow, not bytes, and remains
+    the 🔬 open core bet (learned outcome-evaluator, already role-bounded). So: noise
+    subclass ✅ at the gate; valueless-but-structured ⇒ out-of-band (flow + labels).
     **Composition sharpened (2026-06-12, pom tick):** `value_v4_boost_does_not_gate_meaningless_novelty`
     proves the current form `value = novelty·(1+q)` is a BOOST — q→0 noise still earns full novelty,
     so a better quality proxy alone can NEVER close the gap. The fix must change the COMPOSITION to a
