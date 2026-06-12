@@ -1,8 +1,8 @@
 # Consensus Review — PoM-weighted finalization (PRIVATE, stealth)
 
 > Consolidated findings from the 2026-06-11 consensus study + RSAW adversarial self-audit.
-> Each finding is build-don't-claim: backed by a test in `node/src/lib.rs` (`consensus` mod,
-> 42/42) or a verified line in `NakamotoConsensusInfinity.sol`. Anchors `COHERENCE-LAWS.md`
+> Each finding is build-don't-claim: backed by a test in `node/src/lib.rs` (`consensus` +
+> `stability` mods, **49/49**) or a verified line in `NakamotoConsensusInfinity.sol`. Anchors `COHERENCE-LAWS.md`
 > L12/L13 and the retention-decay section of `POM-CONSENSUS.md`.
 
 ## The spine: composition, not weights
@@ -74,6 +74,11 @@ halt-risk; the **hybrid** (`finalizes_hybrid`: effective term + quorum floor) ge
 | C6 | Quorum-floor hybrid closes eclipse, keeps liveness | TESTED | `quorum_floor_param_closes_eclipse_and_keeps_liveness` |
 | A3 | Sybil splitting bounded by MIN_STAKE | TESTED | `audit_a3_sybil_splitting_is_bounded_by_min_stake` |
 | A5 | Stale validator still slashable (decay ≠ exit) | TESTED | `audit_a5_stale_validator_is_still_slashable` |
+| A4a | Equivocation (double-vote) detected + slashable | TESTED | `audit_a4_equivocation_is_detected_and_slashable` |
+| A4b | Early-reject when threshold provably unreachable | TESTED | `audit_a4_early_reject_when_threshold_unreachable` |
+| L9 | Core membership + nucleolus max-excess (no profitable fork) | TESTED | `stability::{equal_split_is_in_the_core, an_unfair_allocation_leaves_the_core, nucleolus_objective_prefers_lower_max_excess}` |
+| V1 | Provenance-forgery earns ~0 Myerson credit | TESTED | `provenance_forgery_earns_no_synergy_credit` |
+| V2 | Quality boost bounded at 2× novelty (floor unbreached) | TESTED | `quality_boost_cannot_exceed_2x_novelty` |
 
 ## Open gaps (honest, not yet closed)
 
@@ -81,8 +86,12 @@ halt-risk; the **hybrid** (`finalizes_hybrid`: effective term + quorum floor) ge
   fraction (0.60) as its realizable share. That is the worst-case *saturation ceiling*; the actual
   share also depends on cross-node distribution and NCI's **log₂ scaling** on PoW+PoM (`:155-159`),
   which the reference model omits. Correct for the L12 worst case; not a general-distribution model.
-- **A4 — lifecycle.** Equivocation slashing, the early-reject branch (`weightAgainst > total - threshold`,
-  `:707`), and proposal expiry are not modeled here.
+- **A4 — lifecycle.** Equivocation detection + the early-reject branch (`weightAgainst > total - threshold`,
+  `:707`) are now modeled (`is_equivocation`, `can_early_reject`); **proposal expiry / window timing**
+  and the on-chain `_slashEquivocator` accounting remain unmodeled.
+- **L9 stability** is now demonstrated at the *concept* level (core membership + nucleolus max-excess
+  over an explicit game); the **LP/iterated-LP solver over the real PoM-weighted coalition game** (and
+  the Myerson-restricted sampling at scale) is still designed, not built.
 - **A5+ — slashability is modeled but the *decayed-but-slashable* invariant is not enforced in NCI code**;
   verify the contract keeps a stale validator slashable (don't assume).
 - **Quorum floor is a Noesis proposal**, not in NCI. Adopting the hybrid basis requires a contract change
