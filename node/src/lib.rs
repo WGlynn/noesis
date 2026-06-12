@@ -88,6 +88,32 @@ pub fn temporal_novelty(cells_in_commit_order: &[Cell]) -> Vec<u64> {
     out
 }
 
+/// Coverage-similarity floor — the fix for the near-duplicate gap. Temporal-novelty alone
+/// zeroes only EXACT subsets/duplicates; a near-duplicate (a few tokens flipped) leaks small
+/// residual novelty from the change-spanning shingles. This treats a cell whose coverage overlap
+/// with the union of earlier-committed coverage exceeds a threshold `theta` as a near-duplicate
+/// and assigns it 0. Overlap = |cov ∩ earlier_union| / |cov| (the fraction of the cell already
+/// on-chain). `theta` near 1.0 zeroes only near-identical cells; honest novel work (low overlap)
+/// is untouched. Compose with the learned quality model so honest-but-similar work is not
+/// over-cut at lower `theta`.
+pub fn temporal_novelty_with_similarity_floor(cells_in_commit_order: &[Cell], theta: f64) -> Vec<u64> {
+    let mut seen: HashSet<CovId> = HashSet::new();
+    let mut out = Vec::with_capacity(cells_in_commit_order.len());
+    for c in cells_in_commit_order {
+        let cov = coverage(&c.data);
+        let covset: HashSet<CovId> = cov.iter().copied().collect();
+        let overlap = if covset.is_empty() {
+            0.0
+        } else {
+            covset.iter().filter(|x| seen.contains(*x)).count() as f64 / covset.len() as f64
+        };
+        let novel = cov.iter().filter(|x| !seen.contains(*x)).count() as u64;
+        out.push(if overlap > theta { 0 } else { novel });
+        seen.extend(cov);
+    }
+    out
+}
+
 /// PoM score per CONTRIBUTOR = sum of temporal-novelty value of authored cells.
 ///
 /// Keyed by `type_script.args` (the SOULBOUND contributor identity), NOT by `lock.args`
@@ -300,6 +326,21 @@ mod tests {
     #[test]
     fn cells_shard_independently() {
         assert_eq!(shard_of(&cell(7, 1, 0, b"x"), 4), 3);
+    }
+
+    #[test]
+    fn similarity_floor_zeroes_the_near_duplicate() {
+        // Fix for the near-duplicate gap: a near-dup (>theta of its coverage already seen) earns
+        // 0, while honest novel blocks keep value. Plain temporal-novelty leaks residual to it.
+        let order = vec![
+            cell(0, 1, 0, b"alpha-bravo-charlie-delta-echo-foxtrot"),
+            cell(1, 2, 1, b"golf-hotel-india-juliet-kilo-lima"), // honest novel
+            cell(2, 9, 2, b"alpha-bravo-charlie-delta-echo-Foxtrot"), // near-dup of block 0 (1 char)
+        ];
+        let v = temporal_novelty_with_similarity_floor(&order, 0.8);
+        assert!(v[0] > 0 && v[1] > 0, "honest novel blocks keep value");
+        assert_eq!(v[2], 0, "near-duplicate (>80% coverage already seen) earns 0");
+        assert!(temporal_novelty(&order)[2] > 0, "plain rule leaks residual to the near-dup (the gap)");
     }
 }
 

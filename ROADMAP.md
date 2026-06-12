@@ -62,13 +62,14 @@ is a reputation system.
     `garbage_novelty_is_the_documented_open_gap` pins it: passes today (gap present),
     flips when the learned OUTCOME-evaluator replaces the coverage proxy. Closing this
     is the core Phase-1 bet. Plus: decay + reviewer-diversity port for quality weighting.
-  - 🔬 **near-duplicate residual-novelty gap (pinned 2026-06-12).** Temporal-novelty zeroes
-    EXACT subsets/duplicates, but a near-duplicate (a few tokens flipped) earns small NONZERO
-    novelty from the shingles spanning the change; an attacker could farm residual value across
-    many near-dups. `near_duplicate_residual_novelty_is_an_open_gap` pins it (passes today).
-    Candidate fix: a **coverage-similarity floor** — discount a block whose coverage overlap
-    (Jaccard) with the earlier union exceeds a threshold θ, so near-dups fall below the floor
-    and earn 0; compose with the learned quality model so honest-but-similar work is not over-cut.
+  - ✅ ref / 🟡 tune **near-duplicate gap — coverage-similarity floor shipped (2026-06-12).**
+    Temporal-novelty alone zeroes only EXACT subsets/duplicates; a near-duplicate (a few tokens
+    flipped) leaked small residual novelty from change-spanning shingles, farmable across many
+    near-dups (`near_duplicate_residual_novelty_is_an_open_gap` pinned it). Fix shipped:
+    `temporal_novelty_with_similarity_floor` zeroes a cell whose coverage overlap with the earlier
+    union exceeds θ (`similarity_floor_zeroes_the_near_duplicate`, θ=0.8). Remaining 🟡 tune: θ
+    over-cuts honest-but-similar work at low values — compose with the learned quality model and
+    calibrate θ on real data so genuine near-domain contributions are not zeroed.
 
 ## Phase 2 — Recursion & flow
 - ✅ **Two-level recursion** — intra-block share vectors via the same Myerson game one level
