@@ -94,13 +94,56 @@ hallucination case by case. It dissolves the class, by making the truthful outpu
 Grace made mechanical, applied to the one thing a single model cannot give you on its own: a reason
 to believe it.
 
-## 7. What this claims, plainly
+## 7. Where ensembling wins, and where structure wins hard
+
+Neither layer dominates the other. They are complementary, and the boundary between them is set by
+two questions: *is there a verifiable referent for this claim, and is there an adversary?*
+
+**Ensembling (diverse models cross-checking) wins where:**
+- errors are independent and stochastic — a bad sampled token, a wrong branch, an arithmetic slip;
+  majority vote and self-consistency provably reduce these.
+- there is no recomputable ground truth — open-ended generation, judgment, taste, novel synthesis;
+  there is nothing to recompute against, so diverse opinion is the strongest available signal.
+- you must ship today — it is a few API calls and a vote, not new infrastructure.
+- you want independence from a possibly-wrong record — fresh diverse models do not inherit a
+  ledger's baked-in errors.
+
+**Structure (recompute and verify against a record) wins hard where:**
+- the claim is recomputable — math, code execution, a state transition. Recompute settles it; a
+  vote about whether `17 × 23 = 391` is absurd. Structure gives certainty, not a tally.
+- the setting is adversarial. You cannot out-vote a signature. An adversary with capital or compute
+  floods an ensemble with correlated fake checkers, but cannot *subsidize a signature* or fabricate
+  provenance. Rick's own bank-consortium threat applies to ensembling and not to structural ground.
+- the claim is provenance or attribution — who contributed what is a signed fact, not an opinion an
+  ensemble can vote on.
+- you need non-repudiation or audit — structure leaves a recomputable record anyone can re-verify
+  later; a vote is ephemeral.
+
+## 8. The router: how the harness chooses
+
+A real harness routes each claim to the layer that can actually catch its error:
+- a verifiable referent exists → check against structure (recompute, verify signature, reconcile
+  with the record);
+- none exists → ensemble diverse providers and run adversarial critique;
+- a reasoning chain → both, ensembling the stochastic steps and grounding any step that touches a
+  verifiable fact.
+
+The router is itself a classifier, and therefore the new attack surface: an adversary who can
+mislabel a recomputable claim as "judgment" escapes the structural check. So the router **fails
+closed** — when a referent might exist, or an adversary might be present, it defaults to structural
+grounding. Verification asymmetry makes this the efficient policy too: where structure applies,
+recompute is far cheaper than generate, so structure-first / ensemble-fallback is both safer and
+cheaper. And the two layers audit each other — structure catches what models correlate on, diverse
+models catch what the record got wrong.
+
+## 9. What this claims, plainly
 
 - The competitive layer of an AI system is the harness, not the weights.
-- A harness competes by cross-checking, but cross-checking fails against correlated error unless
-  the checkers are independent and grounded in verifiable structure.
-- The killer function is therefore not "multiple LLMs" — it is the coordination substrate that
-  makes the cross-check independent, bonded, and grounded in a record that cannot lie.
-- That substrate is the same mechanism as a bonded, proof-weighted, tamper-evident consensus,
-  which is why the harness and the chain are one design at two scales, and why the harness runs on
-  any model.
+- Cross-check is the floor; it fails on correlated error unless the checkers are independent.
+- Ensembling owns the independent-error and no-ground-truth regimes; structure owns the
+  recomputable, adversarial, provenance, and audit regimes.
+- The killer harness **routes** each error to its dominant layer, fails closed to structure under
+  adversary or ambiguity, and uses each layer to audit the other.
+- The structural layer is the same mechanism as a bonded, proof-weighted, tamper-evident consensus
+  — harness and chain are one design at two scales — which is why it is model-agnostic and, unlike
+  any vote, adversary-resistant.
