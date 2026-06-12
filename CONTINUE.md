@@ -44,8 +44,19 @@
   integers; entropy floor needs a Q16.16 log2 table — boundary-exactness flagged for its own
   adversarial tick). Next code increments ordered in-doc: (1) off-VM `value_fixed` mirror +
   equivalence tests, (2) ckb-vm host harness smoke test, (3) pom-typescript no_std crate.
-- **Story-loop: 4 done, 6 remain.** Next per doc: `value_fixed` integer mirror of the
-  intake rule + f64-equivalence tests.
+- **Loop 5/10 — `value_fixed` SHIPPED (node 133/133): CKB-VM-PORT increment #1 done.**
+  Q16.16 integer mirror of the full intake pipeline, zero deps: `log2_q16` (shift-and-square,
+  16 bounded iterations, bit-identical cross-platform), `is_incompressible_q16` (entropy
+  inequality cleared of division: n·log2(n) − Σ c·log2(c) ≥ θ·n·log2(min(n,256)), i128),
+  similarity floor as exact cross-multiplied integers, `production_value_q16`. Equivalence
+  vs f64 TESTED: log2 within 1e-4 across the range incl. u64::MAX; exact agreement on every
+  corpus fixture (content/noise/keyish/hexed/diluted/empty); 500-payload deterministic
+  random sweep across alphabet sizes agrees everywhere outside the documented 1e-3
+  quantization band (>400 checked, in-test floor); canonical-fixture pipeline values match
+  f64 exactly. The fixed form is canonical-on-chain; f64 stays the prototype.
+- **Story-loop: 5 done, 5 remain.** Next per CKB-VM-PORT order: (2) ckb-vm host harness
+  smoke test (needs a prebuilt RISC-V ELF — honest blocker noted in-doc) OR the
+  entropy-boundary adversarial tick; pick whichever has delta available.
 - **HANDOFF frontier #4 SHIPPED**: `semantic::semantic_floor` AND-composed into
   `production_value` (new `entropy_theta` param) — after the similarity floor, BEFORE the
   quality boost. Incompressible noise now earns 0 at the canonical rule even at max quality;

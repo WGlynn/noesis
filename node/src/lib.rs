@@ -3376,6 +3376,250 @@ pub mod claims {
     }
 }
 
+/// Fixed-point mirror of the INTAKE value rule — CKB-VM-PORT.md code increment #1.
+/// On-VM consensus code cannot use f64 (cross-platform float nondeterminism); this module
+/// re-derives the intake pipeline (similarity floor → semantic floor → quality boost) in
+/// pure integer math, Q16.16. The f64 forms stay the PROTOTYPE; this form is what the
+/// RISC-V type-script will run, so equivalence is tested against the f64 forms on every
+/// existing corpus fixture + a deterministic random sweep.
+///
+/// Honest boundary note (flagged in CKB-VM-PORT.md for its own adversarial tick): at the
+/// exact theta boundary the Q16.16 comparison can disagree with f64 within quantization
+/// error (≤ 2^-16 in theta, log2 truncation ≤ ~2^-16 relative). The fixed form is the
+/// CANONICAL one on-chain; divergence inside the epsilon band is acceptable because it is
+/// deterministic — every node disagrees with the f64 prototype identically.
+pub mod value_fixed {
+    use super::{coverage, CovId};
+    use std::collections::HashSet;
+
+    pub const Q: u32 = 16;
+    pub const ONE: u64 = 1 << Q;
+
+    /// Deterministic Q16.16 log2 for x ≥ 1: integer part from leading_zeros, 16 fractional
+    /// bits by mantissa squaring (the classic shift-and-square algorithm). Pure integer
+    /// ops — bit-identical on every platform, no table, bounded 16 iterations.
+    pub fn log2_q16(x: u64) -> u64 {
+        debug_assert!(x >= 1, "log2 needs x >= 1");
+        let ip = 63 - u64::from(x.leading_zeros());
+        // mantissa in Q32.32, normalized into [1, 2)
+        let mut m: u128 = ((x as u128) << 32) >> ip;
+        let mut frac: u64 = 0;
+        for i in (0..Q).rev() {
+            m = (m * m) >> 32; // square in Q32.32; m < 2^33 so m^2 < 2^66 fits u128
+            if m >= (2u128 << 32) {
+                m >>= 1;
+                frac |= 1 << i;
+            }
+        }
+        (ip << Q) | frac
+    }
+
+    /// Integer mirror of `semantic::is_incompressible` (normalized entropy ≥ theta).
+    /// Derivation:  H = log2(n) − (1/n)·Σ c·log2(c);  H / log2(min(n,256)) ≥ θ
+    ///          ⇔  n·log2(n) − Σ c·log2(c)  ≥  θ · n · log2(min(n,256))
+    /// Both sides carried at Q16.16 × n scale in i128 — no overflow for any real payload.
+    pub fn is_incompressible_q16(data: &[u8], theta_q16: u64) -> bool {
+        let n = data.len() as u64;
+        if n < 2 {
+            return theta_q16 == 0; // mirror f64: entropy is defined as 0.0 here
+        }
+        let mut counts = [0u64; 256];
+        for &b in data {
+            counts[b as usize] += 1;
+        }
+        let lhs: i128 = (n as i128) * (log2_q16(n) as i128)
+            - counts
+                .iter()
+                .filter(|&&c| c > 0)
+                .map(|&c| (c as i128) * (log2_q16(c) as i128))
+                .sum::<i128>();
+        let m = n.min(256);
+        let rhs: i128 = ((theta_q16 as i128) * (n as i128) * (log2_q16(m) as i128)) >> Q;
+        lhs >= rhs
+    }
+
+    /// Integer mirror of `semantic::semantic_floor`.
+    pub fn semantic_floor_q16(novelty: u64, data: &[u8], theta_q16: u64) -> u64 {
+        if is_incompressible_q16(data, theta_q16) {
+            0
+        } else {
+            novelty
+        }
+    }
+
+    /// Integer mirror of `temporal_novelty_with_similarity_floor`:
+    /// overlap/|cov| > θ  ⇔  overlap·2^Q > θ_q16·|cov|  (cross-multiplied, exact).
+    pub fn temporal_novelty_with_similarity_floor_q16(
+        cells_in_commit_order: &[super::Cell],
+        theta_q16: u64,
+    ) -> Vec<u64> {
+        let mut seen: HashSet<CovId> = HashSet::new();
+        let mut out = Vec::with_capacity(cells_in_commit_order.len());
+        for c in cells_in_commit_order {
+            let cov = coverage(&c.data);
+            let covset: HashSet<CovId> = cov.iter().copied().collect();
+            let overlap = covset.iter().filter(|x| seen.contains(*x)).count() as u128;
+            let len = covset.len() as u128;
+            let floored = len > 0 && (overlap << Q) > (theta_q16 as u128) * len;
+            let novel = cov.iter().filter(|x| !seen.contains(*x)).count() as u64;
+            out.push(if floored { 0 } else { novel });
+            seen.extend(cov);
+        }
+        out
+    }
+
+    /// Full integer mirror of `value::production_value`. `quality_q16[i]` ∈ [0, ONE].
+    /// Returns value at Q16.16 scale: floored_novelty × (ONE + quality).
+    pub fn production_value_q16(
+        cells_in_commit_order: &[super::Cell],
+        theta_sim_q16: u64,
+        theta_ent_q16: u64,
+        quality_q16: &[u64],
+    ) -> Vec<u64> {
+        temporal_novelty_with_similarity_floor_q16(cells_in_commit_order, theta_sim_q16)
+            .iter()
+            .zip(cells_in_commit_order)
+            .zip(quality_q16)
+            .map(|((&nv, c), &q)| {
+                semantic_floor_q16(nv, &c.data, theta_ent_q16).saturating_mul(ONE + q)
+            })
+            .collect()
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::super::{semantic, Cell, Script};
+        use super::*;
+
+        const THETA_ENT_Q16: u64 = 62259; // floor(0.95 · 2^16) = 0.949997…
+        const THETA_SIM_Q16: u64 = 52429; // floor(0.8 · 2^16) + 1 ulp ≈ 0.800003
+
+        fn splitmix64(state: &mut u64) -> u64 {
+            *state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            let mut z = *state;
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            z ^ (z >> 31)
+        }
+
+        #[test]
+        fn log2_q16_tracks_f64_within_quantization() {
+            for &x in &[1u64, 2, 3, 5, 10, 24, 64, 255, 256, 1000, 65535, 1 << 32, u64::MAX] {
+                let fixed = log2_q16(x) as f64 / ONE as f64;
+                let float = (x as f64).log2();
+                assert!((fixed - float).abs() < 1e-4, "x={x}: fixed {fixed} vs f64 {float}");
+            }
+        }
+
+        #[test]
+        fn entropy_floor_agrees_with_f64_on_every_corpus_fixture() {
+            let noise: Vec<u8> = (0u8..64).map(|i| i.wrapping_mul(37).wrapping_add(11)).collect();
+            let keyish: Vec<u8> = (0u8..32).map(|i| i.wrapping_mul(67).wrapping_add(29)).collect();
+            let hexed: Vec<u8> = noise.iter().flat_map(|b| format!("{b:02x}").into_bytes()).collect();
+            let diluted: Vec<u8> =
+                noise.iter().copied().chain(std::iter::repeat(0u8).take(64)).collect();
+            let n24a: Vec<u8> = (0u8..24).map(|i| 0x10u8.wrapping_add(i.wrapping_mul(53))).collect();
+            let n24b: Vec<u8> = (0u8..24).map(|i| 0x80u8.wrapping_add(i.wrapping_mul(53))).collect();
+            let fixtures: Vec<&[u8]> = vec![
+                b"alpha-bravo-charlie-delta",
+                b"echo-foxtrot-golf-hotel",
+                b"india-juliet-kilo-lima",
+                b"big-feature-built-on-the-tiny-fix-uniform-victor",
+                b"the-quick-brown-fox-says-nothing-of-value-today",
+                b"fn main() { println!(\"hello\"); } // code reuses bytes heavily",
+                &noise,
+                &keyish,
+                &hexed,
+                &diluted,
+                &n24a,
+                &n24b,
+                b"",
+                b"x",
+            ];
+            for f in fixtures {
+                assert_eq!(
+                    is_incompressible_q16(f, THETA_ENT_Q16),
+                    semantic::is_incompressible(f, 0.95),
+                    "fixture disagrees: {:?}…",
+                    &f[..f.len().min(12)]
+                );
+            }
+        }
+
+        #[test]
+        fn entropy_floor_random_sweep_agrees_outside_the_quantization_band() {
+            // Deterministic sweep across lengths and alphabet sizes (masking bytes to
+            // 2^k symbols sweeps entropy through the whole range). HONEST tolerance: only
+            // payloads whose f64 entropy lands within 1e-3 of theta are skipped — that band
+            // is exactly the documented Q16.16 quantization divergence; everything outside
+            // it must agree exactly.
+            let mut state = 0x0BAD_5EED_u64;
+            let mut checked = 0u32;
+            for trial in 0..500u64 {
+                let len = 2 + (splitmix64(&mut state) % 300) as usize;
+                let mask: u64 = match trial % 4 {
+                    0 => 0xFF,
+                    1 => 0x3F,
+                    2 => 0x0F,
+                    _ => 0x03,
+                };
+                let data: Vec<u8> =
+                    (0..len).map(|_| (splitmix64(&mut state) & mask) as u8).collect();
+                let h = semantic::normalized_entropy(&data);
+                if (h - 0.95).abs() < 1e-3 {
+                    continue;
+                }
+                checked += 1;
+                assert_eq!(
+                    is_incompressible_q16(&data, THETA_ENT_Q16),
+                    h >= 0.95,
+                    "len={len} mask={mask:#x} h={h}"
+                );
+            }
+            assert!(checked > 400, "sweep must mostly land outside the band (got {checked})");
+        }
+
+        fn cell(id: u64, owner: u8, ts: u64, data: &[u8]) -> Cell {
+            Cell {
+                id,
+                lock: Script { code_hash: [1u8; 32], args: vec![owner] },
+                type_script: Script { code_hash: [0xB0; 32], args: vec![owner] },
+                parent: None,
+                timestamp: ts,
+                data: data.to_vec(),
+            }
+        }
+
+        #[test]
+        fn production_value_q16_matches_f64_on_the_canonical_fixtures() {
+            // Same scenario the f64 tests pin: honest cells + a near-duplicate + a noise
+            // cell, mixed quality. The integer mirror must reproduce the f64 values exactly
+            // (the chosen qualities are exactly representable in Q16.16).
+            let noise: Vec<u8> = (0u8..64).map(|i| i.wrapping_mul(37).wrapping_add(11)).collect();
+            let mut order = vec![
+                cell(0, 1, 0, b"alpha-bravo-charlie-delta"),
+                cell(1, 2, 1, b"echo-foxtrot-golf-hotel"),
+                cell(2, 3, 2, b"india-juliet-kilo-lima"),
+            ];
+            let mut near = order[0].data.clone();
+            near[2] ^= 0x20;
+            order.push(cell(3, 9, 3, &near));
+            order.push(cell(4, 8, 4, &noise));
+            let q_f = vec![1.0, 0.5, 0.0, 1.0, 1.0];
+            let q_q = vec![ONE, ONE / 2, 0, ONE, ONE];
+            let f = super::super::value::production_value(&order, 0.8, 0.95, &q_f);
+            let x = production_value_q16(&order, THETA_SIM_Q16, THETA_ENT_Q16, &q_q);
+            assert_eq!(f.len(), x.len());
+            for (i, (a, b)) in f.iter().zip(&x).enumerate() {
+                let bf = *b as f64 / ONE as f64;
+                assert!((a - bf).abs() < 1e-9, "cell {i}: f64 {a} vs fixed {bf}");
+            }
+            assert_eq!(x[3], 0, "near-duplicate floored in the integer mirror too");
+            assert_eq!(x[4], 0, "noise floored in the integer mirror too");
+        }
+    }
+}
+
 /// Semantic / compressibility floor (ROADMAP Phase 1, Role-C — the garbage-novelty gap
 /// AT the gate). The coverage proxy calls high-entropy noise "novel" because every shingle
 /// is unique. But genuine content (text, code, thought) REUSES bytes and so is compressible;

@@ -4,7 +4,7 @@ Resume point for a fresh chat. Detail lives in `CONTINUE.md` (top block) and `RO
 this is the fast orientation. Repo: `WGlynn/noesis` (private remote). Node: `node/`, Rust.
 
 ## Current state
-- **node: 129/129 tests green** (`cd node && cargo test`).
+- **node: 133/133 tests green** (`cd node && cargo test`).
 - Value layer is comprehensively built + adversarially hardened (suite grew from 5 at the
   start of the continuous run to the count above, via the adversarial-layering method: each
   layer's surviving attack named the next, until the survivor was the consensus layer's own

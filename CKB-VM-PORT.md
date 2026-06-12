@@ -2,7 +2,7 @@
 
 > Frontier item #2 (HANDOFF). Rule honored: **no assumed APIs** — everything below was
 > read from crate source on this machine (`~/.cargo/registry/src/`), versions pinned.
-> Status: DESIGN VERIFIED, code increment not started. The fixed-point requirement
+> Status: DESIGN VERIFIED; increment #1 (value_fixed off-VM mirror) SHIPPED 2026-06-12. The fixed-point requirement
 > (critical-qa 2026-06-12) is designed here, implementable off-VM first.
 
 ## Verified API surfaces (read 2026-06-12)
