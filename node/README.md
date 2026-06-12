@@ -15,6 +15,29 @@ architecture and reinterpret only the economics for Proof of Mind.
 | **State rent / 1 CKB = 1 byte** | `1 PoM = 1 byte of state`; rent → PoM **decay** | 🟡 see `../CRYPTOECONOMICS.md` |
 | **Secondary issuance** | reinterpreted: issuance = **PoM minted by verified contribution** (earned, not bought) | 🟡 |
 
+```mermaid
+flowchart LR
+  subgraph CKB["Nervos CKB (inspiration)"]
+    C1["Cell model<br/>(generalized UTXO)"]
+    C2["Lock script<br/>(ownership)"]
+    C3["Type script<br/>(state-transition rules)"]
+    C4["1 CKB = 1 byte + state rent"]
+    C5["Issuance: pre-mined + bought"]
+  end
+  subgraph NOE["Noesis (reinterpret economics only)"]
+    N1["Cell = shardable chain state"]
+    N2["Lock = Bitcoin-shaped ownership fold"]
+    N3["Type = encapsulates PoM<br/>(value / novelty rules)"]
+    N4["1 PoM = 1 byte · rent → PoM decay"]
+    N5["Issuance: minted by<br/>temporal-novelty contribution (earned)"]
+  end
+  C1 -->|"DIRECT-PORT"| N1
+  C2 -->|"DIRECT-PORT"| N2
+  C3 -->|"REINTERPRET"| N3
+  C4 -->|"AUGMENT"| N4
+  C5 -->|"REINTERPRET"| N5
+```
+
 ## What we reinterpret (the only divergence from CKB)
 
 - **Issuance**: CKB is pre-mined + bought; PoM is minted by temporal-novelty
