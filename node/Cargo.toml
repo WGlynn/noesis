@@ -5,9 +5,10 @@ edition = "2021"
 description = "Proof-of-Mind value chain — core mechanism (PRIVATE, stealth)"
 
 # Execution layer: RISC-V via CKB-VM (Nervos), same substrate as the CKB pivot.
-# Added when the VM integration lands; the core mechanism below is VM-agnostic.
-# [dependencies]
-# ckb-vm = "0.24"
+# The core mechanism stays VM-agnostic; ckb-vm is a DEV dependency only (host-side
+# smoke harness, CKB-VM-PORT.md increment #2) until the type-script lands.
+[dev-dependencies]
+ckb-vm = "0.24"
 
 [lib]
 name = "noesis"

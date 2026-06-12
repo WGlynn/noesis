@@ -54,9 +54,16 @@
   random sweep across alphabet sizes agrees everywhere outside the documented 1e-3
   quantization band (>400 checked, in-test floor); canonical-fixture pipeline values match
   f64 exactly. The fixed form is canonical-on-chain; f64 stays the prototype.
-- **Story-loop: 5 done, 5 remain.** Next per CKB-VM-PORT order: (2) ckb-vm host harness
-  smoke test (needs a prebuilt RISC-V ELF — honest blocker noted in-doc) OR the
-  entropy-boundary adversarial tick; pick whichever has delta available.
+- **Loop 6/10 — ckb-vm smoke harness SHIPPED (node 134/134: 133 lib + 1 integration).**
+  CKB-VM-PORT increment #2. The noted blocker was already clear on this machine: 26
+  prebuilt riscv64imac ELFs from vibeswap contracts-ckb + rustup target installed. A real
+  PoM lock-script ELF (69KB fixture, in-repo) loads + EXECUTES under `ckb_vm::run` 0.24
+  (dev-dep only; lib stays VM-agnostic). Assertion grounded in ckb-vm source semantics:
+  ecall 93 = native exit, unhandled ecall ⇒ InvalidEcall(code) — reaching a CKB-numbered
+  ecall proves real instruction execution up to the program's first environment call.
+  Next: increment #3 = Noesis syscalls (back load_cell_data/load_script with our Cell
+  model) under DefaultMachineBuilder::syscall.
+- **Story-loop: 6 done, 4 remain.**
 - **HANDOFF frontier #4 SHIPPED**: `semantic::semantic_floor` AND-composed into
   `production_value` (new `entropy_theta` param) — after the similarity floor, BEFORE the
   quality boost. Incompressible noise now earns 0 at the canonical rule even at max quality;

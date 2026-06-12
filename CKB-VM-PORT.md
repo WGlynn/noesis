@@ -61,10 +61,14 @@
    `production_value` in pure integer math + equivalence tests vs the f64 form over the
    existing corpora (exact agreement on all current fixtures, divergence bounded on random
    inputs). No new deps.
-2. **Host harness**: add `ckb-vm = "0.24"` dev-dep; run a precompiled trivial RISC-V ELF
-   via `ckb_vm::run` as a smoke test. BLOCKER to note honestly: building our own ELF needs
-   the `riscv64imac-unknown-none-elf` target + ckb-std scaffold (proven recipe exists in
-   vibeswap `contracts-ckb`, [J·vibeswap-ckb-chain-alive]).
+2. ✅ SHIPPED 2026-06-12 — **Host harness**: `ckb-vm = "0.24"` dev-dep + `tests/ckb_vm_smoke.rs`.
+   The presumed blocker was ALREADY CLEAR on this machine: 26 prebuilt riscv64imac ELFs in
+   vibeswap `contracts-ckb/target/` + the rustup target installed. Fixture =
+   `proof-of-mind-lock-script` (69KB, in-repo at `node/tests/fixtures/`). Assertion is
+   exact per ckb-vm source: no handlers bound ⇒ program must run startup then stop at its
+   first CKB-numbered ecall (2000-6000) or exit natively — proves real instruction
+   execution, not just ELF parsing. Next: Noesis syscalls backing load_cell_data from our
+   Cell model (increment #3).
 3. **The PoM type-script crate** (separate `scripts/pom-typescript/` workspace member,
    no_std + ckb-std 0.16): intake floors + soulbound transition, compiled to RISC-V,
    executed under the host harness with Noesis syscalls.
