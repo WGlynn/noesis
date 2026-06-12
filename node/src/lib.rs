@@ -2822,6 +2822,17 @@ pub mod calibration {
         p_min: f64,
         v_min: f64,
     ) -> bool {
+        // SOUNDNESS GUARD (adversarial tick on the harness itself, 2026-06-12).
+        // attacker_ev = (1−p)V − p(λV+α). At the binding (lowest) detection p_min:
+        //   ∂/∂V = (1−p_min) − p_min·λ.  With λ=1 that is 1 − 2·p_min.
+        // If p_min < 0.5 the EV GROWS in V without bound, so NO finite α and NO finite
+        // grid can certify safety — a large-enough attack value is always profitable.
+        // A finite-grid sweep that returned `true` here would be lying. Refuse to certify:
+        // either detection must be ≥ ½ (the bounty buys this, §4) or the model needs an
+        // explicit, defended max-attack-value cap (not assumed here).
+        if (1.0 - p_min) - p_min * lambda > 1e-12 {
+            return false;
+        }
         let p_grid = [p_min, (p_min + 1.0) / 2.0, 0.95];
         for &v in v_grid {
             for &p in &p_grid {
@@ -2889,6 +2900,31 @@ pub mod calibration {
                     );
                 }
             }
+        }
+
+        #[test]
+        fn harness_refuses_to_certify_below_half_detection_unbounded_v() {
+            // ADVERSARIAL TICK on the harness (2026-06-12). Before the soundness guard,
+            // feasible() swept a FINITE V grid; with p_min < 1/2, attacker EV grows in V,
+            // so a grid that topped out at V=256 could return `true` while V=1e9 was
+            // positive-EV. The blind spot, made explicit:
+            let big_alpha = 1e6;
+            // At p=0.4, a huge V is profitable no matter how large α is, because EV grows
+            // linearly in V and only subtracts a constant α:
+            assert!(
+                attacker_ev(1e12, 0.4, 1.0, big_alpha) > 0.0,
+                "p<1/2: a large enough attack value beats ANY fixed α — the blind spot"
+            );
+            // The guard now REFUSES to certify that regime rather than trusting the grid:
+            assert!(
+                !feasible(1.0, big_alpha, BETA, BOND, EFFORT, &v_grid(), 0.4, 0.5),
+                "harness refuses to certify p_min<1/2 (unbounded-V attack) regardless of grid"
+            );
+            // At p_min = 1/2 it certifies honestly (EV = −α/2, V-independent):
+            assert!(
+                feasible(LAMBDA, ALPHA, BETA, BOND, EFFORT, &v_grid(), 0.5, 0.5),
+                "p_min=1/2 is V-independent at the binding case ⇒ honestly certifiable"
+            );
         }
 
         #[test]
