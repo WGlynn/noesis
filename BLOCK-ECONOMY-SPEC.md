@@ -28,6 +28,19 @@ synergy-valued contribution) is the apex.
 
 ## The stack (each layer demonstrated, not asserted)
 
+```mermaid
+flowchart TD
+  L1["1 · Block + provenance<br/>{id, parent, inputs, output, hash}<br/>commit-reveal authorship"] --> L2["2 · Ownership — Bitcoin-shaped<br/>UTXO fold over a signed transfer log"]
+  L2 --> L3["3 · Value<br/>v0 Copeland (additive) → v2 synergy outcome-value v(S)"]
+  L3 --> L4["4 · Proof of Mind score<br/>accumulated Myerson credit over owned blocks"]
+  L4 --> L5["5 · Backwards-enforcement<br/>value-weighted dataset → model → governance verifies → compounds"]
+  L4 --> CON["Decentralized consensus<br/>PoM-weighted (not PoW / PoS)"]
+  classDef done fill:#14302a,stroke:#34d399,color:#d1fae5;
+  classDef open fill:#3a2e15,stroke:#fbbf24,color:#fde68a;
+  class L1,L2 done
+  class L3,L4,L5,CON open
+```
+
 1. **Block + provenance.** A block is the unit a session produces:
    `{id, parent, timestamp, prompt(input), response(output), checkpoints, hash}`. The
    inputs are present so *how the output came about is provable* (Will's requirement).
@@ -136,6 +149,15 @@ layers, and decoupling them is the point (elicitation-stack):
    meta-contribution, scored like any block).
 2. **Elicitation layer** consumes the block's CONTENT as a judgment when scoring the
    blocks it references (a signal, not a value).
+```mermaid
+flowchart TD
+  BLK["A block whose content is ABOUT contributions"] --> R1["VALUE layer<br/>scores the block's OWN marginal<br/>contribution (a meta-contribution)"]
+  BLK --> R2["ELICITATION layer<br/>consumes content as a JUDGMENT<br/>when scoring referenced blocks"]
+  R1 -.->|"must stay decoupled"| R2
+  R1 --> G["Circularity guards<br/>independent evaluators ·<br/>eigenvector / EigenTrust damping ·<br/>synergy game discounts self-ref coalitions"]
+  R2 --> G
+```
+
 Circularity guard (a block must not be the sole scorer of its own value): independent
 evaluators for attribution-blocks + eigenvector/PageRank damping over the attribution
 graph + the synergy game discounting self-referential coalitions (a ring of
