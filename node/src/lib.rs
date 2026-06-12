@@ -1896,4 +1896,37 @@ mod adversary {
             assert!(v[i] >= nov[i] as f64, "value is at least the novelty floor");
         }
     }
+
+    #[test]
+    fn value_v4_boost_does_not_gate_meaningless_novelty() {
+        // Adversarial-gaming tick (2026-06-12, pom-roadmap loop). SHARPENS the already-documented
+        // garbage-novelty gap (`garbage_novelty_is_the_documented_open_gap`): the new claim is not
+        // that the coverage proxy rewards entropy (known) but that the CURRENT COMPOSITION cannot
+        // close it. value_v4 folds the learned quality in as a BOOST: value = novelty * (1 + q),
+        // q in [0,1]. A boost can only ADD; it can never gate to zero. So a maximally-novel but
+        // meaningless block (pure high-entropy noise, q -> 0) still earns its FULL coverage-novelty.
+        //
+        // This is the precise reason the Phase-1 fix must change the COMPOSITION to a GATE --
+        // value = novelty * g(q) with g in [0,1] sourced from the OUTCOME-evaluator -- not merely
+        // train a better quality proxy on top of an additive form. PINS the composition gap: passes
+        // today (q=0 noise paid), flips when value_v* gates. The honest tension: a true gate also
+        // suppresses honest-but-low-quality work, so g must come from realized outcome, not a proxy.
+        let mut order = honest();
+        let mut garbage = Vec::new();
+        for k in 0u16..40 {
+            garbage.push(0xE0u8.wrapping_add((k & 0x0f) as u8)); // all bytes absent from ascii content
+        }
+        order.push(cell(77, 9, 77, &garbage));
+
+        let nov = temporal_novelty(&order);
+        assert!(*nov.last().unwrap() > 0, "pure noise is maximally novel to a shingle metric");
+
+        // q = 0 on the noise block; value_v4 should NOT be able to zero it (boost, not gate).
+        let q_zero = vec![0.0f64; order.len()];
+        let v = crate::value::value_v4(&order, &q_zero);
+        assert!(
+            *v.last().unwrap() > 0.0,
+            "KNOWN GAP: value_v4 pays full novelty for q=0 noise -- quality boosts, it does not GATE"
+        );
+    }
 }

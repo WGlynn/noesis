@@ -62,6 +62,11 @@ is a reputation system.
     `garbage_novelty_is_the_documented_open_gap` pins it: passes today (gap present),
     flips when the learned OUTCOME-evaluator replaces the coverage proxy. Closing this
     is the core Phase-1 bet. Plus: decay + reviewer-diversity port for quality weighting.
+    **Composition sharpened (2026-06-12, pom tick):** `value_v4_boost_does_not_gate_meaningless_novelty`
+    proves the current form `value = novelty·(1+q)` is a BOOST — q→0 noise still earns full novelty,
+    so a better quality proxy alone can NEVER close the gap. The fix must change the COMPOSITION to a
+    GATE: `value = novelty·g(q)`, `g∈[0,1]` from the outcome-evaluator. Honest tension recorded: a true
+    gate also suppresses honest-but-low-quality work, so `g` must be realized-outcome, not a proxy.
   - ✅ ref / 🟡 tune **near-duplicate gap — coverage-similarity floor shipped (2026-06-12).**
     Temporal-novelty alone zeroes only EXACT subsets/duplicates; a near-duplicate (a few tokens
     flipped) leaked small residual novelty from change-spanning shingles, farmable across many
