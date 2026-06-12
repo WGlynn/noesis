@@ -18,10 +18,13 @@ Shipped this session (all pushed to `WGlynn/noesis`):
   bounds self-reference = §8 guard mechanical) + two-level recursion (2-player closed form +
   N-contributor reusing the synergy game). **node 22/22 → 28/28.**
 
-Next: verify 60/30/10 *semantics* (reward-share vs finalization-vote) directly in the NCI
-finalize path before any tokenomics code; consider folding the L12 provisioning-floor into a
-machine coherence check; then the type-script PoM (RISC-V) + PoM-weighted finalization.
-(Separately, the ethresearch GEV Part 4 draft on Desktop was formatted — outside this repo.)
+**NCI finalize path VERIFIED (this run):** `finalizeProposal` = **2/3 supermajority**
+(`FINALIZATION_THRESHOLD_BPS = 6667`) of summed retention-adjusted combined `W` — so 60/30/10
+IS a finalization vote-weight (OR-additive), **but threshold-hardened**: the 2/3 bar sits above
+PoM's 60% ceiling ⇒ no single dimension finalizes alone (capture needs PoM + >6.67% of a second
+dimension). L12 refined accordingly. Next: fold the L12 provisioning-floor into a machine
+coherence check; type-script PoM (RISC-V) + PoM-weighted finalization. (Separately, the
+ethresearch GEV Part 4 draft on Desktop was formatted — outside this repo.)
 
 ## ▶ RESUME HERE (2026-06-11 eve — chat rotated at 214k ctx)
 Shipped this session (all pushed to `WGlynn/noesis`, head `7842e4e`):
