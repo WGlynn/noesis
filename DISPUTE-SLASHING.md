@@ -116,8 +116,12 @@ regression test:
 4. **Slash-evasion-by-exit blocked** — `standing_exit_blocked`: while a challenge is
    open, any contributor with a provenance edge into the challenged target is denied
    burn/decay-exit (`standing_exit_is_blocked_while_a_challenge_names_your_edge`).
-   Cell-level wiring (`soulbound::valid_transition` consulting it before `Op::Burn`) is
-   an INTEGRATION CONTRACT, stated in-code, not yet wired — honest open edge.
+   **WIRED at the cell layer (same session): `soulbound::valid_transition_under_dispute`**
+   — burn rejected while exposed; `pom` may decrease only by the settlement-authorized
+   amount (the slash itself always lands; voluntary drain dressed as decay cannot);
+   accrual unaffected; no exposure ⇒ defers to the plain rule. Three regression tests.
+   The plain `valid_transition` carries a NOTE that it is correct only for standing with
+   no dispute exposure.
 
 Annotated (not fixed): the judge set's `pom` values and the value layer's standing map
 are bound by caller convention in the reference spec; on-chain the type-script reads

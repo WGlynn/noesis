@@ -194,6 +194,10 @@ pub mod soulbound {
     /// The on-chain check: a proposed transition is valid IFF the output is an
     /// identity-preserving successor of the input. Any change to `lock.args` (owner) or
     /// to the contributor is REJECTED — that rejection IS the soulbound guarantee.
+    ///
+    /// NOTE: burn is unconditionally allowed HERE; under an open dispute that becomes a
+    /// slash-evasion exit, which [`valid_transition_under_dispute`] closes. This plain
+    /// variant remains correct only for standing with no dispute exposure.
     pub fn valid_transition(
         input: &Cell,
         in_st: &Standing,
@@ -208,6 +212,44 @@ pub mod soulbound {
                     && os.contributor == in_st.contributor          // soulbound identity invariant
             }
             _ => false, // malformed: a standing without its cell, or vice versa
+        }
+    }
+
+    /// Dispute-aware transition — the canonical on-VM check once the dispute layer is
+    /// live. Closes the slash-evasion-by-exit hole structurally (the claim in
+    /// `dispute::standing_exit_blocked` enforced, not commented): while ANY open challenge
+    /// names a target this contributor has a provenance edge into,
+    ///   - burn is REJECTED (no torching standing ahead of a verdict);
+    ///   - `Standing.pom` may decrease by at most `authorized_slash` — the amount a closed
+    ///     settlement authorizes (0 while the dispute is pending). The slash itself can
+    ///     always land; voluntary drain dressed as decay cannot.
+    /// Accrual and identity rules are unchanged. With no exposure, defers to
+    /// [`valid_transition`].
+    #[allow(clippy::too_many_arguments)]
+    pub fn valid_transition_under_dispute(
+        input: &Cell,
+        in_st: &Standing,
+        output: Option<&Cell>,
+        out_st: Option<&Standing>,
+        cells: &[Cell],
+        open_challenges: &[super::dispute::Challenge],
+        authorized_slash: u64,
+    ) -> bool {
+        let blocked = super::dispute::standing_exit_blocked(
+            cells,
+            open_challenges,
+            &input.type_script.args,
+        );
+        if !blocked {
+            return valid_transition(input, in_st, output, out_st);
+        }
+        match (output, out_st) {
+            (None, None) => false, // exit-blocked: burn denied while a verdict is pending
+            (Some(_), Some(os)) => {
+                valid_transition(input, in_st, output, out_st)
+                    && os.pom.saturating_add(authorized_slash) >= in_st.pom
+            }
+            _ => false,
         }
     }
 
@@ -271,6 +313,77 @@ pub mod soulbound {
             assert!(
                 !valid_transition(&c, &st, Some(&malicious), Some(&stolen)),
                 "changing the contributor must be rejected -> soulbound attestation"
+            );
+        }
+
+        // ---- dispute-aware transition (slash-evasion exit closed structurally) ----
+
+        /// Provenance fixture: challenged target (id 10) + a child authored by the
+        /// certifier whose standing cell is under test.
+        fn dispute_exposure(certifier: [u8; 32]) -> (Vec<Cell>, Vec<super::super::dispute::Challenge>) {
+            let mk = |id: u64, args: Vec<u8>, parent: Option<u64>| Cell {
+                id,
+                lock: Script { code_hash: [1u8; 32], args: vec![1] },
+                type_script: Script { code_hash: [0xB0; 32], args },
+                parent,
+                timestamp: id,
+                data: vec![id as u8; 8],
+            };
+            let cells = vec![mk(10, vec![8], None), mk(11, certifier.to_vec(), Some(10))];
+            let open = vec![super::super::dispute::Challenge {
+                target: 10,
+                challenger: vec![1],
+                bond: 1.0,
+                opened_epoch: 5,
+            }];
+            (cells, open)
+        }
+
+        #[test]
+        fn burn_denied_while_a_dispute_names_your_edge() {
+            let contributor = [0xC1; 32];
+            let (c, st) = standing_cell(1, contributor);
+            let (cells, open) = dispute_exposure(contributor);
+            assert!(
+                !valid_transition_under_dispute(&c, &st, None, None, &cells, &open, 0),
+                "exit-blocked certifier cannot torch standing ahead of the verdict"
+            );
+            assert!(
+                valid_transition_under_dispute(&c, &st, None, None, &cells, &[], 0),
+                "no open dispute: burn defers to the plain rule and is allowed"
+            );
+        }
+
+        #[test]
+        fn unauthorized_drain_denied_but_the_authorized_slash_lands() {
+            let contributor = [0xC1; 32];
+            let (c, st) = standing_cell(1, contributor); // pom = 100
+            let (cells, open) = dispute_exposure(contributor);
+            let (od, sd) = apply(&c, &st, Op::Decay(5)).unwrap();
+            assert!(
+                !valid_transition_under_dispute(&c, &st, Some(&od), Some(&sd), &cells, &open, 0),
+                "voluntary drain dressed as decay is denied while blocked"
+            );
+            let (os, ss) = apply(&c, &st, Op::Slash(40)).unwrap();
+            assert!(
+                valid_transition_under_dispute(&c, &st, Some(&os), Some(&ss), &cells, &open, 40),
+                "the settlement-authorized slash itself always lands"
+            );
+            assert!(
+                !valid_transition_under_dispute(&c, &st, Some(&os), Some(&ss), &cells, &open, 39),
+                "a decrease beyond the authorized amount is denied"
+            );
+        }
+
+        #[test]
+        fn accrue_still_allowed_while_exit_blocked() {
+            let contributor = [0xC1; 32];
+            let (c, st) = standing_cell(1, contributor);
+            let (cells, open) = dispute_exposure(contributor);
+            let (oa, sa) = apply(&c, &st, Op::Accrue(10)).unwrap();
+            assert!(
+                valid_transition_under_dispute(&c, &st, Some(&oa), Some(&sa), &cells, &open, 0),
+                "earning more standing is never blocked by a pending dispute"
             );
         }
     }
