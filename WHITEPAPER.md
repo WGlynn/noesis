@@ -284,6 +284,20 @@ programmatically burned to zero at the launch height — a *provable* fair launc
 (on-chain verifiable), chosen over a chain-reset (which only *asserts* it). See
 `COORDINATION-SCHELLING.md`.
 
+**Lineage and theft-resistance.** The genesis of this chain is itself an act of attribution:
+it records the architectures it builds on (the cell-and-script state model of Nervos CKB, the
+pairwise-distillation attribution of EF Deep Funding) as load-bearing inputs, in the same manner
+every later contribution is recorded. This is not courtesy; it is the mechanism applied to its own
+origin, and it is what makes the network focal, since the honesty that secures the chain is the
+honesty that makes participants converge on it (§5.2). It also yields an unusual theft-resistance.
+Because the mechanism *is* attribution, a derivative deployment has two options: strip the
+provenance, in which case the attribution layer the system depends on is gone and the fork is
+incoherent; or preserve the provenance, in which case its edges trace back to this origin and
+running it credits the source. Copying the network honestly adds the copier to the same attribution
+graph, so there is no outside to fork to. Theft requires concession, and the concession flows
+standing back upstream. Forking, which fragments value on a possession chain, here becomes
+contribution.
+
 **Figures.** `VISUALS.md` (Mermaid): value pipeline, two-cell mint, three-power RPS,
 consensus stack, the inward/outward Schelling fold, fair-launch decision, ToM→ETM→PoM,
 mint↔sink conservation.

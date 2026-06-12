@@ -24,6 +24,8 @@ The third problem is liveness alignment, and it is where the obvious path visibl
 
 The architecture borrows a cell-and-script state model from a known system (Nervos CKB), in which state is partitioned into independent cells each governed by a lock script and a type script. That model is acknowledged as prior art and is not claimed in itself. What is claimed is the set of mechanisms layered onto it: the non-transferability invariant, the strategyproof valuation, and the eclipse-resistant finalization.
 
+A property of the disclosed architecture follows from the attribution structure itself. Because consensus standing and contribution value are derived from recorded provenance, a deployment derived from the disclosed system either preserves the provenance graph, in which case the lineage of contributions remains recorded and traceable to its origin, or removes it, in which case the valuation and standing mechanisms the system depends upon cease to function. The genesis of the system records the architectures it builds upon as provenance in the same manner as later contributions, applying the attribution mechanism consistently from the origin.
+
 ## DETAILED DESCRIPTION
 
 ### A. Standing that cannot be bought
