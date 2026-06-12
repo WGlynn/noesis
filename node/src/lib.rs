@@ -1679,6 +1679,29 @@ mod adversary {
     }
 
     #[test]
+    fn near_duplicate_residual_novelty_is_an_open_gap() {
+        // Adversarial-gaming tick (2026-06-12). Temporal-novelty zeroes EXACT subsets and
+        // duplicates, but a near-duplicate that flips a few tokens adds the shingles spanning the
+        // change -> small but NONZERO novelty. An attacker minting many near-duplicates could
+        // farm residual value. This PINS the gap: passes today (residual > 0), and flips when a
+        // coverage-similarity floor (discount a block whose overlap with the earlier union exceeds
+        // a threshold) lands. Candidate fix tracked in ROADMAP Phase 1.
+        let mut order = honest();
+        let mut near = order[0].data.clone();
+        let mid = near.len() / 2;
+        for k in 0..3 {
+            if mid + k < near.len() {
+                near[mid + k] ^= 0x20; // flip case of a few bytes -> a few new shingles
+            }
+        }
+        order.push(cell(88, 9, 88, &near));
+        let v = temporal_novelty(&order);
+        let residual = *v.last().unwrap();
+        assert!(residual > 0, "KNOWN GAP: a near-duplicate earns small residual novelty, not 0");
+        assert!(residual < v[0], "but far less than the original block's novelty");
+    }
+
+    #[test]
     fn quality_boost_cannot_exceed_2x_novelty() {
         // value = novelty * (1 + quality), quality in [0,1] => at most 2x novelty. An attacker
         // maximizing the quality model can never escape the strategyproof novelty floor: a

@@ -62,6 +62,13 @@ is a reputation system.
     `garbage_novelty_is_the_documented_open_gap` pins it: passes today (gap present),
     flips when the learned OUTCOME-evaluator replaces the coverage proxy. Closing this
     is the core Phase-1 bet. Plus: decay + reviewer-diversity port for quality weighting.
+  - 🔬 **near-duplicate residual-novelty gap (pinned 2026-06-12).** Temporal-novelty zeroes
+    EXACT subsets/duplicates, but a near-duplicate (a few tokens flipped) earns small NONZERO
+    novelty from the shingles spanning the change; an attacker could farm residual value across
+    many near-dups. `near_duplicate_residual_novelty_is_an_open_gap` pins it (passes today).
+    Candidate fix: a **coverage-similarity floor** — discount a block whose coverage overlap
+    (Jaccard) with the earlier union exceeds a threshold θ, so near-dups fall below the floor
+    and earn 0; compose with the learned quality model so honest-but-similar work is not over-cut.
 
 ## Phase 2 — Recursion & flow
 - ✅ **Two-level recursion** — intra-block share vectors via the same Myerson game one level
