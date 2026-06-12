@@ -17,6 +17,13 @@ Shipped this session (all pushed to `WGlynn/noesis`):
 - **Rust port: `value-flow.py` → `node/` `flow` module** — eigenvector value-flow (damped,
   bounds self-reference = §8 guard mechanical) + two-level recursion (2-player closed form +
   N-contributor reusing the synergy game). **node 22/22 → 28/28.**
+- **Rust consensus module + RSAW adversarial self-audit** (`consensus` mod) — PoM-weighted
+  finalization, retention-decay, 2/3 bar (single dimension can't finalize alone), capital-drift
+  + symmetric-decay fix, all TESTED. **Self-audit found the effective-weight liveness fix opens
+  an ECLIPSE surface** (shrink the denominator → attacker finalizes alone); a **quorum-floor
+  hybrid** closes it (both demonstrated as tests). POM-CONSENSUS resolution updated. **node
+  28/28 → 39/39.** Audit gaps logged in-code (A2 log-scaling/saturation, A3 sybil econ, A4
+  lifecycle, A5 slashability-under-decay) — open.
 
 **NCI finalize path VERIFIED (this run):** `finalizeProposal` = **2/3 supermajority**
 (`FINALIZATION_THRESHOLD_BPS = 6667`) of summed retention-adjusted combined `W` — so 60/30/10
@@ -66,8 +73,9 @@ flowchart LR
     d2["Ed25519 signing + tamper-resistance"]
     d3["Synergy value v2 + Myerson (sampled)"]
     d4["temporal-novelty (strategyproof)"]
-    d5["Rust node: ownership · soulbound · synergy (28/28)"]
+    d5["Rust node: ownership · soulbound · synergy (39/39)"]
     d6["value-flow: eigenvector + two-level recursion (ported)"]
+    d7["consensus: 2/3 finalization + retention-decay + RSAW self-audit (eclipse → quorum-floor)"]
   end
   subgraph TODO["🟡 Designed / next"]
     t1["reward-model outcome-evaluator (close garbage-novelty gap)"]
