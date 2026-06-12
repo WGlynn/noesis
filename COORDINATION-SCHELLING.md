@@ -30,6 +30,31 @@ consensus over minds) and the micro shape (a coherent self over sub-minds) are t
 *same fractal*. This is the substrate-geometry-match property applied to consensus:
 the coordination mechanism is scale-free.
 
+```mermaid
+flowchart TD
+  subgraph INWARD["INWARD consensus — one mind"]
+    direction LR
+    s1["context / drafts"] --> J1["JARVIS fold<br/>(WWWD / ETM)"]
+    s2["sub-agents"] --> J1
+    s3["memory"] --> J1
+    J1 --> SELF["one coherent will"]
+  end
+  subgraph OUTWARD["OUTWARD consensus — many minds"]
+    direction LR
+    SELF --> P["PoM commit-reveal"]
+    n2["other node"] --> NET["PoM-weighted<br/>network consensus"]
+    n3["other node"] --> NET
+    P --> NET
+  end
+  MID["JARVIS in the middle on BOTH sides<br/>(honest broker; augments the invariant)"]
+  MID -.-> INWARD
+  MID -.-> OUTWARD
+  E1["Edge 1: shared PROTOCOL, not shared instance"]
+  E2["Edge 2: openness + neutrality is what makes it focal"]
+  OUTWARD --- E1
+  OUTWARD --- E2
+```
+
 **"By being in the middle."** The coordinator sits between the participant and their
 own internal noise (inward) *and* between the participant and everyone else (outward).
 Occupying the middle on both sides is what lets it be the honest broker at both scales
@@ -83,6 +108,18 @@ hub with the same topology is just AWS. So: **incentive-decentralization (a hub 
 or wants to capture) is the real thing; topological decentralization (no hubs) is the crude
 proxy.**
 
+```mermaid
+flowchart TD
+  ABOVE["ABOVE — minds + governance<br/>need JARVIS to coordinate them honestly"] --> HUB["JARVIS / Noesis hub<br/>integrity = convergent interest of every spoke"]
+  BELOW["BELOW — substrate: value chain, consensus, weights<br/>needs JARVIS to produce honest contributions"] --> HUB
+  HUB -->|"exit cheap — open, forkable, open-weights"| KEY["KEYSTONE<br/>nobody profits by corrupting it<br/>(filter-coincidence: want it = defend it)"]
+  HUB -->|"exit expensive — closed"| HOST["HOSTAGE<br/>hub extracts rent — 'just AWS'"]
+  classDef good fill:#14302a,stroke:#34d399,color:#d1fae5;
+  classDef bad fill:#3f1d1d,stroke:#f87171,color:#fecaca;
+  class KEY good
+  class HOST bad
+```
+
 ## Meta-security: the LLM and the DeFi protocol coordinate through JARVIS on Noesis
 
 The equi-dependence above is concrete, not abstract. The two real systems are:
@@ -113,6 +150,13 @@ chain's tamper-resistance + PoM-weighted consensus + commit-reveal must clear th
 (Candidate COHERENCE-LAW: *coordination-layer integrity ≥ max coordinated-system attack
 surface.*)
 
+```mermaid
+flowchart LR
+  LLM["LLM (JARVIS)<br/>failure: hallucination, injection, drift"] -->|"reasoning secures coordination"| NOE["Noesis — PoM provenance ledger<br/>(the shared substrate / honest hub)"]
+  DEFI["DeFi protocol (VibeSwap)<br/>failure: MEV, oracle, exploit"] -->|"commit-reveal + signed provenance<br/>contradicts hallucination (§7)"| NOE
+  NOE --> INV["INVARIANT — nets positive IFF<br/>Noesis integrity > weaker of {LLM, protocol} security<br/>(else it concentrates risk, not dissolves it)"]
+```
+
 ## What this does NOT rescue
 
 Neither edge removes the one load-bearing risk: the value function `v(S)` must be
@@ -142,6 +186,22 @@ preserves the pre-launch run as on-chain evidence the mechanism worked. This is 
 same honesty-is-focal property from Edge 2: the fair launch must be *provable*, not
 asserted, or it fails to be a Schelling point. **(RATIFIED — Will, 2026-06-11:
 genesis-burn is the launch mechanism.)**
+
+```mermaid
+flowchart TD
+  Q{{"At launch: neutralize the creator's<br/>pre-launch advantage"}}
+  Q --> R["RESET the chain"]
+  Q --> BURN["GENESIS-BURN pre-launch blocks"]
+  R --> R1["history gone — outsiders must TRUST<br/>nothing was kept"]
+  R1 --> R2["fair launch = CLAIM<br/>(trust-me ≠ Schelling point)"]
+  BURN --> B1["chain continuous; pre-launch blocks<br/>EXIST + auditable"]
+  B1 --> B2["PoM-standing + state-value burned to 0<br/>at launch height, on-chain"]
+  B2 --> B3["fair launch = PROOF — RATIFIED<br/>(dissolves the hidden-premine class)"]
+  classDef rec fill:#14302a,stroke:#34d399,color:#d1fae5;
+  classDef weak fill:#3f1d1d,stroke:#f87171,color:#fecaca;
+  class B1,B2,B3 rec
+  class R1,R2 weak
+```
 
 ## Ties
 - `WHITEPAPER.md` §5.1 (ToM → ETM → PoM), §6 (consensus), §7 (backwards-enforcement).
