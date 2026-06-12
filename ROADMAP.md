@@ -101,6 +101,13 @@ is a reputation system.
       identity) but not yet the payout. Fix = ENDORSEMENT-SLASHING: building on later-refuted
       garbage costs the certifier standing via the refuted-value dispute window
       (`soulbound::Op::Slash`). This is the next gate-hardening increment.
+      **DESIGN COMPLETE (2026-06-12): `DISPUTE-SLASHING.md`** — windowed vesting (W) +
+      challenge bond (B) + PoM-weighted verdict (reuses `finalizes_hybrid` 2/3 + quorum-floor)
+      + deterministic causal-share slash (zero-seed flow recomputation) + un-gameability
+      inequality (α > V(1−2p)/p; p≥½ ⇒ any α>0) + griefing/honest-certifier safety analysis +
+      7-point test plan. Honest tensions recorded in-doc: verdict-is-judgment (the airgap,
+      contained not dissolved), W-delays-liquidity, judge-cartel residual (pre-pinned as
+      `judge_cartel_protects_its_own_garbage_open_gap` for when the module lands).
   - ✅ ref / 🟡 tune **near-duplicate gap — coverage-similarity floor shipped (2026-06-12).**
     Temporal-novelty alone zeroes only EXACT subsets/duplicates; a near-duplicate (a few tokens
     flipped) leaked small residual novelty from change-spanning shingles, farmable across many

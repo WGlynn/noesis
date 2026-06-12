@@ -15,6 +15,12 @@
   endorser is accountable + slashable. **Next increment: ENDORSEMENT-SLASHING** — building
   on later-refuted garbage costs the certifier standing (refuted-value dispute window ⇒
   `soulbound::Op::Slash`); design the dispute window + refutation proof shape first.
+- **DESIGN SHIPPED (same day): `DISPUTE-SLASHING.md`** — full mechanism (windowed vesting,
+  challenge bond, PoM-weighted verdict reusing `finalizes_hybrid`, deterministic causal-share
+  slash via zero-seed flow recomputation, incentive inequalities, 7-point test plan).
+  **Next code increment = implement the `dispute` module against that doc's §6 test plan**
+  (flips `vested_certifier_endorsing_garbage_open_gap`; new pin to add:
+  `judge_cartel_protects_its_own_garbage_open_gap`).
 
 ## ▶ RESUME HERE (2026-06-12 — value_v5 GATE shipped, node 69/69)
 - **`value_v5(novelty, downstream_flow)` BUILT + tested** — the Phase-1 composition fix.
