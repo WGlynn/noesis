@@ -1,6 +1,20 @@
 # CONTINUE — Noesis handoff (PRIVATE, stealth)
 
-## ▶ RESUME HERE (2026-06-12 PM-3 — escalation court shipped, node 97/97)
+## ▶ RESUME HERE (2026-06-12 PM-4 — role-bounded evaluator shipped, node 101/101)
+- **PHASE-1 CORE BET REFRAMED + FIRST INCREMENT SHIPPED** (`OUTCOME-EVALUATOR.md` +
+  `evaluator` module): the learned v(S) is NOT the gate (v5 settled that) — its authority
+  is BOUNDED to (A) advance timing: intake liquidity `min(κ·score·floored_novelty,
+  μ·standing)`, repaid from vesting, shortfall slashed at window close; (B) dispute
+  evidence, never verdict; (C, research) semantic floor AND-composed (can zero, never
+  rescue). Obligation collapsed: "prove model un-gameable" → "the bounds hold."
+  Corrupt-evaluator test: score 1e18 ⇒ fresh identity 0, redundancy 0, vested leak ≤
+  μ·standing and fully recovered. THRONE.md also shipped (telos doc, 8 mechanism-grounded
+  correspondences). **97 → 101 green.**
+- **Open next increments:** learned model itself (Bradley-Terry exists; outcome-set
+  labels pending); κ/μ + W/B/α/β one calibration harness; concurrent claims on standing
+  (advance-shortfall vs dispute-slash priority — design before code).
+
+## ▶ RESUME HERE (2026-06-12 PM-3 — escalation court shipped, node 97/97 then)
 - **JUDGE-CARTEL COUNTER IMPLEMENTED** (design §7): round-1 PoM-only veto is no longer
   final — appeal escalates to the AND-composed full-mix tribunal (`Tribunal::FullMix` =
   NCI mix; a 40%-standing cartel is only 24% of that court ⇒ overturned, in-test);
