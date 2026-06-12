@@ -18,7 +18,7 @@
 - **DESIGN SHIPPED (same day): `DISPUTE-SLASHING.md`** — full mechanism (windowed vesting,
   challenge bond, PoM-weighted verdict reusing `finalizes_hybrid`, deterministic causal-share
   slash via zero-seed flow recomputation, incentive inequalities, 7-point test plan).
-  **Next code increment = implement the `dispute` module against that doc's §6 test plan**
+  **Next code increment = implement the `dispute` module against the test plan in doc §6**
   (flips `vested_certifier_endorsing_garbage_open_gap`; new pin to add:
   `judge_cartel_protects_its_own_garbage_open_gap`).
 
