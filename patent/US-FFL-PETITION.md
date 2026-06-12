@@ -13,10 +13,10 @@
 **Re:** Petition for Foreign Filing License under 35 U.S.C. 184 and 37 CFR 5.13 — request for expedited handling
 
 **Petitioner / Inventor:** William Glynn
-**Residence / where invention was made:** [city], Massachusetts, United States
+**Residence / where invention was made:** South Dennis, Massachusetts, United States
 **Citizenship:** United States
 **Entity status:** Micro entity (individual inventor, named on fewer than four prior US non-provisional applications, gross income below the USPTO threshold). Micro-entity certification (form SB/15A) submitted herewith.
-**Correspondence:** [email / address]
+**Correspondence:** willglynn123@gmail.com
 
 ## Petition
 
@@ -36,7 +36,7 @@
 
 Respectfully submitted,
 
-______________________________  Date: __________
+______________________________  Date: June 12, 2026
 William Glynn, sole inventor / petitioner
 
 ## Enclosures
