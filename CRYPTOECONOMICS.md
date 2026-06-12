@@ -119,6 +119,15 @@ flowchart LR
 | **money / medium-of-exchange** | **JUL** (fiat-stable, PoW-objective) | **Proof of Work** |
 | **governance** | **VIBE** | (governance) |
 
+> **Common misconception — defended in `COHERENCE-LAWS.md` L12.** *"60% PoM means PoM
+> controls 60% of consensus, so it dominates and RPS is broken."* True **only if the 60 is
+> a vote weight** (OR / weighted-sum — which is what NCI as-built does:
+> `W = 0.10·PoW + 0.30·PoS + 0.60·PoM`). Under Noesis's **AND-composition** (an attacker
+> must defeat all three independent layers) the split is **reward / incentive only** and
+> carries no consensus power, so any split is capture-neutral. **60% PoM is only dangerous
+> if it's a 60% *vote*.** Capture-resistance comes from the cycle's *independence*, not from
+> weight symmetry — so 33/33/33 is neither necessary nor sufficient.
+
 **Correction to "no PoW needed."** That holds for the **consensus + state** layer — PoM
 handles it, PoW would be redundant there. But the **money** layer is different: **JUL is
 PoW-objective by design**, so *adding JUL brings PoW back* — at the money layer, orthogonal

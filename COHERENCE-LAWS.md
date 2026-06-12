@@ -11,7 +11,9 @@
 Money, governance, and capital/franchise are *separable* functions; exactly **three**
 powers (cognition / compute / capital) form the minimal non-dominated cyclic
 equilibrium. 2 → binary capture; 4+ → coalitions without added non-domination. One
-instrument per function (Tinbergen).
+instrument per function (Tinbergen). **Capture-resistance is a property of the cycle's
+*independence* (the AND-composition of L12), not of weight *symmetry*** — so an asymmetric
+split (60/30/10) does not break it and a symmetric split (33/33/33) does not guarantee it.
 
 ## L2 — Soulbound franchise: no capital → consensus
 Consensus weight (the franchise) is **soulbound / non-transferable**. Anything tradable
@@ -67,10 +69,40 @@ spokes, or it concentrates risk instead of dissolving it. (Derives the meta-secu
 result in `COORDINATION-SCHELLING.md`; pairs with the openness/cheap-exit condition that
 keeps the hub a keystone, not a hostage.)
 
+## L12 — Composition before weighting (AND over OR)
+**60% PoM is only dangerous if it's a 60% *vote*.** (Will, 2026-06-11 — the law in one
+sentence.) The three powers MUST compose as **AND** — an attacker has to defeat each
+independent layer — not as one weighted-sum vote (**OR / substitutable**). The
+distinction, not the numbers, is load-bearing:
+
+- **Under AND**, the split is **reward / incentive only** and carries no consensus power;
+  any split (60/30/10, 45/35/20, 33/33/33) is capture-neutral. Its only jobs are
+  participation incentive and tie-break / liveness.
+- **Under OR-additive** weighting — NCI as-built, `W(node) = 0.10·PoW + 0.30·PoS +
+  0.60·PoM` (`NakamotoConsensusInfinity.sol:19`, `POM_WEIGHT_BPS = 6000`) — the split **is**
+  power: a dimension whose saturation weight ≥ 50% can reach majority on that dimension
+  alone. NCI softens this with log₂ scaling on PoW and PoM (diminishing returns,
+  anti-plutocracy) but does **not** make it AND.
+- **Invariant.** Either (a) declare AND-composition at the finalizing layer (the structural
+  fix — preferred), **or** (b) if additive weighting is retained, no single proof's
+  saturation weight may be ≥ 50% of total (the patch — drops PoM 60 → < 50). At least one
+  must hold, or the RPS claim (L1) is decoration.
+- **Corollary (33/33/33).** Symmetric weights are neither necessary (AND makes the split
+  cosmetic) nor sufficient (a symmetric OR-vote still cycles for liveness and still lets any
+  2-of-3 collude to 66%). Capture-resistance comes from cycle *independence*, not weight
+  equality.
+
 ---
 
 ### Amendment log
 - 2026-06-11 — L1–L10 drafted from the in-context invariant set; **L11 added** (meta-
   security / coordination-layer integrity bound). Genesis-burn fair launch ratified
-  (see WHITEPAPER §10) — candidate L12 if it needs a standing invariant ("no creator
+  (see WHITEPAPER §10) — candidate L13 if it needs a standing invariant ("no creator
   pre-launch advantage; neutralization must be on-chain-provable, not asserted").
+- 2026-06-11 — **L12 added** (composition before weighting; AND over OR) + **L1 amended**
+  (capture-resistance is cycle-independence, not weight-symmetry). Resolves the
+  "does 60/30/10 break RPS?" question: it does not, *iff* composition is AND or no single
+  proof ≥ 50% under additive. Verified against `NakamotoConsensusInfinity.sol:19` —
+  NCI as-built is OR-additive (W = 0.10·PoW + 0.30·PoS + 0.60·PoM), so Noesis declaring
+  AND is a real divergence from NCI, not a relabel. Crystallized by Will: *"60% PoM is
+  only dangerous if it's a 60% vote."*
