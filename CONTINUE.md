@@ -44,12 +44,12 @@ Shipped this session (all pushed to `WGlynn/noesis`, head `7842e4e`):
 - **WHITEPAPER-FOR-DAD.md** + Desktop PDF `Noesis-in-Plain-English.pdf`.
 - **scripts/harvest-noesis.py** (code-only pick-list, 9 buckets) + daily cron `41445bfe`
   (⚠ 7-day expiry — needs self-perpetuation for permanence).
-- **Rust:** `node/src/lib.rs` `synergy` module (Myerson, Data-Shapley sampling) — **20/20 tests.**
+- **Rust:** `node/src/lib.rs` — modules soulbound, ownership, value, synergy, **flow** (value_flow + recurse_two + recurse_shares = value-flow.py PORTED), **consensus**, **stability**, **harness**, **adversary** + `production_value`. **61/61 tests green** (verified `cargo test` 2026-06-12).
 - Memory: `primitive_meta-security-coordination-hub.md` (local, discretion:internal; NOT yet MEMORY.md-indexed).
 
-**Top next steps:** (1) port `value-flow.py` (eigenvector + 2-level recursion) → Rust;
-(2) make harvest cron self-perpetuating; (3) Phase-1 open: prove LEARNED v(S) preserves
-strategyproofness. See OPEN THREADS below for the full list.
+**Top next steps:** (1) ✓ DONE — `value-flow.py` ported to Rust `flow` module (eigenvector + 2-level recursion);
+(2) make harvest cron self-perpetuating; (3) Phase-1 open (THE frontier): prove LEARNED v(S) preserves
+strategyproofness. See OPEN THREADS below for the full list. Build green at 61 tests, verified 2026-06-12.
 
 Public-side this session (separate, codeword-free): integrity root **re-attested + signed**
 (drift was benign +2 files); leak-gate hardened (4 codeword sites scrubbed + self-skip
