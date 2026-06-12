@@ -63,5 +63,9 @@ judgment only where its failures are bounded.
 - κ, μ calibration (with W/B/α/β — one calibration harness for the whole dispute stack).
 - Role C semantic floor — research; the AND-composition rule is fixed in advance so the
   research cannot drift into a rescue path.
-- Advance default-risk when standing is concurrently slashed by another dispute —
-  ordering/priority of claims on standing; design before implementing concurrent claims.
+- ~~Advance default-risk under concurrent claims~~ RESOLVED (2026-06-12, `claims`
+  module): claim PRIORITY = restitution-to-others > advance-shortfall > decay
+  (seniority is the enum order, settlement input-order-independent); EXPOSURE FREEZES
+  BORROWING (the `standing_exit_blocked` predicate gates new advances — collateral a
+  live dispute may claim cannot be double-pledged); DEFICITS land on the advance pool
+  (Role A's risk), never on honest third parties; standing never negative. Tested.

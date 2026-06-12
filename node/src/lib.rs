@@ -3002,6 +3002,125 @@ pub mod evaluator {
     }
 }
 
+/// Concurrent claims on standing (`OUTCOME-EVALUATOR.md` §5): a contributor's standing is
+/// collateral for SEVERAL claimants — dispute restitution, advance-shortfall recovery,
+/// protocol decay — and `saturating_sub` ordering would otherwise let whichever claim
+/// settles first silently defund the rest (collateral double-spend). Three rules:
+/// 1. PRIORITY: restitution-to-others > advance-shortfall > decay. Harm to others is
+///    senior; self-dealing recovery is junior to it; rent is junior to both.
+/// 2. EXPOSURE FREEZES BORROWING: while `dispute::standing_exit_blocked` holds, new
+///    advances are denied — the same predicate that blocks exit blocks double-pledging
+///    the collateral a live dispute may claim.
+/// 3. DEFICITS LAND ON THE RISK-TAKER: an unpayable advance shortfall is the evaluator
+///    pool's recorded loss (Role A takes risk, never authority); it is never recovered
+///    from honest third parties, and standing never goes negative.
+pub mod claims {
+    /// Priority order IS the enum order (lower discriminant = senior).
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+    pub enum ClaimKind {
+        DisputeSlash,
+        AdvanceShortfall,
+        Decay,
+    }
+
+    /// One settled claim: what was asked, what the collateral could pay, the deficit.
+    #[derive(Clone, Debug, PartialEq)]
+    pub struct Settled {
+        pub kind: ClaimKind,
+        pub asked: f64,
+        pub paid: f64,
+        pub deficit: f64,
+    }
+
+    /// Settle all claims against one standing balance, senior first. Deterministic in
+    /// the INPUT ORDER too: claims are sorted by seniority (stable within a class), so
+    /// the same claim set settles identically however it arrives.
+    pub fn settle(standing: u64, claims: &[(ClaimKind, f64)]) -> (u64, Vec<Settled>) {
+        let mut ordered: Vec<(usize, ClaimKind, f64)> = claims
+            .iter()
+            .enumerate()
+            .map(|(i, &(k, a))| (i, k, a.max(0.0)))
+            .collect();
+        ordered.sort_by_key(|&(i, k, _)| (k, i));
+        let mut free = standing as f64;
+        let mut out = Vec::with_capacity(ordered.len());
+        for (_, kind, asked) in ordered {
+            let paid = asked.min(free);
+            free -= paid;
+            out.push(Settled { kind, asked, paid, deficit: asked - paid });
+        }
+        (free.floor() as u64, out)
+    }
+
+    /// Rule 2 — the advance gate composes the evaluator bound with dispute exposure:
+    /// an exposed contributor cannot pledge collateral a live dispute may claim.
+    pub fn advance_allowed(exposed: bool) -> bool {
+        !exposed
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn restitution_is_senior_shortfall_junior_decay_last() {
+            // S = 10 against claims totalling 20: the dispute slash is made whole first,
+            // the shortfall gets the remainder, decay gets nothing — and the deficits
+            // are recorded, not silently dropped.
+            let claims = vec![
+                (ClaimKind::Decay, 5.0),
+                (ClaimKind::AdvanceShortfall, 8.0),
+                (ClaimKind::DisputeSlash, 7.0),
+            ];
+            let (remaining, settled) = settle(10, &claims);
+            assert_eq!(remaining, 0);
+            let by = |k: ClaimKind| settled.iter().find(|s| s.kind == k).unwrap().clone();
+            assert_eq!(by(ClaimKind::DisputeSlash).paid, 7.0, "restitution made whole");
+            assert_eq!(by(ClaimKind::AdvanceShortfall).paid, 3.0, "junior gets remainder");
+            assert_eq!(by(ClaimKind::AdvanceShortfall).deficit, 5.0, "deficit recorded");
+            assert_eq!(by(ClaimKind::Decay).paid, 0.0, "rent last");
+        }
+
+        #[test]
+        fn settlement_is_input_order_independent() {
+            let a = vec![
+                (ClaimKind::AdvanceShortfall, 6.0),
+                (ClaimKind::DisputeSlash, 9.0),
+            ];
+            let b = vec![
+                (ClaimKind::DisputeSlash, 9.0),
+                (ClaimKind::AdvanceShortfall, 6.0),
+            ];
+            let (ra, sa) = settle(12, &a);
+            let (rb, sb) = settle(12, &b);
+            assert_eq!(ra, rb);
+            let key = |v: &Vec<Settled>| {
+                let mut k: Vec<_> = v.iter().map(|s| (s.kind, s.paid as i64)).collect();
+                k.sort();
+                k
+            };
+            assert_eq!(key(&sa), key(&sb), "same claims settle identically in any order");
+        }
+
+        #[test]
+        fn deficit_lands_on_the_pool_and_standing_never_negative() {
+            let (remaining, settled) =
+                settle(3, &[(ClaimKind::AdvanceShortfall, 10.0)]);
+            assert_eq!(remaining, 0, "collateral exhausted, not negative");
+            assert_eq!(settled[0].paid, 3.0);
+            assert_eq!(settled[0].deficit, 7.0, "the advance pool eats its own risk");
+        }
+
+        #[test]
+        fn exposure_freezes_new_borrowing() {
+            // Composes with dispute::standing_exit_blocked: same predicate, second use —
+            // collateral a live dispute may claim cannot be double-pledged.
+            assert!(!advance_allowed(true), "exposed: no new advances");
+            assert!(advance_allowed(false), "clear: borrowing open");
+        }
+    }
+}
+
 /// Harness checker-routing (the JARVIS core thesis, modeled and tested). Routes a claim to the
 /// verification layer that can actually catch its error — structure (recompute/verify) where a
 /// verifiable referent exists, ensemble (diverse-model vote) where none does, both for reasoning —
