@@ -34,6 +34,18 @@ Picture a shared record where every time someone contributes something genuinely
 3. **Turned into two things:** a *reputation* you earn and can never sell (your standing),
    and a kind of *storage credit* you can trade.
 
+```mermaid
+flowchart LR
+  C["You contribute<br/>something useful"] --> F["Fingerprinted<br/>who did it and when<br/>(can't fake or back-date)"]
+  F --> S["Scored by how much<br/>it actually mattered<br/>(a copy scores zero)"]
+  S --> REP["A reputation<br/>you earn and can't sell"]
+  S --> STO["A storage credit<br/>you can trade"]
+  classDef a fill:#1e293b,stroke:#60a5fa,color:#e5e7eb;
+  classDef b fill:#1e293b,stroke:#34d399,color:#e5e7eb;
+  class REP a
+  class STO b
+```
+
 The score is called **Proof of Mind**. Where Bitcoin proves you burned electricity,
 this proves you contributed thought.
 
@@ -50,6 +62,16 @@ designed it so that doesn't work:
 - **Your reputation can't be bought.** You can buy *storage space* on the system, but
   you can't buy *influence*. That keeps it from becoming "whoever has the most money
   wins" — which is what almost every other crypto system quietly becomes.
+
+```mermaid
+flowchart TD
+  subgraph BTC["Bitcoin"]
+    B1["Burn electricity on<br/>a meaningless puzzle"] --> B2["Fastest gets paid<br/>(the work produces nothing)"]
+  end
+  subgraph NOE["This system"]
+    N1["Contribute something real"] --> N2["Proven and scored<br/>copy = zero · 100 fake accounts = zero · can't buy influence"]
+  end
+```
 
 ## The part Will is most excited about
 
