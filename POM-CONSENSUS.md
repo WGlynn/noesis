@@ -191,6 +191,51 @@ flowchart LR
   BACK -.->|"as PoM track-record accrues"| DOWN["down-weight PoW<br/>(bridge to PoM, not a permanent crutch)"]
 ```
 
+## Retention-decay attack surface (NCI verification, 2026-06-11)
+
+NCI decays the **PoW + PoM** portions of a validator's vote weight by staleness
+(`_retentionAdjustedVoteWeight`: `weight = PoS-portion + decay(PoW+PoM)`), while the **PoS**
+portion (locked capital) does **not** decay, and the finalization threshold is 2/3 of *base*
+(undecayed) weight. Three consequences worth watching:
+
+- **Composition drift toward capital.** PoS is the only non-decaying input, so under correlated
+  staleness of PoM/PoW validators (minds offline) the *effective* live weight shifts toward
+  capital. The 60% PoM bloc is a *base-weight* figure; its effective share decays — so L12's
+  "PoM 60% < 66.67% ⇒ no single dimension finalizes alone" margin is **participation-conditional**,
+  not static. A patient capital actor is structurally "always fresh."
+- **Low-participation liveness halt.** `weightFor` is decayed but the threshold is on base weight,
+  so heavy staleness ⇒ `weightFor` cannot reach 2/3-of-base ⇒ proposals fail to finalize. This is
+  fail-safe (a halt, not a safety break) but a real liveness hole an attacker can exploit by
+  inducing or awaiting staleness.
+- **Mitigations (candidates).** Threshold on *effective* (decayed) active weight, or a
+  present-quorum rule (closes the halt); a freshness floor / slower decay on PoM+PoW so a brief
+  outage does not collapse the cognitive bloc (ties L8 / L13 floors); document that
+  single-dimension-can't-finalize is conditioned on live PoM participation.
+
+Net: retention-decay correctly prices idle attack and aligns weight with live participation (the
+ETM move), but it makes the dimension mix time-varying — capital's relative influence rises exactly
+when cognition goes quiet. That asymmetry is the surface to watch.
+
+**Resolution direction (Will, 2026-06-11): make PoS decay too.** The drift exists *only* because
+PoS vote-weight is the lone non-decaying input. Decay it symmetrically with PoW+PoM and the
+effective mix stays ~60/30/10 under any correlated staleness — capital loses its "always fresh"
+edge and the three powers become time-symmetric (cleaner RPS; more faithful to ETM — relevance
+fades for *every* substrate, capital included). Three conditions make it coherent:
+- **Decay the franchise, not the balance.** Decay PoS *vote-weight*, never the staked capital —
+  you keep your stake, you lose *influence* when stale. A deliberate reframe from
+  "capital-at-risk" to "capital-that-also-shows-up" (use-it-or-lose-it franchise for all three).
+- **Pair with an effective-weight threshold.** Symmetric decay *alone* worsens the liveness halt
+  (everything shrinks against a base-weight bar). Measure the 2/3 threshold against *effective*
+  (decayed) active weight — or a present-quorum. Together: drift closed AND halt closed.
+- **Already true economically.** Capital already decays via state-rent / secondary-issuance
+  dilution of idle holders in the CKB model; this just extends "idle capital fades" up to the
+  vote-weight layer for consistency.
+
+Constitutional note: US branches do *not* decay (a quiet Congress keeps full power; only periodic
+elections refresh legitimacy). Decaying all three powers is a *continuous-time, use-it-or-lose-it*
+franchise — closer to "elections every epoch" than to the US's multi-year heartbeat, and a stronger
+anti-incumbency property than the Constitution has. (Open item; no code change yet.)
+
 ## Dissolving the open-model trilemma via coordination (Will, 2026-06-11)
 
 The open-model trilemma (sovereignty ⊥ capability ⊥ footprint) binds a *single*
