@@ -3121,6 +3121,213 @@ pub mod claims {
     }
 }
 
+/// Learned OUTCOME model over coalitions (`OUTCOME-EVALUATOR.md` §4, Phase-1 frontier).
+/// The coverage proxy cannot tell high-entropy garbage-novelty from value-novelty by
+/// CONTENT alone (`garbage_novelty_is_the_documented_open_gap`). The only thing that can
+/// is OUTSIDE information: outcome labels — "the result using set S is better than using
+/// S'." This module learns `v(S) ∈ [0,1]` from PAIRWISE coalition preferences (the
+/// DeepFunding-distill-over-sets idea), Bradley-Terry over SET-level structural features.
+///
+/// It is deliberately NOT the gate. Its output is consumed ONLY through
+/// [`evaluator`] (advance timing + dispute evidence, both bounded so a corrupt or
+/// mis-trained model cannot mint — `evaluator::tests::corrupt_evaluator_cannot_mint`).
+/// That is what makes a learned signal safe to introduce: the authority boundary, not a
+/// robustness proof about the model.
+pub mod outcome {
+    use super::{coverage, Cell};
+    use std::collections::HashSet;
+
+    pub const N_FEATS: usize = 4;
+
+    /// Set-level features for a coalition S (the cells whose indices are in `idxs`).
+    /// Chosen so the model can express what the per-block coverage proxy cannot:
+    ///   f0 breadth     = ln(1 + |union coverage|)
+    ///   f1 synergy     = |union| / Σ|individual|   (1 = disjoint, →0 = redundant overlap)
+    ///   f2 connectedness = fraction of S whose parent is also in S (internal provenance;
+    ///                      orphaned garbage scores low, work-built-on-work scores high)
+    ///   f3 depth       = longest parent chain within S / |S|   (shallow dump vs real lineage)
+    /// All on-chain-derivable; none needs an oracle. The LABELS carry the outside signal.
+    pub fn coalition_features(cells: &[Cell], idxs: &[usize]) -> [f64; N_FEATS] {
+        if idxs.is_empty() {
+            return [0.0; N_FEATS];
+        }
+        let in_s: HashSet<u64> = idxs.iter().map(|&i| cells[i].id).collect();
+        let mut union: HashSet<_> = HashSet::new();
+        let mut sum_individual = 0usize;
+        for &i in idxs {
+            let cov = coverage(&cells[i].data);
+            sum_individual += cov.len();
+            union.extend(cov);
+        }
+        let breadth = (1.0 + union.len() as f64).ln();
+        let synergy = if sum_individual > 0 {
+            union.len() as f64 / sum_individual as f64
+        } else {
+            0.0
+        };
+        let connected = idxs
+            .iter()
+            .filter(|&&i| cells[i].parent.is_some_and(|p| in_s.contains(&p)))
+            .count() as f64
+            / idxs.len() as f64;
+        // longest parent chain confined to S
+        let mut best = 0usize;
+        for &i in idxs {
+            let mut depth = 1usize;
+            let mut cur = cells[i].parent;
+            while let Some(p) = cur {
+                if !in_s.contains(&p) {
+                    break;
+                }
+                depth += 1;
+                cur = cells.iter().find(|c| c.id == p).and_then(|c| c.parent);
+                if depth > idxs.len() {
+                    break; // cycle guard
+                }
+            }
+            best = best.max(depth);
+        }
+        let depth = best as f64 / idxs.len() as f64;
+        [breadth, synergy, connected, depth]
+    }
+
+    fn sigmoid(x: f64) -> f64 {
+        1.0 / (1.0 + (-x).exp())
+    }
+
+    /// Bradley-Terry over coalition features, trained on `prefs` = `(winner, loser)`
+    /// index pairs into `feats`. Same estimator shape as `value::train_bradley_terry`,
+    /// at the set level. L2-regularized, deterministic.
+    pub fn train(
+        feats: &[[f64; N_FEATS]],
+        prefs: &[(usize, usize)],
+        iters: usize,
+        lr: f64,
+    ) -> [f64; N_FEATS] {
+        let mut w = [0.0; N_FEATS];
+        let denom = prefs.len().max(1) as f64;
+        for _ in 0..iters {
+            let mut g = [0.0; N_FEATS];
+            for &(i, j) in prefs {
+                let d: [f64; N_FEATS] = std::array::from_fn(|k| feats[i][k] - feats[j][k]);
+                let dot: f64 = w.iter().zip(d).map(|(wk, dk)| wk * dk).sum();
+                let p = sigmoid(dot);
+                for k in 0..N_FEATS {
+                    g[k] += (1.0 - p) * d[k];
+                }
+            }
+            for k in 0..N_FEATS {
+                w[k] += lr * (g[k] / denom - 1e-3 * w[k]);
+            }
+        }
+        w
+    }
+
+    /// Learned outcome value of a coalition feature vector, squashed to [0,1].
+    pub fn v_outcome(w: &[f64; N_FEATS], feats: &[f64; N_FEATS]) -> f64 {
+        let dot: f64 = w.iter().zip(feats).map(|(wk, fk)| wk * fk).sum();
+        sigmoid(dot)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::super::{Cell, Script};
+        use super::*;
+
+        fn cellp(id: u64, ts: u64, parent: Option<u64>, data: &[u8]) -> Cell {
+            Cell {
+                id,
+                lock: Script { code_hash: [1u8; 32], args: vec![1] },
+                type_script: Script { code_hash: [0xB0; 32], args: vec![1] },
+                parent,
+                timestamp: ts,
+                data: data.to_vec(),
+            }
+        }
+
+        // A "value" coalition: connected lineage, real synergy.
+        fn value_set() -> Vec<Cell> {
+            vec![
+                cellp(0, 0, None, b"alpha-bravo-charlie"),
+                cellp(1, 1, Some(0), b"delta-echo-foxtrot"),
+                cellp(2, 2, Some(1), b"golf-hotel-india"),
+            ]
+        }
+
+        // A "garbage" coalition: orphaned high-entropy noise, no internal provenance.
+        fn garbage_set() -> Vec<Cell> {
+            let noise = |s: u8| -> Vec<u8> { (0u8..24).map(|i| s.wrapping_add(i.wrapping_mul(53))).collect() };
+            vec![
+                cellp(10, 0, None, &noise(0x10)),
+                cellp(11, 1, None, &noise(0x80)),
+                cellp(12, 2, None, &noise(0xC0)),
+            ]
+        }
+
+        #[test]
+        fn features_separate_value_from_garbage_on_structure() {
+            let v = coalition_features(&value_set(), &[0, 1, 2]);
+            let g = coalition_features(&garbage_set(), &[0, 1, 2]);
+            // connectedness (f2) and depth (f3) are the discriminators content can't fake.
+            assert!(v[2] > g[2], "value coalition is internally connected, garbage is orphaned");
+            assert!(v[3] > g[3], "value coalition has lineage depth, garbage is flat");
+            assert_eq!(g[2], 0.0, "orphaned garbage: zero internal provenance");
+        }
+
+        #[test]
+        fn learns_a_label_ordering_the_proxy_cannot_express() {
+            // Two coalitions the COVERAGE proxy would rank similarly (both novel bytes);
+            // labels say the connected one is the better outcome. The model must learn it.
+            let vfeat = coalition_features(&value_set(), &[0, 1, 2]);
+            let gfeat = coalition_features(&garbage_set(), &[0, 1, 2]);
+            let feats = [vfeat, gfeat];
+            let prefs = vec![(0usize, 1usize); 8]; // value preferred to garbage, repeated
+            let w = train(&feats, &prefs, 4000, 0.3);
+            assert!(
+                v_outcome(&w, &vfeat) > v_outcome(&w, &gfeat),
+                "learned v(S) ranks the labelled-better coalition higher"
+            );
+            assert!(v_outcome(&w, &vfeat) > 0.5 && v_outcome(&w, &gfeat) < 0.5);
+        }
+
+        #[test]
+        fn generalizes_to_an_unseen_coalition() {
+            // Train on one value/garbage pair; score a DIFFERENT connected coalition the
+            // model never saw. It should still rank as value, because the features
+            // (connectedness, depth) generalize.
+            let train_feats = [
+                coalition_features(&value_set(), &[0, 1, 2]),
+                coalition_features(&garbage_set(), &[0, 1, 2]),
+            ];
+            let w = train(&train_feats, &vec![(0usize, 1usize); 8], 4000, 0.3);
+            let unseen = vec![
+                cellp(20, 0, None, b"kilo-lima-mike"),
+                cellp(21, 1, Some(20), b"november-oscar-papa"),
+            ];
+            let unseen_feat = coalition_features(&unseen, &[0, 1]);
+            let unseen_garbage = coalition_features(&garbage_set(), &[0, 1, 2]);
+            assert!(
+                v_outcome(&w, &unseen_feat) > v_outcome(&w, &unseen_garbage),
+                "an unseen connected coalition still scores above garbage (generalization)"
+            );
+        }
+
+        #[test]
+        fn output_is_bounded_and_corruption_is_harmless_by_construction() {
+            // The model is bounded [0,1]; and even a maximal score cannot mint, because
+            // consumption is via the bounded evaluator (re-asserting the boundary that
+            // makes a learned signal safe — see evaluator::corrupt_evaluator_cannot_mint).
+            let w = [1e6, 1e6, 1e6, 1e6]; // absurd / corrupt weights
+            let feat = coalition_features(&garbage_set(), &[0, 1, 2]);
+            let v = v_outcome(&w, &feat);
+            assert!((0.0..=1.0).contains(&v), "v_outcome always in [0,1]");
+            // a corrupt high score routed through the evaluator on a fresh identity = 0 advance
+            let advance = crate::evaluator::intake_advance(v, 40, 0, 0.5, 0.5);
+            assert_eq!(advance, 0.0, "corrupt outcome score still cannot mint via the evaluator");
+        }
+    }
+}
+
 /// Harness checker-routing (the JARVIS core thesis, modeled and tested). Routes a claim to the
 /// verification layer that can actually catch its error — structure (recompute/verify) where a
 /// verifiable referent exists, ensemble (diverse-model vote) where none does, both for reasoning —

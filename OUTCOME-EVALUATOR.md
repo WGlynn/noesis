@@ -56,10 +56,32 @@ judgment only where its failures are bounded.
   gets early liquidity and no slash; conservation `paid_total ≤ realized vesting` both
   branches.
 
+## 3b. The learned model — first increment (node/, `outcome` module, 2026-06-12)
+
+Built: a coalition-level outcome model. `coalition_features(S)` extracts SET-level
+structural features the per-block coverage proxy cannot see — breadth, synergy
+(union/Σindividual), internal connectedness (fraction of S whose parent is also in S),
+and lineage depth. `train()` is Bradley-Terry over PAIRWISE coalition preferences (the
+outcome labels — the outside signal); `v_outcome(S) ∈ [0,1]`. Tested: the features
+separate a connected/synergistic coalition from orphaned high-entropy garbage (which the
+content proxy ranks similarly); the model learns a label ordering the proxy cannot
+express; it generalizes to an unseen connected coalition; and — the load-bearing test —
+an absurd/corrupt weight vector routed through `evaluator::intake_advance` on a fresh
+identity still yields 0. The learned signal is safe BECAUSE of the authority boundary,
+not a robustness proof.
+
+Honest scope: this informs the bounded evaluator (advance + dispute evidence); it does
+NOT replace the strategyproof gate and does NOT auto-close
+`garbage_novelty_is_the_documented_open_gap` at the v_4/v_5 gate (that pin is about the
+coverage proxy inside the gate). Garbage-novelty is now ADDRESSED out-of-band — a
+labelled outcome model can decline to advance it and can testify against it in a dispute
+— without ever being able to mint it. Closing the gap AT the gate (AND-composing a
+learned semantic floor, Role C) remains research.
+
 ## 4. Honest open items
 
-- The actual learned model (Bradley-Terry exists in `value::quality_scores`; outcome-set
-  labels per the DeepFunding-distill plan) — unbuilt at the evaluator role.
+- Outcome-set LABELS at scale (the model is built; real preference data — DeepFunding-
+  distill-over-sets — is the unbuilt input). Synthetic structural labels only, so far.
 - κ, μ calibration (with W/B/α/β — one calibration harness for the whole dispute stack).
 - Role C semantic floor — research; the AND-composition rule is fixed in advance so the
   research cannot drift into a rescue path.

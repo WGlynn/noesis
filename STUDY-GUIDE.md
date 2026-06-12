@@ -2,7 +2,7 @@
 
 > Regenerated FROM the repo by `scripts/study-guide.py`, so it cannot lag the
 > code. Tick the boxes as you internalize each piece. Re-run to refresh.
-> Node test suite: **109 passing**.
+> Node test suite: **113 passing**.
 
 ## Read in this order
 
@@ -39,6 +39,7 @@
 - [ ] `calibration` — Calibration harness (`DISPUTE-SLASHING.md` §8): the dispute stack's parameters (W, B, λ, α, β, γ) and the evaluator's (κ, μ) must satisfy th...
 - [ ] `evaluator` — Role-bounded outcome evaluator (`OUTCOME-EVALUATOR.md`)
 - [ ] `claims` — Concurrent claims on standing (`OUTCOME-EVALUATOR.md` §5): a contributor's standing is collateral for SEVERAL claimants — dispute restitutio...
+- [ ] `outcome` — Learned OUTCOME model over coalitions (`OUTCOME-EVALUATOR.md` §4, Phase-1 frontier)
 - [ ] `harness` — Harness checker-routing (the JARVIS core thesis, modeled and tested)
 
 ## Glossary (the load-bearing terms)
