@@ -3430,6 +3430,42 @@ pub mod semantic {
         }
     }
 
+    /// Calibrate `theta` against labeled corpora instead of asserting it (the 0.95 used
+    /// across the suite was a magic constant until this). Returns the SEPARATING BAND
+    /// `(max content entropy, min noise entropy)` — every theta strictly inside it has
+    /// zero empirical false-positives AND zero false-negatives on the given corpora —
+    /// or `None` when the classes overlap and NO theta separates by bytes.
+    ///
+    /// Honest scope: corpus-relative evidence, not a proof. The airgap is visible right
+    /// here: add one high-entropy-but-valuable payload (key/hash/compressed blob) to the
+    /// CONTENT corpus and the band collapses to `None` — pinned in-test. That collapse is
+    /// the formal statement of WHY the floor needs the realized-flow backstop (v7 floors
+    /// only the seed) rather than being trusted as a verdict.
+    pub fn calibrate_theta(content: &[&[u8]], noise: &[&[u8]]) -> Option<(f64, f64)> {
+        if content.is_empty() || noise.is_empty() {
+            return None;
+        }
+        let max_content = content
+            .iter()
+            .map(|d| normalized_entropy(d))
+            .fold(f64::NEG_INFINITY, f64::max);
+        let min_noise = noise
+            .iter()
+            .map(|d| normalized_entropy(d))
+            .fold(f64::INFINITY, f64::min);
+        if max_content < min_noise {
+            Some((max_content, min_noise))
+        } else {
+            None
+        }
+    }
+
+    /// Midpoint of the separating band — the recommended theta, centered so both empirical
+    /// error margins are equal on the calibration corpora.
+    pub fn recommend_theta(band: (f64, f64)) -> f64 {
+        (band.0 + band.1) / 2.0
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
@@ -3477,6 +3513,59 @@ pub mod semantic {
             let nov = 9u64;
             assert!(semantic_floor(nov, &noise(1, 32), THETA) <= nov);
             assert!(semantic_floor(nov, b"structured-text-here", THETA) <= nov);
+        }
+
+        fn content_corpus() -> Vec<&'static [u8]> {
+            vec![
+                b"alpha-bravo-charlie-delta",
+                b"echo-foxtrot-golf-hotel",
+                b"india-juliet-kilo-lima",
+                b"big-feature-built-on-the-tiny-fix-uniform-victor",
+                b"the-quick-brown-fox-says-nothing-of-value-today",
+                b"fn main() { println!(\"hello\"); } // code reuses bytes heavily",
+            ]
+        }
+
+        #[test]
+        fn calibrated_band_exists_and_contains_the_suite_constant() {
+            // Grounds the 0.95 used across the suite: on the canonical corpora a separating
+            // band exists, THETA sits strictly inside it, and the midpoint recommendation
+            // is a valid theta too. The constant stops being magic.
+            let noise_corpus: Vec<Vec<u8>> = vec![
+                noise(0x10, 24),
+                noise(0x80, 24),
+                (0u8..64).map(|i| i.wrapping_mul(37).wrapping_add(11)).collect(),
+                (0u8..48).map(|i| i.wrapping_mul(91).wrapping_add(7)).collect(),
+            ];
+            let noise_refs: Vec<&[u8]> = noise_corpus.iter().map(|v| v.as_slice()).collect();
+            let band = calibrate_theta(&content_corpus(), &noise_refs)
+                .expect("structured content vs synthetic noise must separate");
+            assert!(band.0 < THETA && THETA < band.1, "suite constant inside the band");
+            let rec = recommend_theta(band);
+            assert!(band.0 < rec && rec < band.1, "midpoint is a valid theta");
+            for c in content_corpus() {
+                assert!(!is_incompressible(c, rec), "recommended theta passes all content");
+            }
+            for n in &noise_refs {
+                assert!(is_incompressible(n, rec), "recommended theta floors all noise");
+            }
+        }
+
+        #[test]
+        fn airgap_collapses_the_band_no_theta_separates_by_bytes_pinned() {
+            // THE AIRGAP, restated as calibration math: one high-entropy-but-VALUABLE
+            // payload in the content corpus (a 32-byte key) and the band is gone — there
+            // exists NO theta with zero FP and zero FN. This is the formal reason the
+            // floor is seed-only (v7) + flow-backstopped, never a verdict.
+            let keyish: Vec<u8> = (0u8..32).map(|i| i.wrapping_mul(67).wrapping_add(29)).collect();
+            let mut content = content_corpus();
+            content.push(&keyish);
+            let n = noise(0x10, 24);
+            let noise_refs: Vec<&[u8]> = vec![&n];
+            assert!(
+                calibrate_theta(&content, &noise_refs).is_none(),
+                "PINNED: with high-entropy value in-corpus, byte-entropy cannot separate"
+            );
         }
 
         #[test]

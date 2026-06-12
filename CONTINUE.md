@@ -12,9 +12,16 @@
   prose (`structured_valueless_child_still_seeds_flow_open_gap`), which is EXACTLY the
   already-named out-of-band frontier (#3: labels/outcomes, not bytes). No new in-gate layer
   is available from content alone; per the method, that's a convergence signal, not a TODO.
-- **Story-loop armed by Will (menu-pick 2): 10 increments.** This was 1/10. Queue hint in
-  `~/.claude/state/story-loop.json`. Next: entropy_theta into the calibration harness;
-  production_value callers/docs sweep; then survivor-named work or ckb-vm API verification.
+- **Loop 2/10 — entropy_theta CALIBRATED (node 128/128)**: `semantic::calibrate_theta`
+  returns the separating band (max content entropy, min noise entropy) over labeled corpora
+  — zero empirical FP/FN for any theta inside it; `recommend_theta` = midpoint. The suite's
+  0.95 verified strictly inside the band (stops being magic). **Airgap restated as
+  calibration math + pinned**: one keyish payload in the content corpus ⇒ band = `None` ⇒
+  no theta separates by bytes — the formal reason the floor is seed-only + flow-backstopped,
+  never a verdict. Honest scope: corpus-relative evidence, not proof.
+- **Story-loop armed by Will (menu-pick 2): 10 increments.** 2 done. Queue hint in
+  `~/.claude/state/story-loop.json`. Next: critical-qa over the semantic arc (PM-6→7), then
+  survivor-named work or ckb-vm API verification (read-first, no assumed APIs).
 - **HANDOFF frontier #4 SHIPPED**: `semantic::semantic_floor` AND-composed into
   `production_value` (new `entropy_theta` param) — after the similarity floor, BEFORE the
   quality boost. Incompressible noise now earns 0 at the canonical rule even at max quality;
