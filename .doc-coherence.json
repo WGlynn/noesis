@@ -1,0 +1,34 @@
+{
+  "reconciled_code_hash": "01232a59066ce52b0a1cfc159f87d96675c592800636a0a77fdb5ae3d8ff3adf",
+  "docs": [
+    "BLOCK-ECONOMY-SPEC.md",
+    "COHERENCE-LAWS.md",
+    "CONSENSUS-REVIEW.md",
+    "CONTINUE.md",
+    "COORDINATION-SCHELLING.md",
+    "CRYPTOECONOMICS.md",
+    "FOUNDATION-grace-made-mechanical.md",
+    "JARVIS-CORE-harness-as-coordination.md",
+    "POM-CONSENSUS.md",
+    "README.md",
+    "ROADMAP.md",
+    "VISUALS.md",
+    "WHITEPAPER-FOR-DAD.md",
+    "WHITEPAPER.md",
+    "node/README.md"
+  ],
+  "code_file_hashes": {
+    "adversarial-game.py": "feb2a4964d11cb213d0a3dc42b53fc1a51c50e2d50e9613c3fc19d51513654f5",
+    "block-ownership.py": "79258681ff894826f7b515429b1b1a89392b5faa351dfd64ba129d0545448704",
+    "block-value-v2.py": "85459ecae2264074974ae0122dd99b21db1c4e1cabf909449d5dc7e5b09f3269",
+    "block-value.py": "6dc2542d3c859baebc067945e5468dfc426666e53a63da804c00762dd33fcb16",
+    "node/src/lib.rs": "0dad5aef88639e0cd7f66125be19361f34f57bc0a0b7e0f7af723ced9995d0c7",
+    "pom-score.py": "9f44b3b7b412b7b2f3c771c24bc3e63ab9d18e8cbc568515bf88d07d2b7a9f26",
+    "reward-model.py": "35aea2b19d06ff8529e774388572326681591c1fce5146118127275809e26448",
+    "scripts/doc-coherence.py": "706217524df75c091e07d1be7a1d469e574cc9e056ae3350e2f298c12ecc2b2b",
+    "scripts/harvest-noesis.py": "4832de0173d9e4be37969838c45c5d06a318b04d6f8f33eae646a519f6a59343",
+    "value-flow.py": "34c728bd86baf107d94857f9fe96f566f0c240b42102d360d0d19347701e95e5",
+    "value-v3.py": "61d75bb51fe13212ab11ab46f48fbe7cb45bc726e743bbf90dd9aa5d3ad0fe7f",
+    "value-v4.py": "9b3eee7293d1698068181a9f622a707ab713dc5ea3c226ccdd78e0871b90bb99"
+  }
+}

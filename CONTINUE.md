@@ -1,12 +1,28 @@
 # CONTINUE — Noesis handoff (PRIVATE, stealth)
 
+## ▶ RESUME HERE (2026-06-12 PM — value_v6 priced identity shipped, node 77/77)
+- **`value_v6` BUILT + tested** — closes the v5 sybil-ring gap by PRICING IDENTITY:
+  flow seeds are standing-gated (`seed = floored_novelty` iff contributor's soulbound
+  standing ≥ floor, else 0). A3 economics reached the value layer
+  (`max_certifying_identities` mirrors `consensus::max_sybils`) — stronger than A3:
+  standing is EARNED + soulbound, not purchasable capital. Ring cost 0 → K × earn-the-floor.
+  Seed-gated not edge-gated ⇒ unvested newcomers still EARN (vested use pays them),
+  certification transitive through unvested intermediaries, fully-vested graph ≡ v5.
+  **69 → 77 tests green.**
+- **New pinned gap (adversarial tick vs v6, same session):** a VESTED certifier endorsing
+  novel garbage into a fresh-key pocket still pays
+  (`vested_certifier_endorsing_garbage_open_gap`). No longer free identity-minting — the
+  endorser is accountable + slashable. **Next increment: ENDORSEMENT-SLASHING** — building
+  on later-refuted garbage costs the certifier standing (refuted-value dispute window ⇒
+  `soulbound::Op::Slash`); design the dispute window + refutation proof shape first.
+
 ## ▶ RESUME HERE (2026-06-12 — value_v5 GATE shipped, node 69/69)
 - **`value_v5(novelty, downstream_flow)` BUILT + tested** — the Phase-1 composition fix.
   `value = floored_novelty × g(downstream)`, `g(f)=f/(f+half)`. Flow seeded by floored
   novelty (redundant children pump 0), EXTERNAL edges only (no self-certification;
   `flow::children_of_external` + `value_flow_with_own` + `downstream_flow_external`).
   Regressions: q=0 noise w/ zero flow → 0 (v4-pays contrast in-test); honest-but-low-quality
-  built-upon work PAID; floor-before-gate; retroactive vesting. **62 → 69 tests green.**
+  built-upon work PAID; floor-before-gate; retroactive vesting. **62 → 69 green (now 77).**
 - **New pinned gap (adversarial tick vs v5, same session):** two-identity ring of
   novel-garbage children pumps the gate (`sybil_identity_ring_pumps_the_flow_gate_open_gap`).
   **Next increment:** price identity at the value layer (soulbound-standing / MIN_STAKE
@@ -56,12 +72,12 @@ Shipped this session (all pushed to `WGlynn/noesis`, head `7842e4e`):
 - **WHITEPAPER-FOR-DAD.md** + Desktop PDF `Noesis-in-Plain-English.pdf`.
 - **scripts/harvest-noesis.py** (code-only pick-list, 9 buckets) + daily cron `41445bfe`
   (⚠ 7-day expiry — needs self-perpetuation for permanence).
-- **Rust:** `node/src/lib.rs` — modules soulbound, ownership, value, synergy, **flow** (value_flow + recurse_two + recurse_shares = value-flow.py PORTED), **consensus**, **stability**, **harness**, **adversary** + `production_value`. **61/61 tests green** (verified `cargo test` 2026-06-12).
+- **Rust:** `node/src/lib.rs` — modules soulbound, ownership, value, synergy, **flow** (value_flow + recurse_two + recurse_shares = value-flow.py PORTED), **consensus**, **stability**, **harness**, **adversary** + `production_value`. **61/61 green at the time** (verified `cargo test` 2026-06-12; suite has since grown).
 - Memory: `primitive_meta-security-coordination-hub.md` (local, discretion:internal; NOT yet MEMORY.md-indexed).
 
 **Top next steps:** (1) ✓ DONE — `value-flow.py` ported to Rust `flow` module (eigenvector + 2-level recursion);
 (2) make harvest cron self-perpetuating; (3) Phase-1 open (THE frontier): prove LEARNED v(S) preserves
-strategyproofness. See OPEN THREADS below for the full list. Build green at 61 tests, verified 2026-06-12.
+strategyproofness. See OPEN THREADS below for the full list. Build green (61 at the time), verified 2026-06-12.
 
 Public-side this session (separate, codeword-free): integrity root **re-attested + signed**
 (drift was benign +2 files); leak-gate hardened (4 codeword sites scrubbed + self-skip
@@ -69,7 +85,7 @@ removed so the scanner polices its own public mirror).
 
 
 > Read this first on a fresh session to continue the Proof-of-Mind value chain.
-> Repo: `~/jarvis-private` (private remote `github.com/WGlynn/jarvis-private`).
+> Repo: `~/noesis` (private remote `github.com/WGlynn/noesis`).
 > The roadmap-advance cron loop (`3b8e2f47`, every 3h) auto-continues this.
 
 ## What this is
@@ -146,11 +162,11 @@ keep running it against every new `v(S)`.
 - Both names are in the leak-gate (`~/.claude/state/private-leak-patterns.txt`) — keep
   out of public during stealth.
 
-## SESSION 2026-06-11 PM — shipped (repo renamed jarvis-private → noesis)
+## SESSION 2026-06-11 PM — shipped (repo renamed to noesis, from the old private name)
 - **value-v4 ported to Rust** (`node/`, novelty × (1+quality), Bradley-Terry quality, normalized 0..1). Multiplication keeps novelty floor dominant: redundant cell = 0 even at max quality (tested).
 - **3-attack adversarial moat ported to Rust** (sybil / padding / collusion-ring all earn 0; honest keep novelty).
 - **SOULBOUND resolved in code** — `soulbound` module: soulbound is NOT a data flag (UTXO has no account to freeze); it is a TYPE-SCRIPT INVARIANT on the consume→produce transition. `valid_transition` admits only identity-preserving successors (accrue/decay/slash/burn), REJECTS any owner/contributor reassignment. Two-cell mint: transferable **capacity cell** (money) rides the ownership fold; soulbound **standing cell** (franchise) cannot move. `pom_scores` now keys by contributor (`type_script.args`), NOT owner lock. **node tests 5/5 → 16/16.**
-- **doc-coherence gate built** (`scripts/doc-coherence.py`) — closes the docs-lag-code information asymmetry. code content-hash; docs stamped with the hash they were reconciled against; `--check` fails if code moved past stamp; machine-checks (no `jarvis-private` refs, doc test-counts == cargo). NOT yet `--stamp`ed, NOT yet wired as pre-commit hook.
+- **doc-coherence gate built** (`scripts/doc-coherence.py`) — closes the docs-lag-code information asymmetry. code content-hash; docs stamped with the hash they were reconciled against; `--check` fails if code moved past stamp; machine-checks (no old-repo-name refs, doc test-counts == cargo). NOT yet `--stamp`ed, NOT yet wired as pre-commit hook.
 - **Boot-bind**: `~/.claude/session-chain/private-handoff-loader.py` (registered in settings.json SessionStart, after session-state-loader) now surfaces this handoff at every boot — fixes the "reboot drifts to public task" class. Generic globs only, no private nouns in source (sync-safe).
 
 ## SESSION 2026-06-11 (eve) — visuals + Schelling synthesis
@@ -178,7 +194,7 @@ keep running it against every new `v(S)`.
 
 ## OPEN THREADS — do next session
 1. **Finish doc reconciliation** (Will: "they're all outdated… docs never lag code"). Systematic fixes across WHITEPAPER / BLOCK-ECONOMY-SPEC / POM-CONSENSUS / CRYPTOECONOMICS / ROADMAP / node/README / CONTINUE: (a) kill the owner-vs-contributor / transferable-PoM conflation (now resolved = soulbound two-cell, consensus reads contributor); (b) make temporal-novelty × quality the canonical value rule everywhere; (c) names (noesis) + test counts (16). Then `python scripts/doc-coherence.py --stamp` and install it as a git pre-commit hook (`.git/hooks/pre-commit`).
-2. **README.md still says `jarvis-private` + "NO public remote"** — rewrite (repo=noesis, private remote exists, push freely). Write was started; not applied.
+2. ✅ DONE — README rewritten (2026-06-11 night: system map + landing page; repo=noesis, private remote exists, push freely).
 3. **COHERENCE-LAWS.md** — Will: "set laws/rules/standards of cryptoeconomic coherence." ~10 invariants drafted in-context (separation-of-powers/RPS, soulbound-franchise/no-capital→consensus, conservation-of-proof/GEV, mint↔sink balance, strategyproof-minting, closed-value-provenance, contributor-floor, append-only-slashable, core/nucleolus stability, two-axis robustness). Write it as the anchor doc the others reference.
 4. **token↔proof mapping** — now RESOLVED by the two-cell split: PoM-byte = tradable **capacity** (state, money-ish); franchise = soulbound **standing** + VIBE validation; JUL = PoW/money. Buy storage, not consensus, ENFORCED (pom keys by contributor). Still verify vs NCI contracts (`a442fc5b`) before reusing labels (tokenomics-zero-tolerance).
 5. Roadmap next code increment: port `reward-model.py` (Bradley-Terry learned v(S)) into `node/` and prove it preserves the novelty/strategyproof property.

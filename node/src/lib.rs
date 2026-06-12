@@ -561,9 +561,10 @@ pub mod value {
     /// cell is worth 0 and accrues as others build on it. A contribution cannot be fully
     /// priced at intake; it is paid as it proves useful. Noise nobody uses ⇒ flow 0 ⇒ paid 0;
     /// honest-but-low-quality work that gets built upon ⇒ flow > 0 ⇒ paid.
-    /// Pinned residual gap: a MULTI-IDENTITY sybil ring of novel-garbage children can still
-    /// pump the gate (see `adversary::sybil_identity_ring_pumps_the_flow_gate_open_gap`);
-    /// identity must be priced by the soulbound-standing / MIN_STAKE layer.
+    /// Pinned residual gap (CLOSED by [`value_v6`]): a MULTI-IDENTITY sybil ring of
+    /// novel-garbage children could pump this gate, because a fresh contributor key was a
+    /// free byte (see `adversary::sybil_identity_ring_pumps_the_flow_gate_open_gap`);
+    /// v6 prices identity via standing-gated flow seeds.
     pub fn value_v5(
         cells_in_commit_order: &[super::Cell],
         theta: f64,
@@ -580,6 +581,82 @@ pub mod value {
             .zip(&downstream)
             .map(|(&n, &f)| n as f64 * flow_gate(f, half))
             .collect()
+    }
+
+    /// `value_v6(novelty, downstream_flow, standing)` — prices identity at the value layer,
+    /// closing value_v5's pinned sybil-ring gap
+    /// (`adversary::sybil_identity_ring_pumps_the_flow_gate_open_gap`). Under v5 a fresh
+    /// contributor key was a free byte, so a two-identity ring of novel garbage could pump
+    /// the flow gate. v6 reaches consensus A3's economics ([`super::consensus::MIN_STAKE`] /
+    /// [`super::consensus::max_sybils`]) down into the flow SEED:
+    ///
+    ///   seed_i = floored_novelty_i  if standing(contributor_i) ≥ standing_floor, else 0
+    ///   value  = floored_novelty × g(downstream flow over standing-gated seeds)
+    ///
+    /// Standing is the soulbound, EARNED PoM on a contributor's standing cell
+    /// ([`super::soulbound::Standing`]) — non-transferable by type-script invariant, so a
+    /// certifying identity cannot even be bought, only earned. The ring's cost goes from 0
+    /// to K × (cost of EARNING the floor) — strictly stronger than A3, where stake is at
+    /// least purchasable capital.
+    ///
+    /// Design choice — gate the SEED, not the edge:
+    ///   - an unvested identity PUMPS nothing: its building-on-others certifies nothing,
+    ///     so the all-fresh ring collapses to 0;
+    ///   - an unvested newcomer still EARNS: their own value = own floored novelty ×
+    ///     g(flow pumped by vested minds building on them). Earn from day one; certify
+    ///     only once you've earned — "buy storage, not consensus" at the value layer;
+    ///   - certification is TRANSITIVE through unvested intermediaries: edges propagate
+    ///     flow regardless of standing (only seeds are gated), so a vested grandchild's
+    ///     use still reaches the root.
+    ///
+    /// Residual (pinned in `adversary::vested_certifier_endorsing_garbage_open_gap`): a
+    /// standing-bearing contributor can still endorse garbage by building on it for a
+    /// fresh-key pocket. That move is no longer free identity-minting — it is an act by an
+    /// accountable, slashable identity; closing it is the ENDORSEMENT-SLASHING increment
+    /// (refuted-value dispute window ⇒ [`super::soulbound::Op::Slash`]).
+    #[allow(clippy::too_many_arguments)]
+    pub fn value_v6(
+        cells_in_commit_order: &[super::Cell],
+        standing: &std::collections::HashMap<Vec<u8>, u64>,
+        standing_floor: u64,
+        theta: f64,
+        d: f64,
+        iters: usize,
+        half: f64,
+    ) -> Vec<f64> {
+        let floored = super::temporal_novelty_with_similarity_floor(cells_in_commit_order, theta);
+        let seed: Vec<f64> = floored
+            .iter()
+            .zip(cells_in_commit_order)
+            .map(|(&n, c)| {
+                let s = standing.get(&c.type_script.args).copied().unwrap_or(0);
+                if s >= standing_floor {
+                    n as f64
+                } else {
+                    0.0
+                }
+            })
+            .collect();
+        let downstream =
+            super::flow::downstream_flow_external(cells_in_commit_order, &seed, d, iters);
+        floored
+            .iter()
+            .zip(&downstream)
+            .map(|(&n, &f)| n as f64 * flow_gate(f, half))
+            .collect()
+    }
+
+    /// A3 reached down to the value layer: at most `total_earned_standing / standing_floor`
+    /// identities can clear the certification floor (the mirror of
+    /// [`super::consensus::max_sybils`]) — and the bound here is on EARNED, soulbound value:
+    /// standing cannot be pooled, bought, or transferred in
+    /// ([`super::soulbound::valid_transition`] rejects reassignment), so each of K
+    /// certifying identities must independently earn ≥ floor.
+    pub fn max_certifying_identities(total_standing: u64, standing_floor: u64) -> u64 {
+        if standing_floor == 0 {
+            return u64::MAX;
+        }
+        total_standing / standing_floor
     }
 
     #[cfg(test)]
@@ -780,6 +857,122 @@ pub mod value {
             let v = production_value(&order, 0.8, &q);
             assert_eq!(*v.last().unwrap(), 0.0, "near-dup -> 0 even at max quality (floor before quality)");
             assert!(v[0] > 0.0, "honest novel cell earns novelty x (1 + quality)");
+        }
+
+        // ---- value_v6: priced identity (standing-gated flow seeds) ----
+
+        const FLOOR: u64 = 10;
+
+        fn standing_of(pairs: &[(u8, u64)]) -> std::collections::HashMap<Vec<u8>, u64> {
+            pairs.iter().map(|&(k, s)| (vec![k], s)).collect()
+        }
+
+        #[test]
+        fn value_v6_closes_the_sybil_identity_ring() {
+            // The EXACT attack pinned against v5 (two fresh identities, novel garbage,
+            // "external" edge — adversary::sybil_identity_ring_pumps_the_flow_gate_open_gap)
+            // earns 0 under v6: neither ring identity clears the standing floor, so the
+            // child's seed is 0 ⇒ it pumps no flow ⇒ the gate stays shut.
+            let noise = |seed: u8, n: u8| -> Vec<u8> {
+                (0..n).map(|i| seed.wrapping_add(i.wrapping_mul(41))).collect()
+            };
+            let order = vec![
+                cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta"), // honest bystander
+                cellc(10, 8, 1, None, &noise(0xA0, 48)),            // garbage parent, fresh key
+                cellc(11, 9, 2, Some(10), &noise(0x10, 48)),        // garbage child, fresh key
+            ];
+            let st = standing_of(&[(1, 50)]); // only the bystander has earned standing
+            let v6 = value_v6(&order, &st, FLOOR, THETA, DAMP, ITERS, HALF);
+            assert_eq!(v6[1], 0.0, "ring parent: an unvested child pumps nothing — gap CLOSED");
+            assert_eq!(v6[2], 0.0, "ring child: nothing vested builds on it either");
+            // contrast: v5 pays the same ring (still pinned in the adversary module).
+            let v5 = value_v5(&order, THETA, DAMP, ITERS, HALF);
+            assert!(v5[1] > 0.0, "v5 pays this exact ring — that is the gap v6 closes");
+        }
+
+        #[test]
+        fn unvested_newcomer_still_earns_when_a_vested_mind_builds_on_them() {
+            // Earn from day one; certify once you've earned. A newcomer (standing 0)
+            // ships honest work; a vested mind builds on it ⇒ the newcomer is PAID.
+            // Seed-gating prices certification, never participation.
+            let order = vec![
+                cellc(0, 7, 0, None, b"newcomer-honest-work-kilo-lima"),
+                cellc(1, 1, 1, Some(0), b"vested-mind-builds-on-newcomer"),
+            ];
+            let st = standing_of(&[(1, 50)]); // contributor 1 vested; newcomer 7 has nothing
+            let v6 = value_v6(&order, &st, FLOOR, THETA, DAMP, ITERS, HALF);
+            assert!(v6[0] > 0.0, "newcomer is paid: vested use certifies their work");
+        }
+
+        #[test]
+        fn unvested_certification_pumps_nothing_vested_certification_pays() {
+            // Same graph, same bytes — only the child contributor's standing differs.
+            // The floor is the single bit that flips the root from unpaid to paid.
+            let order = vec![
+                cellc(0, 1, 0, None, b"root-work-alpha-bravo"),
+                cellc(1, 2, 1, Some(0), b"child-builds-on-root-echo"),
+            ];
+            let unvested = standing_of(&[(1, 50)]); // child contributor 2: no standing
+            let vested = standing_of(&[(1, 50), (2, FLOOR)]); // exactly at the floor
+            let v_un = value_v6(&order, &unvested, FLOOR, THETA, DAMP, ITERS, HALF);
+            let v_ve = value_v6(&order, &vested, FLOOR, THETA, DAMP, ITERS, HALF);
+            assert_eq!(v_un[0], 0.0, "an unvested child's use certifies nothing");
+            assert!(v_ve[0] > 0.0, "the SAME use by a floor-clearing identity pays the root");
+        }
+
+        #[test]
+        fn certification_is_transitive_through_an_unvested_intermediary() {
+            // Seeds are gated, edges are not: a vested grandchild's use flows through an
+            // unvested intermediary and still reaches the root. The chain of use certifies;
+            // a standing-less middle mind cannot BLOCK credit, it just cannot MINT it.
+            let order = vec![
+                cellc(0, 1, 0, None, b"root-alpha-bravo-charlie"),
+                cellc(1, 7, 1, Some(0), b"unvested-middle-echo-foxtrot"),
+                cellc(2, 2, 2, Some(1), b"vested-grandchild-india-juliet"),
+            ];
+            let st = standing_of(&[(2, 50)]); // ONLY the grandchild contributor is vested
+            let v6 = value_v6(&order, &st, FLOOR, THETA, DAMP, ITERS, HALF);
+            assert!(v6[0] > 0.0, "vested grandchild reaches the root through the unvested middle");
+        }
+
+        #[test]
+        fn fully_vested_graph_reduces_to_value_v5() {
+            // With every contributor over the floor, v6's seeds equal v5's, so the values
+            // are identical: pricing identity costs an honest, established graph nothing.
+            let order = vec![
+                cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta"),
+                cellc(1, 2, 1, Some(0), b"echo-foxtrot-golf-hotel"),
+                cellc(2, 3, 2, Some(0), b"india-juliet-kilo-lima"),
+            ];
+            let st = standing_of(&[(1, 50), (2, 50), (3, 50)]);
+            let v6 = value_v6(&order, &st, FLOOR, THETA, DAMP, ITERS, HALF);
+            let v5 = value_v5(&order, THETA, DAMP, ITERS, HALF);
+            for (a, b) in v6.iter().zip(&v5) {
+                assert!((a - b).abs() < 1e-12, "vested-everywhere ⇒ v6 == v5");
+            }
+        }
+
+        #[test]
+        fn redundancy_still_floored_under_v6() {
+            // Floor before gate survives the new layer: a clone endorsed by a VESTED
+            // identity still earns 0 — novelty 0 multiplies the gate away.
+            let order = vec![
+                cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta"),
+                cellc(1, 9, 1, None, b"alpha-bravo-charlie-delta"), // clone, committed later
+                cellc(2, 2, 2, Some(1), b"uniform-victor-whiskey-xray"), // vested accomplice
+            ];
+            let st = standing_of(&[(2, 50)]);
+            let v6 = value_v6(&order, &st, FLOOR, THETA, DAMP, ITERS, HALF);
+            assert_eq!(v6[1], 0.0, "novelty-0 clone earns 0 even with a vested endorser");
+        }
+
+        #[test]
+        fn max_certifying_identities_mirrors_the_consensus_sybil_bound() {
+            // Same economics shape as consensus A3, one layer down — with the stronger
+            // property that standing is earned per identity, never poolable capital.
+            assert_eq!(crate::consensus::max_sybils(1000.0), 10); // MIN_STAKE = 100
+            assert_eq!(max_certifying_identities(1000, 100), 10);
+            assert_eq!(max_certifying_identities(99, 100), 0, "below floor: zero certifiers");
         }
     }
 }
@@ -1037,8 +1230,9 @@ pub mod flow {
     /// Like [`children_of`] but counts only EXTERNAL edges: a child whose contributor
     /// (`type_script.args`, the soulbound identity) equals its parent's is dropped. Used by
     /// the realized-flow gate — a mind cannot certify the usefulness of its own work by
-    /// building on it itself. (A multi-identity sybil ring remains the pinned residual gap;
-    /// identity is priced by the soulbound standing / MIN_STAKE layer, not here.)
+    /// building on it itself. (A multi-identity sybil ring was the pinned residual gap;
+    /// `value::value_v6` closes it by standing-gating the SEEDS — edges stay un-gated here
+    /// so certification remains transitive through unvested intermediaries.)
     fn children_of_external(
         cells: &[Cell],
         id_to_idx: &HashMap<u64, usize>,
@@ -2147,8 +2341,55 @@ mod adversary {
         let v5 = crate::value::value_v5(&order, 0.8, 0.85, 200, 8.0);
         assert!(
             v5[1] > 0.0,
-            "KNOWN GAP: a two-identity ring of novel garbage pumps the flow gate open; \
-             closing it needs priced identity (soulbound/MIN_STAKE) or vested-value flow seeding"
+            "KNOWN GAP (v5 surface): a two-identity ring of novel garbage pumps the flow gate; \
+             value_v6 closes it by pricing identity (standing-gated seeds) — see \
+             value::tests::value_v6_closes_the_sybil_identity_ring"
+        );
+        // CLOSED in v6 (2026-06-12): the same ring under value_v6 with no earned standing
+        // earns 0. This pin stays as documentation of the v5 surface; the LIVE residual is
+        // `vested_certifier_endorsing_garbage_open_gap` below.
+    }
+
+    #[test]
+    fn vested_certifier_endorsing_garbage_open_gap() {
+        // Adversarial-gaming tick vs value_v6 (2026-06-12, same-session — run the adversary
+        // against every new v(S) the moment it lands). v6 priced identity: the all-fresh ring
+        // is dead (cost 0 → K × cost-of-earning-the-floor). The surviving move: a contributor
+        // who already EARNED standing builds a novel-garbage child on a fresh-key
+        // novel-garbage parent. The certifier clears the floor, its seed is live, the gate
+        // opens, and the attacker's fresh key collects the parent's payout.
+        //
+        // PINS the residual: passes today (endorsement pays), flips when ENDORSEMENT-SLASHING
+        // lands — building on later-refuted garbage must cost the certifier standing
+        // (refuted-value dispute window ⇒ soulbound::Op::Slash). What v6 already changed is
+        // the economics: this is no longer free identity-minting, it is an act by an
+        // accountable, slashable, hard-to-replace identity (standing is earned, not bought).
+        let noise = |seed: u8, n: u8| -> Vec<u8> {
+            (0..n).map(|i| seed.wrapping_add(i.wrapping_mul(41))).collect()
+        };
+        let order = vec![
+            cell(0, 1, 0, b"alpha-bravo-charlie-delta"), // honest bystander
+            {
+                // garbage parent under a FRESH key — the attacker's collection pocket
+                let mut a = cell(10, 8, 1, &noise(0xA0, 48));
+                a.type_script.args = vec![8];
+                a
+            },
+            {
+                // novel-garbage child signed by the attacker's VESTED identity
+                let mut child = cell(11, 5, 2, &noise(0x10, 48));
+                child.type_script.args = vec![5];
+                child.parent = Some(10);
+                child
+            },
+        ];
+        let mut standing = std::collections::HashMap::new();
+        standing.insert(vec![5u8], 50u64); // identity 5 earned standing (floor = 10)
+        let v6 = crate::value::value_v6(&order, &standing, 10, 0.8, 0.85, 200, 8.0);
+        assert!(
+            v6[1] > 0.0,
+            "KNOWN GAP: a vested certifier can still endorse garbage into a fresh-key pocket; \
+             closing it needs endorsement-slashing via the refuted-value dispute window"
         );
     }
 

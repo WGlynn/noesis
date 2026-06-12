@@ -81,12 +81,26 @@ is a reputation system.
     self-certification). Regressions green: q=0 noise w/ zero flow → 0 (v4 contrast in-test);
     honest-but-low-quality built-upon work paid; floor-before-gate (clone w/ accomplice children
     still 0); retroactive vesting demonstrated. Node 69/69.
-    - 🔬 **New pinned residual (same-session adversarial tick):** a MULTI-IDENTITY sybil ring of
-      novel-garbage children pumps the gate (`sybil_identity_ring_pumps_the_flow_gate_open_gap`,
-      flips when closed). Identity is a free byte in the value layer; the fix must PRICE identity
-      (soulbound-standing / MIN_STAKE economics reaching the value layer, cf. consensus A3) and/or
-      seed flow with VESTED value so unvested children pump nothing. This is the next gate-hardening
-      increment.
+    - ✅ **CLOSED (2026-06-12): `value_v6` — priced identity via standing-gated flow seeds.**
+      The pinned sybil ring (`sybil_identity_ring_pumps_the_flow_gate_open_gap` — identity was a
+      free byte) earns 0 under v6: `seed_i = floored_novelty_i` only if the contributor's soulbound
+      standing ≥ `standing_floor`, else 0. Consensus A3 economics reached down to the value layer
+      (`max_certifying_identities` mirrors `max_sybils`) — STRONGER than A3 because standing is
+      EARNED and soulbound (cannot be bought, pooled, or transferred in; `valid_transition` rejects
+      reassignment). Ring cost: 0 → K × cost-of-earning-the-floor. Design choice = gate the SEED,
+      not the edge: an unvested identity pumps nothing (certification priced), but an unvested
+      newcomer still EARNS when a vested mind builds on them (participation free — "buy storage,
+      not consensus" at the value layer), and certification stays transitive through unvested
+      intermediaries. Regressions: ring → 0 (v5 contrast in-test); newcomer-paid; floor-flips-payment;
+      transitive-through-unvested; fully-vested ⇒ v6 ≡ v5; clone-with-vested-endorser still 0.
+      Node 77/77.
+    - 🔬 **New pinned residual (same-session adversarial tick vs v6):** a VESTED certifier can
+      still endorse novel garbage into a fresh-key pocket
+      (`vested_certifier_endorsing_garbage_open_gap`, flips when closed). v6 changed the economics
+      (no longer free identity-minting — the endorser is an accountable, slashable, earned
+      identity) but not yet the payout. Fix = ENDORSEMENT-SLASHING: building on later-refuted
+      garbage costs the certifier standing via the refuted-value dispute window
+      (`soulbound::Op::Slash`). This is the next gate-hardening increment.
   - ✅ ref / 🟡 tune **near-duplicate gap — coverage-similarity floor shipped (2026-06-12).**
     Temporal-novelty alone zeroes only EXACT subsets/duplicates; a near-duplicate (a few tokens
     flipped) leaked small residual novelty from change-spanning shingles, farmable across many
