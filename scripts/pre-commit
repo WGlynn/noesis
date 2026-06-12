@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Noesis pre-commit gate — keeps docs + study guide from silently drifting past code.
+# Tracked in scripts/; install into this clone with `bash scripts/install-hooks.sh`.
+# Runs BOTH freshness checks; a failure blocks the commit with the fix command.
+set -u
+repo="$(git rev-parse --show-toplevel)"
+fail=0
+
+echo "[pre-commit] doc-coherence..."
+if ! python "$repo/scripts/doc-coherence.py" --check; then
+  echo "[pre-commit] docs lag code -> run: python scripts/doc-coherence.py --stamp"
+  fail=1
+fi
+
+echo "[pre-commit] study-guide..."
+if ! python "$repo/scripts/study-guide.py" --check; then
+  echo "[pre-commit] STUDY-GUIDE stale -> run: python scripts/study-guide.py"
+  fail=1
+fi
+
+if [ "$fail" -ne 0 ]; then
+  echo "[pre-commit] BLOCKED. Regenerate/stamp, git add, retry. (bypass: git commit --no-verify)"
+  exit 1
+fi
+echo "[pre-commit] OK"
+exit 0
