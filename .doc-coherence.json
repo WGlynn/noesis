@@ -1,5 +1,5 @@
 {
-  "reconciled_code_hash": "64befd2a54f5f53e62e52e6ac9a8ceb5eb4e2d2cb377b87e1f1e1c6072fe94be",
+  "reconciled_code_hash": "ba1d85095490997d09c58daacc4ced2ead3a5416ed98b122175a3495f15dfea8",
   "docs": [
     "BLOCK-ECONOMY-SPEC.md",
     "COHERENCE-LAWS.md",
@@ -14,6 +14,7 @@
     "POM-CONSENSUS.md",
     "README.md",
     "ROADMAP.md",
+    "STUDY-GUIDE.md",
     "THRONE.md",
     "VISUALS.md",
     "WHITEPAPER-FOR-DAD.md",
@@ -30,6 +31,7 @@
     "reward-model.py": "35aea2b19d06ff8529e774388572326681591c1fce5146118127275809e26448",
     "scripts/doc-coherence.py": "706217524df75c091e07d1be7a1d469e574cc9e056ae3350e2f298c12ecc2b2b",
     "scripts/harvest-noesis.py": "4832de0173d9e4be37969838c45c5d06a318b04d6f8f33eae646a519f6a59343",
+    "scripts/study-guide.py": "f7490f429b82f3970695526e1490236adaf23eb445e5247298d97dd33ce2fff9",
     "value-flow.py": "34c728bd86baf107d94857f9fe96f566f0c240b42102d360d0d19347701e95e5",
     "value-v3.py": "61d75bb51fe13212ab11ab46f48fbe7cb45bc726e743bbf90dd9aa5d3ad0fe7f",
     "value-v4.py": "9b3eee7293d1698068181a9f622a707ab713dc5ea3c226ccdd78e0871b90bb99"
