@@ -1,5 +1,28 @@
 # CONTINUE — Noesis handoff (PRIVATE, stealth)
 
+## ▶ RESUME HERE (2026-06-11 eve — chat rotated at 214k ctx)
+Shipped this session (all pushed to `WGlynn/noesis`, head `7842e4e`):
+- **VISUALS.md** (8 Mermaid figs) + Desktop render `noesis-figures.html`.
+- **COORDINATION-SCHELLING.md** — Schelling/inward-outward synthesis + equi-dependence
+  keystone + **meta-security** (LLM+DeFi coordinate through JARVIS on Noesis) + invariant.
+  Folded into WHITEPAPER §5.2.
+- **COHERENCE-LAWS.md** (L1–L11; L11 = coordination-layer integrity ≥ max spoke surface).
+- **Fair launch RATIFIED = genesis-burn** (provable > asserted). WHITEPAPER §10.
+- **WHITEPAPER-FOR-DAD.md** + Desktop PDF `Noesis-in-Plain-English.pdf`.
+- **scripts/harvest-noesis.py** (code-only pick-list, 9 buckets) + daily cron `41445bfe`
+  (⚠ 7-day expiry — needs self-perpetuation for permanence).
+- **Rust:** `node/src/lib.rs` `synergy` module (Myerson, Data-Shapley sampling) — **20/20 tests.**
+- Memory: `primitive_meta-security-coordination-hub.md` (local, discretion:internal; NOT yet MEMORY.md-indexed).
+
+**Top next steps:** (1) port `value-flow.py` (eigenvector + 2-level recursion) → Rust;
+(2) make harvest cron self-perpetuating; (3) Phase-1 open: prove LEARNED v(S) preserves
+strategyproofness. See OPEN THREADS below for the full list.
+
+Public-side this session (separate, codeword-free): integrity root **re-attested + signed**
+(drift was benign +2 files); leak-gate hardened (4 codeword sites scrubbed + self-skip
+removed so the scanner polices its own public mirror).
+
+
 > Read this first on a fresh session to continue the Proof-of-Mind value chain.
 > Repo: `~/jarvis-private` (private remote `github.com/WGlynn/jarvis-private`).
 > The roadmap-advance cron loop (`3b8e2f47`, every 3h) auto-continues this.
