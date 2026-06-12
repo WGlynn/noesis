@@ -216,11 +216,12 @@ problem. Next: the learned `v(S)` evaluator (the un-gameable measurement), the
 two-level recursion and eigenvector value-flow in code, the stability constraint, and
 the consensus finalization path. Release when matured.
 
-**Fair launch.** At launch the creator's pre-launch contribution advantage is
-neutralized by a **genesis-burn**: the chain stays continuous from genesis, pre-launch
-blocks remain auditable, but their PoM-standing and state-value are programmatically
-burned to zero at the launch height — a *provable* fair launch (on-chain verifiable),
-preferred over a chain-reset (which only *asserts* it). See `COORDINATION-SCHELLING.md`.
+**Fair launch (ratified 2026-06-11).** At launch the creator's pre-launch contribution
+advantage is neutralized by a **genesis-burn**: the chain stays continuous from genesis,
+pre-launch blocks remain auditable, but their PoM-standing and state-value are
+programmatically burned to zero at the launch height — a *provable* fair launch
+(on-chain verifiable), chosen over a chain-reset (which only *asserts* it). See
+`COORDINATION-SCHELLING.md`.
 
 **Figures.** `VISUALS.md` (Mermaid): value pipeline, two-cell mint, three-power RPS,
 consensus stack, the inward/outward Schelling fold, fair-launch decision, ToM→ETM→PoM,

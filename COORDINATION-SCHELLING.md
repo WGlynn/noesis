@@ -140,7 +140,8 @@ These are not equivalent, and the coordination-Schelling logic decides it:
 a head-start, provably) instead of asking the network to trust a deletion. It also
 preserves the pre-launch run as on-chain evidence the mechanism worked. This is the
 same honesty-is-focal property from Edge 2: the fair launch must be *provable*, not
-asserted, or it fails to be a Schelling point. (Decision still Will's.)
+asserted, or it fails to be a Schelling point. **(RATIFIED — Will, 2026-06-11:
+genesis-burn is the launch mechanism.)**
 
 ## Ties
 - `WHITEPAPER.md` §5.1 (ToM → ETM → PoM), §6 (consensus), §7 (backwards-enforcement).
