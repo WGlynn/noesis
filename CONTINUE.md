@@ -1,6 +1,21 @@
 # CONTINUE — Noesis handoff (PRIVATE, stealth)
 
-## ▶ RESUME HERE (2026-06-12 PM-5 — learned outcome model shipped, node 114/114)
+## ▶ RESUME HERE (2026-06-12 PM-6 — semantic floor wired into the canonical rule, node 122/122)
+- **HANDOFF frontier #4 SHIPPED**: `semantic::semantic_floor` AND-composed into
+  `production_value` (new `entropy_theta` param) — after the similarity floor, BEFORE the
+  quality boost. Incompressible noise now earns 0 at the canonical rule even at max quality;
+  in-test contrast proves the similarity floor alone still pays it (semantic does the work).
+  Airgap pin propagated (`production_value_semantic_airgap_pinned_high_entropy_value_floored`).
+- **Adversarial tick (same increment, method-standard): the survivor named the next layer
+  and is PINNED** — `noise_child_still_seeds_flow_in_v5_open_gap`: the semantic floor guards
+  the boost rule only; a high-entropy noise CHILD still carries a positive flow seed in
+  v5/v6, so a vested identity's noise commit pumps a parent's gate (bounded by v6 standing,
+  not free — but real). **Next increment: semantic-floored SEEDS** — design first: the
+  semantic airgap's backstop ("wrongly-floored useful cells still earn via flow") must
+  survive; flooring a cell's SEED (what it pumps to parents) ≠ flooring its own gated value —
+  those can be separated, and probably should be.
+- Remaining frontier unchanged: real outcome-labels (external), ckb-vm type-script (verify
+  APIs first), structured-but-valueless novelty (out-of-band).
 - **PHASE-1 FRONTIER FIRST INCREMENT** (`outcome` module): the learned v(S) the coverage
   proxy can't be. `coalition_features(S)` = SET-level structural features (breadth, synergy,
   internal connectedness, lineage depth) the per-block proxy can't see; `train()` =

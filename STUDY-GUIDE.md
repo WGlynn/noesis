@@ -2,7 +2,7 @@
 
 > Regenerated FROM the repo by `scripts/study-guide.py`, so it cannot lag the
 > code. Tick the boxes as you internalize each piece. Re-run to refresh.
-> Node test suite: **119 passing**.
+> Node test suite: **122 passing**.
 
 ## Read in this order
 
@@ -20,7 +20,7 @@
 
 ### Reference (not on the critical path)
 - [ ] CONSENSUS-REVIEW.md — The load-bearing question was *"does NCI's 60/30/10 break the rock-paper-scissors / separation-of-powers claim?"* The answer turns entirely on **composition**, not the numbers:
-- [ ] CONTINUE.md — - **PHASE-1 FRONTIER FIRST INCREMENT** (`outcome` module): the learned v(S) the coverage proxy can't be. `coalition_features(S)` = SET-level structural features (breadth, synergy, internal connectedness, lineage depth) the per-block proxy c...
+- [ ] CONTINUE.md — - **HANDOFF frontier #4 SHIPPED**: `semantic::semantic_floor` AND-composed into `production_value` (new `entropy_theta` param) — after the similarity floor, BEFORE the quality boost. Incompressible noise now earns 0 at the canonical rule ev...
 - [ ] FOUNDATION-grace-made-mechanical.md — *A record. Will Glynn, with JARVIS. 2026-06-12. Captured in-flight, the moment the moral substrate beneath the whole project became explicit.*
 - [ ] HANDOFF.md — Resume point for a fresh chat. Detail lives in `CONTINUE.md` (top block) and `ROADMAP.md`; this is the fast orientation. Repo: `WGlynn/noesis` (private remote). Node: `node/`, Rust.
 - [ ] JARVIS-CORE-harness-as-coordination.md — *Draft. Will Glynn, with JARVIS. 2026-06-12. The competitive layer of an AI system is not the model's weights — it is the harness that coordinates models, and the harness wins by grounding their cross-check in structure that cannot lie. PRI...

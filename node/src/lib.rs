@@ -627,17 +627,30 @@ pub mod value {
     }
 
     /// Production value rule — composes the full strategyproof floor (temporal-novelty + the
-    /// coverage-similarity floor at `theta`) with the learned quality boost:
-    /// `value = floored_novelty × (1 + quality)`. The floor is applied BEFORE quality, so neither
-    /// a near-duplicate nor a zero-novelty cell can be rescued by any quality score, while honest
-    /// novel cells are quality-weighted. This is the canonical rule assembling every value-layer
-    /// defense (sybil/padding/collusion via novelty, near-duplicate via the similarity floor,
-    /// capability via quality) into one function the PoM type-script enforces.
-    pub fn production_value(cells_in_commit_order: &[super::Cell], theta: f64, quality: &[f64]) -> Vec<f64> {
+    /// coverage-similarity floor at `theta` + the semantic/compressibility floor at
+    /// `entropy_theta`) with the learned quality boost:
+    /// `value = floored_novelty × (1 + quality)`. All floors are applied BEFORE quality, so
+    /// neither a near-duplicate, a zero-novelty cell, nor an incompressible-noise cell can be
+    /// rescued by any quality score, while honest novel cells are quality-weighted. Floors are
+    /// AND-composed (each can only zero, never raise), so strategyproofness is untouched. This
+    /// is the canonical rule assembling every value-layer defense (sybil/padding/collusion via
+    /// novelty, near-duplicate via the similarity floor, incompressible garbage-novelty via the
+    /// semantic floor, capability via quality) into one function the PoM type-script enforces.
+    /// The semantic floor's pinned airgap (high-entropy-but-valuable payloads false-positived)
+    /// propagates here by construction; realized-flow (v5/v6) is the backstop. Structured-but-
+    /// valueless novelty remains the honest out-of-band gap (labels/flow, not bytes).
+    pub fn production_value(
+        cells_in_commit_order: &[super::Cell],
+        theta: f64,
+        entropy_theta: f64,
+        quality: &[f64],
+    ) -> Vec<f64> {
         super::temporal_novelty_with_similarity_floor(cells_in_commit_order, theta)
             .iter()
+            .zip(cells_in_commit_order)
+            .map(|(&n, c)| super::semantic::semantic_floor(n, &c.data, entropy_theta))
             .zip(quality)
-            .map(|(&n, &q)| n as f64 * (1.0 + q))
+            .map(|(n, &q)| n as f64 * (1.0 + q))
             .collect()
     }
 
@@ -938,6 +951,32 @@ pub mod value {
         }
 
         #[test]
+        fn noise_child_still_seeds_flow_in_v5_open_gap() {
+            // PINNED GAP (named by the production_value semantic wiring, 2026-06-12): the
+            // semantic floor guards the canonical BOOST rule only. In the flow-gated rules a
+            // high-entropy noise CHILD still carries a positive seed (similarity floor alone),
+            // so a different-identity noise commit pumps a parent's realized flow. v6 prices
+            // the identity (standing-gated seeds), so the pump costs earned standing — bounded,
+            // not free — but a VESTED contributor's noise still pumps. Next increment candidate:
+            // semantic-floored SEEDS. Design with care: the semantic floor's own airgap backstop
+            // ("a wrongly-floored useful cell still earns via downstream flow") must survive —
+            // flooring the cell's seed is not the same as flooring its own gated value.
+            let noise: Vec<u8> = (0u8..64).map(|i| i.wrapping_mul(37).wrapping_add(11)).collect();
+            let parent_alone = vec![cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta")];
+            let with_noise_child = vec![
+                cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta"),
+                cellc(1, 9, 1, Some(0), &noise), // other identity commits noise ON the parent
+            ];
+            let alone = value_v5(&parent_alone, THETA, DAMP, ITERS, HALF);
+            let pumped = value_v5(&with_noise_child, THETA, DAMP, ITERS, HALF);
+            assert!(
+                pumped[0] > alone[0],
+                "OPEN GAP: incompressible-noise child pumps the parent's flow gate \
+                 (semantic floor not yet composed into v5/v6 seeds)"
+            );
+        }
+
+        #[test]
         fn vesting_is_retroactive_value_accrues_as_flow_materializes() {
             // The honest consequence, demonstrated: at intake a cell is worth 0; when another
             // mind builds on it, value vests. A contribution is paid as it proves useful, not
@@ -967,9 +1006,45 @@ pub mod value {
             near[2] ^= 0x20; // near-duplicate of block 0
             order.push(cell(99, 9, 99, &near));
             let q = vec![1.0; order.len()];
-            let v = production_value(&order, 0.8, &q);
+            let v = production_value(&order, 0.8, 0.95, &q);
             assert_eq!(*v.last().unwrap(), 0.0, "near-dup -> 0 even at max quality (floor before quality)");
             assert!(v[0] > 0.0, "honest novel cell earns novelty x (1 + quality)");
+        }
+
+        #[test]
+        fn production_value_zeroes_incompressible_noise_even_at_max_quality() {
+            // The garbage-novelty cell the coverage proxy pays in full
+            // (`garbage_novelty_is_the_documented_open_gap`) is now zeroed AT the canonical
+            // rule: the semantic floor AND-composes after the similarity floor, before quality.
+            let mut order = honest();
+            let noise: Vec<u8> = (0u8..64).map(|i| i.wrapping_mul(37).wrapping_add(11)).collect();
+            order.push(cell(99, 9, 99, &noise));
+            let q = vec![1.0; order.len()];
+            // Contrast: the similarity floor ALONE still pays the noise (it is genuinely novel),
+            // proving the semantic floor — not novelty — does the zeroing here.
+            let sim_only = super::super::temporal_novelty_with_similarity_floor(&order, 0.8);
+            assert!(*sim_only.last().unwrap() > 0, "noise survives the similarity floor alone");
+            let v = production_value(&order, 0.8, 0.95, &q);
+            assert_eq!(*v.last().unwrap(), 0.0, "incompressible noise -> 0 even at max quality");
+            assert!(v[..3].iter().all(|&x| x > 0.0), "structured honest cells unaffected");
+        }
+
+        #[test]
+        fn production_value_semantic_airgap_pinned_high_entropy_value_floored() {
+            // KNOWN TRADEOFF propagated into the canonical rule (same pin as
+            // `semantic::honest_false_positive_high_entropy_value_is_floored_pinned`): a
+            // high-entropy VALUABLE payload (key/hash shaped) is floored here too. Content
+            // alone cannot tell it from noise; realized-flow (v5/v6) is the backstop.
+            let mut order = honest();
+            let keyish: Vec<u8> = (0u8..32).map(|i| i.wrapping_mul(67).wrapping_add(29)).collect();
+            order.push(cell(7, 4, 50, &keyish));
+            let q = vec![1.0; order.len()];
+            let v = production_value(&order, 0.8, 0.95, &q);
+            assert_eq!(
+                *v.last().unwrap(),
+                0.0,
+                "airgap: high-entropy-but-valuable content false-positived at the canonical gate"
+            );
         }
 
         // ---- value_v6: priced identity (standing-gated flow seeds) ----
