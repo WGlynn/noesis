@@ -30,6 +30,7 @@ flowchart TD
 - `COORDINATION-SCHELLING.md` — inward/outward consensus, the deployment thesis
 - `COHERENCE-LAWS.md` — the cryptoeconomic invariants (L1–L12)
 - `ROADMAP.md` — phases, with the un-gameable-`v(S)` gate
+- `CONSENSUS-REVIEW.md` — consolidated consensus findings + RSAW self-audit (the fix-chain)
 - `VISUALS.md` — all figures collected in one place
 - `node/` — Rust core (CKB-shaped); `CONTINUE.md` — session handoff
 
