@@ -1202,6 +1202,17 @@ pub mod consensus {
         if a + f <= 0.0 { 0.0 } else { a / (a + f) }
     }
 
+    /// A2 (cross-node) — realizable share against a FIELD of many honest nodes, not one aggregate.
+    /// Each node contributes `log_weight(raw_i)` independently, so the actor's share is
+    /// `log(actor) / (log(actor) + Σ log(honest_i))`. By the concavity of log, many small nodes
+    /// sum to MORE log-weight than a single node of the same total raw, so a fragmented (more
+    /// decentralized) honest field dilutes the attacker further: fragmentation favors honesty.
+    pub fn realizable_log_share_field(actor_raw: f64, honest_field: &[f64]) -> f64 {
+        let a = log_weight(actor_raw);
+        let h: f64 = honest_field.iter().map(|&r| log_weight(r)).sum();
+        if a + h <= 0.0 { 0.0 } else { a / (a + h) }
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
@@ -1362,6 +1373,20 @@ pub mod consensus {
             let logd = realizable_log_share(10_000.0, 1_000.0);
             assert!(logd < linear, "log-scaled concentration share < linear share ({logd} < {linear})");
             assert!(logd < 0.6, "even 10x raw PoM stays below the naive 60% read under log-scaling");
+        }
+
+        #[test]
+        fn audit_a2_fragmented_field_dilutes_the_attacker_more() {
+            // Same total honest raw, spread across many nodes vs one aggregate. By concavity of
+            // log, many small nodes sum to MORE log-weight than one big node, so the attacker's
+            // realizable share is LOWER against a fragmented field. Decentralization favors honesty.
+            let actor = 10_000.0;
+            let aggregate = realizable_log_share_field(actor, &[10_000.0]); // honest = one node
+            let fragmented = realizable_log_share_field(actor, &[1_000.0; 10]); // ten nodes, same total
+            assert!(
+                fragmented < aggregate,
+                "a fragmented honest field dilutes the attacker more ({fragmented} < {aggregate})"
+            );
         }
 
         // ===================== ADVERSARIAL SELF-AUDIT (RSAW) =====================
