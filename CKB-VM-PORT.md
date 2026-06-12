@@ -69,6 +69,12 @@
    first CKB-numbered ecall (2000-6000) or exit natively — proves real instruction
    execution, not just ELF parsing. Next: Noesis syscalls backing load_cell_data from our
    Cell model (increment #3).
-3. **The PoM type-script crate** (separate `scripts/pom-typescript/` workspace member,
-   no_std + ckb-std 0.16): intake floors + soulbound transition, compiled to RISC-V,
-   executed under the host harness with Noesis syscalls.
+3. **FIRST HALF SHIPPED 2026-06-12** — Noesis syscalls (`tests/ckb_vm_syscalls.rs`):
+   `Syscalls` impl serving SYS_LOAD_SCRIPT (2052) + SYS_LOAD_CELL_DATA (2092) from OUR
+   Cell model via the exact partial-load ABI (a0 buf / a1 len-ptr read+write-back / a2
+   offset / a3 index / a4 source — all from ckb-std source); hand-encoded molecule Script
+   table so a stock ckb-std program parses it legitimately; protocol unit-tested register-
+   level (full/partial/OOB/foreign), and the prebuilt PoM lock-script CONSUMES the served
+   syscalls and progresses past the bare-VM stopping point (counter-asserted). SECOND HALF
+   remaining: the pom-typescript no_std crate itself (intake floors + soulbound transition
+   compiled to RISC-V and validated under this host).

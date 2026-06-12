@@ -63,7 +63,15 @@
   ecall proves real instruction execution up to the program's first environment call.
   Next: increment #3 = Noesis syscalls (back load_cell_data/load_script with our Cell
   model) under DefaultMachineBuilder::syscall.
-- **Story-loop: 6 done, 4 remain.**
+- **Loop 7/10 — Noesis syscalls behind the VM SHIPPED (node 137/137: 133 lib + 4
+  integration).** CKB-VM-PORT increment #3 first half. `Syscalls` host serves
+  load_script/load_cell_data from OUR Cell model: exact partial-load ABI verified from
+  ckb-std source, hand-encoded molecule Script table (stock ckb-std parses it), register-
+  level protocol unit tests (full/partial/out-of-bounds/foreign-passthrough), and the
+  prebuilt PoM lock-script demonstrably CONSUMES the served environment (served-counter
+  ≥1 asserted; progresses past the bare-VM stop). Remaining second half: the pom-typescript
+  no_std crate compiled to RISC-V under this host.
+- **Story-loop: 7 done, 3 remain.**
 - **HANDOFF frontier #4 SHIPPED**: `semantic::semantic_floor` AND-composed into
   `production_value` (new `entropy_theta` param) — after the similarity floor, BEFORE the
   quality boost. Incompressible noise now earns 0 at the canonical rule even at max quality;
