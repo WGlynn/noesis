@@ -63,6 +63,13 @@ another node is a mind worth trusting (intractable, game-able), PoM gives a
 > PoM answers "here is the proof this mind contributed verified value" — observable.
 > ToM → ETM → PoM is: capacity → mind-as-economy → cryptographic proof of that economy.
 
+```mermaid
+flowchart LR
+  TOM["Theory of Mind<br/>INFERENCE: can I model whether to trust this mind?<br/>(unobservable — the airgap)"] --> ETM["Economic Theory of Mind<br/>mind = an economy whose outputs carry value"]
+  ETM --> POM["Proof of Mind<br/>signed, owned, synergy-valued blocks<br/>recompute to a score (observable)"]
+  POM --> RES["Trust = structural property anyone verifies,<br/>not a per-mind inference"]
+```
+
 So PoM is what makes ToM **tractable for a decentralized network**: trust stops
 being an inference each node must make about every other mind, and becomes a
 structural property anyone can verify. That is the same move as the rest of the
@@ -96,6 +103,17 @@ PoM is earned and *revocable*. The slashable events, and what each costs:
   is a *forward* revocation event recorded on-chain, never a silent rewrite — the
   history of what was slashed and why is itself auditable.
 
+```mermaid
+flowchart TD
+  E1["Invalid reveal<br/>commit without valid reveal"] --> S1["slash bond + 0 PoM for slot"]
+  E2["Refuted attestation<br/>merkle/sig fails or provenance false"] --> S2["revoke that block's PoM<br/>+ slash owner bond"]
+  E3["Refuted value claim<br/>independent evaluator: contribution false"] --> W["commit-dispute-finalize window<br/>challenger bonds; loser slashed"]
+  W --> S3["v → 0, PoM revoked"]
+  S1 --> AO["Append-only: a forward revocation recorded on-chain<br/>(what was slashed and why is itself auditable)"]
+  S2 --> AO
+  S3 --> AO
+```
+
 Net: PoM can only be earned by verifiable contribution and can be *lost* by proven
 dishonesty. Honesty is the profitable strategy; dishonesty is bonded-and-slashable.
 
@@ -119,6 +137,16 @@ the PoM-weighted coalition game:
 - **Cost.** Core/nucleolus are expensive in general (LP / iterated-LP over coalitions);
   at scale, restrict to the PoM-graph-connected coalitions (Myerson-style) and sample,
   same as the value layer.
+
+```mermaid
+flowchart TD
+  Q{{"Is any validator coalition's fork profitable?"}}
+  Q -->|"core non-empty"| CORE["CORE allocation<br/>no sub-coalition does better by forking<br/>→ no profitable fork, by construction"]
+  Q -->|"core empty"| NUC["NUCLEOLUS<br/>lexicographically minimize the worst<br/>coalition's excess — unique, maximally stable"]
+  CORE --> DEF["Defection-proof consensus"]
+  NUC --> DEF
+  SCALE["At scale: restrict to PoM-graph-connected<br/>coalitions (Myerson) + sample"] -.-> Q
+```
 
 ## Value strategyproofness — adversary finding + fix (2026-06-11)
 
@@ -154,6 +182,14 @@ ordering, already in the VibeSwap contracts) as a backup/cross-check beneath PoM
   same shape as defense being a bridge-to-dissolution.
 - Composes with the core/nucleolus stability above: stability makes PoM defection-proof;
   Nakamoto makes the whole thing robust to *disbelief in* PoM.
+
+```mermaid
+flowchart LR
+  PRIM["PRIMARY<br/>PoM-weighted finalization<br/>(proof of verified contribution)"] --> NET["Network security<br/>(two independent axes)"]
+  BACK["BACKUP<br/>Nakamoto-Infinity — PoW ordering<br/>an attacker must ALSO break"] --> NET
+  NET --> ROB["Multi-axis robustness:<br/>'I don't trust PoM sybil-resistance'<br/>does not kill the network"]
+  BACK -.->|"as PoM track-record accrues"| DOWN["down-weight PoW<br/>(bridge to PoM, not a permanent crutch)"]
+```
 
 ## Dissolving the open-model trilemma via coordination (Will, 2026-06-11)
 
