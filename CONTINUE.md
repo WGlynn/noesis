@@ -71,7 +71,17 @@
   prebuilt PoM lock-script demonstrably CONSUMES the served environment (served-counter
   ≥1 asserted; progresses past the bare-VM stop). Remaining second half: the pom-typescript
   no_std crate compiled to RISC-V under this host.
-- **Story-loop: 7 done, 3 remain.**
+- **Loop 8/10 — pom-typescript ON-VM (node 141/141: 133 lib + 8 integration): CKB-VM-PORT
+  increment #3 COMPLETE.** `onchain/pom-typescript` = Noesis's first mechanism code running
+  INSIDE the VM: no_std crate (proven vibeswap recipe + pinned nightly), semantic floor in
+  the SAME Q16.16 integer form as `value_fixed`, 173KB riscv64imac ELF (first-try compile,
+  in-repo fixture + rebuild cmd in test header). Host refactored to shared tests/common.
+  END-TO-END: content→0, noise→13 (floor fires inside the VM), empty soulbound args→11,
+  and on-VM verdicts ≡ host-side value_fixed across content/noise/keyish-airgap/hexed-
+  evasion — cross-VM-boundary determinism demonstrated, the exact property the fixed-point
+  port exists for. Honest scope: semantic floor only on-VM; similarity floor needs
+  cross-cell state via syscalls (named next piece).
+- **Story-loop: 8 done, 2 remain.**
 - **HANDOFF frontier #4 SHIPPED**: `semantic::semantic_floor` AND-composed into
   `production_value` (new `entropy_theta` param) — after the similarity floor, BEFORE the
   quality boost. Incompressible noise now earns 0 at the canonical rule even at max quality;

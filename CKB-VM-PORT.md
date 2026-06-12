@@ -69,12 +69,20 @@
    first CKB-numbered ecall (2000-6000) or exit natively — proves real instruction
    execution, not just ELF parsing. Next: Noesis syscalls backing load_cell_data from our
    Cell model (increment #3).
-3. **FIRST HALF SHIPPED 2026-06-12** — Noesis syscalls (`tests/ckb_vm_syscalls.rs`):
+3. ✅ COMPLETE 2026-06-12 (both halves) — first half: — Noesis syscalls (`tests/ckb_vm_syscalls.rs`):
    `Syscalls` impl serving SYS_LOAD_SCRIPT (2052) + SYS_LOAD_CELL_DATA (2092) from OUR
    Cell model via the exact partial-load ABI (a0 buf / a1 len-ptr read+write-back / a2
    offset / a3 index / a4 source — all from ckb-std source); hand-encoded molecule Script
    table so a stock ckb-std program parses it legitimately; protocol unit-tested register-
    level (full/partial/OOB/foreign), and the prebuilt PoM lock-script CONSUMES the served
-   syscalls and progresses past the bare-VM stopping point (counter-asserted). SECOND HALF
-   remaining: the pom-typescript no_std crate itself (intake floors + soulbound transition
-   compiled to RISC-V and validated under this host).
+   syscalls and progresses past the bare-VM stopping point (counter-asserted). Second half:
+   **`onchain/pom-typescript`** — Noesis's own no_std crate (proven vibeswap recipe: ckb-std
+   0.16 default-features=false + ckb-types/allocator, pinned nightly-2024-09-01, riscv64imac)
+   carrying the SEMANTIC FLOOR in the same Q16.16 arithmetic as `value_fixed`, compiled to a
+   173KB ELF (in-repo fixture) and validated END TO END under the host (`tests/
+   ckb_vm_pom_typescript.rs`): content exits 0, noise floored at 13, empty soulbound args
+   rejected at 11, and on-VM verdicts AGREE with host-side `value_fixed` across content /
+   noise / keyish-airgap / hexed-evasion payloads — the determinism claim, demonstrated
+   across the VM boundary. Honest scope: semantic floor only; the similarity floor needs
+   cross-cell state via syscalls (next piece). Remaining: soulbound-transition validation
+   on-VM + the cross-cell syscall surface.

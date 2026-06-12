@@ -1,0 +1,10 @@
+C:\Users\Will\noesis\onchain\pom-typescript\target\riscv64imac-unknown-none-elf\release\deps\libbuddy_alloc-670651deaf3b783e.rmeta: C:\Users\Will\.cargo\registry\src\index.crates.io-6f17d22bba15001f\buddy-alloc-0.6.0\src/lib.rs C:\Users\Will\.cargo\registry\src\index.crates.io-6f17d22bba15001f\buddy-alloc-0.6.0\src\buddy_alloc.rs C:\Users\Will\.cargo\registry\src\index.crates.io-6f17d22bba15001f\buddy-alloc-0.6.0\src\fast_alloc.rs C:\Users\Will\.cargo\registry\src\index.crates.io-6f17d22bba15001f\buddy-alloc-0.6.0\src\non_threadsafe_alloc.rs
+
+C:\Users\Will\noesis\onchain\pom-typescript\target\riscv64imac-unknown-none-elf\release\deps\libbuddy_alloc-670651deaf3b783e.rlib: C:\Users\Will\.cargo\registry\src\index.crates.io-6f17d22bba15001f\buddy-alloc-0.6.0\src/lib.rs C:\Users\Will\.cargo\registry\src\index.crates.io-6f17d22bba15001f\buddy-alloc-0.6.0\src\buddy_alloc.rs C:\Users\Will\.cargo\registry\src\index.crates.io-6f17d22bba15001f\buddy-alloc-0.6.0\src\fast_alloc.rs C:\Users\Will\.cargo\registry\src\index.crates.io-6f17d22bba15001f\buddy-alloc-0.6.0\src\non_threadsafe_alloc.rs
+
+C:\Users\Will\noesis\onchain\pom-typescript\target\riscv64imac-unknown-none-elf\release\deps\buddy_alloc-670651deaf3b783e.d: C:\Users\Will\.cargo\registry\src\index.crates.io-6f17d22bba15001f\buddy-alloc-0.6.0\src/lib.rs C:\Users\Will\.cargo\registry\src\index.crates.io-6f17d22bba15001f\buddy-alloc-0.6.0\src\buddy_alloc.rs C:\Users\Will\.cargo\registry\src\index.crates.io-6f17d22bba15001f\buddy-alloc-0.6.0\src\fast_alloc.rs C:\Users\Will\.cargo\registry\src\index.crates.io-6f17d22bba15001f\buddy-alloc-0.6.0\src\non_threadsafe_alloc.rs
+
+C:\Users\Will\.cargo\registry\src\index.crates.io-6f17d22bba15001f\buddy-alloc-0.6.0\src/lib.rs:
+C:\Users\Will\.cargo\registry\src\index.crates.io-6f17d22bba15001f\buddy-alloc-0.6.0\src\buddy_alloc.rs:
+C:\Users\Will\.cargo\registry\src\index.crates.io-6f17d22bba15001f\buddy-alloc-0.6.0\src\fast_alloc.rs:
+C:\Users\Will\.cargo\registry\src\index.crates.io-6f17d22bba15001f\buddy-alloc-0.6.0\src\non_threadsafe_alloc.rs:
