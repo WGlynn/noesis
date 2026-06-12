@@ -80,7 +80,7 @@ is a reputation system.
     children pump nothing) and counts EXTERNAL edges only (child contributor ≠ parent — no
     self-certification). Regressions green: q=0 noise w/ zero flow → 0 (v4 contrast in-test);
     honest-but-low-quality built-upon work paid; floor-before-gate (clone w/ accomplice children
-    still 0); retroactive vesting demonstrated. Node 69/69.
+    still 0); retroactive vesting demonstrated.
     - ✅ **CLOSED (2026-06-12): `value_v6` — priced identity via standing-gated flow seeds.**
       The pinned sybil ring (`sybil_identity_ring_pumps_the_flow_gate_open_gap` — identity was a
       free byte) earns 0 under v6: `seed_i = floored_novelty_i` only if the contributor's soulbound
@@ -93,21 +93,28 @@ is a reputation system.
       not consensus" at the value layer), and certification stays transitive through unvested
       intermediaries. Regressions: ring → 0 (v5 contrast in-test); newcomer-paid; floor-flips-payment;
       transitive-through-unvested; fully-vested ⇒ v6 ≡ v5; clone-with-vested-endorser still 0.
-      Node 77/77.
-    - 🔬 **New pinned residual (same-session adversarial tick vs v6):** a VESTED certifier can
-      still endorse novel garbage into a fresh-key pocket
-      (`vested_certifier_endorsing_garbage_open_gap`, flips when closed). v6 changed the economics
-      (no longer free identity-minting — the endorser is an accountable, slashable, earned
-      identity) but not yet the payout. Fix = ENDORSEMENT-SLASHING: building on later-refuted
-      garbage costs the certifier standing via the refuted-value dispute window
-      (`soulbound::Op::Slash`). This is the next gate-hardening increment.
-      **DESIGN COMPLETE (2026-06-12): `DISPUTE-SLASHING.md`** — windowed vesting (W) +
-      challenge bond (B) + PoM-weighted verdict (reuses `finalizes_hybrid` 2/3 + quorum-floor)
-      + deterministic causal-share slash (zero-seed flow recomputation) + un-gameability
-      inequality (α > V(1−2p)/p; p≥½ ⇒ any α>0) + griefing/honest-certifier safety analysis +
-      7-point test plan. Honest tensions recorded in-doc: verdict-is-judgment (the airgap,
-      contained not dissolved), W-delays-liquidity, judge-cartel residual (pre-pinned as
-      `judge_cartel_protects_its_own_garbage_open_gap` for when the module lands).
+      (Suite then 77; current count in `node/README.md`.)
+    - ✅ **CLOSED (2026-06-12, same day): ENDORSEMENT-SLASHING — `dispute` module shipped.**
+      The vested-certifier residual (`vested_certifier_endorsing_garbage_open_gap`, gate-level
+      pin retained as surface documentation) is NEGATIVE-EV at the dispute layer. Design =
+      `DISPUTE-SLASHING.md`, implemented to its §6 plan: windowed vesting (spendable at E+W;
+      vested = finality-protected), challenge bond, PoM-only 2/3 + quorum-floor verdict
+      (REUSES `consensus::finalizes_hybrid` — proof-over-vote at the value layer),
+      deterministic causal-share slash (zero-seed v6 recompute; `bounded_shares` Σ ≤ canceled),
+      λ·share+α; §4 inequality (α > V(1−2p)/p; p≥½ ⇒ any α>0) demonstrated in-test.
+    - ✅ **Critical-qa hardenings (same session, hostile self-review → 4 finds → 4 fixes):**
+      exposure snapshots at challenge-open (slow verdicts can't vest value away);
+      α attaches to causation not adjacency (zero-share certifiers skipped); β/γ clamped
+      (resolver can never mint); slash-evasion-by-exit closed — `standing_exit_blocked` +
+      **wired at the cell layer as `soulbound::valid_transition_under_dispute`** (burn denied
+      while exposed; pom-decrease capped at settlement-authorized; the slash always lands).
+      All with regression tests; doc §5b.
+    - 🔬 **New pinned residual (adversarial tick vs the dispute layer):** JUDGE CARTEL — a
+      >1/3 vested-standing bloc vetoes refutation of its own ring; detection exists,
+      conviction doesn't (`judge_cartel_protects_its_own_garbage_open_gap`, flips when closed).
+      Economic bounds recorded (capture cost, defection bounty, PoM self-dilution — doc §5.3);
+      structural counter = next gate-hardening increment. Candidates: juror-exclusion of
+      edge-connected standing / escalation court / dilution-indexed slashing.
   - ✅ ref / 🟡 tune **near-duplicate gap — coverage-similarity floor shipped (2026-06-12).**
     Temporal-novelty alone zeroes only EXACT subsets/duplicates; a near-duplicate (a few tokens
     flipped) leaked small residual novelty from change-spanning shingles, farmable across many
