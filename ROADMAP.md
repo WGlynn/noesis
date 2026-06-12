@@ -8,6 +8,21 @@
 - 🟡 **designed** — specified, not yet built
 - 🔬 **research** — open problem, no settled approach
 
+```mermaid
+flowchart LR
+  P0["Phase 0 · Foundation<br/>ownership · signing · synergy v2 · PoM score"] --> P1["Phase 1 · THE GATE<br/>un-gameable v(S)<br/>(learned reward model)"]
+  P1 --> P2["Phase 2 · Recursion & flow<br/>two-level · eigenvector value-flow"]
+  P2 --> P3["Phase 3 · Consensus<br/>PoM-weighted finalization · core/nucleolus · slashing"]
+  P3 --> P4["Phase 4 · Backwards-enforcement<br/>training-signal export · open-weight loop"]
+  P4 --> P5["Phase 5 · Hardening & release"]
+  N["Phase 1 gates everything downstream:<br/>do NOT ship consensus on a measurement that can be gamed."]
+  P1 -.-> N
+  classDef done fill:#14302a,stroke:#34d399,color:#d1fae5;
+  classDef gate fill:#3a2e15,stroke:#fbbf24,color:#fde68a;
+  class P0 done
+  class P1 gate
+```
+
 ## Phase 0 — Foundation (DONE this session)
 - ✅ Block ownership, Bitcoin-shaped (UTXO fold over signed transfer log); transfer
   voids prior attestation. `block-ownership.py`
@@ -77,6 +92,16 @@ is a reputation system.
 
 The roadmap shouldn't depend on one long session. Proposed loops, each writing only
 to the private repo:
+
+```mermaid
+flowchart TD
+  R["1 · Roadmap-advance loop<br/>pick next 🟡, one increment, commit"] --> VS["un-gameable v(S)<br/>(the moat)"]
+  S["2 · PoM-scoring loop<br/>score new blocks → refresh PoM"] --> VS
+  A["3 · Adversarial-gaming loop (RSAW)<br/>try to game v(S) → patch + defense + regression"] -->|"highest leverage"| VS
+  M["4 · Reward-model retraining loop<br/>retrain on new labels, track drift"] --> VS
+  classDef moat fill:#1f2937,stroke:#f87171,color:#fecaca;
+  class A moat
+```
 
 1. **Roadmap-advance loop** — pick the next 🟡 item, do one increment, commit. The
    "start and don't stop" mechanism. (Set up this session.)
