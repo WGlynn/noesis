@@ -92,6 +92,69 @@ distinction, not the numbers, is load-bearing:
   2-of-3 collude to 66%). Capture-resistance comes from cycle *independence*, not weight
   equality.
 
+```mermaid
+flowchart TB
+  subgraph OR["OR — weighted-sum vote (NCI as-built): the split IS power"]
+    direction LR
+    A1["PoW · 10"] --> S["W = 0.10·PoW + 0.30·PoS + 0.60·PoM"]
+    A2["PoS · 30"] --> S
+    A3["PoM · 60"] --> S
+    S --> D1["dominate the PoM dimension → ~majority alone<br/>(softened only by log-scaling)"]
+  end
+  subgraph AND["AND — independent layers (Noesis): the split is reward-only"]
+    direction LR
+    B1["PoW wall"] --> G{{"attacker must break ALL three"}}
+    B2["PoS wall"] --> G
+    B3["PoM wall"] --> G
+    G --> D2["60/30/10 = payout split, not power<br/>capture-neutral at any ratio"]
+  end
+  classDef bad fill:#3f1d1d,stroke:#f87171,color:#fecaca;
+  classDef good fill:#14302a,stroke:#34d399,color:#d1fae5;
+  class D1 bad
+  class D2 good
+```
+
+### L12 hardening — devil's-advocate pass (2026-06-11)
+Six objections, each with the clause that answers it. The bare law ("AND → the split is
+reward-only") survives *only* with these attached:
+
+1. **AND-security implies AND-liveness fragility.** If finalizing needs all three layers,
+   any one stalled or censoring layer halts the chain — so real systems relax AND toward a
+   threshold, and the weighting returns through the back door. **Clause:** the AND is over
+   *necessary constraints / vetoes*, not over *production*. No single layer **produces**
+   finality; each can **gate** it; a gating layer's outage is a **bounded** liveness cost
+   (timeout → slash), never a cross-dimension substitution. Safety-AND ≠ liveness-AND.
+2. **"Independent layers" is a fiction — money correlates them.** A rich actor buys PoS,
+   runs PoW, and funds PoM contributors; three walls with one root (capital) collapse AND
+   toward a single wall. **Clause:** L12's guarantee is *conditional* on each wall being
+   independently un-buyable. PoM's independence is **load-bearing on L5** (temporal-novelty:
+   sybil / padding / collusion → 0) **and L2** (soulbound franchise). If those leak, AND
+   degrades to correlated-OR. Independence is a property to *prove*, not assume.
+3. **Reward-only still captures dynamically.** Paying PoM 60% starves PoW / PoS provisioning
+   until the weakest wall is paper — capture by attrition, no vote required. **Clause:** the
+   split is capture-neutral only while **every dimension stays paid above its cost-to-break**
+   (a per-dimension security-provisioning floor; sibling of L8). Free to vary above the
+   floor, never below.
+4. **No laundering of NCI's real risk.** L12 defends *Noesis-under-AND*. **NCI as-built is
+   OR-additive and remains UNDEFENDED** until either the AND-migration (a) ships or the cap
+   (b) is imposed. L12 must not be quoted to wave away the deployed contract's genuine
+   60%-vote exposure.
+5. **The <50% single-proof cap (patch b) is insufficient under correlation.** Under OR, any
+   colludable subset over threshold captures; with correlation (objection 2) one actor
+   supplies several dimensions, so the safe cap is on *any colludable coalition*, not any
+   single proof — unenforceable by one number. **This is the argument for AND (a) over the
+   cap (b):** the patch is a stopgap; AND is the fix.
+6. **Tie-break is a smuggled vote.** "AND for safety, weighted for liveness" leaks power if
+   the tie-break is weight-proportional — PoM at 60% then decides every contested block.
+   **Clause:** any scalar combination in the protocol (tie-break, fork-choice) MUST be
+   AND-gated or **content-independent-random** (VRF / commit-reveal-seed shuffle, as in the
+   batch auction) — **never weight-proportional**.
+
+**Net after hardening:** the one-liner holds, but AND-composition is load-bearing on
+**(L2 ∧ L5)** for independence, requires a **per-dimension provisioning floor**, must keep
+**every scalar combination content-independent**, and does **not** retroactively defend the
+OR-additive NCI. The honest one-liner *with its preconditions attached*.
+
 ---
 
 ### Amendment log
