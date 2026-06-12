@@ -67,6 +67,16 @@ is a reputation system.
     so a better quality proxy alone can NEVER close the gap. The fix must change the COMPOSITION to a
     GATE: `value = novelty·g(q)`, `g∈[0,1]` from the outcome-evaluator. Honest tension recorded: a true
     gate also suppresses honest-but-low-quality work, so `g` must be realized-outcome, not a proxy.
+    **Gate design (2026-06-12 pom tick):** source `g` from REALIZED DOWNSTREAM VALUE-FLOW — the
+    eigenvector backward-propagation through the provenance DAG ALREADY built in the `flow` module —
+    not a predicted quality proxy. `g(block) = normalized(downstream_flow(block)) ∈ [0,1]`. Noise earns
+    no downstream use ⇒ flow→0 ⇒ g→0 ⇒ value→0; honest-but-low-quality work that gets built upon ⇒
+    flow>0 ⇒ paid. Honest consequence: payment must VEST RETROACTIVELY / stream as downstream flow
+    materializes — a contribution cannot be fully priced at intake; its value accrues as it proves
+    useful. Two-clock composition: intake-novelty (immediate, strategyproof) gates redundancy;
+    realized-flow (delayed, un-spoofable) gates meaninglessness. Next build: `value_v5(novelty,
+    downstream_flow)` + regression that q=0 noise with zero downstream flow earns 0. No new external
+    dependency — the gate reuses the flow module.
   - ✅ ref / 🟡 tune **near-duplicate gap — coverage-similarity floor shipped (2026-06-12).**
     Temporal-novelty alone zeroes only EXACT subsets/duplicates; a near-duplicate (a few tokens
     flipped) leaked small residual novelty from change-spanning shingles, farmable across many
