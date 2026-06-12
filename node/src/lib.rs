@@ -1655,6 +1655,117 @@ pub mod stability {
     }
 }
 
+/// Harness checker-routing (the JARVIS core thesis, modeled and tested). Routes a claim to the
+/// verification layer that can actually catch its error — structure (recompute/verify) where a
+/// verifiable referent exists, ensemble (diverse-model vote) where none does, both for reasoning —
+/// and fails CLOSED to structure under adversary or ambiguity. See
+/// `JARVIS-CORE-harness-as-coordination.md`. The recursion: this is the chain's mechanism (proof
+/// over vote) applied at the scale of one decision rather than one block.
+pub mod harness {
+    /// Which verification layer a claim is routed to.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Layer {
+        Structure,
+        Ensemble,
+        Both,
+    }
+
+    /// The features that decide routing.
+    #[derive(Clone, Copy, Debug)]
+    pub struct Claim {
+        /// a verifiable referent exists (math, code, state, provenance) — recompute settles it.
+        pub recomputable: bool,
+        /// multi-step reasoning mixing stochastic steps with factual ones.
+        pub reasoning_chain: bool,
+        /// an adversary could flood/eclipse a vote.
+        pub adversary_possible: bool,
+    }
+
+    /// Route a claim to its layer (whitepaper §8). Fail-closed: prefer structure whenever a
+    /// referent might exist or an adversary might be present, because you cannot out-vote a proof.
+    pub fn route(c: Claim) -> Layer {
+        if c.recomputable {
+            Layer::Structure
+        } else if c.reasoning_chain || c.adversary_possible {
+            // reasoning needs both; no-referent-but-adversary can't trust a bare vote -> add structure/bonding
+            Layer::Both
+        } else {
+            Layer::Ensemble
+        }
+    }
+
+    /// Ensemble verdict = majority of diverse-checker votes. Models correlated error directly: if
+    /// the votes are correlated and wrong, the majority is confidently wrong — the exact failure
+    /// mode structural grounding exists to catch.
+    pub fn ensemble_verdict(votes: &[bool]) -> bool {
+        votes.iter().filter(|&&v| v).count() * 2 > votes.len()
+    }
+
+    /// Dispatch verification. `structural` = Some(recompute verdict) when a referent exists, else
+    /// None. `votes` = diverse-checker votes. Structure is authoritative where it can recompute;
+    /// Both uses structure when present and falls to the (bonded) ensemble only with no referent;
+    /// fail-closed means a Structure-routed claim with no proof supplied is NOT verified.
+    pub fn verify(c: Claim, structural: Option<bool>, votes: &[bool]) -> (bool, Layer) {
+        let layer = route(c);
+        let verified = match layer {
+            Layer::Structure => structural.unwrap_or(false),
+            Layer::Ensemble => ensemble_verdict(votes),
+            Layer::Both => match structural {
+                Some(s) => s,
+                None => ensemble_verdict(votes),
+            },
+        };
+        (verified, layer)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        fn claim(recomputable: bool, reasoning_chain: bool, adversary_possible: bool) -> Claim {
+            Claim { recomputable, reasoning_chain, adversary_possible }
+        }
+
+        #[test]
+        fn routes_by_referent_and_adversary() {
+            assert_eq!(route(claim(true, false, false)), Layer::Structure, "recomputable -> structure");
+            assert_eq!(route(claim(false, false, false)), Layer::Ensemble, "open-ended, no adversary -> ensemble");
+            assert_eq!(route(claim(false, true, false)), Layer::Both, "reasoning chain -> both");
+            assert_eq!(route(claim(false, false, true)), Layer::Both, "no referent + adversary -> both (don't trust a bare vote)");
+        }
+
+        #[test]
+        fn correlated_ensemble_passes_a_false_claim_that_structure_catches() {
+            // The load-bearing demonstration. The claim is actually FALSE. A correlated ensemble
+            // (cousins sharing a blind spot) all vote TRUE -> the vote confidently passes it.
+            let correlated_wrong = [true, true, true, true, true];
+            assert!(ensemble_verdict(&correlated_wrong), "correlated ensemble confidently passes the false claim");
+            // But it's recomputable, so it routes to structure, which recomputes FALSE and catches it.
+            let (verified, layer) = verify(claim(true, false, false), Some(false), &correlated_wrong);
+            assert_eq!(layer, Layer::Structure);
+            assert!(!verified, "structure catches what the correlated ensemble missed");
+        }
+
+        #[test]
+        fn independent_ensemble_outvotes_a_minority_error() {
+            // Where there's no referent, a diverse (independent) ensemble's majority is the signal.
+            let mixed = [true, true, false]; // one checker errs, two are right
+            let (verified, layer) = verify(claim(false, false, false), None, &mixed);
+            assert_eq!(layer, Layer::Ensemble);
+            assert!(verified, "independent majority overrides the minority error");
+        }
+
+        #[test]
+        fn fail_closed_no_proof_is_not_verified() {
+            // A recomputable claim routed to structure, but no proof supplied -> NOT verified, even
+            // though a (correlated) ensemble would have passed it. You don't get verified for free.
+            let (verified, layer) = verify(claim(true, false, false), None, &[true, true, true]);
+            assert_eq!(layer, Layer::Structure);
+            assert!(!verified, "fail-closed: no recompute proof -> unverified, vote does not rescue it");
+        }
+    }
+}
+
 /// Standing adversarial moat (port of adversarial-game.py). Build-don't-claim: we TEST
 /// sybil-resistance, we do not assert it. Each attack appends attacker cells AFTER the
 /// honest set (commit-reveal order), so they earn 0 novel coverage by construction;
