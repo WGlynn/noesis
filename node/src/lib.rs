@@ -1169,6 +1169,21 @@ pub mod consensus {
         basis > 0.0 && weight_for >= basis * threshold_bps as f64 / BPS as f64
     }
 
+    /// A4 — equivocation. One validator casting support for two DIFFERENT proposals in the same
+    /// epoch is a double-vote: slashable, and the offending vote is not counted (NCI
+    /// `_slashEquivocator`). Re-voting the SAME proposal, or a first vote, is not equivocation.
+    pub fn is_equivocation(prev_vote_this_epoch: Option<u64>, this_proposal: u64) -> bool {
+        matches!(prev_vote_this_epoch, Some(p) if p != this_proposal)
+    }
+
+    /// A4 — early-reject. A proposal that cannot reach the threshold even if EVERY remaining
+    /// weight votes for it should reject early: `weightAgainst > total - threshold`
+    /// (NCI `finalizeProposal`). Saves a doomed proposal from waiting out its window.
+    pub fn can_early_reject(weight_against: f64, total: f64, threshold_bps: u64) -> bool {
+        let threshold = total * threshold_bps as f64 / BPS as f64;
+        weight_against > total - threshold
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
@@ -1296,6 +1311,23 @@ pub mod consensus {
             );
         }
 
+        #[test]
+        fn audit_a4_equivocation_is_detected_and_slashable() {
+            assert!(is_equivocation(Some(7), 8), "a second vote for a different proposal equivocates");
+            assert!(!is_equivocation(Some(7), 7), "re-voting the same proposal is not equivocation");
+            assert!(!is_equivocation(None, 8), "a first vote is never equivocation");
+            let mut eq = val(7, 1.0, 4.0, 1.0, 0);
+            slash(&mut eq, 2.0);
+            assert_eq!(eq.staked_balance, 2.0, "a detected equivocator is slashed (composes with A5)");
+        }
+
+        #[test]
+        fn audit_a4_early_reject_when_threshold_unreachable() {
+            // total 10, 2/3 bar = 6.667; if against > 10 - 6.667 = 3.333 the bar is unreachable.
+            assert!(can_early_reject(4.0, 10.0, TWO_THIRDS_BPS), "against 4 > 3.33 -> early reject");
+            assert!(!can_early_reject(3.0, 10.0, TWO_THIRDS_BPS), "against 3 < 3.33 -> still reachable");
+        }
+
         // ===================== ADVERSARIAL SELF-AUDIT (RSAW) =====================
         // Attacking this module's own claims. Findings (honest, build-don't-claim):
         //  A1 [TESTED below] The effective-weight threshold that fixes the liveness halt
@@ -1345,6 +1377,68 @@ pub mod consensus {
             let weight_for = effective_weight(&attacker, NCI, now, horizon, true);
             let finalizes_with_floor = weight_for >= basis * TWO_THIRDS_BPS as f64 / BPS as f64;
             assert!(!finalizes_with_floor, "a present-quorum floor restores eclipse-resistance under the live bar");
+        }
+    }
+}
+
+/// L9 — core / nucleolus stability (no profitable fork). For a coalition game `v` over
+/// validators, an allocation `x` is in the CORE iff every coalition `S` is satisfied:
+/// `sum_{i in S} x_i >= v(S)` (with the grand coalition efficient). When the core is empty, the
+/// NUCLEOLUS is the allocation lexicographically minimizing the sorted vector of coalition
+/// excesses `e(S,x) = v(S) - sum_{i in S} x_i`. Here: core membership + the max-excess objective
+/// (the nucleolus's first lexicographic component) over an explicit characteristic function. The
+/// consensus layer composes this stability concept ONLY because finalization needs it (L9 / the
+/// "add a stability concept when consensus requires it" rule) — pure attribution does not.
+pub mod stability {
+    /// Excess of coalition `S` under allocation `x`: `e(S,x) = v(S) - sum x_i`. `> 0` => `S` is
+    /// dissatisfied and could profit by deviating (a fork). Core <=> all excesses <= 0.
+    pub fn excess(coalition: &[usize], alloc: &[f64], v_s: f64) -> f64 {
+        v_s - coalition.iter().map(|&i| alloc[i]).sum::<f64>()
+    }
+
+    /// In the core iff no coalition has positive excess. `coalitions` = list of `(members, v(S))`.
+    pub fn in_core(alloc: &[f64], coalitions: &[(Vec<usize>, f64)]) -> bool {
+        coalitions.iter().all(|(s, vs)| excess(s, alloc, *vs) <= 1e-9)
+    }
+
+    /// Max excess over all coalitions — the nucleolus's primary objective (minimize it).
+    pub fn max_excess(alloc: &[f64], coalitions: &[(Vec<usize>, f64)]) -> f64 {
+        coalitions
+            .iter()
+            .map(|(s, vs)| excess(s, alloc, *vs))
+            .fold(f64::NEG_INFINITY, f64::max)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        // 3-validator superadditive game: each pair worth 0.5, singletons 0, grand 1.0.
+        fn game() -> Vec<(Vec<usize>, f64)> {
+            vec![
+                (vec![0], 0.0), (vec![1], 0.0), (vec![2], 0.0),
+                (vec![0, 1], 0.5), (vec![0, 2], 0.5), (vec![1, 2], 0.5),
+                (vec![0, 1, 2], 1.0),
+            ]
+        }
+
+        #[test]
+        fn equal_split_is_in_the_core() {
+            assert!(in_core(&[1.0 / 3.0; 3], &game()), "every pair gets 2/3 >= 0.5 -> no profitable fork");
+        }
+
+        #[test]
+        fn an_unfair_allocation_leaves_the_core() {
+            let x = [1.0, 0.0, 0.0];
+            assert!(!in_core(&x, &game()), "coalition {{1,2}} is owed 0.5 but gets 0 -> can deviate");
+            assert!(max_excess(&x, &game()) > 0.0, "positive max-excess signals a profitable fork");
+        }
+
+        #[test]
+        fn nucleolus_objective_prefers_lower_max_excess() {
+            assert!(
+                max_excess(&[1.0 / 3.0; 3], &game()) < max_excess(&[1.0, 0.0, 0.0], &game()),
+                "the more stable allocation has a lower max-excess (the nucleolus direction)"
+            );
         }
     }
 }
