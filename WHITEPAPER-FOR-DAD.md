@@ -12,14 +12,14 @@ it, so nobody can fake it or steal the credit.
 
 ## What's wrong with Bitcoin (the thing everyone misunderstands)
 
-Most people think Bitcoin works like this: *you do valuable work, and you earn coins for
-it.* That's not what happens. Bitcoin miners run computers that solve a meaningless
-puzzle — burning enormous amounts of power — and whoever solves it first gets the coins.
-The "work" produces nothing. It's like paying someone to dig a hole and fill it back in,
-over and over, and calling the deepest digger the winner.
+Most people think Bitcoin works like this: *you do valuable work, you earn coins for it.*
+It doesn't. Miners run computers that race to solve a meaningless puzzle — burning
+enormous amounts of power — and whoever wins gets the coins. The "work" produces nothing.
+It's like paying people to dig holes and fill them back in, and crowning the fastest
+digger.
 
-So the thing people *imagine* Bitcoin is — a system where real contribution earns real,
-provable value — doesn't actually exist yet. **That's the thing we're building.**
+So the thing people *imagine* Bitcoin is — where real contribution earns real, provable
+value — doesn't exist yet. **That's what we're building.**
 
 ## What we're building instead
 
@@ -53,15 +53,14 @@ designed it so that doesn't work:
 
 ## The part Will is most excited about
 
-The same tool that helps *one person* organize their own scattered thoughts into a clear
-decision is the **same tool** that helps *a whole community* agree on what's true and
-valuable. Small scale and large scale, same machine. If lots of people use it, it becomes
-the natural meeting-place — the obvious common ground — and agreement forms both inside
-each person and across everyone, with the tool sitting honestly in the middle.
+The same tool that helps *one person* turn scattered thoughts into a clear decision is
+the **same tool** that helps *a whole community* agree on what's true and valuable. Same
+machine, small scale and large. If enough people use it, it becomes the natural common
+ground — and agreement forms both inside each person and across everyone.
 
-That only works if the tool is **open and honest** — anyone can look inside it, nobody
-can rig it. The honesty isn't a nice-to-have; it's the whole reason people would trust it
-enough to gather around it.
+That only works if the tool is **open and honest**: anyone can look inside it, nobody can
+rig it. The honesty isn't a nice-to-have — it's the whole reason people would trust it
+enough to gather around it in the first place.
 
 ## When it launches, Will gives up his head start
 
