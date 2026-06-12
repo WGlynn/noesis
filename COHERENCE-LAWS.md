@@ -162,12 +162,23 @@ reward-only") survives *only* with these attached:
 **every scalar combination content-independent**, and does **not** retroactively defend the
 OR-additive NCI. The honest one-liner *with its preconditions attached*.
 
+## L13 — Per-dimension security-provisioning floor
+Each security dimension MUST be funded (rewarded) above its own cost-to-break, or it becomes
+a paper wall and the AND-composition (L12) silently degrades to its weakest layer. A reward
+split is capture-neutral (L12) only *instantaneously*; dynamically, paying one dimension far
+more starves the others until the cheapest-to-break dimension decides security. **Invariant:**
+for every dimension `d`, `reward(d) ≥ provisioning(cost_to_break(d))`; the split may vary
+freely ABOVE the floor, never below. Sibling of L8 one level up — L8 protects honest
+*contributors* from the decay sink; L13 protects honest *dimensions* from the reward split.
+Derives L12 objection 3; the machine guard is the laws-presence check in
+`scripts/doc-coherence.py` (a law cannot silently vanish or renumber-drift).
+
 ---
 
 ### Amendment log
 - 2026-06-11 — L1–L10 drafted from the in-context invariant set; **L11 added** (meta-
   security / coordination-layer integrity bound). Genesis-burn fair launch ratified
-  (see WHITEPAPER §10) — candidate L13 if it needs a standing invariant ("no creator
+  (see WHITEPAPER §10) — candidate L14 if it needs a standing invariant ("no creator
   pre-launch advantage; neutralization must be on-chain-provable, not asserted").
 - 2026-06-11 — **L12 added** (composition before weighting; AND over OR) + **L1 amended**
   (capture-resistance is cycle-independence, not weight-symmetry). Resolves the

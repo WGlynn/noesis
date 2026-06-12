@@ -137,6 +137,34 @@ def test_count_violations(root: str, count: int | None) -> list[str]:
     return bad
 
 
+def law_violations(root: str) -> list[str]:
+    """Structural guard on COHERENCE-LAWS.md: the numbered laws must be contiguous
+    (L1..LN, no gaps or dupes) so a careless edit cannot silently delete or renumber a
+    law, and the load-bearing invariants must be present by keyword. This is how the
+    L13 provisioning-floor (and the L12 AND-over-OR composition rule) get machine-enforced
+    presence -- a runtime economic invariant can't be unit-tested here, but its STANDING
+    in the laws doc can be guarded."""
+    path = os.path.join(root, "COHERENCE-LAWS.md")
+    if not os.path.exists(path):
+        return ["COHERENCE-LAWS.md missing"]
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    nums = [int(n) for n in re.findall(r"^##\s*L(\d+)\b", text, re.MULTILINE)]
+    if not nums:
+        return ["COHERENCE-LAWS.md has no '## L<n>' law headers"]
+    bad = []
+    if sorted(nums) != list(range(1, max(nums) + 1)):
+        bad.append(f"law numbering not contiguous 1..{max(nums)}: found {sorted(nums)}")
+    required = {
+        "L12 composition (AND over OR)": r"AND\s+over\s+OR",
+        "L13 provisioning floor": r"security-provisioning floor",
+    }
+    for label, pat in required.items():
+        if not re.search(pat, text, re.IGNORECASE):
+            bad.append(f"COHERENCE-LAWS.md missing load-bearing invariant: {label}")
+    return bad
+
+
 def main() -> int:
     root = repo_root()
     mode = sys.argv[1] if len(sys.argv) > 1 else "--check"
@@ -169,6 +197,7 @@ def main() -> int:
 
     problems.extend(name_violations(root))
     problems.extend(test_count_violations(root, cargo_test_count(root)))
+    problems.extend(law_violations(root))
 
     if problems:
         print("[doc-coherence] DRIFT DETECTED (docs may lag code):", file=sys.stderr)
