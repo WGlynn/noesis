@@ -182,3 +182,18 @@ appeal; don't veto ⇒ ring is refuted. Detection-independence per
   escalation is expensive).
 - **Griefing via escalation spam:** bounded by doubling bonds; a griefer pays 2^k × B to
   drag a dispute k rounds with no new evidence.
+
+## 8. Calibration harness (in-crate, swept not hand-picked)
+
+`node/` `calibration` module: the three EV formulas (attacker §4, challenger, griefer)
+plus the liquidity-delay model, and a `feasible()` predicate sweeping a log-spaced V grid
+x detection probabilities. Pinned by tests:
+- the recommended first-cut set (lambda=1, alpha=0.5, beta=0.5, B=4, effort~=0.1, p_min=0.5)
+  sits INSIDE the feasible region across the whole grid;
+- alpha=0 demonstrably breaks below half detection (the section-4 direction, executable);
+- the bounty makes refutation positive-EV at every grid V — p >= 1/2 is PURCHASED by beta,
+  not assumed;
+- the evaluator's Role-A advance is what makes a safely long W tolerable
+  (liquidity_delay falls with the advance fraction).
+Real-data calibration (replacing the synthetic grid) remains open with the learned model.
+

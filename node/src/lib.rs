@@ -2778,6 +2778,130 @@ pub mod dispute {
     }
 }
 
+/// Calibration harness (`DISPUTE-SLASHING.md` §8): the dispute stack's parameters
+/// (W, B, λ, α, β, γ) and the evaluator's (κ, μ) must satisfy three inequalities
+/// SIMULTANEOUSLY — attacker EV < 0, challenger EV > 0 (the bounty PURCHASES the
+/// detection probability §4 assumes), griefer EV < 0 — across the whole (V, p) grid,
+/// not at a hand-picked point. These are model EVs over the mechanism's own formulas;
+/// the tests sweep the grid and pin a RECOMMENDED set inside the feasible region.
+pub mod calibration {
+    /// §4 attacker EV: `(1−p)·V − p·(λV + α)`.
+    pub fn attacker_ev(v: f64, p: f64, lambda: f64, alpha: f64) -> f64 {
+        (1.0 - p) * v - p * (lambda * v + alpha)
+    }
+
+    /// Challenger EV on true garbage: bond returns, bounty pays `β·(λV+α)`, minus the
+    /// mechanical effort of computing the causal share and filing.
+    pub fn challenger_ev(v: f64, lambda: f64, alpha: f64, beta: f64, effort: f64) -> f64 {
+        beta * (lambda * v + alpha) - effort
+    }
+
+    /// Griefer EV on an honest cell, sub-capture (verdict machinery holds): the bond is
+    /// forfeit, nothing is won.
+    pub fn griefer_ev(bond: f64) -> f64 {
+        -bond
+    }
+
+    /// Honest liquidity cost: effective wait is the window scaled by how much of the
+    /// expected value the evaluator advances at intake (Role A).
+    pub fn liquidity_delay(window: u64, advance_fraction: f64) -> f64 {
+        window as f64 * (1.0 - advance_fraction.clamp(0.0, 1.0))
+    }
+
+    /// Full-stack feasibility over a (V, p) grid: every attack value × every detection
+    /// probability ≥ `p_min` must be attacker-negative, and detection must be worth
+    /// buying at every V ≥ `v_min`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn feasible(
+        lambda: f64,
+        alpha: f64,
+        beta: f64,
+        bond: f64,
+        effort: f64,
+        v_grid: &[f64],
+        p_min: f64,
+        v_min: f64,
+    ) -> bool {
+        let p_grid = [p_min, (p_min + 1.0) / 2.0, 0.95];
+        for &v in v_grid {
+            for &p in &p_grid {
+                if attacker_ev(v, p, lambda, alpha) >= 0.0 {
+                    return false;
+                }
+            }
+            if v >= v_min && challenger_ev(v, lambda, alpha, beta, effort) <= 0.0 {
+                return false;
+            }
+        }
+        griefer_ev(bond) < 0.0 && beta <= 1.0
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        /// The recommended first-cut set, pinned INSIDE the feasible region by the sweep.
+        const LAMBDA: f64 = 1.0;
+        const ALPHA: f64 = 0.5;
+        const BETA: f64 = 0.5;
+        const BOND: f64 = 4.0;
+        const EFFORT: f64 = 0.1; // causal share is a deterministic recompute — cheap
+        const P_MIN: f64 = 0.5;
+
+        fn v_grid() -> Vec<f64> {
+            (0..10).map(|k| 0.5 * 2f64.powi(k)).collect() // 0.5 .. 256, log-spaced
+        }
+
+        #[test]
+        fn recommended_params_are_feasible_across_the_grid() {
+            assert!(
+                feasible(LAMBDA, ALPHA, BETA, BOND, EFFORT, &v_grid(), P_MIN, 0.5),
+                "the shipped first-cut set sits inside the feasible region"
+            );
+        }
+
+        #[test]
+        fn alpha_zero_breaks_below_half_detection() {
+            // §4's direction, demonstrated: with α = 0 and p < 1/2, the attacker is
+            // positive-EV at every V — the penalty term is what covers the sub-half
+            // detection regime, λ alone cannot.
+            assert!(attacker_ev(10.0, 0.4, LAMBDA, 0.0) > 0.0, "α=0, p<½: attack pays");
+            assert!(
+                !feasible(LAMBDA, 0.0, BETA, BOND, EFFORT, &v_grid(), 0.4, 0.5),
+                "α=0 is infeasible if detection can dip below ½"
+            );
+            assert!(
+                attacker_ev(10.0, 0.4, LAMBDA, 35.0) < 0.0,
+                "a large enough α restores negativity even at p=0.4 (α > V(1−2p)/p = 5 here... \
+                 with margin)"
+            );
+        }
+
+        #[test]
+        fn the_bounty_purchases_the_detection_assumption() {
+            // p ≥ ½ is not assumed, it is BOUGHT: refuting garbage is profitable work at
+            // every attack size on the grid, so a detection market exists.
+            for &v in &v_grid() {
+                if v >= 0.5 {
+                    assert!(
+                        challenger_ev(v, LAMBDA, ALPHA, BETA, EFFORT) > 0.0,
+                        "refutation is positive-EV at V={v}"
+                    );
+                }
+            }
+        }
+
+        #[test]
+        fn liquidity_cost_falls_with_the_advance() {
+            // The evaluator's Role A is what makes a safe (long) W tolerable.
+            let no_advance = liquidity_delay(10, 0.0);
+            let half_advance = liquidity_delay(10, 0.5);
+            assert!(half_advance < no_advance, "advance halves the effective wait");
+            assert_eq!(liquidity_delay(10, 2.0), 0.0, "fraction clamps at 1");
+        }
+    }
+}
+
 /// Role-bounded outcome evaluator (`OUTCOME-EVALUATOR.md`). The learned v(S) is NOT the
 /// gate (v5 settled that: realized flow gates, predictions don't). Its authority is
 /// bounded to two roles that cannot mint: ADVANCE timing (intake liquidity against
