@@ -74,9 +74,19 @@ is a reputation system.
     flow>0 ⇒ paid. Honest consequence: payment must VEST RETROACTIVELY / stream as downstream flow
     materializes — a contribution cannot be fully priced at intake; its value accrues as it proves
     useful. Two-clock composition: intake-novelty (immediate, strategyproof) gates redundancy;
-    realized-flow (delayed, un-spoofable) gates meaninglessness. Next build: `value_v5(novelty,
-    downstream_flow)` + regression that q=0 noise with zero downstream flow earns 0. No new external
-    dependency — the gate reuses the flow module.
+    realized-flow (delayed, un-spoofable) gates meaninglessness.
+    **✅ BUILT (2026-06-12): `value_v5(novelty, downstream_flow)`** — `value = floored_novelty ×
+    g(downstream)`, `g(f) = f/(f+half)` saturating; flow SEEDED by floored novelty (redundant
+    children pump nothing) and counts EXTERNAL edges only (child contributor ≠ parent — no
+    self-certification). Regressions green: q=0 noise w/ zero flow → 0 (v4 contrast in-test);
+    honest-but-low-quality built-upon work paid; floor-before-gate (clone w/ accomplice children
+    still 0); retroactive vesting demonstrated. Node 69/69.
+    - 🔬 **New pinned residual (same-session adversarial tick):** a MULTI-IDENTITY sybil ring of
+      novel-garbage children pumps the gate (`sybil_identity_ring_pumps_the_flow_gate_open_gap`,
+      flips when closed). Identity is a free byte in the value layer; the fix must PRICE identity
+      (soulbound-standing / MIN_STAKE economics reaching the value layer, cf. consensus A3) and/or
+      seed flow with VESTED value so unvested children pump nothing. This is the next gate-hardening
+      increment.
   - ✅ ref / 🟡 tune **near-duplicate gap — coverage-similarity floor shipped (2026-06-12).**
     Temporal-novelty alone zeroes only EXACT subsets/duplicates; a near-duplicate (a few tokens
     flipped) leaked small residual novelty from change-spanning shingles, farmable across many

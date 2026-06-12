@@ -1,5 +1,17 @@
 # CONTINUE — Noesis handoff (PRIVATE, stealth)
 
+## ▶ RESUME HERE (2026-06-12 — value_v5 GATE shipped, node 69/69)
+- **`value_v5(novelty, downstream_flow)` BUILT + tested** — the Phase-1 composition fix.
+  `value = floored_novelty × g(downstream)`, `g(f)=f/(f+half)`. Flow seeded by floored
+  novelty (redundant children pump 0), EXTERNAL edges only (no self-certification;
+  `flow::children_of_external` + `value_flow_with_own` + `downstream_flow_external`).
+  Regressions: q=0 noise w/ zero flow → 0 (v4-pays contrast in-test); honest-but-low-quality
+  built-upon work PAID; floor-before-gate; retroactive vesting. **62 → 69 tests green.**
+- **New pinned gap (adversarial tick vs v5, same session):** two-identity ring of
+  novel-garbage children pumps the gate (`sybil_identity_ring_pumps_the_flow_gate_open_gap`).
+  **Next increment:** price identity at the value layer (soulbound-standing / MIN_STAKE
+  economics, cf. consensus A3) and/or seed flow with VESTED value. ROADMAP Phase 1 updated.
+
 ## ▶ RESUME HERE (2026-06-11 night — AFK full-auto run)
 Shipped this session (all pushed to `WGlynn/noesis`):
 - **Visuals embedded INSIDE every doc** (not a central file): WHITEPAPER (4), BLOCK-ECONOMY-SPEC

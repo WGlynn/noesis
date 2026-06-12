@@ -528,6 +528,60 @@ pub mod value {
             .collect()
     }
 
+    /// Saturating flow-gate `g(f) = f / (f + half)` ∈ [0, 1): 0 at zero realized flow, 0.5 at
+    /// `f = half`, → 1 as downstream use grows. Scale-free per cell (no global-max
+    /// normalization a single whale block could distort) and monotone, so more realized use
+    /// never pays less. `half` is the protocol's "how much downstream flow is half-proof of
+    /// meaning" parameter.
+    pub fn flow_gate(downstream: f64, half: f64) -> f64 {
+        if downstream <= 0.0 {
+            return 0.0;
+        }
+        downstream / (downstream + half.max(0.0))
+    }
+
+    /// `value_v5(novelty, downstream_flow)` — the composition change that closes the
+    /// garbage-novelty gap (`value_v4_boost_does_not_gate_meaningless_novelty` proved a boost
+    /// can never close it):
+    ///
+    ///   value = floored_novelty × g(realized_downstream_flow),  g ∈ [0, 1)
+    ///
+    /// Quality stops being a predicted BOOST and becomes a realized GATE. Two-clock
+    /// composition (ROADMAP Phase 1): intake-novelty (immediate, strategyproof) gates
+    /// redundancy; realized-flow (delayed, content-independent) gates meaninglessness.
+    /// Mechanism, all reused machinery:
+    ///   - floor first: temporal-novelty + similarity floor at `theta` — a redundant or
+    ///     near-duplicate cell is 0 before the gate is even consulted;
+    ///   - flow is SEEDED with the floored novelty (not raw coverage), so redundant children
+    ///     pump no flow into their parents;
+    ///   - flow counts EXTERNAL edges only (child contributor ≠ parent contributor): a mind
+    ///     cannot certify its own work by building on it itself;
+    ///   - gate g = f/(f+half) (see [`flow_gate`]).
+    /// Honest consequence (by design, not a bug): value VESTS RETROACTIVELY — at intake every
+    /// cell is worth 0 and accrues as others build on it. A contribution cannot be fully
+    /// priced at intake; it is paid as it proves useful. Noise nobody uses ⇒ flow 0 ⇒ paid 0;
+    /// honest-but-low-quality work that gets built upon ⇒ flow > 0 ⇒ paid.
+    /// Pinned residual gap: a MULTI-IDENTITY sybil ring of novel-garbage children can still
+    /// pump the gate (see `adversary::sybil_identity_ring_pumps_the_flow_gate_open_gap`);
+    /// identity must be priced by the soulbound-standing / MIN_STAKE layer.
+    pub fn value_v5(
+        cells_in_commit_order: &[super::Cell],
+        theta: f64,
+        d: f64,
+        iters: usize,
+        half: f64,
+    ) -> Vec<f64> {
+        let floored = super::temporal_novelty_with_similarity_floor(cells_in_commit_order, theta);
+        let own: Vec<f64> = floored.iter().map(|&n| n as f64).collect();
+        let downstream =
+            super::flow::downstream_flow_external(cells_in_commit_order, &own, d, iters);
+        floored
+            .iter()
+            .zip(&downstream)
+            .map(|(&n, &f)| n as f64 * flow_gate(f, half))
+            .collect()
+    }
+
     #[cfg(test)]
     mod tests {
         use super::super::{Cell, Script};
@@ -623,6 +677,95 @@ pub mod value {
                 "KNOWN GAP: coverage-proxy v(S) cannot tell novel-garbage from novel-value; \
                  closing it needs the learned outcome-evaluator (Phase 1, line 41)"
             );
+        }
+
+        // ---- value_v5: the realized-flow GATE (ROADMAP Phase 1, two-clock composition) ----
+
+        /// Cell with an explicit CONTRIBUTOR identity + provenance parent — the two fields
+        /// the flow gate reads.
+        fn cellc(id: u64, contrib: u8, ts: u64, parent: Option<u64>, data: &[u8]) -> Cell {
+            Cell {
+                id,
+                lock: Script { code_hash: [1u8; 32], args: vec![contrib] },
+                type_script: Script { code_hash: [0xB0; 32], args: vec![contrib] },
+                parent,
+                timestamp: ts,
+                data: data.to_vec(),
+            }
+        }
+
+        const THETA: f64 = 0.8;
+        const DAMP: f64 = 0.85;
+        const ITERS: usize = 200;
+        const HALF: f64 = 8.0;
+
+        #[test]
+        fn value_v5_gates_q0_noise_with_zero_downstream_flow_to_zero() {
+            // THE Phase-1 regression (WAL next-move). A maximally-novel but meaningless block
+            // (high-entropy noise, nothing ever built on it) earned FULL novelty under
+            // value_v4 even at q=0 (the pinned composition gap). Under value_v5 its realized
+            // downstream flow is 0 ⇒ gate 0 ⇒ value 0. The honest chain (built upon by
+            // ANOTHER contributor) stays paid.
+            let order = vec![
+                cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta"),
+                cellc(1, 2, 1, Some(0), b"echo-foxtrot-golf-hotel"), // other mind builds on 0
+                cellc(2, 9, 2, None, &(0u8..64).map(|i| i.wrapping_mul(37).wrapping_add(11)).collect::<Vec<u8>>()),
+            ];
+            let v5 = value_v5(&order, THETA, DAMP, ITERS, HALF);
+            assert_eq!(v5[2], 0.0, "novel noise with zero downstream flow earns 0 — gap CLOSED");
+            assert!(v5[0] > 0.0, "the built-upon honest cell is paid");
+            // contrast: the boost form pays the same noise even at q = 0 (the gap, still pinned
+            // in `value_v4_boost_does_not_gate_meaningless_novelty`).
+            let v4 = value_v4(&order, &vec![0.0; order.len()]);
+            assert!(*v4.last().unwrap() > 0.0, "value_v4 pays the q=0 noise; value_v5 does not");
+        }
+
+        #[test]
+        fn honest_but_low_quality_work_built_upon_is_paid() {
+            // The honest tension the gate had to respect: a true gate must not zero
+            // honest-but-low-quality work. Sourcing g from REALIZED use resolves it — a small,
+            // unglamorous cell that another mind builds on has flow > 0 and is paid.
+            let order = vec![
+                cellc(0, 1, 0, None, b"tiny-fix-x"), // low-coverage honest work
+                cellc(1, 2, 1, Some(0), b"big-feature-built-on-the-tiny-fix-uniform-victor"),
+            ];
+            let v5 = value_v5(&order, THETA, DAMP, ITERS, HALF);
+            assert!(v5[0] > 0.0, "low-quality-looking but USED work is paid by realized flow");
+        }
+
+        #[test]
+        fn redundancy_cannot_be_rescued_by_downstream_flow() {
+            // Floor before gate: a sybil clone that other identities then build on still earns
+            // 0 — novelty 0 multiplies the gate away. The two clocks compose; neither rescues
+            // the other.
+            let order = vec![
+                cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta"),
+                cellc(1, 9, 1, None, b"alpha-bravo-charlie-delta"), // clone, committed later
+                cellc(2, 8, 2, Some(1), b"uniform-victor-whiskey-xray"), // accomplice builds on it
+            ];
+            let v5 = value_v5(&order, THETA, DAMP, ITERS, HALF);
+            assert_eq!(v5[1], 0.0, "novelty-0 clone earns 0 no matter how much is built on it");
+        }
+
+        #[test]
+        fn vesting_is_retroactive_value_accrues_as_flow_materializes() {
+            // The honest consequence, demonstrated: at intake a cell is worth 0; when another
+            // mind builds on it, value vests. A contribution is paid as it proves useful, not
+            // priced at intake.
+            let root = cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta");
+            let at_intake = value_v5(&[root.clone()], THETA, DAMP, ITERS, HALF);
+            assert_eq!(at_intake[0], 0.0, "at intake: no realized use yet ⇒ 0 (vests later)");
+            let later = vec![root, cellc(1, 2, 1, Some(0), b"echo-foxtrot-golf-hotel")];
+            let after_use = value_v5(&later, THETA, DAMP, ITERS, HALF);
+            assert!(after_use[0] > 0.0, "after another mind builds on it: value has vested");
+        }
+
+        #[test]
+        fn flow_gate_is_bounded_monotone_and_zero_at_zero() {
+            assert_eq!(flow_gate(0.0, 8.0), 0.0);
+            assert!((flow_gate(8.0, 8.0) - 0.5).abs() < 1e-9, "g(half) = 0.5");
+            assert!(flow_gate(20.0, 8.0) > flow_gate(10.0, 8.0), "monotone in realized flow");
+            assert!(flow_gate(1e12, 8.0) < 1.0, "bounded below 1");
         }
 
         #[test]
@@ -891,20 +1034,55 @@ pub mod flow {
         ch
     }
 
-    /// `flow(b) = own(b) + d · Σ_{c built on b} flow(c)` by damped Jacobi iteration.
-    /// `d < 1` ⇒ contraction ⇒ converges; a self-referential cycle stays bounded by `d`.
-    /// Returns `(own, flow)`, both index-aligned with `cells`.
-    pub fn value_flow(cells: &[Cell], d: f64, iters: usize) -> (Vec<f64>, Vec<f64>) {
-        let own: Vec<f64> = cells.iter().map(own_value).collect();
-        let mut flow = own.clone();
-        if cells.is_empty() {
-            return (own, flow);
+    /// Like [`children_of`] but counts only EXTERNAL edges: a child whose contributor
+    /// (`type_script.args`, the soulbound identity) equals its parent's is dropped. Used by
+    /// the realized-flow gate — a mind cannot certify the usefulness of its own work by
+    /// building on it itself. (A multi-identity sybil ring remains the pinned residual gap;
+    /// identity is priced by the soulbound standing / MIN_STAKE layer, not here.)
+    fn children_of_external(
+        cells: &[Cell],
+        id_to_idx: &HashMap<u64, usize>,
+    ) -> HashMap<u64, Vec<usize>> {
+        let mut ch: HashMap<u64, Vec<usize>> = HashMap::new();
+        for (i, c) in cells.iter().enumerate() {
+            if let Some(p) = c.parent {
+                if p != c.id {
+                    if let Some(&pi) = id_to_idx.get(&p) {
+                        if cells[pi].type_script.args != c.type_script.args {
+                            ch.entry(p).or_default().push(i);
+                        }
+                    }
+                }
+            }
         }
-        let children = children_of(cells);
+        ch
+    }
+
+    /// Generalized damped Jacobi flow over CALLER-SUPPLIED own-values.
+    /// `flow(b) = own(b) + d · Σ_{c built on b} flow(c)`; `d < 1` ⇒ contraction ⇒ converges;
+    /// a self-referential cycle stays bounded by `d`. `external_only` restricts propagation to
+    /// cross-contributor edges (see [`children_of_external`]). The realized-flow gate seeds
+    /// `own` with the strategyproof FLOORED NOVELTY so redundant children pump nothing.
+    pub fn value_flow_with_own(
+        cells: &[Cell],
+        own: &[f64],
+        d: f64,
+        iters: usize,
+        external_only: bool,
+    ) -> Vec<f64> {
+        let mut flow = own.to_vec();
+        if cells.is_empty() {
+            return flow;
+        }
         let id_to_idx: HashMap<u64, usize> =
             cells.iter().enumerate().map(|(i, c)| (c.id, i)).collect();
+        let children = if external_only {
+            children_of_external(cells, &id_to_idx)
+        } else {
+            children_of(cells)
+        };
         for _ in 0..iters {
-            let mut next = own.clone();
+            let mut next = own.to_vec();
             for (pid, kids) in &children {
                 if let Some(&pi) = id_to_idx.get(pid) {
                     let s: f64 = kids.iter().map(|&k| flow[k]).sum();
@@ -921,7 +1099,24 @@ pub mod flow {
                 break;
             }
         }
+        flow
+    }
+
+    /// `flow(b) = own(b) + d · Σ_{c built on b} flow(c)` by damped Jacobi iteration.
+    /// Returns `(own, flow)`, both index-aligned with `cells`.
+    pub fn value_flow(cells: &[Cell], d: f64, iters: usize) -> (Vec<f64>, Vec<f64>) {
+        let own: Vec<f64> = cells.iter().map(own_value).collect();
+        let flow = value_flow_with_own(cells, &own, d, iters, false);
         (own, flow)
+    }
+
+    /// REALIZED downstream flow = `flow − own`: the credit a cell earns purely from what
+    /// OTHER minds built on it (external edges only). This is the un-spoofable-by-content
+    /// signal the `value_v5` gate consumes: a cell nobody builds on has downstream 0 no
+    /// matter how novel its bytes are. Index-aligned with `cells`; clamped at 0.
+    pub fn downstream_flow_external(cells: &[Cell], own: &[f64], d: f64, iters: usize) -> Vec<f64> {
+        let flow = value_flow_with_own(cells, own, d, iters, true);
+        flow.iter().zip(own).map(|(f, o)| (f - o).max(0.0)).collect()
     }
 
     fn cov_set(part: &[u8]) -> HashSet<CovId> {
@@ -1039,6 +1234,27 @@ pub mod flow {
             let (sa, sb, syn) = recurse_two(a, b);
             assert_eq!(syn, 0, "disjoint coverage -> zero synergy");
             assert!((sa - sb).abs() < 0.20, "roughly balanced for similar-size disjoint parts");
+        }
+
+        #[test]
+        fn external_only_flow_ignores_self_attribution_edges() {
+            // Same chain, two worlds: child authored by ANOTHER contributor vs by the SAME
+            // contributor. External-only flow uplifts the parent only in the first world —
+            // a mind cannot certify its own work's usefulness by building on it itself.
+            let mk = |child_contrib: u8| -> Vec<Cell> {
+                let mut root = cell(0, None, b"root-alpha-bravo");
+                root.type_script.args = vec![1];
+                let mut kid = cell(1, Some(0), b"kid-charlie-delta");
+                kid.type_script.args = vec![child_contrib];
+                vec![root, kid]
+            };
+            let own = vec![5.0, 5.0];
+            let ext = value_flow_with_own(&mk(2), &own, 0.85, 200, true); // other mind
+            let selfed = value_flow_with_own(&mk(1), &own, 0.85, 200, true); // same mind
+            assert!(ext[0] > own[0], "cross-contributor child uplifts the parent");
+            assert!((selfed[0] - own[0]).abs() < 1e-9, "self-attribution edge is ignored");
+            let ds = downstream_flow_external(&mk(1), &own, 0.85, 200);
+            assert!(ds[0].abs() < 1e-9, "downstream flow from self-built children is 0");
         }
 
         #[test]
@@ -1895,6 +2111,45 @@ mod adversary {
             assert!(v[i] <= nov[i] as f64 * 2.0 + 1e-9, "quality boost is bounded by 2x novelty");
             assert!(v[i] >= nov[i] as f64, "value is at least the novelty floor");
         }
+    }
+
+    #[test]
+    fn sybil_identity_ring_pumps_the_flow_gate_open_gap() {
+        // Adversarial-gaming tick vs value_v5 (2026-06-12, same-session — run the adversary
+        // against every new v(S) the moment it lands). The gate requires downstream use from a
+        // DIFFERENT contributor, so a same-key self-build fails (tested in flow). But identity
+        // here is a free byte: an attacker mints novel-garbage block A under key 8, then a
+        // novel-garbage child under key 9 pointing at A. The child is genuinely novel (the
+        // coverage proxy again), the edge is "external", flow > 0, the gate opens, A is paid.
+        //
+        // PINS the residual gap: passes today (ring pays), flips when identity is PRICED —
+        // the soulbound-standing / MIN_STAKE layer (consensus::max_sybils) must make a fresh
+        // contributor identity cost real stake, and/or flow must be seeded by VESTED value so
+        // an unvested child pumps nothing. The ring's cost is then K × identity-price instead
+        // of 0 — the same economics that bounds consensus sybils (A3) must reach the value layer.
+        let noise = |seed: u8, n: u8| -> Vec<u8> {
+            (0..n).map(|i| seed.wrapping_add(i.wrapping_mul(41))).collect()
+        };
+        let order = vec![
+            cell(0, 1, 0, b"alpha-bravo-charlie-delta"), // honest bystander
+            {
+                let mut a = cell(10, 8, 1, &noise(0xA0, 48));
+                a.type_script.args = vec![8];
+                a
+            },
+            {
+                let mut child = cell(11, 9, 2, &noise(0x10, 48)); // different novel garbage
+                child.type_script.args = vec![9]; // fresh free identity
+                child.parent = Some(10); // "external" use of A
+                child
+            },
+        ];
+        let v5 = crate::value::value_v5(&order, 0.8, 0.85, 200, 8.0);
+        assert!(
+            v5[1] > 0.0,
+            "KNOWN GAP: a two-identity ring of novel garbage pumps the flow gate open; \
+             closing it needs priced identity (soulbound/MIN_STAKE) or vested-value flow seeding"
+        );
     }
 
     #[test]
