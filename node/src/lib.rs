@@ -2778,6 +2778,106 @@ pub mod dispute {
     }
 }
 
+/// Role-bounded outcome evaluator (`OUTCOME-EVALUATOR.md`). The learned v(S) is NOT the
+/// gate (v5 settled that: realized flow gates, predictions don't). Its authority is
+/// bounded to two roles that cannot mint: ADVANCE timing (intake liquidity against
+/// future vesting, double-bounded by κ·score·floored_novelty and μ·standing, shortfall
+/// slashed at window close) and INFORM judgment (dispute evidence, never the verdict).
+/// The Phase-1 obligation collapses from "prove the model un-gameable" to "the bounds
+/// hold" — tested here against a maximally corrupt evaluator.
+pub mod evaluator {
+    /// Role A — intake advance, the double bound. A fresh identity (standing 0) gets
+    /// nothing at any score; redundancy (floored novelty 0) gets nothing at any score;
+    /// everyone else at most μ × their own soulbound standing.
+    pub fn intake_advance(
+        score: f64,
+        floored_novelty: u64,
+        standing: u64,
+        kappa: f64,
+        mu: f64,
+    ) -> f64 {
+        let want = kappa.max(0.0) * score.max(0.0) * floored_novelty as f64;
+        let cap = mu.clamp(0.0, 1.0) * standing as f64;
+        want.min(cap)
+    }
+
+    /// Window-close reconciliation. The contributor received `advance` at intake; realized
+    /// vesting repays it. Returns `(paid_total, standing_slash)`:
+    /// - covered: they receive the remainder; total paid = vested, no slash;
+    /// - shortfall: they keep the advance but standing is slashed for the difference, so
+    ///   net extraction = vested either way. The evaluator can shift WHEN, never HOW MUCH.
+    pub fn reconcile(advance: f64, vested: f64) -> (f64, f64) {
+        let a = advance.max(0.0);
+        let v = vested.max(0.0);
+        if v >= a {
+            (v, 0.0)
+        } else {
+            (v, a - v)
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        const KAPPA: f64 = 0.5;
+        const MU: f64 = 0.5;
+
+        #[test]
+        fn corrupt_evaluator_cannot_mint() {
+            // The invariant, adversarially: score = +huge everywhere.
+            let huge = 1e18;
+            assert_eq!(
+                intake_advance(huge, 40, 0, KAPPA, MU),
+                0.0,
+                "fresh identity: no standing, no advance, at ANY score"
+            );
+            assert_eq!(
+                intake_advance(huge, 0, 1000, KAPPA, MU),
+                0.0,
+                "redundancy: floored novelty 0 multiplies the advance away, at ANY score"
+            );
+            let a = intake_advance(huge, 40, 50, KAPPA, MU);
+            assert!((a - 25.0).abs() < 1e-9, "vested identity: capped at μ×standing");
+            // Garbage never vests (flow gate) ⇒ window close recovers the leak:
+            let (paid, slash) = reconcile(a, 0.0);
+            assert_eq!(paid, 0.0, "nothing vested, nothing net-paid");
+            assert!((slash - a).abs() < 1e-9, "the full advance is recovered from standing");
+        }
+
+        #[test]
+        fn honest_path_gets_liquidity_and_no_slash() {
+            let a = intake_advance(0.8, 20, 100, KAPPA, MU); // wants 8, cap 50 ⇒ 8
+            assert!((a - 8.0).abs() < 1e-9);
+            let (paid, slash) = reconcile(a, 15.0); // vesting covers the advance
+            assert_eq!(slash, 0.0, "honest contributor is never slashed by the advance");
+            assert!((paid - 15.0).abs() < 1e-9, "total paid = realized vesting exactly");
+        }
+
+        #[test]
+        fn conservation_paid_never_exceeds_realized_vesting() {
+            // Both branches: the evaluator shifts timing, never amount.
+            for (adv, vest) in [(10.0, 25.0), (10.0, 3.0), (0.0, 7.0), (10.0, 0.0)] {
+                let (paid, slash) = reconcile(adv, vest);
+                assert!(paid <= vest + 1e-12, "net paid bounded by realized vesting");
+                assert!(slash >= 0.0 && slash <= adv + 1e-12, "slash bounded by the advance");
+                assert!(
+                    (paid + slash - vest.max(adv)).abs() < 1e-9 || vest >= adv,
+                    "accounting closes: shortfall fully recovered"
+                );
+            }
+        }
+
+        #[test]
+        fn negative_inputs_are_inert() {
+            assert_eq!(intake_advance(-5.0, 40, 50, KAPPA, MU), 0.0, "negative score: 0");
+            assert_eq!(intake_advance(0.8, 40, 50, -1.0, MU), 0.0, "negative κ: 0");
+            let (paid, slash) = reconcile(-3.0, -4.0);
+            assert_eq!((paid, slash), (0.0, 0.0), "negative amounts clamp to 0");
+        }
+    }
+}
+
 /// Harness checker-routing (the JARVIS core thesis, modeled and tested). Routes a claim to the
 /// verification layer that can actually catch its error — structure (recompute/verify) where a
 /// verifiable referent exists, ensemble (diverse-model vote) where none does, both for reasoning —
