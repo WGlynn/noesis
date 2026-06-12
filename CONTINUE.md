@@ -81,7 +81,21 @@
   evasion — cross-VM-boundary determinism demonstrated, the exact property the fixed-point
   port exists for. Honest scope: semantic floor only on-VM; similarity floor needs
   cross-cell state via syscalls (named next piece).
-- **Story-loop: 8 done, 2 remain.**
+- **Loop 9/10 — adversarial tick on the VM arc (node 145/145): host holds, 1 NEW gap
+  found + pinned, 1 inherited gap pinned at the boundary, metering defense proven.**
+  - Hostile registers (guest owns a0-a4): capacity u64::MAX / offset-past-end /
+    offset+capacity wrap — host stays protocol-correct, never over-copies (saturating
+    math holds, in-test).
+  - Runaway-script economics: `run_typescript_metered` (estimate_cycles + budget) added
+    to common; 500-cycle starvation ⇒ CyclesExceeded, 50M budget ⇒ completes. The
+    unmetered harness is explicitly NOT production posture (in-test note).
+  - INHERITED pin crosses the boundary intact: hexed noise exits 0 on-VM
+    (`hexed_noise_passes_on_vm_too_open_gap`) — same containment as host-side.
+  - NEW gap (this tick's survivor): the program validates input INDEX 0 ONLY —
+    noise smuggled at index 1 passes (`on_vm_floor_checks_only_input_zero_open_gap`).
+    Next increment for onchain/pom-typescript: iterate GROUP inputs until
+    INDEX_OUT_OF_BOUND + the cross-cell similarity-floor state.
+- **Story-loop: 9 done, 1 remains.**
 - **HANDOFF frontier #4 SHIPPED**: `semantic::semantic_floor` AND-composed into
   `production_value` (new `entropy_theta` param) — after the similarity floor, BEFORE the
   quality boost. Incompressible noise now earns 0 at the canonical rule even at max quality;

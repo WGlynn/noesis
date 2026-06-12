@@ -138,3 +138,30 @@ pub fn run_typescript(
         .unwrap();
     (machine.run(), served.load(std::sync::atomic::Ordering::SeqCst))
 }
+
+/// Like [`run_typescript`] but with REAL cycle metering (estimate_cycles) and a budget —
+/// the production posture; the unmetered variant exists only for protocol-focused tests.
+pub fn run_typescript_metered(
+    elf_path: &str,
+    script_cell: &Cell,
+    inputs: Vec<Cell>,
+    max_cycles: u64,
+) -> (Result<i8, Error>, u64) {
+    let program = Bytes::from(std::fs::read(elf_path).expect("fixture ELF present"));
+    let served = Arc::new(AtomicU64::new(0));
+    let handler = NoesisSyscalls::for_cell(script_cell, inputs, served.clone());
+    let core = DefaultCoreMachine::<u64, WXorXMemory<SparseMemory<u64>>>::new_with_memory(
+        ISA_IMC | ISA_A | ISA_B | ISA_MOP,
+        VERSION2,
+        max_cycles,
+        ckb_vm::RISCV_MAX_MEMORY,
+    );
+    let mut machine = DefaultMachineBuilder::new(core)
+        .instruction_cycle_func(Box::new(ckb_vm::cost_model::estimate_cycles))
+        .syscall(Box::new(handler))
+        .build();
+    machine
+        .load_program(&program, [].iter().map(|b: &Bytes| Ok(b.clone())))
+        .unwrap();
+    (machine.run(), served.load(std::sync::atomic::Ordering::SeqCst))
+}
