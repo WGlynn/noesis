@@ -513,6 +513,21 @@ pub mod value {
             .collect()
     }
 
+    /// Production value rule — composes the full strategyproof floor (temporal-novelty + the
+    /// coverage-similarity floor at `theta`) with the learned quality boost:
+    /// `value = floored_novelty × (1 + quality)`. The floor is applied BEFORE quality, so neither
+    /// a near-duplicate nor a zero-novelty cell can be rescued by any quality score, while honest
+    /// novel cells are quality-weighted. This is the canonical rule assembling every value-layer
+    /// defense (sybil/padding/collusion via novelty, near-duplicate via the similarity floor,
+    /// capability via quality) into one function the PoM type-script enforces.
+    pub fn production_value(cells_in_commit_order: &[super::Cell], theta: f64, quality: &[f64]) -> Vec<f64> {
+        super::temporal_novelty_with_similarity_floor(cells_in_commit_order, theta)
+            .iter()
+            .zip(quality)
+            .map(|(&n, &q)| n as f64 * (1.0 + q))
+            .collect()
+    }
+
     #[cfg(test)]
     mod tests {
         use super::super::{Cell, Script};
@@ -608,6 +623,20 @@ pub mod value {
                 "KNOWN GAP: coverage-proxy v(S) cannot tell novel-garbage from novel-value; \
                  closing it needs the learned outcome-evaluator (Phase 1, line 41)"
             );
+        }
+
+        #[test]
+        fn production_value_applies_floor_before_quality() {
+            // Canonical rule: similarity-floor BEFORE quality, so a near-duplicate earns 0 even at
+            // max quality, while an honest novel cell earns novelty x (1 + quality).
+            let mut order = honest();
+            let mut near = order[0].data.clone();
+            near[2] ^= 0x20; // near-duplicate of block 0
+            order.push(cell(99, 9, 99, &near));
+            let q = vec![1.0; order.len()];
+            let v = production_value(&order, 0.8, &q);
+            assert_eq!(*v.last().unwrap(), 0.0, "near-dup -> 0 even at max quality (floor before quality)");
+            assert!(v[0] > 0.0, "honest novel cell earns novelty x (1 + quality)");
         }
     }
 }
