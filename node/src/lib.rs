@@ -3313,6 +3313,57 @@ pub mod outcome {
         }
 
         #[test]
+        fn fake_lineage_garbage_fools_the_model_but_is_contained_below() {
+            // ADVERSARIAL TICK vs the outcome model (2026-06-12, same session — run the
+            // adversary against every new v(S) the moment it lands, per the layering
+            // method). The model rewards connectedness + depth. So the attacker builds a
+            // CHAIN of novel-garbage, each cell pointing at the last: fake lineage. The
+            // structural features now look like "value" even though every byte is noise.
+            let noise = |s: u8| -> Vec<u8> {
+                (0u8..24).map(|i| s.wrapping_add(i.wrapping_mul(53))).collect()
+            };
+            let fake_lineage = vec![
+                cellp(30, 0, None, &noise(0x10)),
+                cellp(31, 1, Some(30), &noise(0x40)),
+                cellp(32, 2, Some(31), &noise(0x90)),
+            ];
+            let w = train(
+                &[
+                    coalition_features(&value_set(), &[0, 1, 2]),
+                    coalition_features(&garbage_set(), &[0, 1, 2]),
+                ],
+                &vec![(0usize, 1usize); 8],
+                4000,
+                0.3,
+            );
+            let fake_feat = coalition_features(&fake_lineage, &[0, 1, 2]);
+            let orphan_feat = coalition_features(&garbage_set(), &[0, 1, 2]);
+            // The survivor: fake lineage out-scores orphaned garbage — the model IS fooled
+            // by spoofed structure. Honest finding, pinned.
+            assert!(
+                v_outcome(&w, &fake_feat) > v_outcome(&w, &orphan_feat),
+                "KNOWN: fake-lineage garbage spoofs the model's connectedness/depth features"
+            );
+
+            // CONTAINMENT (why this is not a chain-level vulnerability):
+            // (1) it cannot MINT — routed through the bounded evaluator on fresh keys = 0.
+            for id in 0u8..3 {
+                assert_eq!(
+                    crate::evaluator::intake_advance(v_outcome(&w, &fake_feat), 40, 0, 0.5, 0.5),
+                    0.0,
+                    "fresh-identity-{id}: spoofed score still mints nothing via the evaluator"
+                );
+            }
+            // (2) building the fake lineage is EXACTLY what the lower layers price: each
+            //     link is an external edge needing earned standing (v6) and is slashable
+            //     when refuted (dispute). The model inherits that protection; it does not
+            //     re-open the gap. So the model's authority stays bounded to advance/
+            //     evidence, where being fooled costs the evaluator-pool a timing bet, never
+            //     minted value. Next increment if ever wired into scoring: AND-compose the
+            //     learned semantic floor (Role C) so spoofed structure cannot raise novelty.
+        }
+
+        #[test]
         fn output_is_bounded_and_corruption_is_harmless_by_construction() {
             // The model is bounded [0,1]; and even a maximal score cannot mint, because
             // consumption is via the bounded evaluator (re-asserting the boundary that
