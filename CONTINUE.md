@@ -33,6 +33,24 @@ removed so the scanner polices its own public mirror).
 Rust + RISC-V (CKB-VM) + Cell model + state-rent. **Core inspiration = Nervos CKB
 (github.com/nervosnetwork/ckb), keep that lineage.** Full context: `WHITEPAPER.md`.
 
+```mermaid
+flowchart LR
+  subgraph DONE["✅ Demonstrated (tested)"]
+    d1["Bitcoin-shaped ownership (UTXO fold)"]
+    d2["Ed25519 signing + tamper-resistance"]
+    d3["Synergy value v2 + Myerson (sampled)"]
+    d4["temporal-novelty (strategyproof)"]
+    d5["Rust node: Cell · soulbound · synergy (20/20)"]
+  end
+  subgraph TODO["🟡 Designed / next"]
+    t1["value-flow.py → Rust (eigenvector + 2-level)"]
+    t2["learned v(S) preserves strategyproofness"]
+    t3["type-script PoM program (RISC-V)"]
+    t4["PoM-weighted finalization + core/nucleolus"]
+  end
+  DONE -->|"critical path"| TODO
+```
+
 ## Built + TESTED (demonstrated, not claimed)
 - Python prototype: `block-ownership.py` (UTXO transfer-fold), `block-value-v2.py`
   (Myerson synergy), `value-v3.py` (temporal-novelty, strategyproof), `value-v4.py`
