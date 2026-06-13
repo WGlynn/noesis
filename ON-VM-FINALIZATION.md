@@ -47,9 +47,14 @@ validator set and the vote set; the script recomputes the inequality on-VM and a
   characterizes). If it can flip at the boundary, the threshold must be evaluated with a
   documented rounding direction (round-against-finalization = conservative: a tie does NOT
   finalize).
-- **Validator-set provenance.** The finalization cell asserts a validator set; binding that the
-  set IS the canonical one is the same class as the index-dep binding (type-id singleton +
-  identity). Compose with `INDEX-DEP-CODEHASH-BINDING.md` rather than re-deriving.
+- **Validator-set provenance — now a SPECIFIED requirement, not just an open tension.** Today's
+  reference pin (`validator_set_is_outcome_determining_so_must_be_consensus_bound`, node 196) proves
+  the `all` set is outcome-determining: a producer who supplies a CURATED `all` omitting honest
+  validators shrinks the basis (and the quorum floor's `base_total`) until a minority clears it. So
+  the ELF MUST bind `all` to the canonical validator-registry — type-id singleton + identity, the
+  SAME mechanism as `INDEX-DEP-CODEHASH-BINDING.md` — and RE-DERIVE it from that bound cell, never
+  the witness. A caller-supplied `all` is rejected. (Same re-derive-and-reject rule as the temporal-
+  order coords: "comes from consensus" is only real if the ELF refuses any input it can't reconstruct.)
 - **Quorum floor** uses `base_weight` (un-decayed) — carry both base and effective sums; the
   floor must not itself be decayable or low-participation epochs become un-finalizable by design
   (which may be intended; flag for the consensus review).
@@ -57,10 +62,14 @@ validator set and the vote set; the script recomputes the inequality on-VM and a
 ## Build order (fresh session)
 1. `finalizes_fixed` (Q32.32) in node + drift-guard vs `finalizes_hybrid` over a fixture sweep.
 2. On-VM program: read validator set + votes + header `now`; recompute; exit codes.
-3. Fixtures: finalizes / does-not-finalize / quorum-floor-binding / **tx-chosen-now-rejected**
-   / fixed-vs-f64-boundary. ELF rebuild + recopy.
+3. Fixtures: finalizes / does-not-finalize / quorum-floor-binding / **tx-chosen-now-rejected** /
+   **curated-validator-set-rejected** (the bound registry re-derives `all`; a witness-supplied set
+   that omits honest validators is refused) / fixed-vs-f64-boundary. ELF rebuild + recopy.
 
 ## Composition
-Consensus layer atop the value layer; the recurring principle (do not let the attacker choose
-the security-critical input — index code_hash there, `now`/validator-set here) is the same one.
-Pairs with `CONSENSUS-REVIEW.md` (the NCI verification table) and the T8 settlement mirror.
+Consensus layer atop the value layer. This doc holds two of the SEVEN sites of the recurring
+principle `[P·dont-let-attacker-choose-critical-input]` — finalization-`now` (header-sourced) and
+the validator-set `all` (registry-bound) — joining index code_hash, temporal-order, index-dep, and
+the two commit-order/coord sites in `TEMPORAL-ORDER-ONCHAIN.md`. The on-VM rule is uniform across all
+seven: the ELF re-derives every security-critical input from consensus and rejects anything it cannot
+reconstruct. Pairs with `CONSENSUS-REVIEW.md` (the NCI verification table) and the T8 settlement mirror.
