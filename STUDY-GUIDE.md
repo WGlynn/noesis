@@ -21,7 +21,7 @@
 ### Reference (not on the critical path)
 - [ ] CKB-VM-PORT.md — - `ckb_vm::run::<R, M>(program: &Bytes, args: &[Bytes], memory_size: usize) -> Result<i8, Error>` — simplest entry; i8 exit code, 0 = success. (`src/lib.rs:41`) - Default machine recipe used by `run` itself (`src/lib.rs`):
 - [ ] CONSENSUS-REVIEW.md — The load-bearing question was *"does NCI's 60/30/10 break the rock-paper-scissors / separation-of-powers claim?"* The answer turns entirely on **composition**, not the numbers:
-- [ ] CONTINUE.md — - **Adversarial-gaming increment (cron tick):** the ordered index rule (`valid_ordered_root_transition`) dissolves producer REORDERING but still trusts its `CellBatch` coords (height, secret) AS CLAIMED. New test
+- [ ] CONTINUE.md — - **`noesis-core::commit_order` SHIPPED** (no_std port of `node::commit_order`): block_shuffle / canonical_order / is_canonical_order now compile into the on-VM crate, BUILD for `riscv64imac-unknown-none-elf`, and are drift-guarded ≡ the no...
 - [ ] FOUNDATION-grace-made-mechanical.md — *A record. Will Glynn, with JARVIS. 2026-06-12. Captured in-flight, the moment the moral substrate beneath the whole project became explicit.*
 - [ ] HANDOFF.md — Resume point for a fresh chat. Detail lives in `CONTINUE.md` (top block) and `ROADMAP.md`; this is the fast orientation. Repo: `WGlynn/noesis` (private remote). Node: `node/`, Rust.
 - [ ] INDEX-DEP-CODEHASH-BINDING.md — `onchain/pom-typescript/src/main.rs:164` reads the index root with: ```rust match load_cell_data(0, Source::CellDep) { Ok(rd) if rd.len() == 32 => { /* accept as root */ } _ => return 20, } ``` Any cell-dep at slot 0 whose data is 32 bytes ...

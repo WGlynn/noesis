@@ -1,5 +1,24 @@
 # CONTINUE — Noesis handoff (PRIVATE, stealth)
 
+> **DESIGN CONSTRAINT (Will 2026-06-13):** keep noesis CODE-LEAN, simplicity like Bitcoin. No
+> over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
+> delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
+
+## ▶ RESUME HERE (2026-06-13 — on-VM ordering port, portable half; node 197/197)
+- **`noesis-core::commit_order` SHIPPED** (no_std port of `node::commit_order`): block_shuffle /
+  canonical_order / is_canonical_order now compile into the on-VM crate, BUILD for
+  `riscv64imac-unknown-none-elf`, and are drift-guarded ≡ the node lib (`core_drift_guard.rs`
+  `commit_order_agrees`). This is the consensus permutation the index-cell type-script will verify
+  on-VM. 196→197.
+- **STILL PENDING (deploy-coupled):** wire `onchain/pom-typescript/src/main.rs` to SOURCE the coords
+  — height from the commitment's block header, secret from the block's reveals — and assert
+  `is_canonical_order`, exit on non-canonical, sentinel-gated inert pre-deploy (the index-dep
+  binding pattern). The today's 7th-site pin gives the crisp contract: reject any coord the ELF
+  can't re-derive from consensus.
+- **LEAN DEBT (pay next):** node::commit_order + noesis-core::commit_order are two copies (drift-
+  guarded). Per the lean constraint, node should RE-EXPORT from noesis-core (single source). Same
+  TODO as the other cores. Do this in a lean-audit pass.
+
 ## ▶ RESUME HERE (2026-06-13 — pom-roadmap-advance: 7th attacker-input site pinned; node 196/196)
 - **Adversarial-gaming increment (cron tick):** the ordered index rule
   (`valid_ordered_root_transition`) dissolves producer REORDERING but still trusts its

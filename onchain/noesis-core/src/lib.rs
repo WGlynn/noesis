@@ -222,3 +222,89 @@ pub fn proven_floored_novelty_q16(
     let (novelty, overlap, total) = novelty_with_proofs(data, root, proofs)?;
     Some(floored_from_counts(novelty, overlap, total, data, theta_sim_q16, theta_ent_q16))
 }
+
+// ============ Consensus-sourced commit ordering (on-VM port of node::commit_order) ============
+// The no_std half of the temporal-order fix, so the index-cell type-script can verify ordering
+// ON-VM. Logic is bit-identical to node::commit_order (drift-guarded in node/tests). On-VM the
+// CALLER must source `height` from the commitment's block header and `secret` from the block's
+// reveals (never the producer's claim) — that sourcing is the deploy-coupled, sentinel-gated part;
+// these functions are the consensus-replayable permutation the sourcing feeds.
+pub mod commit_order {
+    use super::Hash;
+    use alloc::vec::Vec;
+
+    /// A committed cell with its CONSENSUS-SOURCED ordering coordinates: `height` = commit-reveal
+    /// block height (header on-chain), `secret` = the participant's revealed commit-reveal secret.
+    #[derive(Clone)]
+    pub struct Committed {
+        pub height: u64,
+        pub secret: Hash,
+    }
+
+    fn seed_from_xor(xor: &Hash) -> u64 {
+        xor.chunks_exact(8)
+            .fold(0u64, |acc, c| acc ^ u64::from_be_bytes(c.try_into().unwrap()))
+    }
+
+    /// splitmix64 — deterministic, consensus-replayable 64-bit PRNG.
+    fn splitmix64(state: &mut u64) -> u64 {
+        *state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = *state;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^ (z >> 31)
+    }
+
+    /// Canonical intra-block permutation: Fisher-Yates over participants, seeded by the XOR of all
+    /// `secrets`. Returns original indices in winning-first slot order. Presentation-independent.
+    pub fn block_shuffle(secrets: &[Hash]) -> Vec<usize> {
+        let mut base: Vec<usize> = (0..secrets.len()).collect();
+        base.sort_by(|&a, &b| secrets[a].cmp(&secrets[b]));
+        let mut xor = [0u8; 32];
+        for s in secrets {
+            for (x, b) in xor.iter_mut().zip(s.iter()) {
+                *x ^= b;
+            }
+        }
+        let mut state = seed_from_xor(&xor);
+        for i in (1..base.len()).rev() {
+            let j = (splitmix64(&mut state) % (i as u64 + 1)) as usize;
+            base.swap(i, j);
+        }
+        base
+    }
+
+    /// Canonical commit order over cells that may span blocks: (height ascending, then in-block
+    /// shuffle slot). Returns indices into `items` in canonical order.
+    pub fn canonical_order(items: &[Committed]) -> Vec<usize> {
+        if items.is_empty() {
+            return Vec::new();
+        }
+        let mut heights: Vec<u64> = items.iter().map(|c| c.height).collect();
+        heights.sort_unstable();
+        heights.dedup();
+        let mut order: Vec<usize> = Vec::with_capacity(items.len());
+        for h in heights {
+            let idxs: Vec<usize> = items
+                .iter()
+                .enumerate()
+                .filter(|(_, c)| c.height == h)
+                .map(|(i, _)| i)
+                .collect();
+            let secrets: Vec<Hash> = idxs.iter().map(|&i| items[i].secret).collect();
+            for &slot in block_shuffle(&secrets).iter() {
+                order.push(idxs[slot]);
+            }
+        }
+        order
+    }
+
+    /// Does `presented` already equal the canonical commit order? The on-VM type-script ASSERTS
+    /// this and REJECTS a non-canonical batch (denying any probe signal).
+    pub fn is_canonical_order(presented: &[Committed]) -> bool {
+        canonical_order(presented)
+            .iter()
+            .enumerate()
+            .all(|(pos, &idx)| pos == idx)
+    }
+}
