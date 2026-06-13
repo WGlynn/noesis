@@ -4,7 +4,15 @@ Resume point for a fresh chat. Detail lives in `CONTINUE.md` (top block) and `RO
 this is the fast orientation. Repo: `WGlynn/noesis` (private remote). Node: `node/`, Rust.
 
 ## Current state
-- **node: 162/checks green (148 lib + 14 ckb-vm integration)** (`cd node && cargo test`).
+- **node: 179/179 green** (`cd node && cargo test`; lib 154 + integration suites).
+- **Last increment (2026-06-13, pom-roadmap tick `a905048`):** encoding-evasion of the
+  semantic seed floor is CLASS-DISSOLVED economically. Hex/zero-dilute noise slips
+  `semantic_floor` AND re-opens the v7 seed-gate pump (on encoded bytes v7≡v6), but the
+  v6 standing price is byte-blind (fresh-key ring earns 0) and the dispute slash is
+  content-agnostic (vested certifier = negative-EV, identically to raw garbage). Chasing
+  it at the content layer = case-detection vs the airgap; the economic layer dissolves the
+  class. Added three regression cases; ROADMAP + README tier marks updated. Next 🟡: bind
+  index-dep by code_hash (CONTINUE.md PM-17).
 - Value layer is comprehensively built + adversarially hardened (suite grew from 5 at the
   start of the continuous run to the count above, via the adversarial-layering method: each
   layer's surviving attack named the next, until the survivor was the consensus layer's own
