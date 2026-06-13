@@ -55,6 +55,13 @@ gains an ordering precondition on the batch it commits:
    - `secret` = each participant's revealed commit-reveal secret for this block, served from the
      block's reveal set. The XOR seed is over the WHOLE block's reveals, so it cannot be finalized
      until reveal closes — which is exactly why no committer can pre-compute their slot.
+   - **RE-DERIVE, don't trust (the load-bearing closure).** The ELF must RECONSTRUCT each cell's
+     `(height, secret)` from consensus — the header the cell's commitment landed in, plus the reveal
+     keyed to that commitment hash — and REJECT any cell whose CLAIMED coord differs from the
+     re-derived one. Without this, sourcing is decorative: the host-side `valid_ordered_root_transition`
+     trusts the coords AS GIVEN, so a redundant cell that claims a falsely-earlier `height` sorts
+     first and banks the contested novelty (pinned: `ordered_rule_trusts_coords_so_they_must_be_consensus_sourced`,
+     node 196). "Comes from consensus" is only true if the ELF refuses any coord it cannot itself derive.
 2. **Assert canonical order before applying the transition.** The batch's per-cell steps must be
    grouped in `canonical_order` of their coords; `is_canonical_order` false ⇒ reject (new exit
    code, distinct from the transition-validity exits). First-commit-wins then cannot be gamed by
@@ -69,12 +76,19 @@ gains an ordering precondition on the batch it commits:
   doc adds the INTRA-block ordering source the F3 binding does not constrain.
 - **Batched root transition** (`index_rule::valid_root_transition`) already makes first-commit-wins
   executable via evolving intermediate roots; this doc fixes WHICH order those steps must be in.
-- Recurring principle, third site: do not let the attacker choose the security-critical input —
-  `code_hash` (index identity), `now` (finalization), commit-ORDER (here).
+- Recurring principle, NOW SEVEN SITES (`[P·dont-let-attacker-choose-critical-input]`): do not let
+  the attacker choose the security-critical input — `code_hash` (index identity) / finalization-`now`
+  / temporal-order / index-dep binding / finalization validator-set / commit-ORDER / commit-COORD
+  derivation (here). The on-VM rule is uniform: the ELF re-derives every one of these from consensus
+  and rejects anything it cannot reconstruct. This doc is the commit-order + commit-coord sites.
 
 ## Honest status
-- DEMONSTRATED: reference model + presentation-invariance + the co-determination (non-self-selectable
-  slot) property, on host, 166/166.
-- NOT YET: the on-VM ELF port (header-sourced height + reveal-sourced XOR seed + canonical-order exit),
-  which is deploy-coupled (needs the commit-reveal block plumbing live), honestly deferred like the
-  index-dep activated path and the finalization mirror.
+- DEMONSTRATED (host reference model, node 196): presentation-invariance; the co-determination
+  (non-self-selectable slot) property; the ordered index rule (`valid_ordered_root_transition` —
+  producer reorder rejected at the order gate); AND the forged-coord pin
+  (`ordered_rule_trusts_coords_so_they_must_be_consensus_sourced` — a falsely-earlier claimed height
+  steals novelty, proving the coords must be consensus-derived). The permutation core is also ported
+  to `noesis-core` (no_std, builds riscv64imac) ready for the ELF to link.
+- NOT YET: the on-VM ELF port (header-sourced height + reveal-sourced XOR seed + RE-DERIVE-and-reject
+  the claimed coords + canonical-order exit), which is deploy-coupled (needs the commit-reveal block
+  plumbing live), honestly deferred like the index-dep activated path and the finalization mirror.
