@@ -28,6 +28,7 @@
 - [ ] JARVIS-CORE-harness-as-coordination.md — *Draft. Will Glynn, with JARVIS. 2026-06-12. The competitive layer of an AI system is not the model's weights — it is the harness that coordinates models, and the harness wins by grounding their cross-check in structure that cannot lie. PRI...
 - [ ] ON-VM-FINALIZATION.md — `finalizes_hybrid(voters_for, all, mix, now, horizon, decay_pos, threshold_bps, quorum_floor_bps)`: - `weight_for = Σ effective_weight(v)` over voters_for - `eff_total  = Σ effective_weight(v)` over all; `base_total = Σ base_weight(v)`
 - [ ] README.md — ```mermaid flowchart TD CONTRIB["Block of thought (contribution)"] --> VAL["Value: temporal-novelty × learned quality<br/>strategyproof — sybil / padding / collusion → 0"] VAL --> POM["Proof of Mind score<br/>(accumulated Myerson value)"]
+- [ ] SECURITY-AUDIT-attacker-choosable-inputs.md — | Surface | Critical input | Source today | Attacker-choosable? | Status | |---|---|---|---|---| | Value gate | cell DATA (content) | tx-supplied | yes, BY DESIGN — content is the thing measured | ✅ OK: floors + flow + standing price the co...
 - [ ] T7-CROSS-CELL-SIMILARITY.md — Intake floors split by what they read: - **Content-local** (semantic floor): pure function of the cell's bytes — ON-VM since T4. - **History-dependent** (temporal novelty + similarity floor): need `seen` = the union of
 - [ ] VISUALS.md — ---
 
