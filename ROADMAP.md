@@ -4,6 +4,12 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-13** — on-VM mirror of the F2 fix: `main.rs` `index_dep_bound` now compares
+  `r.hash_type().as_slice()[0]` against `EXPECTED_INDEX_HASH_TYPE` (ckb-gen-types 0.119
+  `ScriptHashType::Type`; accessor verified vs local ckb-std 0.16.4, not guessed) AND the
+  overloaded `[0;32]` sentinel is replaced by an explicit `const BINDING_ACTIVE: bool`
+  (QA-port-2). ELF rebuilds clean, 22 on-VM fixtures stay green (binding inert). Reference ↔
+  on-VM now F2-parity. Only the activated-path fixture (real script-hash) remains deploy-coupled.
 - **2026-06-13** — `index_binding` reference model F2-COMPLETED on-VM identity: the dep
   identity grew a `hash_type` field (`HashType{Data,Type,Data1}` + `DepScript` triple), so a
   forged index dep reusing the canonical `code_hash`+type-id under a DIFFERENT hash_type — a

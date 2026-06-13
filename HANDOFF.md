@@ -5,12 +5,14 @@ this is the fast orientation. Repo: `WGlynn/noesis` (private remote). Node: `nod
 
 ## Current state
 - **node: 197/197 green** (`cd node && cargo test`; lib 172 + integration suites).
-- **Last increment (2026-06-13, full-auto story-loop):** PM-17 `index_binding` reference
-  model F2-COMPLETED — dep identity grew a `hash_type` field (`HashType{Data,Type,Data1}` +
-  `DepScript` triple); a forged index dep reusing the canonical code_hash+type-id under a
-  different Data/Type/Data1 (a distinct CKB program) is now REJECTED. Closes QA-port-1 host-side
-  (`bound_wrong_hash_type_rejects`, node 196→197). Next: the on-VM `main.rs` mirror
-  (`EXPECTED_INDEX_HASH_TYPE`) + the `BINDING_ACTIVE` flag (QA-port-2), deploy-coupled.
+- **Last increments (2026-06-13, full-auto story-loop):** PM-17 index-dep binding, both
+  layers. (1) `index_binding` reference model F2-COMPLETED — dep identity grew a `hash_type`
+  field (`HashType{Data,Type,Data1}` + `DepScript`); a forged dep reusing code_hash+type-id
+  under a different Data/Type/Data1 is REJECTED (`bound_wrong_hash_type_rejects`, node 196→197).
+  (2) on-VM mirror — `main.rs` `index_dep_bound` compares `r.hash_type()` (QA-port-1) and the
+  overloaded `[0;32]` sentinel is now an explicit `const BINDING_ACTIVE: bool` (QA-port-2);
+  ELF rebuilt, 22 on-VM fixtures green (binding inert). Reference ↔ on-VM now F2-parity. Only
+  the activated-path fixture (real deployed script-hash) remains deploy-coupled.
 - **Prior increment (pom-roadmap tick `a905048`):** encoding-evasion of the
   semantic seed floor is CLASS-DISSOLVED economically. Hex/zero-dilute noise slips
   `semantic_floor` AND re-opens the v7 seed-gate pump (on encoded bytes v7≡v6), but the

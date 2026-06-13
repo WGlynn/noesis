@@ -51,27 +51,37 @@ const THETA_SIM_Q16: u64 = 52429;
 const PATH_BYTES: usize = noesis_core::DEPTH * 32;
 
 /// Canonical index type-script identity (INDEX-DEP-CODEHASH-BINDING.md). The cell-dep
-/// carrying the live novelty-index root MUST be this script. F1: this is a COMPILE-TIME
-/// constant, never a tx-chosen arg (a tx-chosen expected-hash would be self-asserted and
-/// gameable). F2: full identity (code_hash + the type-id arg), not code_hash alone. F3:
-/// the type-id pins the canonical singleton instance (CKB type-id + UTXO liveness make an
-/// old root unreferenceable as a live dep). SENTINEL all-zero code_hash = UNSET = legacy
-/// shape path; the binding activates once the index type-script deploys and these are
-/// filled. The node carries the host-side reference model in `index_binding`.
+/// carrying the live novelty-index root MUST be this script. F1: these are COMPILE-TIME
+/// constants, never tx-chosen args (a tx-chosen expected-hash would be self-asserted and
+/// gameable). F2: FULL CKB Script identity — code_hash AND hash_type AND the type-id arg,
+/// not code_hash alone (two scripts sharing code_hash+args but differing in hash_type are
+/// distinct programs). F3: the type-id pins the canonical singleton instance (CKB type-id +
+/// UTXO liveness make an old root unreferenceable as a live dep). The node carries the
+/// host-side reference model in `index_binding` (mirrors all three fields).
 const EXPECTED_INDEX_CODE_HASH: [u8; 32] = [0u8; 32];
+/// CKB `ScriptHashType` discriminant: Data=0, Type=1, Data1=2 (Data2=4). A type-id-bearing
+/// index cell is addressed by `Type`. Filled at the deploy that fixes the index script.
+const EXPECTED_INDEX_HASH_TYPE: u8 = 1; // ScriptHashType::Type
 const EXPECTED_INDEX_TYPE_ID: &[u8] = &[];
 
-/// Is cell-dep `dep` the canonical, identity-bound index cell? Unset sentinel => legacy
-/// shape path (true). Otherwise the dep's type-script code_hash AND type-id arg must both
-/// match the compile-time constants; a dep with no type-script is rejected (F2).
+/// QA-port-2: an EXPLICIT activation bit, not a magic value of the data being checked. The
+/// old `code_hash == [0u8;32]` sentinel was overloaded — all-zero is itself a syntactically
+/// valid code_hash, so "bound to all-zero" would be misread as "unset." The activation state
+/// is now its own bit. Flipped `true` at the deploy that writes the real constants above.
+const BINDING_ACTIVE: bool = false;
+
+/// Is cell-dep `dep` the canonical, identity-bound index cell? Binding inactive => legacy
+/// shape path (true). Otherwise the dep's type-script code_hash AND hash_type AND type-id
+/// arg must ALL match the compile-time constants; a dep with no type-script is rejected (F2).
 fn index_dep_bound(dep: usize) -> bool {
-    if EXPECTED_INDEX_CODE_HASH == [0u8; 32] {
+    if !BINDING_ACTIVE {
         return true; // binding not yet activated (pre-deploy); shape path preserved
     }
     match load_cell_type(dep, Source::CellDep) {
         Ok(Some(ts)) => {
             let r = ts.as_reader();
             r.code_hash().raw_data() == &EXPECTED_INDEX_CODE_HASH[..]
+                && r.hash_type().as_slice()[0] == EXPECTED_INDEX_HASH_TYPE
                 && r.args().raw_data() == EXPECTED_INDEX_TYPE_ID
         }
         _ => false, // no type-script (F2) or load error => reject when bound

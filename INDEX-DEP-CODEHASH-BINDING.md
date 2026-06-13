@@ -127,22 +127,29 @@ code_hash+type-id under a different hash_type would currently pass.
   is modeled as a full `DepScript{code_hash, hash_type, args}` triple, and `dep_accepted`
   compares all three. Regression `bound_wrong_hash_type_rejects` pins it (same code_hash + same
   type-id + Data-instead-of-Type ⇒ reject; Data1 too). node 197/197.
-- **PENDING (on-VM, deploy-coupled, still inert):** add `EXPECTED_INDEX_HASH_TYPE` to
-  `main.rs` and compare `r.hash_type()` in `index_dep_bound` (verify the `ScriptReader`
-  hash_type accessor against the local ckb-std source before coding it — do not guess the API).
-  Lands in the activated build with QA-port-2 + the activated-path fixture; the binding stays
-  sentinel-inactive until the index script deploys, so existing on-VM fixtures stay green.
+- **DONE (on-VM mirror, inert):** `main.rs` now has `const EXPECTED_INDEX_HASH_TYPE: u8 = 1`
+  (ckb-gen-types 0.119 `ScriptHashType::Type`; accessor verified against the local ckb-std
+  0.16.4 source — `ScriptReader::hash_type()` → `ByteReader`, raw byte via `.as_slice()[0]`,
+  NOT guessed) and `index_dep_bound` compares `r.hash_type().as_slice()[0]` alongside code_hash
+  and the type-id arg. The ELF rebuilds clean for riscv64imac and all 22 on-VM fixtures stay
+  green (binding inert; see QA-port-2). Reference ↔ on-VM are now F2-parity (no drift).
+- **STILL DEPLOY-COUPLED:** the ACTIVATED-path fixture (`BINDING_ACTIVE=true` + real constants
+  ⇒ exit 23 under a live hash_type/code_hash/type-id mismatch) needs the deployed index
+  script's real script-hash, so it lands at activation. The comparison LOGIC is proven by the
+  reference model's `bound_wrong_hash_type_rejects`; the on-VM code is the same shape.
 
-**QA-port-2 (sentinel overload — robustness).** `EXPECTED_INDEX_CODE_HASH == [0u8;32]` is
-overloaded to mean "unset / legacy shape path." But all-zero is also a syntactically valid
-code_hash; if a real index script ever had it (vanishingly unlikely for a blake2b output,
-but a smell), "bound to all-zero" would be misread as "unset." FIX: replace the zero-value
-sentinel with an explicit `const BINDING_ACTIVE: bool` flag; the activation state should be
-its own bit, not a magic value of the data being checked.
+**QA-port-2 (sentinel overload — robustness). DONE 2026-06-13.** `EXPECTED_INDEX_CODE_HASH ==
+[0u8;32]` was overloaded to mean "unset / legacy shape path." But all-zero is also a
+syntactically valid code_hash; "bound to all-zero" would be misread as "unset." FIXED:
+`index_dep_bound` now gates on an explicit `const BINDING_ACTIVE: bool` (its own bit, not a
+magic value of the data being checked). Pre-deploy it is `false` ⇒ shape path; flipped `true`
+at the deploy that writes the real constants.
 
-Both land in the activated build alongside the activated-path fixture (exit-23-fires under a
-live mismatch). The host reference model `index_binding` should grow a hash_type field at the
-same time so it keeps mirroring the on-VM check.
+Status: both QA-port fixes are now IN the on-VM `main.rs` and rebuild green (binding inert).
+The host reference model `index_binding` grew its hash_type field the same day
+(`HashType{Data,Type,Data1}` + `DepScript`), so reference and on-VM mirror each other. The only
+remaining piece is the activated-path fixture, which is deploy-coupled (needs the real
+script-hash constant).
 
 ## F3 resolution (next-layer advance, 2026-06-13) — freshness is free from the cell model
 
