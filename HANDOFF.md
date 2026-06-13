@@ -26,21 +26,16 @@ this is the fast orientation. Repo: `WGlynn/noesis` (private remote). Node: `nod
 - `semantic` — compressibility floor: closes the incompressible-NOISE subclass of garbage-novelty
   at the gate (entropy ≥ θ ⇒ 0), AND-composed, airgap false-positive honestly pinned.
 
-## Open frontier (honest — these are why the autonomous queue drained)
-1. **Real outcome-LABEL data** (DeepFunding-distill-over-sets) — `outcome` model is built;
-   real preference data is the unbuilt input. External dependency.
-2. **On-VM type-script (ckb-vm)** — the RISC-V validation program. Needs the ckb-vm crate
-   APIs verified against the Nervos source; do NOT assume them. Port-time requirement
-   (critical-qa 2026-06-12): the value layer is f64 throughout — on-VM consensus code needs
-   fixed-point/deterministic arithmetic, plan the conversion as part of this item.
-3. **Structured-but-valueless novelty** — the `semantic` floor catches noise, not structured
-   pointless content. That genuinely needs labels/flow (out-of-band), not a content gate.
-4. ✅ DONE (2026-06-12 PM-6) — `semantic` wired into `production_value`: AND-composed after
-   the similarity floor, before quality (`entropy_theta` param). Noise zeroed at the canonical
-   rule even at max quality (contrast in-test: similarity floor alone still pays it); airgap
-   pin propagated. Follow-up SHIPPED same day: `value_v7` semantic-floored seeds (flips the
-   noise-child pump pin; v7 ≡ v6 on content graphs; survivor = structured-but-valueless,
-   which is frontier #3 — the layering converged onto the already-named out-of-band gap).
+## Open frontier (post story-loop 10/10, 2026-06-12 evening)
+1. **On-VM group-input iteration** — flips `on_vm_floor_checks_only_input_zero_open_gap`
+   (the VM arc's adversarial-tick survivor): iterate Source::GroupInput until
+   INDEX_OUT_OF_BOUND in onchain/pom-typescript.
+2. **Cross-cell similarity floor on-VM** — needs the seen-shingle state served via a
+   Noesis syscall (host exists, tests/common/mod.rs).
+3. **Q32.32 settlement mirror** — flow/v5-v7 in fixed point (design in CKB-VM-PORT.md).
+4. **Real outcome-LABEL data** (DeepFunding-distill-over-sets) — external dependency.
+5. **Structured-but-valueless novelty** — out-of-band (labels/flow); encoding-evasion
+   pin (`encoded_noise_evades_the_entropy_floor_open_gap`) folds into this class.
 
 ## Infra that now runs itself
 - `scripts/doc-coherence.py` (--check/--stamp) + `scripts/study-guide.py` (--check, generates
