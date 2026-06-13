@@ -16,7 +16,10 @@
 - **Remaining production binding (doc-pin, unchanged)**: the index dep is accepted by
   SHAPE (32 bytes), not yet by code_hash identity — bind when the index cell's own
   type-script deploys.
-- **Loop2: 2/3 done. Final iteration = checkpoint + loop complete.**
+- **Loop2 COMPLETE 3/3** (checkpoint written: WAL epoch + SESSION_STATE + loop file
+  deleted). **Next-session candidates**: bind index-dep by code_hash; index-cell
+  type-script deployment; metered cycle measurement of a proven mint; multi-proof
+  compression design.
 
 ## ▶ RESUME HERE (2026-06-12 PM-16 — T7 #4 COMPLETE: proven floors ON-VM, node 173/173; loop2 1/3)
 - **T7 DONE — the execution tier (T1-T8) is COMPLETE.** Mint side now requires PROOF:
