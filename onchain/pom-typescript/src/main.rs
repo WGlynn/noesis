@@ -30,51 +30,12 @@ use ckb_std::{
 ckb_std::entry!(program_entry);
 default_alloc!();
 
-const Q: u32 = 16;
-const THETA_ENT_Q16: i128 = 62259; // floor(0.95 · 2^16) — same constant as node value_fixed
+const THETA_ENT_Q16: u64 = 62259; // same constant as node value_fixed / noesis-core
 
-/// Q16.16 log2 — line-for-line the node `value_fixed::log2_q16` algorithm
-/// (shift-and-square, 16 bounded iterations, pure integer).
-fn log2_q16(x: u64) -> u64 {
-    let ip = 63 - u64::from(x.leading_zeros());
-    let mut m: u128 = ((x as u128) << 32) >> ip;
-    let mut frac: u64 = 0;
-    let mut i = Q;
-    while i > 0 {
-        i -= 1;
-        m = (m * m) >> 32;
-        if m >= (2u128 << 32) {
-            m >>= 1;
-            frac |= 1 << i;
-        }
-    }
-    (ip << Q) | frac
-}
-
-/// Mirror of node `value_fixed::is_incompressible_q16` at the suite theta.
+/// Single-source verify core (T7 #4 first half): the floor logic now comes from
+/// noesis-core — the SAME crate the node drift-guards against its own lib.
 fn is_incompressible(data: &[u8]) -> bool {
-    let n = data.len() as u64;
-    if n < 2 {
-        return false; // theta > 0; zero-entropy payload passes
-    }
-    let mut counts = [0u64; 256];
-    let mut i = 0;
-    while i < data.len() {
-        counts[data[i] as usize] += 1;
-        i += 1;
-    }
-    let mut sum_clog: i128 = 0;
-    let mut b = 0;
-    while b < 256 {
-        if counts[b] > 0 {
-            sum_clog += (counts[b] as i128) * (log2_q16(counts[b]) as i128);
-        }
-        b += 1;
-    }
-    let lhs: i128 = (n as i128) * (log2_q16(n) as i128) - sum_clog;
-    let m = n.min(256);
-    let rhs: i128 = (THETA_ENT_Q16 * (n as i128) * (log2_q16(m) as i128)) >> Q;
-    lhs >= rhs
+    noesis_core::is_incompressible_q16(data, THETA_ENT_Q16)
 }
 
 pub fn program_entry() -> i8 {

@@ -1,0 +1,196 @@
+//! noesis-core — the VERIFY-side cores both worlds must agree on, no_std.
+//! T7 #4 first half (`T7-CROSS-CELL-SIMILARITY.md`): one home for the arithmetic the
+//! node (host, std) and the type-scripts (RISC-V, no_std + alloc) share, so the
+//! cross-VM-boundary determinism that T4-T6 demonstrated by duplication is now held by
+//! a single source. The node carries a drift-guard test asserting these functions agree
+//! with its own lib on the canonical fixtures until its lib re-exports from here
+//! (single-source TODO, pinned in CONTINUE).
+//!
+//! Contents are verify-side only by design: SMT fold + proofs (no alloc), coverage
+//! shingles (alloc), the proven intake verifier (alloc), and the Q16.16 fixed-point
+//! floors (no alloc). Maintainer-side state (NoveltyIndex, flow, settlement) stays in
+//! the node — the script never needs it.
+
+#![no_std]
+extern crate alloc;
+
+use alloc::vec::Vec;
+
+// ============ Q16.16 fixed-point floors (mirror of node value_fixed) ============
+
+pub const Q16: u32 = 16;
+
+/// Deterministic Q16.16 log2 (x >= 1): shift-and-square, 16 bounded iterations.
+pub fn log2_q16(x: u64) -> u64 {
+    debug_assert!(x >= 1);
+    let ip = 63 - u64::from(x.leading_zeros());
+    let mut m: u128 = ((x as u128) << 32) >> ip;
+    let mut frac: u64 = 0;
+    let mut i = Q16;
+    while i > 0 {
+        i -= 1;
+        m = (m * m) >> 32;
+        if m >= (2u128 << 32) {
+            m >>= 1;
+            frac |= 1 << i;
+        }
+    }
+    (ip << Q16) | frac
+}
+
+/// Integer entropy floor: H/log2(min(n,256)) >= theta, division-free.
+pub fn is_incompressible_q16(data: &[u8], theta_q16: u64) -> bool {
+    let n = data.len() as u64;
+    if n < 2 {
+        return theta_q16 == 0;
+    }
+    let mut counts = [0u64; 256];
+    let mut i = 0;
+    while i < data.len() {
+        counts[data[i] as usize] += 1;
+        i += 1;
+    }
+    let mut sum_clog: i128 = 0;
+    let mut b = 0;
+    while b < 256 {
+        if counts[b] > 0 {
+            sum_clog += (counts[b] as i128) * (log2_q16(counts[b]) as i128);
+        }
+        b += 1;
+    }
+    let lhs: i128 = (n as i128) * (log2_q16(n) as i128) - sum_clog;
+    let m = n.min(256);
+    let rhs: i128 = ((theta_q16 as i128) * (n as i128) * (log2_q16(m) as i128)) >> Q16;
+    lhs >= rhs
+}
+
+pub fn semantic_floor_q16(novelty: u64, data: &[u8], theta_q16: u64) -> u64 {
+    if is_incompressible_q16(data, theta_q16) {
+        0
+    } else {
+        novelty
+    }
+}
+
+// ============ Coverage shingles (mirror of node coverage) ============
+
+pub type CovId = u64;
+
+fn fnv(bytes: &[u8]) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for &b in bytes {
+        h ^= b as u64;
+        h = h.wrapping_mul(0x0000_0100_0000_01B3);
+    }
+    h
+}
+
+pub fn coverage(data: &[u8]) -> Vec<CovId> {
+    let mut out = Vec::new();
+    if data.len() < 4 {
+        if !data.is_empty() {
+            out.push(fnv(data));
+        }
+        return out;
+    }
+    for w in data.windows(4) {
+        out.push(fnv(w));
+    }
+    out
+}
+
+/// Sorted unique shingles with per-occurrence multiplicities.
+pub fn unique_shingles(data: &[u8]) -> Vec<(u64, u64)> {
+    let mut cov = coverage(data);
+    cov.sort_unstable();
+    let mut out: Vec<(u64, u64)> = Vec::new();
+    for k in cov {
+        match out.last_mut() {
+            Some((key, m)) if *key == k => *m += 1,
+            _ => out.push((k, 1)),
+        }
+    }
+    out
+}
+
+// ============ SMT verify fold (mirror of node smt; no alloc) ============
+
+pub const DEPTH: usize = 64;
+pub type Hash = [u8; 32];
+
+fn blake2b(parts: &[&[u8]]) -> Hash {
+    let mut h = blake2b_ref::Blake2bBuilder::new(32).personal(b"noesis-smt-v1\0\0\0").build();
+    for p in parts {
+        h.update(p);
+    }
+    let mut out = [0u8; 32];
+    h.finalize(&mut out);
+    out
+}
+
+pub fn leaf(key: u64) -> Hash {
+    blake2b(&[b"leaf", &key.to_le_bytes()])
+}
+
+pub fn root_from(key: u64, leaf_hash: Hash, siblings: &[Hash; DEPTH]) -> Hash {
+    let mut acc = leaf_hash;
+    for (i, sib) in siblings.iter().enumerate() {
+        acc = if (key >> i) & 1 == 0 {
+            blake2b(&[&acc, sib])
+        } else {
+            blake2b(&[sib, &acc])
+        };
+    }
+    acc
+}
+
+pub fn verify_member(root: Hash, key: u64, siblings: &[Hash; DEPTH]) -> bool {
+    root_from(key, leaf(key), siblings) == root
+}
+
+pub fn verify_non_member(root: Hash, key: u64, siblings: &[Hash; DEPTH]) -> bool {
+    root_from(key, [0u8; 32], siblings) == root
+}
+
+pub fn verify_insert(old_root: Hash, new_root: Hash, key: u64, siblings: &[Hash; DEPTH]) -> bool {
+    root_from(key, [0u8; 32], siblings) == old_root
+        && root_from(key, leaf(key), siblings) == new_root
+}
+
+// ============ Proven intake verifier (mirror of node proven) ============
+
+/// Classify every unique shingle against `root`; counts or whole-cell rejection.
+pub fn novelty_with_proofs(data: &[u8], root: Hash, proofs: &[[Hash; DEPTH]]) -> Option<(u64, u64, u64)> {
+    let uniq = unique_shingles(data);
+    if proofs.len() != uniq.len() {
+        return None;
+    }
+    let mut novelty_occ = 0u64;
+    let mut overlap_uniq = 0u64;
+    for ((key, mult), path) in uniq.iter().zip(proofs) {
+        match (verify_member(root, *key, path), verify_non_member(root, *key, path)) {
+            (true, false) => overlap_uniq += 1,
+            (false, true) => novelty_occ += mult,
+            _ => return None,
+        }
+    }
+    Some((novelty_occ, overlap_uniq, uniq.len() as u64))
+}
+
+/// The full proven intake floor — what the type-script runs (T7 #4 second half).
+pub fn proven_floored_novelty_q16(
+    data: &[u8],
+    root: Hash,
+    proofs: &[[Hash; DEPTH]],
+    theta_sim_q16: u64,
+    theta_ent_q16: u64,
+) -> Option<u64> {
+    let (novelty, overlap, total) = novelty_with_proofs(data, root, proofs)?;
+    let floored =
+        if total > 0 && ((overlap as u128) << 16) > (theta_sim_q16 as u128) * total as u128 {
+            0
+        } else {
+            novelty
+        };
+    Some(semantic_floor_q16(floored, data, theta_ent_q16))
+}

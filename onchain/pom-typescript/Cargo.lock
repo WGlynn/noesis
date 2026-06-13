@@ -3,6 +3,12 @@
 version = 3
 
 [[package]]
+name = "blake2b-ref"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "294d17c72e0ba59fad763caa112368d0672083779cdebbb97164f4bb4c1e339a"
+
+[[package]]
 name = "buddy-alloc"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -75,10 +81,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "noesis-core"
+version = "0.0.1"
+dependencies = [
+ "blake2b-ref",
+]
+
+[[package]]
 name = "pom-typescript"
 version = "0.0.1"
 dependencies = [
  "ckb-std",
+ "noesis-core",
 ]
 
 [[package]]

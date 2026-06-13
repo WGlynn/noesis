@@ -1,0 +1,12 @@
+[package]
+name = "noesis-core"
+version = "0.0.1"
+edition = "2021"
+# PRIVATE — no_std verify-side cores shared by the node (host) and the type-scripts
+# (RISC-V). T7 #4 first half: single home for the arithmetic both sides must agree on.
+
+[dependencies]
+blake2b-ref = { version = "0.3", default-features = false }
+
+[features]
+default = []

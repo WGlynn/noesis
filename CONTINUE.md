@@ -1,5 +1,22 @@
 # CONTINUE — Noesis handoff (PRIVATE, stealth)
 
+## ▶ RESUME HERE (2026-06-12 PM-15 — T7 #4 FIRST HALF: noesis-core no_std crate, node 168/168; loop 4/4 COMPLETE)
+- **Split decision (WWWD, final loop iteration)**: full #4 e2e is the most intricate piece
+  and this chat is deep past rotation ⇒ shipped the RISKY half (no_std portability) and
+  left the witness plumbing for fresh context. **`onchain/noesis-core`**: no_std + alloc
+  lib crate carrying the verify-side cores (SMT fold/proofs no-alloc, coverage,
+  unique_shingles, novelty_with_proofs, proven_floored_novelty_q16, Q16.16 floors).
+  Builds host AND riscv64imac. pom-typescript now LINKS it (local floor copies deleted;
+  ELF rebuilt; all on-VM tests still green). Node carries `tests/core_drift_guard.rs`:
+  core ≡ node-lib on every canonical fixture incl. the SMT root fold (hash
+  personalization + layout bit-identical) — duplication is now guarded until the lib
+  re-exports from core (single-source TODO).
+- **fnv constants verified against node source before shipping** (silent shingle
+  divergence was the failure mode; checked, identical).
+- **NEXT (fresh session): T7 #4 second half** — witness-served proofs (load_witness_args,
+  molecule WitnessArgs parsing), index-root syscall, proven path inside program_entry,
+  e2e in the T4-T6 pattern. Then T7 complete and the execution tier is T1-T8 done.
+
 ## ▶ RESUME HERE (2026-06-12 PM-14 — T7 #3 index-cell rule, node 165/165; loop 3/4)
 - **`index_rule` SHIPPED (T7 #3)**: `valid_root_transition(old, new, steps)` — the
   per-block batched rule from qa R2. Intermediate roots are COMPUTED from each step's own

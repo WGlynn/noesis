@@ -139,6 +139,14 @@ version = "0.0.1"
 dependencies = [
  "blake2b-ref",
  "ckb-vm",
+ "noesis-core",
+]
+
+[[package]]
+name = "noesis-core"
+version = "0.0.1"
+dependencies = [
+ "blake2b-ref",
 ]
 
 [[package]]

@@ -162,7 +162,11 @@ is a reputation system.
   omission/padding/tamper/stale-root all reject-whole never partial-credit), #3 index-cell rule ✅
   (valid_root_transition: rolling-root insertion chain, intermediates COMPUTED never
   claimed ⇒ dup-insert structurally impossible; smuggle/omit/forge reject; first-commit-
-  wins demonstrated via proven verifier against evolving roots) + #4 script e2e remains.
+  wins demonstrated via proven verifier against evolving roots) + #4 FIRST HALF ✅
+  (noesis-core: no_std verify-side crate — SMT fold, coverage, proven verifier, Q16.16
+  floors — links into pom-typescript, builds both targets, node drift-guards it against
+  its own lib on all fixtures). #4 SECOND HALF remains: witness syscalls + proven path
+  inside the program + on-VM e2e.
 - ✅ T8 Q32.32 settlement mirror (`settlement_fixed`: integer damped-Jacobi external flow,
   rational gate, full v7 composition; tracks f64 within 1e-6 on content graphs; flipped-pin
   + monotone-vesting + saturation-not-wraparound all in-test) → on-VM finalization next
