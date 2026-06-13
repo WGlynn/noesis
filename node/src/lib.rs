@@ -5454,3 +5454,103 @@ pub mod index_rule {
         }
     }
 }
+
+// ============ Index-dep binding (reference model — INDEX-DEP-CODEHASH-BINDING.md) ============
+/// Host-side reference model of the on-VM index cell-dep binding. On-VM the program will
+/// `load_cell_type(0, Source::CellDep)` and compare the dep's type-script identity; this
+/// models the accept/reject decision so the rule is executable + tested before the ELF
+/// port (repo convention: reference model in `node/`, on-VM later). Closes the design's
+/// F1 (identity is the bound thing, not free args), F2 (full identity, not code_hash
+/// alone), and F3 (type-id singleton) at the reference level.
+pub mod index_binding {
+    use super::Script;
+
+    /// Identity of the canonical index type-script. On-VM the port compares the full CKB
+    /// script hash (blake2b of code_hash ‖ hash_type ‖ args); in the node Cell model
+    /// (no hash_type) identity = (code_hash, args), where args carries the type-id (F3).
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+    pub struct IndexIdentity<'a> {
+        pub code_hash: [u8; 32],
+        pub type_id: &'a [u8],
+    }
+
+    /// Is cell-dep 0 an acceptable index source?
+    /// - `expected = None` ⇒ legacy/unset: shape path (accept any cell that HAS a
+    ///   type-script). Keeps existing fixtures green until deploy pins the constant.
+    /// - `expected = Some(id)` ⇒ bound: the dep's type-script `code_hash` AND its type-id
+    ///   arg must both match (F1 const + F2 full identity + F3 instance). A dep with no
+    ///   type-script is rejected under binding (F2).
+    pub fn dep_accepted(dep_type_script: Option<&Script>, expected: Option<IndexIdentity>) -> bool {
+        match expected {
+            None => dep_type_script.is_some(),
+            Some(id) => match dep_type_script {
+                None => false,
+                Some(s) => s.code_hash == id.code_hash && s.args.as_slice() == id.type_id,
+            },
+        }
+    }
+
+    /// F3 singleton invariant: among candidate index cells, at most one may carry the
+    /// canonical type-id. On-VM this is guaranteed by the CKB type-id rule + UTXO liveness
+    /// (an old root lives in a spent cell, unreferenceable as a dep); the model asserts
+    /// the uniqueness the type-id rule enforces.
+    pub fn is_unique_index(candidate_type_scripts: &[Script], type_id: &[u8]) -> bool {
+        candidate_type_scripts.iter().filter(|s| s.args.as_slice() == type_id).count() <= 1
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        const H: [u8; 32] = [0xA1; 32];
+        const WRONG_H: [u8; 32] = [0xB2; 32];
+
+        fn ts(code_hash: [u8; 32], args: &[u8]) -> Script {
+            Script { code_hash, args: args.to_vec() }
+        }
+        fn id(type_id: &[u8]) -> IndexIdentity<'_> {
+            IndexIdentity { code_hash: H, type_id }
+        }
+
+        #[test]
+        fn bound_match_accepts() {
+            let tid: &[u8] = &[7, 7, 7];
+            assert!(dep_accepted(Some(&ts(H, tid)), Some(id(tid))), "right code + right instance");
+        }
+
+        #[test]
+        fn bound_wrong_code_hash_rejects() {
+            // F2: a forged index reusing the canonical type-id arg but a different
+            // type-script code is rejected — code_hash-only would have missed this.
+            let tid: &[u8] = &[7, 7, 7];
+            assert!(!dep_accepted(Some(&ts(WRONG_H, tid)), Some(id(tid))));
+        }
+
+        #[test]
+        fn bound_wrong_type_id_rejects() {
+            // F3: right code, wrong instance (different type-id) ⇒ reject (not canonical).
+            assert!(!dep_accepted(Some(&ts(H, &[9, 9])), Some(id(&[7, 7, 7]))));
+        }
+
+        #[test]
+        fn bound_no_type_script_rejects() {
+            assert!(!dep_accepted(None, Some(id(&[7, 7, 7]))), "F2: no type-script ⇒ unbound ⇒ reject");
+        }
+
+        #[test]
+        fn legacy_unset_is_shape_path() {
+            assert!(dep_accepted(Some(&ts(WRONG_H, &[1])), None), "unset ⇒ any type-scripted cell ok");
+            assert!(!dep_accepted(None, None), "still rejects a cell with no type-script");
+        }
+
+        #[test]
+        fn f3_singleton_rejects_duplicate_type_id() {
+            let tid: &[u8] = &[7, 7, 7];
+            assert!(is_unique_index(&[ts(H, tid)], tid));
+            assert!(
+                !is_unique_index(&[ts(H, tid), ts(H, tid)], tid),
+                "two live cells with the canonical type-id violates the singleton"
+            );
+        }
+    }
+}
