@@ -1,5 +1,23 @@
 # CONTINUE — Noesis handoff (PRIVATE, stealth)
 
+## ▶ RESUME HERE (2026-06-12 PM-17 — tick on full T7: DOUBLE-MINT found+fixed, node 176/176; loop2 2/3)
+- **Adversarial tick on the complete T7 stack found a REAL break and closed it same
+  iteration: INTRA-TX DOUBLE-MINT.** Two identical novel outputs in one tx each proved
+  against the same dep root ⇒ same novelty minted twice (probe confirmed exit 0 against
+  the pre-fix ELF). Fix: the program carries a sorted claimed-novel set across outputs —
+  a later output's already-claimed shingles classify as OVERLAP (intra-tx first-commit-
+  wins, the same rule per-block batching applies across txs), so the similarity floor
+  kills twins and near-twins. Regressions: twin ⇒ 22, distinct novels both mint ⇒ 0,
+  near-twin recycling ⇒ 22.
+- Build note (recipe pin re-confirmed the hard way): ckb_std entry!/default_alloc!
+  already declares `extern crate alloc` — declaring it again is E0259. Also caught: `cargo
+  ... | tail` masks build failure ⇒ a && chain copied a STALE ELF once; recopied after a
+  verified build. Worth a build-script hardening later.
+- **Remaining production binding (doc-pin, unchanged)**: the index dep is accepted by
+  SHAPE (32 bytes), not yet by code_hash identity — bind when the index cell's own
+  type-script deploys.
+- **Loop2: 2/3 done. Final iteration = checkpoint + loop complete.**
+
 ## ▶ RESUME HERE (2026-06-12 PM-16 — T7 #4 COMPLETE: proven floors ON-VM, node 173/173; loop2 1/3)
 - **T7 DONE — the execution tier (T1-T8) is COMPLETE.** Mint side now requires PROOF:
   every group output must prove its novelty against the live index root (cell-dep 0,

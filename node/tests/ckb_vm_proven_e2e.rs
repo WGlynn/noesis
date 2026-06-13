@@ -94,3 +94,67 @@ fn short_witness_and_missing_root_reject_on_vm_exit_20() {
     );
     assert_eq!(result.unwrap(), 20, "a mint without the index dep cannot validate");
 }
+
+#[test]
+fn intra_tx_double_mint_is_denied_tick_closed() {
+    // THE 2026-06-12 tick's find, FLIPPED: two identical novel outputs, each with valid
+    // proofs against the same dep root, used to BOTH mint (probe showed exit 0). The
+    // program now carries a claimed-novel set across outputs — the twin's shingles count
+    // as overlap, the similarity floor zeroes it, mint denied.
+    let idx = seeded_index();
+    let data: &[u8] = b"india-juliet-kilo-lima fresh contribution";
+    let consumed = input_cell(0, 7, b"alpha-bravo-charlie-delta");
+    let a = input_cell(10, 7, data);
+    let b = input_cell(11, 7, data); // identical twin
+    let blob = proof_blob(&idx, data);
+    let (result, _) = run_typescript_t7(
+        ELF,
+        &consumed.clone(),
+        vec![consumed],
+        vec![a, b],
+        vec![root_dep(&idx)],
+        vec![blob.clone(), blob],
+    );
+    assert_eq!(result.unwrap(), 22, "second identical output cannot re-mint the novelty");
+}
+
+#[test]
+fn distinct_novel_outputs_in_one_tx_both_mint() {
+    // The fix must not over-reach: two genuinely different novel outputs both pass.
+    let idx = seeded_index();
+    let d1: &[u8] = b"november-oscar-papa-quebec";
+    let d2: &[u8] = b"romeo-sierra-tango-uniform";
+    let consumed = input_cell(0, 7, b"alpha-bravo-charlie-delta");
+    let a = input_cell(10, 7, d1);
+    let b = input_cell(11, 7, d2);
+    let (result, _) = run_typescript_t7(
+        ELF,
+        &consumed.clone(),
+        vec![consumed],
+        vec![a, b],
+        vec![root_dep(&idx)],
+        vec![proof_blob(&idx, d1), proof_blob(&idx, d2)],
+    );
+    assert_eq!(result.unwrap(), 0, "claimed-set must not false-positive distinct content");
+}
+
+#[test]
+fn mostly_recycled_second_output_is_denied() {
+    // Partial form of the same attack: output B = output A's phrase plus a token tail.
+    // A's claimed shingles make B mostly-overlap; the similarity floor fires.
+    let idx = seeded_index();
+    let d1: &[u8] = b"november-oscar-papa-quebec-the-original-contribution";
+    let d2: &[u8] = b"november-oscar-papa-quebec-the-original-contributioX";
+    let consumed = input_cell(0, 7, b"alpha-bravo-charlie-delta");
+    let a = input_cell(10, 7, d1);
+    let b = input_cell(11, 7, d2);
+    let (result, _) = run_typescript_t7(
+        ELF,
+        &consumed.clone(),
+        vec![consumed],
+        vec![a, b],
+        vec![root_dep(&idx)],
+        vec![proof_blob(&idx, d1), proof_blob(&idx, d2)],
+    );
+    assert_eq!(result.unwrap(), 22, "near-twin recycling A's novelty is floored");
+}

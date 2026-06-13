@@ -31,6 +31,9 @@
 #![no_std]
 #![no_main]
 
+// NOTE: no `extern crate alloc` here — ckb_std::entry!/default_alloc! already declares
+// it ([F·ckb-cell-build-recipe]); alloc::vec::Vec resolves through that declaration.
+
 use ckb_std::{
     ckb_constants::Source,
     default_alloc,
@@ -47,8 +50,16 @@ const THETA_SIM_Q16: u64 = 52429;
 const PATH_BYTES: usize = noesis_core::DEPTH * 32;
 
 /// Verify output `index`'s proven novelty: stream witness `index` one sibling path at a
-/// time against the index root. Returns the floored novelty or an exit code.
-fn proven_mint_value(index: usize, data: &[u8], root: noesis_core::Hash) -> Result<u64, i8> {
+/// time against the index root. `claimed` carries shingles already minted as novel by
+/// EARLIER outputs of this same tx — they count as OVERLAP here (intra-tx first-commit-
+/// wins; closes the double-mint found by the 2026-06-12 tick). Returns the floored
+/// novelty or an exit code; on acceptance the output's novel shingles join `claimed`.
+fn proven_mint_value(
+    index: usize,
+    data: &[u8],
+    root: noesis_core::Hash,
+    claimed: &mut alloc::vec::Vec<u64>,
+) -> Result<u64, i8> {
     let uniq = noesis_core::unique_shingles(data);
     let expected = uniq.len() * PATH_BYTES;
     let mut buf = [0u8; PATH_BYTES];
@@ -63,6 +74,7 @@ fn proven_mint_value(index: usize, data: &[u8], root: noesis_core::Hash) -> Resu
     }
     let mut novelty_occ = 0u64;
     let mut overlap_uniq = 0u64;
+    let mut novel_here: alloc::vec::Vec<u64> = alloc::vec::Vec::new();
     for (i, (key, mult)) in uniq.iter().enumerate() {
         match syscalls::load_witness(&mut buf, i * PATH_BYTES, index, Source::GroupOutput) {
             Ok(_) | Err(SysError::LengthNotEnough(_)) => {}
@@ -74,18 +86,33 @@ fn proven_mint_value(index: usize, data: &[u8], root: noesis_core::Hash) -> Resu
         }
         match noesis_core::classify(root, *key, &path) {
             Some(noesis_core::Class::Member) => overlap_uniq += 1,
-            Some(noesis_core::Class::Absent) => novelty_occ += mult,
+            Some(noesis_core::Class::Absent) => {
+                if claimed.binary_search(key).is_ok() {
+                    overlap_uniq += 1; // an earlier output of THIS tx already minted it
+                } else {
+                    novelty_occ += mult;
+                    novel_here.push(*key);
+                }
+            }
             None => return Err(21),
         }
     }
-    Ok(noesis_core::floored_from_counts(
+    let v = noesis_core::floored_from_counts(
         novelty_occ,
         overlap_uniq,
         uniq.len() as u64,
         data,
         THETA_SIM_Q16,
         THETA_ENT_Q16,
-    ))
+    );
+    if v > 0 {
+        for k in novel_here {
+            if let Err(pos) = claimed.binary_search(&k) {
+                claimed.insert(pos, k);
+            }
+        }
+    }
+    Ok(v)
 }
 
 /// Single-source verify core (T7 #4 first half): the floor logic now comes from
@@ -125,6 +152,7 @@ pub fn program_entry() -> i8 {
     // actually mints.
     index = 0;
     let mut root: Option<noesis_core::Hash> = None;
+    let mut claimed: alloc::vec::Vec<u64> = alloc::vec::Vec::new();
     loop {
         match load_cell_data(index, Source::GroupOutput) {
             Ok(data) => {
@@ -143,7 +171,7 @@ pub fn program_entry() -> i8 {
                         _ => return 20,
                     },
                 };
-                match proven_mint_value(index, &data, r) {
+                match proven_mint_value(index, &data, r, &mut claimed) {
                     Ok(0) => return 22, // proven worthless: redundant against history
                     Ok(_) => {}
                     Err(code) => return code,
