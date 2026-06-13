@@ -111,3 +111,35 @@ gameable (F1) and code_hash-only was partial (F2). Revised design = compile-time
 consensus-pinned) **script-hash** constant, full-Script identity, with **instance/freshness
 binding (F3) pinned as the next layer**. Backward-compat unchanged: production builds embed
 the constant; dev/test may leave it unset (shape path) for the existing fixtures.
+
+## F3 resolution (next-layer advance, 2026-06-13) — freshness is free from the cell model
+
+The F3 survivor ("a correctly-identity-bound dep can still be a stale rolled-back instance")
+dissolves once you bind the **canonical instance**, and the CKB cell model gives that almost
+for free:
+
+1. **Which cell — type-id singleton.** Create the index cell once with a CKB **type-id**
+   (`type_id = blake2b(first_input_outpoint ‖ output_index)`), enforced by the standard
+   type-id rule so NO second cell can ever carry it. The canonical index identity is that
+   type-id. The consumer binds two things: the dep's type-script **script-hash** == the
+   compile-time constant (F1/F2, "right code") AND the dep's type-id arg == the canonical
+   `INDEX_TYPE_ID` ("the one cell"). Only the canonical index satisfies both.
+2. **Is it current — UTXO liveness (the free part).** A cell-dep can only reference a
+   **live** (unspent) cell. The index is a singleton that updates by spend-old + create-new
+   (cells are immutable), so every prior root lives in an already-**spent** cell and is
+   therefore **uneferenceable as a dep**. The attacker cannot point cell-dep 0 at an old
+   root because old roots are not live. "Which cell" (type-id) + "is live" (UTXO) ⇒
+   "current root" — no extra freshness machinery, no consensus-head lookup needed.
+3. **Same-tx rollback?** If the attacker also produces a new index version in the same tx,
+   the index type-script's own `valid_root_transition` (T7 #3) rejects any non-forward
+   transition; and the mint proves against the **input/dep** root, not the attacker's
+   proposed output — so there is no rollback surface.
+
+**Convergence (adversarial-layering).** F1 (binary-pinned script-hash) + F2 (full Script
+identity) + F3 (type-id singleton, freshness-free via liveness) fully provenance-bind the
+index dep. The remaining survivor reduces to the correctness of the type-id rule and
+`valid_root_transition` themselves — already-built/assumed layers — i.e. the chain
+terminates at the substrate's own guarantees, not a new dispute-able assumption. This is the
+method's stop condition (survivor = global/substrate assumption). **Build order, fresh
+session:** F1/F2 script-hash const + exit `23` + the four fixtures, then the type-id arg
+check (F3) with a singleton/duplicate fixture.
