@@ -5191,3 +5191,148 @@ pub mod proven {
         }
     }
 }
+
+/// T7 #3 — the index-cell root-transition rule (`T7-CROSS-CELL-SIMILARITY.md` §QA R2:
+/// per-block batched update). The novelty-index cell's own type-script logic: a block's
+/// root transition old → new is valid iff it is EXACTLY a chain of single-key insertions,
+/// each proven against the ROLLING root.
+///
+/// Load-bearing detail: intermediate roots are COMPUTED from each step's own sibling
+/// path (`root_from(key, leaf, siblings)` after checking `root_from(key, EMPTY, siblings)`
+/// equals the rolling root) — never supplied by the producer. Two consequences, both
+/// structural rather than bookkept:
+///   - duplicate insertion is impossible (the second insert of a key cannot prove
+///     non-membership under the root that now contains it);
+///   - smuggling or omitting a key moves the computed final root off `new_root`.
+/// Intra-block novelty assignment (qa R2's consensus rule): FIRST commit wins a shared
+/// novel shingle; later cells in the block see it as overlap — demonstrated in-test by
+/// running the proven verifier against the evolving roots.
+pub mod index_rule {
+    use super::smt::{leaf, root_from, Hash, DEPTH};
+
+    /// One insertion in the block's batch: the key and its sibling path against the
+    /// rolling root at this position in the chain.
+    pub struct InsertStep {
+        pub key: u64,
+        pub siblings: [Hash; DEPTH],
+    }
+
+    /// The transition rule the index cell's type-script enforces.
+    pub fn valid_root_transition(old_root: Hash, new_root: Hash, steps: &[InsertStep]) -> bool {
+        let mut root = old_root;
+        for step in steps {
+            if root_from(step.key, [0u8; 32], &step.siblings) != root {
+                return false; // not absent under the rolling root (dup, stale, or forged)
+            }
+            root = root_from(step.key, leaf(step.key), &step.siblings);
+        }
+        root == new_root
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::super::proven::{novelty_with_proofs, unique_shingles};
+        use super::super::smt::NoveltyIndex;
+        use super::*;
+
+        /// Honest producer: insert keys sequentially, capturing each step's proof
+        /// against the index state BEFORE that insert.
+        fn build_steps(idx: &mut NoveltyIndex, keys: &[u64]) -> Vec<InsertStep> {
+            keys.iter()
+                .map(|&k| {
+                    let s = InsertStep { key: k, siblings: idx.proof(k) };
+                    idx.insert(k);
+                    s
+                })
+                .collect()
+        }
+
+        #[test]
+        fn honest_batch_validates_and_matches_ground_truth() {
+            let mut idx = NoveltyIndex::new();
+            for k in [1u64, 2, 3] {
+                idx.insert(k);
+            }
+            let old_root = idx.root();
+            let keys = [10u64, 99, 7_000_000, 4];
+            let steps = build_steps(&mut idx, &keys);
+            let new_root = idx.root(); // ground truth after the same inserts
+            assert!(valid_root_transition(old_root, new_root, &steps));
+            assert!(!valid_root_transition(old_root, old_root, &steps), "must move the root");
+        }
+
+        #[test]
+        fn duplicate_insertion_is_structurally_impossible() {
+            // No dedup bookkeeping anywhere — the second insert of the same key cannot
+            // prove non-membership under the rolling root that now contains it.
+            let mut idx = NoveltyIndex::new();
+            let old_root = idx.root();
+            let mut steps = build_steps(&mut idx, &[42u64]);
+            // forge a second insertion of 42 with the freshest possible path
+            steps.push(InsertStep { key: 42, siblings: idx.proof(42) });
+            idx.insert(42); // no-op on the real tree
+            assert!(!valid_root_transition(old_root, idx.root(), &steps));
+        }
+
+        #[test]
+        fn smuggled_or_omitted_keys_move_the_computed_root_off_target() {
+            let mut idx = NoveltyIndex::new();
+            let old_root = idx.root();
+            let keys = [5u64, 6, 7];
+            let steps = build_steps(&mut idx, &keys);
+            let new_root = idx.root();
+            // omit the last step: computed end != new_root
+            assert!(!valid_root_transition(old_root, new_root, &steps[..2]));
+            // smuggle an extra key the announced new_root doesn't contain
+            let mut smuggled = steps;
+            let mut shadow = NoveltyIndex::new();
+            for k in keys {
+                shadow.insert(k);
+            }
+            smuggled.push(InsertStep { key: 1234, siblings: shadow.proof(1234) });
+            assert!(!valid_root_transition(old_root, new_root, &smuggled));
+        }
+
+        #[test]
+        fn forged_sibling_path_rejects() {
+            let mut idx = NoveltyIndex::new();
+            let old_root = idx.root();
+            let mut steps = build_steps(&mut idx, &[8u64, 9]);
+            steps[1].siblings[3] = [0xCC; 32];
+            assert!(!valid_root_transition(old_root, idx.root(), &steps));
+        }
+
+        #[test]
+        fn first_commit_wins_shared_novelty_within_a_block() {
+            // qa R2's consensus rule, demonstrated end to end with the proven verifier:
+            // two cells in one block share novel content. Against the BLOCK-START root
+            // both prove it novel; under sequential assignment (proofs against the
+            // EVOLVING root) the first earns it, the second sees overlap.
+            let mut idx = NoveltyIndex::new();
+            for (k, _) in unique_shingles(b"prior-committed-content-zulu") {
+                idx.insert(k);
+            }
+            let block_start = idx.root();
+            let cell_a: &[u8] = b"shared-brand-new-phrase-here";
+            let cell_b: &[u8] = b"shared-brand-new-phrase-here plus b's own tail";
+
+            // Both novel against block start:
+            let pa: Vec<_> = unique_shingles(cell_a).iter().map(|(k, _)| idx.proof(*k)).collect();
+            let (nov_a_start, _, _) = novelty_with_proofs(cell_a, block_start, &pa).unwrap();
+            let pb: Vec<_> = unique_shingles(cell_b).iter().map(|(k, _)| idx.proof(*k)).collect();
+            let (nov_b_start, _, _) = novelty_with_proofs(cell_b, block_start, &pb).unwrap();
+            assert!(nov_a_start > 0 && nov_b_start > 0, "both look novel at block start");
+
+            // Sequential assignment: A lands first, B proves against the evolved root.
+            for (k, _) in unique_shingles(cell_a) {
+                idx.insert(k);
+            }
+            let after_a = idx.root();
+            let pb2: Vec<_> = unique_shingles(cell_b).iter().map(|(k, _)| idx.proof(*k)).collect();
+            let (nov_b_seq, overlap_b_seq, _) = novelty_with_proofs(cell_b, after_a, &pb2).unwrap();
+            assert!(nov_b_seq < nov_b_start, "B's shared shingles became overlap");
+            assert!(overlap_b_seq > 0, "first commit won them");
+            assert!(nov_b_seq > 0, "B's own tail still earns");
+        }
+    }
+}

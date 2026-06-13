@@ -1,5 +1,21 @@
 # CONTINUE — Noesis handoff (PRIVATE, stealth)
 
+## ▶ RESUME HERE (2026-06-12 PM-14 — T7 #3 index-cell rule, node 165/165; loop 3/4)
+- **`index_rule` SHIPPED (T7 #3)**: `valid_root_transition(old, new, steps)` — the
+  per-block batched rule from qa R2. Intermediate roots are COMPUTED from each step's own
+  proof (check non-membership under rolling root, then derive the next root), never
+  producer-claimed ⇒ duplicate insertion is STRUCTURALLY impossible (second insert can't
+  prove absence under the root that contains it) — zero dedup bookkeeping. Smuggled keys,
+  omitted keys, forged paths all move the computed end off new_root ⇒ reject.
+  **First-commit-wins demonstrated end to end**: both cells novel at block-start root;
+  sequential assignment via evolving roots gives the first the shared shingles, the
+  second overlap (its own tail still earns) — the consensus rule is now executable, not
+  prose.
+- **Loop: 3/4 done. Final iteration = T7 #4**: on-VM e2e — witness-served proofs
+  (load_witness_args), index root via syscall, the proven path inside the type-script,
+  T4-T6 pattern (same verdicts host-side and on-VM). NOTE honest scope for #4: the no_std
+  port of `proven`+`smt` cores (alloc for Vec; hashbrown if needed) is part of the work.
+
 ## ▶ RESUME HERE (2026-06-12 PM-13 — T7 #2 proven verifier, node 160/160; loop 2/4)
 - **`proven` module SHIPPED (T7 #2)**: `novelty_with_proofs` + `proven_floored_novelty_q16`
   — the function the type-script will run. **The T7 theorem is now IN-TEST**: proof-driven

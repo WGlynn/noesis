@@ -159,8 +159,10 @@ is a reputation system.
   stale-root walked closed at design time; serialization + cycle cost pinned as calibration
   (per-block batching per qa, SMT multi-proofs). Increments: #1 SMT ✅, #2 proven verifier ✅
   (novelty_with_proofs: proof-driven counts ≡ sequential rule in-test, the T7 theorem;
-  omission/padding/tamper/stale-root all reject-whole never partial-credit), #3 index-cell
-  rule + #4 script e2e remain.
+  omission/padding/tamper/stale-root all reject-whole never partial-credit), #3 index-cell rule ✅
+  (valid_root_transition: rolling-root insertion chain, intermediates COMPUTED never
+  claimed ⇒ dup-insert structurally impossible; smuggle/omit/forge reject; first-commit-
+  wins demonstrated via proven verifier against evolving roots) + #4 script e2e remains.
 - ✅ T8 Q32.32 settlement mirror (`settlement_fixed`: integer damped-Jacobi external flow,
   rational gate, full v7 composition; tracks f64 within 1e-6 on content graphs; flipped-pin
   + monotone-vesting + saturation-not-wraparound all in-test) → on-VM finalization next
