@@ -4563,3 +4563,234 @@ mod adversary {
         );
     }
 }
+
+/// Sparse Merkle Tree over 64-bit shingle keys — T7 #1 (`T7-CROSS-CELL-SIMILARITY.md`).
+/// The novelty-index cell's commitment structure: root = constant-size commitment to the
+/// monotone seen-shingle SET; provers carry per-shingle membership / non-membership /
+/// insertion proofs so the on-VM script can derive EXACT novelty+overlap counts without
+/// seeing history. blake2b (CKB-native hasher); depth-64 (keys ARE CovId u64); the verify
+/// fold is one shared function so membership, non-membership, and insertion are all the
+/// same arithmetic — no_std-portable core (no allocation in `root_from`).
+///
+/// Set semantics fall out of positional hashing: insertion order cannot change the root
+/// (in-test). The full set is DERIVED consensus state (reconstructible from chain
+/// history, like a UTXO set); only the root lives in the index cell.
+pub mod smt {
+    use std::collections::HashMap;
+
+    pub const DEPTH: usize = 64;
+    pub type Hash = [u8; 32];
+
+    fn blake2b(parts: &[&[u8]]) -> Hash {
+        let mut h = blake2b_ref::Blake2bBuilder::new(32).personal(b"noesis-smt-v1\0\0\0").build();
+        for p in parts {
+            h.update(p);
+        }
+        let mut out = [0u8; 32];
+        h.finalize(&mut out);
+        out
+    }
+
+    /// Hash of the empty subtree at each height (0 = leaf level ... DEPTH = root of empty tree).
+    fn empty_hashes() -> [Hash; DEPTH + 1] {
+        let mut e = [[0u8; 32]; DEPTH + 1];
+        for d in 1..=DEPTH {
+            e[d] = blake2b(&[&e[d - 1], &e[d - 1]]);
+        }
+        e
+    }
+
+    /// Leaf hash for a PRESENT key — domain-separated and key-bound, so a proof for one
+    /// key can never be replayed for another.
+    pub fn leaf(key: u64) -> Hash {
+        blake2b(&[b"leaf", &key.to_le_bytes()])
+    }
+
+    /// THE shared fold: compute the root implied by placing `leaf_hash` at `key`'s slot
+    /// with the given sibling path (siblings[0] = leaf level ... siblings[DEPTH-1] = top).
+    /// Bit i of `key` (LSB-first from the leaf) picks the side at height i.
+    pub fn root_from(key: u64, leaf_hash: Hash, siblings: &[Hash; DEPTH]) -> Hash {
+        let mut acc = leaf_hash;
+        for (i, sib) in siblings.iter().enumerate() {
+            acc = if (key >> i) & 1 == 0 {
+                blake2b(&[&acc, sib])
+            } else {
+                blake2b(&[sib, &acc])
+            };
+        }
+        acc
+    }
+
+    /// Membership: the key's slot holds its leaf hash under `root`.
+    pub fn verify_member(root: Hash, key: u64, siblings: &[Hash; DEPTH]) -> bool {
+        root_from(key, leaf(key), siblings) == root
+    }
+
+    /// Non-membership: the key's slot is EMPTY under `root`. Proving this for a present
+    /// key is impossible — its slot hashes to leaf(key), not the empty leaf.
+    pub fn verify_non_member(root: Hash, key: u64, siblings: &[Hash; DEPTH]) -> bool {
+        root_from(key, [0u8; 32], siblings) == root
+    }
+
+    /// Insertion: `old_root` had the slot empty; `new_root` is exactly `old_root` with
+    /// leaf(key) placed there. SAME sibling path on both sides — nothing else may move.
+    pub fn verify_insert(old_root: Hash, new_root: Hash, key: u64, siblings: &[Hash; DEPTH]) -> bool {
+        root_from(key, [0u8; 32], siblings) == old_root
+            && root_from(key, leaf(key), siblings) == new_root
+    }
+
+    /// Off-VM maintainer of the index (the consensus-derived state). Node hashes are
+    /// stored sparsely; absent nodes are the height's empty hash.
+    pub struct NoveltyIndex {
+        nodes: HashMap<(usize, u64), Hash>, // (height, prefix-above-height) -> hash
+        empty: [Hash; DEPTH + 1],
+    }
+
+    impl Default for NoveltyIndex {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
+    impl NoveltyIndex {
+        pub fn new() -> Self {
+            NoveltyIndex { nodes: HashMap::new(), empty: empty_hashes() }
+        }
+
+        fn node(&self, height: usize, prefix: u64) -> Hash {
+            *self.nodes.get(&(height, prefix)).unwrap_or(&self.empty[height])
+        }
+
+        pub fn root(&self) -> Hash {
+            self.node(DEPTH, 0)
+        }
+
+        /// Sibling path for `key`, bottom-up — valid for both proof polarities.
+        pub fn proof(&self, key: u64) -> [Hash; DEPTH] {
+            let mut sib = [[0u8; 32]; DEPTH];
+            for (i, s) in sib.iter_mut().enumerate() {
+                let prefix = key >> i;
+                *s = self.node(i, prefix ^ 1);
+            }
+            sib
+        }
+
+        pub fn contains(&self, key: u64) -> bool {
+            self.nodes.contains_key(&(0, key))
+        }
+
+        /// Insert a key (idempotent), updating the O(DEPTH) path to the root.
+        pub fn insert(&mut self, key: u64) {
+            let mut acc = leaf(key);
+            self.nodes.insert((0, key), acc);
+            for i in 0..DEPTH {
+                let prefix = key >> i;
+                let sib = self.node(i, prefix ^ 1);
+                acc = if prefix & 1 == 0 {
+                    blake2b(&[&acc, &sib])
+                } else {
+                    blake2b(&[&sib, &acc])
+                };
+                self.nodes.insert((i + 1, prefix >> 1), acc);
+            }
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn insertion_order_cannot_change_the_root() {
+            // Set semantics from positional hashing — the property that makes the root a
+            // commitment to the SET, immune to history-presentation games.
+            let keys = [42u64, 7, 0xDEAD_BEEF, u64::MAX, 1 << 40];
+            let mut a = NoveltyIndex::new();
+            let mut b = NoveltyIndex::new();
+            for k in keys {
+                a.insert(k);
+            }
+            for k in keys.iter().rev() {
+                b.insert(*k);
+            }
+            assert_eq!(a.root(), b.root(), "order-independent");
+            a.insert(42); // idempotent re-insert
+            assert_eq!(a.root(), b.root(), "re-insertion is a no-op");
+            assert_ne!(a.root(), NoveltyIndex::new().root(), "non-empty != empty");
+        }
+
+        #[test]
+        fn membership_and_non_membership_are_mutually_exclusive() {
+            // THE omission-attack kill from the design doc: a present key can NEVER prove
+            // non-membership, an absent key can NEVER prove membership — with the same
+            // honest sibling path. Complete classification is therefore forced.
+            let mut idx = NoveltyIndex::new();
+            for k in [10u64, 11, 99, 1 << 33] {
+                idx.insert(k);
+            }
+            let root = idx.root();
+            let present = 99u64;
+            let absent = 100u64;
+            assert!(verify_member(root, present, &idx.proof(present)));
+            assert!(!verify_non_member(root, present, &idx.proof(present)), "present can't deny");
+            assert!(verify_non_member(root, absent, &idx.proof(absent)));
+            assert!(!verify_member(root, absent, &idx.proof(absent)), "absent can't claim");
+        }
+
+        #[test]
+        fn proofs_bind_key_and_root() {
+            let mut idx = NoveltyIndex::new();
+            idx.insert(5);
+            let root = idx.root();
+            let p5 = idx.proof(5);
+            assert!(!verify_member(root, 6, &p5), "proof not replayable for another key");
+            let mut other = NoveltyIndex::new();
+            other.insert(77);
+            assert!(!verify_member(other.root(), 5, &p5), "proof not replayable across roots");
+        }
+
+        #[test]
+        fn insertion_proof_validates_exact_transition_only() {
+            // The index-cell rule (T7 #3 will consume this): new root = old root + exactly
+            // the proven key. A different key, a skipped insert, or a smuggled second
+            // change all fail against the same sibling path.
+            let mut idx = NoveltyIndex::new();
+            for k in [3u64, 9, 2000] {
+                idx.insert(k);
+            }
+            let old_root = idx.root();
+            let key = 4096u64;
+            let sib = idx.proof(key);
+            idx.insert(key);
+            let new_root = idx.root();
+            assert!(verify_insert(old_root, new_root, key, &sib));
+            assert!(!verify_insert(old_root, new_root, 4097, &idx.proof(4097)), "wrong key");
+            assert!(!verify_insert(old_root, old_root, key, &sib), "no-op claimed as insert");
+            assert!(!verify_insert(new_root, old_root, key, &sib), "reversed transition");
+        }
+
+        #[test]
+        fn exact_novelty_and_overlap_counts_from_complete_classification() {
+            // The T7 #2 verifier shape, demonstrated end to end off-VM: classify EVERY
+            // shingle of a coverage list against the root; counts must equal ground truth.
+            let mut idx = NoveltyIndex::new();
+            let seen = [1u64, 2, 3, 50, 60];
+            for k in seen {
+                idx.insert(k);
+            }
+            let root = idx.root();
+            let coverage = [2u64, 3, 4, 50, 70, 71]; // 3 overlap, 3 novel
+            let mut overlap = 0;
+            let mut novelty = 0;
+            for k in coverage {
+                let p = idx.proof(k);
+                match (verify_member(root, k, &p), verify_non_member(root, k, &p)) {
+                    (true, false) => overlap += 1,
+                    (false, true) => novelty += 1,
+                    _ => panic!("classification must be complete and exclusive"),
+                }
+            }
+            assert_eq!((overlap, novelty), (3, 3), "exact counts — floors run on these");
+        }
+    }
+}

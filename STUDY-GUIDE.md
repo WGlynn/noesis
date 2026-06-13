@@ -2,7 +2,7 @@
 
 > Regenerated FROM the repo by `scripts/study-guide.py`, so it cannot lag the
 > code. Tick the boxes as you internalize each piece. Re-run to refresh.
-> Node test suite: **133 passing**.
+> Node test suite: **138 passing**.
 
 ## Read in this order
 
@@ -21,7 +21,7 @@
 ### Reference (not on the critical path)
 - [ ] CKB-VM-PORT.md — - `ckb_vm::run::<R, M>(program: &Bytes, args: &[Bytes], memory_size: usize) -> Result<i8, Error>` — simplest entry; i8 exit code, 0 = success. (`src/lib.rs:41`) - Default machine recipe used by `run` itself (`src/lib.rs`):
 - [ ] CONSENSUS-REVIEW.md — The load-bearing question was *"does NCI's 60/30/10 break the rock-paper-scissors / separation-of-powers claim?"* The answer turns entirely on **composition**, not the numbers:
-- [ ] CONTINUE.md — - **`T7-CROSS-CELL-SIMILARITY.md`**: the history-dependent floors (temporal novelty + similarity) go on-VM via a consensus-maintained NOVELTY-INDEX CELL (SMT root over the seen-shingle set) + witness proofs giving COMPLETE per-shingle class...
+- [ ] CONTINUE.md — - **SMT in `node` (T7 #1)**: blake2b-ref dep (proven recipe), depth-64 over CovId, ONE shared fold (`root_from`) serving membership / non-membership / insertion; off-VM `NoveltyIndex` maintainer (O(64) insert/proof). proof-property checks: ...
 - [ ] FOUNDATION-grace-made-mechanical.md — *A record. Will Glynn, with JARVIS. 2026-06-12. Captured in-flight, the moment the moral substrate beneath the whole project became explicit.*
 - [ ] HANDOFF.md — Resume point for a fresh chat. Detail lives in `CONTINUE.md` (top block) and `ROADMAP.md`; this is the fast orientation. Repo: `WGlynn/noesis` (private remote). Node: `node/`, Rust.
 - [ ] JARVIS-CORE-harness-as-coordination.md — *Draft. Will Glynn, with JARVIS. 2026-06-12. The competitive layer of an AI system is not the model's weights — it is the harness that coordinates models, and the harness wins by grounding their cross-check in structure that cannot lie. PRI...
@@ -46,6 +46,7 @@
 - [ ] `semantic` — Semantic / compressibility floor (ROADMAP Phase 1, Role-C — the garbage-novelty gap AT the gate)
 - [ ] `outcome` — Learned OUTCOME model over coalitions (`OUTCOME-EVALUATOR.md` §4, Phase-1 frontier)
 - [ ] `harness` — Harness checker-routing (the JARVIS core thesis, modeled and tested)
+- [ ] `smt` — Sparse Merkle Tree over 64-bit shingle keys — T7 #1 (`T7-CROSS-CELL-SIMILARITY.md`)
 
 ## Glossary (the load-bearing terms)
 

@@ -2,7 +2,7 @@
 
 > ROADMAP execution-tier T7. Design-first increment (2026-06-12 PM): the mechanism is
 > chosen and adversarially walked here; code lands in the ordered increments at the end.
-> Status: DESIGN, no code yet.
+> Status: DESIGN + increment #1 SHIPPED (node `smt` module, five proof-property checks). critical-qa'd (§QA below).
 
 ## The problem
 
@@ -76,3 +76,37 @@ intake-time history floors on-VM. The learned model stays role-bounded (`evaluat
 4. **PoM script extension + host syscalls** — witness-served proofs
    (`load_witness_args` path exists in ckb-std), index root served like cell data;
    end-to-end test = the T4-T6 pattern: same verdicts host-side and on-VM.
+
+## critical-qa (2026-06-12, pre-#2 — 3 rounds, 1 design change)
+
+**R1 [mechanism] Q: who stores the full seen-set?** A: nobody on-chain — it is DERIVED
+consensus state, reconstructible from chain history exactly like a UTXO set; only the
+root lives in the index cell. Provers reconstruct (or query a node) to build proofs.
+Confirmed-ok; stated in the smt module doc.
+
+**R2 [adversarial] Q: the index cell serializes every commit — is "shard by prefix" a
+real answer?** A: NO — the math (appendix below) kills it: pairwise tx conflict ≈
+S₁·S₂/2^k, so S≈100-shingle cells need ~2^20 shards for ~1% conflict, and each tx still
+touches ~min(S, shards) shards. DESIGN CHANGE: **per-block batched root update** — txs
+prove against the block-START root; the producer folds all accepted novel shingles into
+ONE root transition per block (a chain of verify_insert steps, order = commit order);
+intra-block duplicate novelty claims are resolved at block assembly (first commit wins
+novelty, later claimants get overlap) — a CONSENSUS rule, like double-spend rejection,
+honest-pinned: that slice of authority is block-validation, not per-script.
+
+**R3 [cost] Q: cycle budget at real sizes?** A: per shingle one 64-level path ≈ 64
+blake2b; a 1KB cell ≈ O(1000) shingles ≈ 64k hashes ≈ tens of millions of cycles —
+near typical script budgets. Mitigations, in order: (a) per-block batching already
+amortizes the INSERT side to one transition; (b) SMT multi-proofs (sorted keys share
+upper-path siblings — large compression for clustered shingles); (c) coverage cap per
+cell (state-rent already prices bytes). Calibration item, pinned; sampling stays
+REJECTED (breaks the exactness that defeats omission).
+
+## Appendix — sharding math (rejected mitigation, kept for the record)
+
+2^k prefix shards; tx with S shingles touches E = 2^k·(1−(1−2^{−k})^S) ≈ S shards when
+2^k ≫ S. Two txs conflict iff they share a shard: P ≈ 1−(1−S₁/2^k)^{S₂} ≈ S₁S₂/2^k.
+S=100 ⇒ 1% pairwise conflict needs 2^k ≈ 10^6 index cells (state cost), while per-tx
+shard-touch count stays ≈ S (no per-tx win at all). Per-shingle sharding therefore
+buys parallelism only at absurd state cost — per-block batching dominates it on every
+axis. Rejected.

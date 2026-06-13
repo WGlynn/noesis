@@ -1,5 +1,20 @@
 # CONTINUE — Noesis handoff (PRIVATE, stealth)
 
+## ▶ RESUME HERE (2026-06-12 PM-11 — T7 #1 SMT shipped + design qa'd, node 152/152)
+- **SMT in `node` (T7 #1)**: blake2b-ref dep (proven recipe), depth-64 over CovId, ONE
+  shared fold (`root_from`) serving membership / non-membership / insertion; off-VM
+  `NoveltyIndex` maintainer (O(64) insert/proof). proof-property checks: order-independence (set
+  semantics), mutual-exclusion (the omission kill), key+root binding, exact-transition
+  insertion (the T7 #3 rule shape), complete-classification exact counts (the T7 #2
+  verifier shape). All green first run.
+- **T7 design critical-qa'd, 1 DESIGN CHANGE**: per-shingle sharding REJECTED by math
+  (conflict ≈ S₁S₂/2^k ⇒ ~2^20 cells for 1% at S=100, no per-tx win) → **per-block
+  batched root update** (prove against block-start root; producer folds novel shingles
+  once per block; intra-block dup-novelty = consensus rule at assembly, like
+  double-spend). Cycle budget pinned with real numbers (1KB cell ≈ 64k hashes).
+- **Story-loop ARMED by Will (picks 1,2,4,5,6,8): 4 iterations** = T8 Q32.32 settlement
+  mirror → T7 #2 shared verifier → T7 #3 index-cell rule → T7 #4 script+syscalls e2e.
+
 ## ▶ RESUME HERE (2026-06-12 PM-10 — T7 DESIGN shipped, no code yet)
 - **`T7-CROSS-CELL-SIMILARITY.md`**: the history-dependent floors (temporal novelty +
   similarity) go on-VM via a consensus-maintained NOVELTY-INDEX CELL (SMT root over the

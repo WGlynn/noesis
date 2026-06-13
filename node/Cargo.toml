@@ -7,6 +7,12 @@ description = "Proof-of-Mind value chain — core mechanism (PRIVATE, stealth)"
 # Execution layer: RISC-V via CKB-VM (Nervos), same substrate as the CKB pivot.
 # The core mechanism stays VM-agnostic; ckb-vm is a DEV dependency only (host-side
 # smoke harness, CKB-VM-PORT.md increment #2) until the type-script lands.
+[dependencies]
+# T7 #1 (T7-CROSS-CELL-SIMILARITY.md): the novelty-index SMT. blake2b-ref is the
+# no_std-proven hasher from the vibeswap cell recipe — keeps the SMT core portable
+# to the type-script later.
+blake2b-ref = { version = "0.3", default-features = false }
+
 [dev-dependencies]
 ckb-vm = "0.24"
 
