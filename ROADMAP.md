@@ -153,7 +153,11 @@ is a reputation system.
 - ✅ T5 group-input iteration (whole script group floored; index-1 smuggling gap FLIPPED)
 - ✅ T6 group-OUTPUT validation (mint-side noise floored at exit 14; host serves both tx
   directions; burn-only and mint-only groups valid; empty group rejected)
-- 🟡 T7 cross-cell similarity floor on-VM (seen-shingle state via Noesis syscall)
+- 🟡 T7 cross-cell similarity floor on-VM — DESIGN SHIPPED (`T7-CROSS-CELL-SIMILARITY.md`):
+  committed novelty-index cell (SMT root) + complete per-shingle membership/non-membership
+  classification in the witness ⇒ exact novelty/overlap counts verified on-VM; omission and
+  stale-root walked closed at design time; serialization + cycle cost pinned as calibration
+  (shard-by-prefix, SMT multi-proofs). Code increments 1-4 ordered in-doc; #1 = SMT in node.
 - 🟡 T8 Q32.32 settlement mirror (flow/v5-v7) → on-VM finalization path above
 - ✅ ref / 🟡 solver **Stability** — core membership + nucleolus max-excess reference model
   (`stability` mod, tested); the LP / iterated-LP solver over the real PoM-weighted coalition

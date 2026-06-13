@@ -1,5 +1,19 @@
 # CONTINUE — Noesis handoff (PRIVATE, stealth)
 
+## ▶ RESUME HERE (2026-06-12 PM-10 — T7 DESIGN shipped, no code yet)
+- **`T7-CROSS-CELL-SIMILARITY.md`**: the history-dependent floors (temporal novelty +
+  similarity) go on-VM via a consensus-maintained NOVELTY-INDEX CELL (SMT root over the
+  seen-shingle set) + witness proofs giving COMPLETE per-shingle classification — script
+  derives the coverage list itself, demands membership XOR non-membership per shingle
+  against the consumed root ⇒ exact counts, floors run on verified numbers. Design-time
+  adversarial walk: omission impossible (complete classification), stale-root impossible
+  (UTXO liveness = freshness), front-running = commit-reveal layer's job (composition),
+  cycle cost honest-pinned (multi-proofs; sampling REJECTED — breaks the exactness that
+  defeats omission). Throughput serialization pinned (shard-by-prefix = calibration).
+- **Next code increment = T7 #1: SMT in `node`** (blake2b-ref, no_std-compatible core,
+  membership/non-membership/insertion proofs, off-VM tests). Then the shared verifier,
+  index-cell rule, script extension + host syscalls (#2-4 in-doc).
+
 ## ▶ RESUME HERE (2026-06-12 PM-9 — T6 mint-side validation, node 147/147)
 - **ROADMAP T6 CLOSED** ("noesis development", same chat): host serves Source::GroupOutput
   (`for_tx` + `run_typescript_tx` in tests/common), program iterates BOTH group directions
