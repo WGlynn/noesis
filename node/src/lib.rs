@@ -114,6 +114,33 @@ pub fn temporal_novelty_with_similarity_floor(cells_in_commit_order: &[Cell], th
     out
 }
 
+/// Temporal novelty assigned in CONSENSUS COMMIT ORDER, invariant to the order the cells are
+/// PRESENTED in. This is the temporal-order attacker-input fix at the value layer: instead of
+/// trusting the caller's slice order, it sorts the cells by [`commit_order::canonical_order`]
+/// (height, then XOR-seeded in-block slot), runs [`temporal_novelty`] over that canonical
+/// order, and returns the values keyed back to presentation order. A producer who presents a
+/// redundant cell FIRST to steal novelty gains nothing: canonical order places the truly
+/// earlier-committed cell first regardless of presentation, so the redundant one still earns 0.
+/// `coords[i]` is the consensus-sourced ordering coordinate of `cells_in_presented_order[i]`.
+pub fn novelty_in_commit_order(
+    cells_in_presented_order: &[Cell],
+    coords: &[commit_order::Committed],
+) -> Vec<u64> {
+    assert_eq!(
+        cells_in_presented_order.len(),
+        coords.len(),
+        "every presented cell needs its consensus-sourced ordering coordinate"
+    );
+    let order = commit_order::canonical_order(coords);
+    let canon: Vec<Cell> = order.iter().map(|&i| cells_in_presented_order[i].clone()).collect();
+    let vals = temporal_novelty(&canon);
+    let mut out = vec![0u64; canon.len()];
+    for (slot, &orig) in order.iter().enumerate() {
+        out[orig] = vals[slot];
+    }
+    out
+}
+
 /// PoM score per CONTRIBUTOR = sum of temporal-novelty value of authored cells.
 ///
 /// Keyed by `type_script.args` (the SOULBOUND contributor identity), NOT by `lock.args`
@@ -5480,6 +5507,240 @@ pub mod index_rule {
             assert!(nov_b_seq < nov_b_start, "B's shared shingles became overlap");
             assert!(overlap_b_seq > 0, "first commit won them");
             assert!(nov_b_seq > 0, "B's own tail still earns");
+        }
+    }
+}
+
+// ============ Consensus-sourced commit ordering (TEMPORAL-ORDER-ONCHAIN.md) ============
+/// The fix for the temporal-order attacker-choosable-input finding
+/// ([P·dont-let-attacker-choose-critical-input], 2026-06-13). [`temporal_novelty`] and the
+/// index [`index_rule::valid_root_transition`] assign shared novelty by ORDER: the
+/// earlier-committed cell wins the contested coverage; a later redundant cell earns 0. That
+/// is strategyproof ONLY if "earlier" is a relation the block producer cannot arrange. The
+/// rules above trust the caller's slice / step order — correct for a reference model, but it
+/// RELOCATES the invariant to the source of that order. On-chain the order MUST come from
+/// consensus, at two scales, so it is not producer-arrangeable:
+///
+///   - INTER-block: the commit-reveal BLOCK HEIGHT the cell's commitment landed in. A later
+///     height can never precede an earlier one. The self-set `Cell.timestamp` is never
+///     consulted (pinned by `temporal_order_is_consensus_critical_and_timestamp_is_not_the_lever`),
+///     so backdating it is a no-op — the field is not the lever, the ORDER is.
+///   - INTRA-block (same-height ties): a Fisher-Yates shuffle seeded by the XOR of EVERY
+///     revealing participant's secret — the VibeSwap `DeterministicShuffle` primitive. A
+///     participant commits before any secret is revealed, and their slot depends on the XOR
+///     of all secrets, so no party can predict — let alone choose — their own position. This
+///     DISSOLVES producer-favorable ordering ([P·class-dissolution-vs-case-defeat]) rather
+///     than detecting it case by case: there is no secret a rational producer can pick that
+///     guarantees an earlier slot, because the others' (unknown) secrets co-determine it.
+///
+/// This is the reference model. The on-VM index-cell type-script sources `height` from the
+/// header and the secrets from the block's reveals (sentinel-gated inert pre-deploy, exactly
+/// like the index-dep binding and the finalization `now`). See `TEMPORAL-ORDER-ONCHAIN.md`.
+pub mod commit_order {
+    use super::smt::Hash;
+
+    /// A committed cell with its CONSENSUS-SOURCED ordering coordinates. `height` =
+    /// commit-reveal block height (header on-chain). `secret` = the participant's revealed
+    /// commit-reveal secret, the entropy that — XORed with every other secret in the block —
+    /// seeds the in-block shuffle. Neither is the self-set `timestamp` nor presentation order.
+    /// Secrets are unique per commitment (a reused secret is detectable/slashable at reveal);
+    /// the model relies on that for a presentation-independent intra-block tiebreak.
+    #[derive(Clone, Debug)]
+    pub struct Committed {
+        pub height: u64,
+        pub secret: Hash,
+    }
+
+    /// Fold a 32-byte XOR accumulator into a 64-bit shuffle seed. The seed's only job is to
+    /// be a deterministic, unbiased function of ALL secrets; the fold keeps every byte of
+    /// every secret in play.
+    fn seed_from_xor(xor: &Hash) -> u64 {
+        xor.chunks_exact(8)
+            .fold(0u64, |acc, c| acc ^ u64::from_be_bytes(c.try_into().unwrap()))
+    }
+
+    /// splitmix64 — deterministic, well-distributed 64-bit PRNG. Consensus-replayable: every
+    /// node computes the identical permutation from the identical revealed secrets.
+    fn splitmix64(state: &mut u64) -> u64 {
+        *state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = *state;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^ (z >> 31)
+    }
+
+    /// Canonical intra-block permutation: Fisher-Yates over the participants, seeded by the
+    /// XOR of all `secrets`. Returns the participants' original indices in canonical
+    /// (winning-first) slot order. PRESENTATION-INDEPENDENT by construction: the base order
+    /// is the participants sorted by secret (not by how they were passed in), the XOR seed is
+    /// order-independent, and the shuffle is deterministic from the seed. So reordering the
+    /// input cannot change who lands in which slot — the property the whole fix rests on.
+    pub fn block_shuffle(secrets: &[Hash]) -> Vec<usize> {
+        // canonical base order: by secret bytes, erasing any presentation dependence.
+        let mut base: Vec<usize> = (0..secrets.len()).collect();
+        base.sort_by(|&a, &b| secrets[a].cmp(&secrets[b]));
+        // XOR seed over all secrets (commutative ⇒ order-independent).
+        let mut xor = [0u8; 32];
+        for s in secrets {
+            for (x, b) in xor.iter_mut().zip(s.iter()) {
+                *x ^= b;
+            }
+        }
+        let mut state = seed_from_xor(&xor);
+        // Fisher-Yates from the high end over the canonical base order.
+        for i in (1..base.len()).rev() {
+            let j = (splitmix64(&mut state) % (i as u64 + 1)) as usize;
+            base.swap(i, j);
+        }
+        base
+    }
+
+    /// Canonical commit order over a set of committed cells that may span blocks: order by
+    /// (height ascending, then in-block shuffle slot). Returns indices into `items` in
+    /// canonical order. Deterministic and independent of how `items` is presented.
+    pub fn canonical_order(items: &[Committed]) -> Vec<usize> {
+        if items.is_empty() {
+            return Vec::new();
+        }
+        let mut heights: Vec<u64> = items.iter().map(|c| c.height).collect();
+        heights.sort_unstable();
+        heights.dedup();
+        let mut order: Vec<usize> = Vec::with_capacity(items.len());
+        for h in heights {
+            let idxs: Vec<usize> = items
+                .iter()
+                .enumerate()
+                .filter(|(_, c)| c.height == h)
+                .map(|(i, _)| i)
+                .collect();
+            let secrets: Vec<Hash> = idxs.iter().map(|&i| items[i].secret).collect();
+            for &slot in block_shuffle(&secrets).iter() {
+                order.push(idxs[slot]);
+            }
+        }
+        order
+    }
+
+    /// Does `presented` already equal the canonical commit order? The index-cell type-script
+    /// ASSERTS this and REJECTS a non-canonical batch (rather than silently re-sorting):
+    /// rejection denies a producer any probe signal and keeps the ordered rule's input honest.
+    pub fn is_canonical_order(presented: &[Committed]) -> bool {
+        canonical_order(presented)
+            .iter()
+            .enumerate()
+            .all(|(pos, &idx)| pos == idx)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::{novelty_in_commit_order, Cell, Script};
+        use std::collections::HashSet;
+
+        fn mkcell(id: u64, data: &[u8]) -> Cell {
+            Cell {
+                id,
+                lock: Script { code_hash: [0u8; 32], args: vec![] },
+                type_script: Script { code_hash: [1u8; 32], args: vec![id as u8] },
+                parent: None,
+                timestamp: 0,
+                data: data.to_vec(),
+            }
+        }
+        fn sec(b: u8) -> Hash {
+            let mut s = [0u8; 32];
+            s[0] = b;
+            s[31] = b.wrapping_mul(7).wrapping_add(1);
+            s
+        }
+
+        #[test]
+        fn cross_block_height_dominates_presentation() {
+            // A is original at the EARLIER height; B is a redundant subset at a LATER height.
+            // The producer-favorable attack presents B first to steal novelty. Consensus order
+            // sources "earlier" from height, so B earns 0 no matter how it is presented.
+            let a = mkcell(0, b"alpha-bravo-charlie-delta");
+            let b = mkcell(1, b"alph"); // single shingle, a strict subset of a's coverage
+            let ca = Committed { height: 5, secret: sec(9) };
+            let cb = Committed { height: 6, secret: sec(3) };
+
+            let honest = novelty_in_commit_order(&[a.clone(), b.clone()], &[ca.clone(), cb.clone()]);
+            assert!(honest[0] > 0 && honest[1] == 0, "true order: A novel, redundant B earns 0");
+
+            // present B FIRST (its coord still says height 6): the attack must not pay.
+            let gamed = novelty_in_commit_order(&[b.clone(), a.clone()], &[cb, ca]);
+            assert!(
+                gamed[1] > 0 && gamed[0] == 0,
+                "redundant B presented first STILL earns 0; A keeps the novelty by lower commit height"
+            );
+        }
+
+        #[test]
+        fn canonical_order_is_invariant_to_presentation() {
+            let coords = vec![
+                Committed { height: 1, secret: sec(7) },
+                Committed { height: 1, secret: sec(2) },
+                Committed { height: 2, secret: sec(5) },
+                Committed { height: 1, secret: sec(9) },
+                Committed { height: 3, secret: sec(1) },
+            ];
+            let ident = |c: &[Committed]| -> Vec<(u64, Hash)> {
+                canonical_order(c).iter().map(|&i| (c[i].height, c[i].secret)).collect()
+            };
+            let seq0 = ident(&coords);
+            let mut reversed = coords.clone();
+            reversed.reverse();
+            assert_eq!(seq0, ident(&reversed), "canonical order is independent of presentation order");
+            // and heights are non-decreasing across the canonical sequence
+            assert!(seq0.windows(2).all(|w| w[0].0 <= w[1].0), "earlier height always precedes later");
+        }
+
+        #[test]
+        fn intra_block_slot_is_not_self_selectable() {
+            // Same-height tie. The XOR-seeded shuffle means a participant's slot depends on the
+            // OTHER participants' (unknown-at-commit) secrets, so no fixed secret guarantees an
+            // earlier slot. Hold the attacker's secret constant; vary the others; show the
+            // attacker lands in more than one slot -> the slot is co-determined, not chosen.
+            let atk = sec(123);
+            let mut slots = HashSet::new();
+            for o in 0..8u8 {
+                let set = [
+                    Committed { height: 1, secret: atk },
+                    Committed { height: 1, secret: sec(200 + o) },
+                    Committed { height: 1, secret: sec(150 + o) },
+                ];
+                let perm = canonical_order(&set);
+                let attacker_slot = perm.iter().position(|&i| i == 0).unwrap();
+                slots.insert(attacker_slot);
+            }
+            assert!(
+                slots.len() > 1,
+                "attacker's slot varies with the others' secrets -> producer-favorable ordering is dissolved, not merely detected"
+            );
+        }
+
+        #[test]
+        fn block_shuffle_is_deterministic_and_total() {
+            let secs = [sec(1), sec(2), sec(3), sec(4), sec(5)];
+            let p = block_shuffle(&secs);
+            assert_eq!(p, block_shuffle(&secs), "consensus-replayable: same secrets, same permutation");
+            let seen: HashSet<usize> = p.iter().copied().collect();
+            assert_eq!(seen.len(), secs.len(), "a permutation: every participant gets exactly one slot");
+        }
+
+        #[test]
+        fn is_canonical_order_rejects_a_reordered_batch() {
+            let coords = vec![
+                Committed { height: 1, secret: sec(4) },
+                Committed { height: 2, secret: sec(8) },
+                Committed { height: 3, secret: sec(2) },
+            ];
+            let order = canonical_order(&coords);
+            let canon: Vec<Committed> = order.iter().map(|&i| coords[i].clone()).collect();
+            assert!(is_canonical_order(&canon), "the canonical sequence is accepted");
+            let mut swapped = canon;
+            swapped.swap(0, 2); // producer reorders across heights
+            assert!(!is_canonical_order(&swapped), "a producer-favorable reorder is rejected, not silently re-sorted");
         }
     }
 }

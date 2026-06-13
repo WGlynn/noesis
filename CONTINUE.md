@@ -1,5 +1,27 @@
 # CONTINUE — Noesis handoff (PRIVATE, stealth)
 
+## ▶ RESUME HERE (2026-06-13 — temporal-order fix SHIPPED reference-side; node 191/191)
+- **The temporal-order attacker-input finding is now FIXED at the reference layer** (`TEMPORAL-ORDER-ONCHAIN.md`).
+  The audit relocated the invariant to the order-source; this builds the consensus-sourced order that
+  dissolves producer-favorable ordering at two scales:
+  - INTER-block = commit-reveal block HEIGHT (a later height can't precede an earlier one).
+  - INTRA-block ties = Fisher-Yates seeded by the XOR of EVERY revealed secret (VibeSwap
+    `DeterministicShuffle`): a participant commits before reveals, slot depends on all secrets, so no
+    one can choose their slot. Dissolution, not detection.
+- **SHIPPED** in `node/src/lib.rs`: `pub mod commit_order` (`block_shuffle` presentation-independent,
+  `canonical_order`, `is_canonical_order`) + `novelty_in_commit_order` value-layer wrapper. **5 new
+  tests, node 191/191** (was 186). Headline tests: redundant-block-presented-first STILL earns 0
+  (`cross_block_height_dominates_presentation`); the slot is co-determined not self-selectable
+  (`intra_block_slot_is_not_self_selectable`).
+- **STILL PENDING (honest):** the on-VM ELF port (header-sourced height + reveal-sourced XOR seed +
+  canonical-order exit code in the index-cell type-script), sentinel-gated inert pre-deploy exactly
+  like the index-dep activated path and the finalization mirror. Deploy-coupled (needs commit-reveal
+  block plumbing live). Spec in `TEMPORAL-ORDER-ONCHAIN.md` §"On-VM enforcement".
+- **NEXT BUILD candidates:** (a) the on-VM ordering port above; (b) wire the canonical-order assertion
+  into `index_rule::valid_root_transition` at per-cell-batch granularity; (c) the finalization mirror
+  (`ON-VM-FINALIZATION.md`), same `now`-from-header invariant; (d) multi-proof compression.
+- This is the 4th site of `[P·dont-let-attacker-choose-critical-input]`: code_hash / now / temporal-order.
+
 ## ▶ RESUME HERE (2026-06-13 — defensive audit via the attacker-input invariant; node 186/186)
 - **New invariant captured** (public memory): `[P·dont-let-attacker-choose-critical-input]` — source
   security-critical inputs where the attacker can't choose them; a free/tx-chosen value is
