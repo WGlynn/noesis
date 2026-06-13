@@ -4,6 +4,22 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## ▶ RESUME HERE (2026-06-13 — LEAN: single-sourced commit_order + LOC audit; node 196/196)
+- **Lean-audit recon (story pick 5):** total **7,577 Rust LOC**, but `node/src/lib.rs` = **6,099**
+  (80%, 23 modules in one file — the auditability target). ~40/60 code/test (healthy). Heaviest:
+  value 850, dispute 646, consensus 494. ~460 lines duplicated node↔noesis-core (smt/proven/
+  value_fixed/semantic/commit_order) = the single-source debt. `adversary` = 325 code, no tests.
+- **Lean increment (story pick 6, iter 1): PAID the commit_order debt.** node lib now
+  `pub use noesis_core::commit_order::{...}` — ~90 duplicate lines deleted from the monolith, the
+  tautological drift test removed (197→196 = the deletion, not a regression). noesis-core moved
+  node-side from dev-dep → dep (the lib links it). ONE implementation. Bitcoin-lean.
+- **LEAN BACKLOG (next, low-risk-first):** (a) single-source the other 4 cores (smt/proven/
+  value_fixed/semantic) the same way — but they're FLAT in core vs MODULAR in node, so it needs
+  core reorg first (bigger, careful pass); (b) split the 6k-line lib.rs into per-module files
+  (mechanical, big auditability win); (c) review `adversary` (325 lines) for over-construction;
+  (d) fix the pre-existing `CoreMachine` unused-import warning in ckb_vm tests.
+- Design constraint stays in force: [[noesis-lean-like-bitcoin]] — minimal mechanism, earn-its-place.
+
 ## ▶ RESUME HERE (2026-06-13 — on-VM ordering port, portable half; node 197/197)
 - **`noesis-core::commit_order` SHIPPED** (no_std port of `node::commit_order`): block_shuffle /
   canonical_order / is_canonical_order now compile into the on-VM crate, BUILD for

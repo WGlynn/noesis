@@ -5790,103 +5790,16 @@ pub mod index_rule {
 /// header and the secrets from the block's reveals (sentinel-gated inert pre-deploy, exactly
 /// like the index-dep binding and the finalization `now`). See `TEMPORAL-ORDER-ONCHAIN.md`.
 pub mod commit_order {
-    use super::smt::Hash;
-
-    /// A committed cell with its CONSENSUS-SOURCED ordering coordinates. `height` =
-    /// commit-reveal block height (header on-chain). `secret` = the participant's revealed
-    /// commit-reveal secret, the entropy that — XORed with every other secret in the block —
-    /// seeds the in-block shuffle. Neither is the self-set `timestamp` nor presentation order.
-    /// Secrets are unique per commitment (a reused secret is detectable/slashable at reveal);
-    /// the model relies on that for a presentation-independent intra-block tiebreak.
-    #[derive(Clone, Debug)]
-    pub struct Committed {
-        pub height: u64,
-        pub secret: Hash,
-    }
-
-    /// Fold a 32-byte XOR accumulator into a 64-bit shuffle seed. The seed's only job is to
-    /// be a deterministic, unbiased function of ALL secrets; the fold keeps every byte of
-    /// every secret in play.
-    fn seed_from_xor(xor: &Hash) -> u64 {
-        xor.chunks_exact(8)
-            .fold(0u64, |acc, c| acc ^ u64::from_be_bytes(c.try_into().unwrap()))
-    }
-
-    /// splitmix64 — deterministic, well-distributed 64-bit PRNG. Consensus-replayable: every
-    /// node computes the identical permutation from the identical revealed secrets.
-    fn splitmix64(state: &mut u64) -> u64 {
-        *state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-        let mut z = *state;
-        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        z ^ (z >> 31)
-    }
-
-    /// Canonical intra-block permutation: Fisher-Yates over the participants, seeded by the
-    /// XOR of all `secrets`. Returns the participants' original indices in canonical
-    /// (winning-first) slot order. PRESENTATION-INDEPENDENT by construction: the base order
-    /// is the participants sorted by secret (not by how they were passed in), the XOR seed is
-    /// order-independent, and the shuffle is deterministic from the seed. So reordering the
-    /// input cannot change who lands in which slot — the property the whole fix rests on.
-    pub fn block_shuffle(secrets: &[Hash]) -> Vec<usize> {
-        // canonical base order: by secret bytes, erasing any presentation dependence.
-        let mut base: Vec<usize> = (0..secrets.len()).collect();
-        base.sort_by(|&a, &b| secrets[a].cmp(&secrets[b]));
-        // XOR seed over all secrets (commutative ⇒ order-independent).
-        let mut xor = [0u8; 32];
-        for s in secrets {
-            for (x, b) in xor.iter_mut().zip(s.iter()) {
-                *x ^= b;
-            }
-        }
-        let mut state = seed_from_xor(&xor);
-        // Fisher-Yates from the high end over the canonical base order.
-        for i in (1..base.len()).rev() {
-            let j = (splitmix64(&mut state) % (i as u64 + 1)) as usize;
-            base.swap(i, j);
-        }
-        base
-    }
-
-    /// Canonical commit order over a set of committed cells that may span blocks: order by
-    /// (height ascending, then in-block shuffle slot). Returns indices into `items` in
-    /// canonical order. Deterministic and independent of how `items` is presented.
-    pub fn canonical_order(items: &[Committed]) -> Vec<usize> {
-        if items.is_empty() {
-            return Vec::new();
-        }
-        let mut heights: Vec<u64> = items.iter().map(|c| c.height).collect();
-        heights.sort_unstable();
-        heights.dedup();
-        let mut order: Vec<usize> = Vec::with_capacity(items.len());
-        for h in heights {
-            let idxs: Vec<usize> = items
-                .iter()
-                .enumerate()
-                .filter(|(_, c)| c.height == h)
-                .map(|(i, _)| i)
-                .collect();
-            let secrets: Vec<Hash> = idxs.iter().map(|&i| items[i].secret).collect();
-            for &slot in block_shuffle(&secrets).iter() {
-                order.push(idxs[slot]);
-            }
-        }
-        order
-    }
-
-    /// Does `presented` already equal the canonical commit order? The index-cell type-script
-    /// ASSERTS this and REJECTS a non-canonical batch (rather than silently re-sorting):
-    /// rejection denies a producer any probe signal and keeps the ordered rule's input honest.
-    pub fn is_canonical_order(presented: &[Committed]) -> bool {
-        canonical_order(presented)
-            .iter()
-            .enumerate()
-            .all(|(pos, &idx)| pos == idx)
-    }
+    // Single source of truth: the consensus permutation lives in noesis-core (no_std, on-VM),
+    // so node RE-EXPORTS it rather than keeping a drift-guarded copy. Lean (Bitcoin-simplicity):
+    // ONE implementation, not two. The node-side tests below exercise it through `Cell` /
+    // `novelty_in_commit_order`; the pure-permutation properties are tested in noesis-core.
+    pub use noesis_core::commit_order::{block_shuffle, canonical_order, is_canonical_order, Committed};
 
     #[cfg(test)]
     mod tests {
         use super::*;
+        use crate::smt::Hash;
         use crate::{novelty_in_commit_order, Cell, Script};
         use std::collections::HashSet;
 
@@ -5900,7 +5813,7 @@ pub mod commit_order {
                 data: data.to_vec(),
             }
         }
-        fn sec(b: u8) -> Hash {
+        fn sec(b: u8) -> [u8; 32] {
             let mut s = [0u8; 32];
             s[0] = b;
             s[31] = b.wrapping_mul(7).wrapping_add(1);

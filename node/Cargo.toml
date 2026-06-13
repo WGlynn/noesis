@@ -12,10 +12,12 @@ description = "Proof-of-Mind value chain — core mechanism (PRIVATE, stealth)"
 # no_std-proven hasher from the vibeswap cell recipe — keeps the SMT core portable
 # to the type-script later.
 blake2b-ref = { version = "0.3", default-features = false }
+# Single source of truth for the on-VM cores (commit_order re-exported by the lib; smt/proven/
+# value_fixed/semantic drift-guarded in tests). The lib links it so there is ONE implementation.
+noesis-core = { path = "../onchain/noesis-core" }
 
 [dev-dependencies]
 ckb-vm = "0.24"
-noesis-core = { path = "../onchain/noesis-core" }
 
 [lib]
 name = "noesis"

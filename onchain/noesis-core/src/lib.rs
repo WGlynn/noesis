@@ -235,7 +235,7 @@ pub mod commit_order {
 
     /// A committed cell with its CONSENSUS-SOURCED ordering coordinates: `height` = commit-reveal
     /// block height (header on-chain), `secret` = the participant's revealed commit-reveal secret.
-    #[derive(Clone)]
+    #[derive(Clone, Debug)]
     pub struct Committed {
         pub height: u64,
         pub secret: Hash,
