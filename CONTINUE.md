@@ -1,5 +1,54 @@
 # CONTINUE — Noesis handoff (PRIVATE, stealth)
 
+## ▶ RESUME HERE (2026-06-13 — RSAW "attack it / make it nuclear-proof" pass; node 195/195)
+- **Will: "audit and attack noesis, make it nuclear proof — or prove it already is."** 3 hostile
+  adversaries (value / consensus / ordering+on-VM) swept the whole stack. VERDICT:
+  - **Value layer = un-gameable BY CONSTRUCTION.** Sybil rings (v6 standing earned+soulbound),
+    encoding-evasion (byte-blind v6 + content-agnostic dispute ⇒ negative-EV), corrupt-evaluator
+    (authority bounded to timing, floors dominate), flow-DAG (damped d<1, external-only seeds),
+    Q16.16/Q32.32 (saturating, tested to u128 headroom), all 6 composition seams — every one
+    resisted with a STRUCTURAL reason, not a patch. No new break.
+  - **Core ordering + SMT + crypto = CLEAN.** Shuffle slot co-determined (un-grindable), forged
+    paths rejected (blake2b + domain-sep + path-dependent fold), today's ordered-transition holds.
+  - **Every "REAL BREAK" found = ONE class: attacker-choosable input that must be consensus-bound
+    on-VM.** index-dep hash_type + sentinel-overload = already pinned (QA-port-1/2), inert
+    pre-deploy. The NEW residue: `now` and the validator-set `all` in `finalizes_hybrid` were
+    outcome-determining but UNPINNED (no negative test), unlike temporal-order/index-dep.
+- **HARDENED (this pass): pinned them.** 2 new consensus tests —
+  `now_is_outcome_determining_so_must_be_header_sourced`,
+  `validator_set_is_outcome_determining_so_must_be_consensus_bound` — demonstrate the verdict moves
+  with each input and document the on-VM binding requirement. 5th/6th sites of
+  `[P·dont-let-attacker-choose-critical-input]`. node 193→195.
+- **Bottom line for Will: it is essentially nuclear-proof on every LIVE/reference surface; all real
+  residue is the attacker-input class, now fully pinned + tested, and closed on-VM at GATE 2 of the
+  release plan (header/consensus-sourcing — design-acknowledged, deploy-coupled).**
+
+## ▶ RESUME HERE (2026-06-13 — commit-order WIRED INTO the index rule; node 193/193)
+- **NEXT-BUILD (b) SHIPPED:** `index_rule::valid_ordered_root_transition` + `CellBatch` — the
+  consensus commit-order is now wired INTO the index-cell transition rule at per-cell-batch
+  granularity. `valid_root_transition` proved the root moved but TRUSTED the producer's step
+  order, which is exactly what decides first-commit-wins when two same-height cells contend for
+  shared novel coverage. The new rule gates on `commit_order::is_canonical_order` FIRST (height
+  ascending, then XOR-seeded in-block slot — neither producer-arrangeable), then checks the
+  flattened rolling-root transition; a producer-favorable reorder is REJECTED at the order gate
+  before any root math (no silent re-sort ⇒ no probe signal). **2 new tests, node 191→193**:
+  `ordered_batch_validates_in_canonical_order`, `producer_favorable_reorder_is_rejected_at_the_order_gate`
+  (the second computes the canonical slot order, accepts that batch, then rejects its reversal —
+  robust to whichever secret wins the shuffle). This is the index-rule half of the temporal-order
+  fix; `commit_order` made order consensus-sourced, this makes the index cell REFUSE any other order.
+- **STILL PENDING (honest):** the on-VM ELF port of the ordered rule (header-sourced height +
+  reveal-sourced XOR seed + canonical-order exit code in the index-cell type-script), sentinel-
+  gated inert pre-deploy exactly like the index-dep binding and the finalization mirror. Deploy-
+  coupled (needs commit-reveal block plumbing live). Spec: `TEMPORAL-ORDER-ONCHAIN.md` §"On-VM".
+- **NEW (Will 2026-06-13): the convergence is SEALED** — `RELEASE-PLAN-VIBESWAP-ON-NOESIS.md` is
+  the master sequencing doc: the public VibeSwap protocol releases ON this chain as its deploy
+  substrate, gated behind both the noesis Phase-1→3 roadmap AND a four-surface VibeSwap critique
+  backlog (contracts / frontend-journey / wallet-security / accessibility — findings captured this
+  session). FRONT-RUN-SENSITIVE: the convergence stays private until matured. Read it next.
+- **NEXT BUILD candidates:** (a) the on-VM ordering port above; (b)✅ DONE; (c) the finalization
+  mirror (`ON-VM-FINALIZATION.md`), same `now`-from-header invariant; (d) multi-proof compression.
+- 4th site of `[P·dont-let-attacker-choose-critical-input]`: code_hash / now / temporal-order.
+
 ## ▶ RESUME HERE (2026-06-13 — temporal-order fix SHIPPED reference-side; node 191/191)
 - **The temporal-order attacker-input finding is now FIXED at the reference layer** (`TEMPORAL-ORDER-ONCHAIN.md`).
   The audit relocated the invariant to the order-source; this builds the consensus-sourced order that

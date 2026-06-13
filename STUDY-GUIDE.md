@@ -2,7 +2,7 @@
 
 > Regenerated FROM the repo by `scripts/study-guide.py`, so it cannot lag the
 > code. Tick the boxes as you internalize each piece. Re-run to refresh.
-> Node test suite: **166 passing**.
+> Node test suite: **170 passing**.
 
 ## Read in this order
 
@@ -21,13 +21,14 @@
 ### Reference (not on the critical path)
 - [ ] CKB-VM-PORT.md — - `ckb_vm::run::<R, M>(program: &Bytes, args: &[Bytes], memory_size: usize) -> Result<i8, Error>` — simplest entry; i8 exit code, 0 = success. (`src/lib.rs:41`) - Default machine recipe used by `run` itself (`src/lib.rs`):
 - [ ] CONSENSUS-REVIEW.md — The load-bearing question was *"does NCI's 60/30/10 break the rock-paper-scissors / separation-of-powers claim?"* The answer turns entirely on **composition**, not the numbers:
-- [ ] CONTINUE.md — - **The temporal-order attacker-input finding is now FIXED at the reference layer** (`TEMPORAL-ORDER-ONCHAIN.md`). The audit relocated the invariant to the order-source; this builds the consensus-sourced order that
+- [ ] CONTINUE.md — - **Will: "audit and attack noesis, make it nuclear proof — or prove it already is."** 3 hostile adversaries (value / consensus / ordering+on-VM) swept the whole stack. VERDICT: - **Value layer = un-gameable BY CONSTRUCTION.** Sybil rings (...
 - [ ] FOUNDATION-grace-made-mechanical.md — *A record. Will Glynn, with JARVIS. 2026-06-12. Captured in-flight, the moment the moral substrate beneath the whole project became explicit.*
 - [ ] HANDOFF.md — Resume point for a fresh chat. Detail lives in `CONTINUE.md` (top block) and `ROADMAP.md`; this is the fast orientation. Repo: `WGlynn/noesis` (private remote). Node: `node/`, Rust.
 - [ ] INDEX-DEP-CODEHASH-BINDING.md — `onchain/pom-typescript/src/main.rs:164` reads the index root with: ```rust match load_cell_data(0, Source::CellDep) { Ok(rd) if rd.len() == 32 => { /* accept as root */ } _ => return 20, } ``` Any cell-dep at slot 0 whose data is 32 bytes ...
 - [ ] JARVIS-CORE-harness-as-coordination.md — *Draft. Will Glynn, with JARVIS. 2026-06-12. The competitive layer of an AI system is not the model's weights — it is the harness that coordinates models, and the harness wins by grounding their cross-check in structure that cannot lie. PRI...
 - [ ] ON-VM-FINALIZATION.md — `finalizes_hybrid(voters_for, all, mix, now, horizon, decay_pos, threshold_bps, quorum_floor_bps)`: - `weight_for = Σ effective_weight(v)` over voters_for - `eff_total  = Σ effective_weight(v)` over all; `base_total = Σ base_weight(v)`
 - [ ] README.md — ```mermaid flowchart TD CONTRIB["Block of thought (contribution)"] --> VAL["Value: temporal-novelty × learned quality<br/>strategyproof — sybil / padding / collusion → 0"] VAL --> POM["Proof of Mind score<br/>(accumulated Myerson value)"]
+- [ ] RELEASE-PLAN-VIBESWAP-ON-NOESIS.md — ---
 - [ ] SECURITY-AUDIT-attacker-choosable-inputs.md — | Surface | Critical input | Source today | Attacker-choosable? | Status | |---|---|---|---|---| | Value gate | cell DATA (content) | tx-supplied | yes, BY DESIGN — content is the thing measured | ✅ OK: floors + flow + standing price the co...
 - [ ] T7-CROSS-CELL-SIMILARITY.md — Intake floors split by what they read: - **Content-local** (semantic floor): pure function of the cell's bytes — ON-VM since T4. - **History-dependent** (temporal novelty + similarity floor): need `seen` = the union of
 - [ ] TEMPORAL-ORDER-ONCHAIN.md — `temporal_novelty` and the index `valid_root_transition` assign shared novelty by ORDER: the earlier-committed cell wins the contested coverage, a later redundant cell earns 0. That is strategyproof ONLY if "earlier" is a relation the block...

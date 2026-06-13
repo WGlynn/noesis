@@ -2175,6 +2175,58 @@ pub mod consensus {
             assert!(single_dimension_can_finalize(0.60 + 0.07, TWO_THIRDS_BPS), "PoM + >6.67% of a 2nd dim");
         }
 
+        // ===== [P·dont-let-attacker-choose-critical-input] — finalization input bindings =====
+        // The RSAW adversarial pass (2026-06-13) named `now` and the validator-set `all` as
+        // outcome-determining inputs that `finalizes_hybrid` takes as free parameters. The quorum
+        // floor already contains the forge-alone case, but an input that MOVES the verdict must
+        // still be consensus-sourced, never attacker-chosen — the same lesson the temporal-order
+        // and index-dep bindings already carry. These two tests PIN that, as the 5th and 6th sites
+        // of the invariant (code_hash / now-finalization / temporal-order / index-dep / now / set).
+
+        #[test]
+        fn now_is_outcome_determining_so_must_be_header_sourced() {
+            // `effective_weight` decays with (now - last_heartbeat), and `finalizes_hybrid` feeds
+            // `now` into every weight. So the SAME votes over the SAME set finalize-or-not by the
+            // choice of `now`. 5th site: on-VM `now` MUST be header-sourced (block time), never
+            // tx/witness-chosen. (See ON-VM-FINALIZATION.md — this test makes the gap explicit.)
+            let horizon = 100u64;
+            let voters_for = vec![val(0, 1.0, 1.0, 5.0, 10), val(1, 1.0, 1.0, 5.0, 10)];
+            let all = vec![val(0, 1.0, 1.0, 5.0, 10), val(1, 1.0, 1.0, 5.0, 10)];
+            let near = finalizes_hybrid(&voters_for, &all, NCI, 10, horizon, true, TWO_THIRDS_BPS, 3333);
+            let far = finalizes_hybrid(&voters_for, &all, NCI, 100_000, horizon, true, TWO_THIRDS_BPS, 3333);
+            assert!(near, "fresh unanimous support finalizes");
+            assert_ne!(
+                near, far,
+                "`now` is outcome-determining ⇒ it must be consensus-sourced, not chooser-supplied"
+            );
+        }
+
+        #[test]
+        fn validator_set_is_outcome_determining_so_must_be_consensus_bound() {
+            // `all` sets the finalization denominator (eff_total AND the quorum floor's base_total).
+            // A producer supplying a CURATED `all` that omits honest validators shrinks the basis
+            // until a minority `voters_for` clears it. Same vote, two `all` sets, opposite verdicts
+            // ⇒ 6th site: `all` must be the canonical consensus validator set (bound on-VM by the
+            // validator-registry type-id, the INDEX-DEP-CODEHASH-BINDING pattern), never caller-fed.
+            let now = 0u64;
+            let horizon = 100u64;
+            let voters_for = vec![val(9, 1.0, 1.0, 1.0, 0)];
+            // Truthful set: attacker (1) + six honest = 1/7, far below the 2/3 bar.
+            let mut truthful: Vec<Validator> = (0..6).map(|i| val(i, 1.0, 1.0, 1.0, 0)).collect();
+            truthful.push(val(9, 1.0, 1.0, 1.0, 0));
+            let honest_view =
+                finalizes_hybrid(&voters_for, &truthful, NCI, now, horizon, true, TWO_THIRDS_BPS, 3333);
+            // Curated set: attacker alone ⇒ the basis collapses to the attacker.
+            let curated = vec![val(9, 1.0, 1.0, 1.0, 0)];
+            let attacker_view =
+                finalizes_hybrid(&voters_for, &curated, NCI, now, horizon, true, TWO_THIRDS_BPS, 3333);
+            assert!(!honest_view, "against the true validator set, a 1/7 minority cannot finalize");
+            assert!(
+                attacker_view,
+                "against a curated set omitting honest validators, the same vote finalizes — the set must be bound"
+            );
+        }
+
         #[test]
         fn nci_as_built_drifts_toward_capital_under_staleness() {
             // decay_pos=false: stale validators keep full PoS but lose PoW+PoM -> PoS's
@@ -5386,6 +5438,7 @@ pub mod index_rule {
 
     /// One insertion in the block's batch: the key and its sibling path against the
     /// rolling root at this position in the chain.
+    #[derive(Clone)]
     pub struct InsertStep {
         pub key: u64,
         pub siblings: [Hash; DEPTH],
@@ -5399,6 +5452,54 @@ pub mod index_rule {
                 return false; // not absent under the rolling root (dup, stale, or forged)
             }
             root = root_from(step.key, leaf(step.key), &step.siblings);
+        }
+        root == new_root
+    }
+
+    /// A single cell's contribution to the block's index batch: its CONSENSUS-SOURCED commit
+    /// coordinate ([`super::commit_order::Committed`]) paired with the novel-shingle insertions
+    /// it makes against the rolling root. Grouping at cell granularity is what lets the rule
+    /// bind the ORDER the cells are applied in to consensus, not to producer presentation.
+    #[derive(Clone)]
+    pub struct CellBatch {
+        pub coord: super::commit_order::Committed,
+        pub steps: Vec<InsertStep>,
+    }
+
+    /// The index-cell transition rule WITH the commit-order invariant wired in
+    /// (TEMPORAL-ORDER-ONCHAIN.md, NEXT-BUILD (b)). [`valid_root_transition`] proves the root
+    /// moved correctly but TRUSTS the producer's order of steps — and order is exactly what
+    /// decides first-commit-wins when two same-height cells contend for shared novel coverage
+    /// (the first to insert a shared key banks it; the second can no longer prove non-membership
+    /// ⇒ earns 0 for that key). This variant closes the relocated invariant at per-cell-batch
+    /// granularity: the cells must ALREADY be in canonical commit order
+    /// ([`super::commit_order::is_canonical_order`] — height ascending, then the XOR-seeded
+    /// in-block slot, NEITHER producer-arrangeable), and ONLY THEN is the flattened rolling-root
+    /// transition checked. A producer-favorable reordering is REJECTED at the order gate before
+    /// any root math (no silent re-sort ⇒ no probe signal), so no party can choose which of two
+    /// contending cells banks the shared shingles. This is the index-rule half of the temporal-
+    /// order fix: `commit_order` made the order consensus-sourced; this makes the index cell
+    /// REFUSE to advance on any other order.
+    pub fn valid_ordered_root_transition(
+        old_root: Hash,
+        new_root: Hash,
+        cells: &[CellBatch],
+    ) -> bool {
+        // 1. Consensus order gate: the cells must be presented in canonical commit order.
+        let coords: Vec<super::commit_order::Committed> =
+            cells.iter().map(|c| c.coord.clone()).collect();
+        if !super::commit_order::is_canonical_order(&coords) {
+            return false;
+        }
+        // 2. Rolling-root transition over the steps, flattened in that consensus-fixed order.
+        let mut root = old_root;
+        for cell in cells {
+            for step in &cell.steps {
+                if root_from(step.key, [0u8; 32], &step.siblings) != root {
+                    return false; // not absent under the rolling root (dup, stale, or forged)
+                }
+                root = root_from(step.key, leaf(step.key), &step.siblings);
+            }
         }
         root == new_root
     }
@@ -5507,6 +5608,89 @@ pub mod index_rule {
             assert!(nov_b_seq < nov_b_start, "B's shared shingles became overlap");
             assert!(overlap_b_seq > 0, "first commit won them");
             assert!(nov_b_seq > 0, "B's own tail still earns");
+        }
+
+        // A secret with enough byte spread to give the in-block shuffle real work.
+        fn sec(b: u8) -> super::super::smt::Hash {
+            let mut s = [0u8; 32];
+            s[0] = b;
+            s[31] = b.wrapping_mul(7).wrapping_add(1);
+            s
+        }
+
+        #[test]
+        fn ordered_batch_validates_in_canonical_order() {
+            use super::super::commit_order::Committed;
+            // Distinct heights ⇒ canonical order is simply height-ascending; build the steps in
+            // that order and the ordered rule accepts the batch against ground-truth new_root.
+            let coords = [
+                Committed { height: 4, secret: sec(2) },
+                Committed { height: 5, secret: sec(9) },
+                Committed { height: 6, secret: sec(1) },
+            ];
+            let keysets: [Vec<u64>; 3] = [vec![11, 12], vec![99], vec![7, 8, 9]];
+            let mut idx = NoveltyIndex::new();
+            let old_root = idx.root();
+            let mut cells: Vec<CellBatch> = Vec::new();
+            for (coord, ks) in coords.iter().zip(keysets.iter()) {
+                let steps: Vec<InsertStep> = ks
+                    .iter()
+                    .map(|&k| {
+                        let s = InsertStep { key: k, siblings: idx.proof(k) };
+                        idx.insert(k);
+                        s
+                    })
+                    .collect();
+                cells.push(CellBatch { coord: coord.clone(), steps });
+            }
+            let new_root = idx.root();
+            assert!(valid_ordered_root_transition(old_root, new_root, &cells));
+            // and it must actually move the root (empty-transition guard inherited).
+            assert!(!valid_ordered_root_transition(old_root, old_root, &cells));
+        }
+
+        #[test]
+        fn producer_favorable_reorder_is_rejected_at_the_order_gate() {
+            use super::super::commit_order::{canonical_order, Committed};
+            // Two cells at the SAME height contend for a shared novel key (50). Consensus —
+            // not the producer — decides which one banks it, via the XOR-seeded slot order.
+            let h = 7u64;
+            let coords = [
+                Committed { height: h, secret: sec(40) },
+                Committed { height: h, secret: sec(80) },
+            ];
+            let canon = canonical_order(&coords); // slot order over these two same-height cells
+            // Build the batch in canonical slot order: the FIRST cell inserts {own, shared};
+            // the second inserts only its own key (it can't re-prove the shared key absent).
+            let keysets: [Vec<u64>; 2] = [vec![101, 50], vec![202]];
+            let mut idx = NoveltyIndex::new();
+            let old_root = idx.root();
+            let mut batches: Vec<CellBatch> = Vec::new();
+            for (slot, &ci) in canon.iter().enumerate() {
+                let ks = &keysets[slot];
+                let steps: Vec<InsertStep> = ks
+                    .iter()
+                    .map(|&k| {
+                        let s = InsertStep { key: k, siblings: idx.proof(k) };
+                        idx.insert(k);
+                        s
+                    })
+                    .collect();
+                batches.push(CellBatch { coord: coords[ci].clone(), steps });
+            }
+            let new_root = idx.root();
+            assert!(
+                valid_ordered_root_transition(old_root, new_root, &batches),
+                "the canonical-order batch is accepted"
+            );
+            // The producer-favorable move: present the contending cells in the OTHER order so a
+            // different cell would bank the shared key. Rejected at the order gate before any
+            // root math — not silently re-sorted.
+            let swapped: Vec<CellBatch> = batches.iter().rev().cloned().collect();
+            assert!(
+                !valid_ordered_root_transition(old_root, new_root, &swapped),
+                "a producer-favorable reorder of same-height contenders is rejected"
+            );
         }
     }
 }
