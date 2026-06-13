@@ -455,6 +455,35 @@ mod tests {
         assert_eq!(v[2], 0, "near-duplicate (>80% coverage already seen) earns 0");
         assert!(temporal_novelty(&order)[2] > 0, "plain rule leaks residual to the near-dup (the gap)");
     }
+
+    #[test]
+    fn temporal_order_is_consensus_critical_and_timestamp_is_not_the_lever() {
+        // Defensive-audit fixture (SECURITY-AUDIT-attacker-choosable-inputs.md, applying
+        // [P·dont-let-attacker-choose-critical-input]). temporal_novelty trusts its SLICE
+        // ORDER as the commit order and never reads `timestamp`. So strategyproofness rests
+        // on the ON-CHAIN path sourcing that order from consensus (commit-block height), NOT
+        // a producer-arrangeable list. This pins the order-DEPENDENCE that makes the source
+        // critical, AND that the timestamp field is not the lever.
+        let a = b"alpha-bravo-charlie".to_vec();
+        let b = b"alph".to_vec(); // strict subset of a's coverage (redundant), per the sybil test
+        // True commit order: A first, redundant B earns 0.
+        let honest = vec![cell(0, 1, 0, &a), cell(1, 9, 1, &b)];
+        let v_honest = temporal_novelty(&honest);
+        assert!(v_honest[0] > 0 && v_honest[1] == 0, "true order: A novel, redundant B earns 0");
+        // Producer-favorable order: B presented FIRST earns novelty it should not have.
+        let gamed = vec![cell(1, 9, 1, &b), cell(0, 1, 0, &a)];
+        assert!(
+            temporal_novelty(&gamed)[0] > 0,
+            "GAMED: the redundant block earns novelty merely by being ordered first -> the \
+             on-chain path MUST fix order to consensus commit-height, not trust the slice"
+        );
+        // The timestamp field is NOT the lever: same slice order, B 'backdated' older, same result.
+        let ts_backdated = vec![cell(0, 1, 99, &a), cell(1, 9, 0, &b)];
+        assert_eq!(
+            temporal_novelty(&ts_backdated), v_honest,
+            "backdating B's timestamp changes nothing: ordering is slice position, not the field"
+        );
+    }
 }
 
 /// Bitcoin-shaped ownership (port of block-ownership.py): current owner = genesis

@@ -1,5 +1,23 @@
 # CONTINUE — Noesis handoff (PRIVATE, stealth)
 
+## ▶ RESUME HERE (2026-06-13 — defensive audit via the attacker-input invariant; node 186/186)
+- **New invariant captured** (public memory): `[P·dont-let-attacker-choose-critical-input]` — source
+  security-critical inputs where the attacker can't choose them; a free/tx-chosen value is
+  self-assertion, not a check; the recursive trap is that even the EXPECTED value must be
+  attacker-unreachable. 3 cross-layer sites named (ordering/identity/time).
+- **Defensive audit shipped** (`SECURITY-AUDIT-attacker-choosable-inputs.md`): swept the invariant
+  across noesis input surfaces. 5 clean/addressed (content/index/proofs/identity/dispute), `now` =
+  designed-pending (header-sourced, `ON-VM-FINALIZATION.md`), and ONE candidate VERIFIED against code:
+- **Temporal-order finding (verified, node 186/186):** `temporal_novelty` orders by SLICE POSITION and
+  never reads `Cell.timestamp` ⇒ the timestamp-backdating attack is MOOT. The real, narrower
+  requirement: the ON-CHAIN path must source slice order from CONSENSUS commit-block height (not a
+  producer-arrangeable list). Pinned by `temporal_order_is_consensus_critical_and_timestamp_is_not_the_lever`
+  (redundant block earns novelty only when ordered first; backdated ts changes nothing).
+  **NEXT BUILD (fresh session):** on-chain temporal path that fixes order to commit-height + a fixture
+  that rejects producer-favorable ordering. Same invariant as index-dep binding (F1) and finalization now.
+- Earlier this session: index-dep binding ON-VM PORTED (`e942f5c`; F1/F2/F3, exit 23, 19 ckb-vm tests
+  green, sentinel-unset = inactive pre-deploy) + port qa (hash_type/sentinel gaps for the activated build).
+
 ## ▶ RESUME HERE (2026-06-12 PM-17 — tick on full T7: DOUBLE-MINT found+fixed, node 176/176; loop2 2/3)
 - **Adversarial tick on the complete T7 stack found a REAL break and closed it same
   iteration: INTRA-TX DOUBLE-MINT.** Two identical novel outputs in one tx each proved
