@@ -1,5 +1,17 @@
 # CONTINUE — Noesis handoff (PRIVATE, stealth)
 
+## ▶ RESUME HERE (2026-06-12 PM-8 — roadmap-advance: group-input iteration, node 146/146)
+- **Will-ordered in-chat ("noesis roadmap execution story mode form") past rotation
+  threshold — single increment, done right:** `onchain/pom-typescript` now iterates its
+  WHOLE script group (Source::GroupInput until IndexOutOfBound; empty group ⇒ 12).
+  **FLIPPED `on_vm_floor_checks_only_input_zero_open_gap`** — the exact smuggling tx
+  (noise at input index 1) now exits 13 in-test; honest 3-cell group passes; ELF fixture
+  rebuilt. ROADMAP execution-layer tier marks T1-T8 added (T1-T5 ✅).
+- **Adversarial tick survivor (pinned in ROADMAP T6, doc-pin not test-pin — host cannot
+  express outputs yet):** group OUTPUTS are not validated — mint-side noise passes. Next:
+  host serves Source::GroupOutput + program iterates both directions; then T7 cross-cell
+  similarity state; then T8 Q32.32 settlement mirror.
+
 ## ▶ RESUME HERE (2026-06-12 PM-7 — value_v7 semantic-floored seeds, node 126/126; story-loop 1/10)
 - **`value_v7` SHIPPED — flips `noise_child_still_seeds_flow_in_v5_open_gap`**: seed =
   `semantic_floor(floored_novelty)` on top of v6's standing gate. The SAME vested identity

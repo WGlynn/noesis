@@ -78,19 +78,27 @@ fn hexed_noise_passes_on_vm_too_open_gap() {
 }
 
 #[test]
-fn on_vm_floor_checks_only_input_zero_open_gap() {
-    // PINNED (new, found by this tick): the program validates input INDEX 0 ONLY. A tx
-    // smuggling noise as a second input passes on-VM. The production type-script must
-    // iterate its GROUP inputs (Source::GroupInput loop until INDEX_OUT_OF_BOUND) — that
-    // is the named next increment for onchain/pom-typescript, alongside the cross-cell
-    // similarity-floor state.
+fn on_vm_floor_now_checks_every_group_input_gap_closed() {
+    // FLIPPED (roadmap-advance increment, same day the tick pinned it): the program now
+    // iterates its whole script group until INDEX_OUT_OF_BOUND. The EXACT smuggling tx
+    // that passed before — noise at input index 1 — is floored at 13.
     let content = input_cell(0, 7, b"alpha-bravo-charlie-delta");
     let noise: Vec<u8> = (0u8..64).map(|i| i.wrapping_mul(37).wrapping_add(11)).collect();
     let smuggled = input_cell(1, 7, &noise);
     let (result, _) = run_typescript(ELF, &content.clone(), vec![content, smuggled]);
-    assert_eq!(
-        result.unwrap(),
-        0,
-        "OPEN GAP: noise smuggled at input index 1 is not floored on-VM"
-    );
+    assert_eq!(result.unwrap(), 13, "smuggled noise at index 1 is now floored on-VM");
+}
+
+#[test]
+fn multi_input_all_content_group_still_passes() {
+    // Regression for the fix: iterating the group must not break the honest path —
+    // three content cells, exit 0; and an EMPTY group is rejected (nothing to attest).
+    let a = input_cell(0, 7, b"alpha-bravo-charlie-delta");
+    let b = input_cell(1, 7, b"echo-foxtrot-golf-hotel");
+    let c = input_cell(2, 7, b"india-juliet-kilo-lima");
+    let (result, served) = run_typescript(ELF, &a.clone(), vec![a.clone(), b, c]);
+    assert_eq!(result.unwrap(), 0, "honest multi-input group passes");
+    assert!(served >= 4, "script + 3 cells + the out-of-bound probe all served");
+    let (result, _) = run_typescript(ELF, &a, vec![]);
+    assert_eq!(result.unwrap(), 12, "empty group rejected — nothing to attest");
 }

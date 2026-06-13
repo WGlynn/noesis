@@ -144,6 +144,18 @@ is a reputation system.
 - ✅ ref / 🟡 on-chain **PoM-weighted finalization** — 2/3-supermajority reference model
   (`consensus::finalizes`, `finalizes_hybrid`), retention-decay, verified vs NCI
   (`NakamotoConsensusInfinity.sol`); on-VM finalization still pending.
+
+### Execution-layer tier marks (2026-06-12, story-loop + roadmap-advance)
+- ✅ T1 fixed-point intake (`value_fixed`, Q16.16, f64-equivalence tested)
+- ✅ T2 host VM harness (ckb-vm 0.24 dev-dep; real RISC-V ELF executes; cycle metering proven)
+- ✅ T3 syscall environment (Cell model serves load_script/load_cell_data, exact partial-load ABI)
+- ✅ T4 on-VM intake floor (`onchain/pom-typescript`, no_std Q16.16 semantic floor; verdicts ≡ host)
+- ✅ T5 group-input iteration (whole script group floored; index-1 smuggling gap FLIPPED)
+- 🟡 T6 group-OUTPUT validation — pinned survivor of the T5 tick: mint-side cells are not
+  yet floored (host serves inputs only; program iterates GroupInput). Next: host serves
+  Source::GroupOutput from the produced-cells side + program iterates both directions.
+- 🟡 T7 cross-cell similarity floor on-VM (seen-shingle state via Noesis syscall)
+- 🟡 T8 Q32.32 settlement mirror (flow/v5-v7) → on-VM finalization path above
 - ✅ ref / 🟡 solver **Stability** — core membership + nucleolus max-excess reference model
   (`stability` mod, tested); the LP / iterated-LP solver over the real PoM-weighted coalition
   game (Myerson-restricted, sampled at scale) is pending.

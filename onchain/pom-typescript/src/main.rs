@@ -11,9 +11,10 @@
 //!   12 = input cell data unavailable
 //!   13 = semantic floor: payload is incompressible noise (entropy ≥ θ = 62259/2^16)
 //!
-//! Honest scope: this enforces the SEMANTIC floor on-VM. The similarity floor needs
-//! cross-cell state (the seen-shingle set) served via syscalls — that is the next
-//! piece, not claimed here.
+//! Honest scope: this enforces the SEMANTIC floor on-VM, over EVERY input in the
+//! script group (closes the input-0-only smuggling gap found by the 2026-06-12
+//! adversarial tick). The similarity floor still needs cross-cell state (the
+//! seen-shingle set) served via syscalls — that is the next piece, not claimed here.
 
 #![no_std]
 #![no_main]
@@ -21,6 +22,7 @@
 use ckb_std::{
     ckb_constants::Source,
     default_alloc,
+    error::SysError,
     high_level::{load_cell_data, load_script},
 };
 
@@ -82,12 +84,23 @@ pub fn program_entry() -> i8 {
     if script.as_reader().args().raw_data().is_empty() {
         return 11; // soulbound identity is not optional
     }
-    let data = match load_cell_data(0, Source::Input) {
-        Ok(d) => d,
-        Err(_) => return 12,
-    };
-    if is_incompressible(&data) {
-        return 13; // semantic floor, on-VM
+    // Iterate the WHOLE script group until INDEX_OUT_OF_BOUND — a tx cannot smuggle a
+    // failing cell at a later index (flips on_vm_floor_checks_only_input_zero_open_gap).
+    let mut index = 0usize;
+    loop {
+        match load_cell_data(index, Source::GroupInput) {
+            Ok(data) => {
+                if is_incompressible(&data) {
+                    return 13; // semantic floor, on-VM, every group input
+                }
+                index += 1;
+            }
+            Err(SysError::IndexOutOfBound) => break,
+            Err(_) => return 12,
+        }
+    }
+    if index == 0 {
+        return 12; // a type-script with no group inputs has nothing to attest
     }
     0
 }

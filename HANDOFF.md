@@ -4,7 +4,7 @@ Resume point for a fresh chat. Detail lives in `CONTINUE.md` (top block) and `RO
 this is the fast orientation. Repo: `WGlynn/noesis` (private remote). Node: `node/`, Rust.
 
 ## Current state
-- **node: 145/145 tests green (133 lib + 12 ckb-vm integration)** (`cd node && cargo test`).
+- **node: 146/146 tests green (133 lib + 13 ckb-vm integration)** (`cd node && cargo test`).
 - Value layer is comprehensively built + adversarially hardened (suite grew from 5 at the
   start of the continuous run to the count above, via the adversarial-layering method: each
   layer's surviving attack named the next, until the survivor was the consensus layer's own
@@ -27,9 +27,9 @@ this is the fast orientation. Repo: `WGlynn/noesis` (private remote). Node: `nod
   at the gate (entropy ≥ θ ⇒ 0), AND-composed, airgap false-positive honestly pinned.
 
 ## Open frontier (post story-loop 10/10, 2026-06-12 evening)
-1. **On-VM group-input iteration** — flips `on_vm_floor_checks_only_input_zero_open_gap`
-   (the VM arc's adversarial-tick survivor): iterate Source::GroupInput until
-   INDEX_OUT_OF_BOUND in onchain/pom-typescript.
+1. ✅ DONE 2026-06-12 PM-8 — group-input iteration shipped; smuggling pin FLIPPED.
+   New survivor (ROADMAP T6): group OUTPUTS not validated — mint-side noise passes;
+   host must serve Source::GroupOutput, program iterates both directions.
 2. **Cross-cell similarity floor on-VM** — needs the seen-shingle state served via a
    Noesis syscall (host exists, tests/common/mod.rs).
 3. **Q32.32 settlement mirror** — flow/v5-v7 in fixed point (design in CKB-VM-PORT.md).
