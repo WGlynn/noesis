@@ -157,7 +157,10 @@ is a reputation system.
   committed novelty-index cell (SMT root) + complete per-shingle membership/non-membership
   classification in the witness ⇒ exact novelty/overlap counts verified on-VM; omission and
   stale-root walked closed at design time; serialization + cycle cost pinned as calibration
-  (shard-by-prefix, SMT multi-proofs). Code increments 1-4 ordered in-doc; #1 = SMT in node.
+  (per-block batching per qa, SMT multi-proofs). Increments: #1 SMT ✅, #2 proven verifier ✅
+  (novelty_with_proofs: proof-driven counts ≡ sequential rule in-test, the T7 theorem;
+  omission/padding/tamper/stale-root all reject-whole never partial-credit), #3 index-cell
+  rule + #4 script e2e remain.
 - ✅ T8 Q32.32 settlement mirror (`settlement_fixed`: integer damped-Jacobi external flow,
   rational gate, full v7 composition; tracks f64 within 1e-6 on content graphs; flipped-pin
   + monotone-vesting + saturation-not-wraparound all in-test) → on-VM finalization next

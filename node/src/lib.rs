@@ -5006,3 +5006,188 @@ pub mod settlement_fixed {
         }
     }
 }
+
+/// T7 #2 — the shared proof-driven intake verifier (`T7-CROSS-CELL-SIMILARITY.md` §increments).
+/// Turns SMT classifications into EXACTLY the numbers the sequential rule computes, so the
+/// on-VM script (which cannot see history) and the off-VM node (which can) agree by
+/// construction. Count semantics preserved from the stateful rule precisely:
+///   - novelty counts PER-OCCURRENCE (a repeated novel 4-gram pays each occurrence, as in
+///     `temporal_novelty`: `seen` is extended only AFTER the whole cell);
+///   - the similarity floor runs on the UNIQUE-shingle overlap fraction, exact
+///     cross-multiplied Q16.16 (as in `value_fixed`).
+/// Polarity is DERIVED, never prover-claimed: each unique shingle carries one sibling
+/// path; membership and non-membership are mutually exclusive under it (in-test in smt),
+/// so misclassification and omission are both structurally impossible — any invalid or
+/// missing proof rejects the WHOLE cell (`None`), never a partial count.
+pub mod proven {
+    use super::smt::{verify_member, verify_non_member, Hash, DEPTH};
+    use super::{coverage, value_fixed};
+
+    /// Sorted unique shingles of a cell with per-occurrence multiplicities.
+    pub fn unique_shingles(data: &[u8]) -> Vec<(u64, u64)> {
+        let mut cov = coverage(data);
+        cov.sort_unstable();
+        let mut out: Vec<(u64, u64)> = Vec::new();
+        for k in cov {
+            match out.last_mut() {
+                Some((key, m)) if *key == k => *m += 1,
+                _ => out.push((k, 1)),
+            }
+        }
+        out
+    }
+
+    /// Classify every unique shingle against `root`. `proofs[i]` is the sibling path for
+    /// `unique_shingles(data)[i]` (sorted order — the proof layout is canonical, so a
+    /// prover cannot reorder to confuse the verifier). Returns
+    /// `(novelty_occurrences, unique_overlap, unique_total)` or `None` on ANY invalid or
+    /// missing proof.
+    pub fn novelty_with_proofs(
+        data: &[u8],
+        root: Hash,
+        proofs: &[[Hash; DEPTH]],
+    ) -> Option<(u64, u64, u64)> {
+        let uniq = unique_shingles(data);
+        if proofs.len() != uniq.len() {
+            return None; // omission or padding — reject whole cell
+        }
+        let mut novelty_occ = 0u64;
+        let mut overlap_uniq = 0u64;
+        for ((key, mult), path) in uniq.iter().zip(proofs) {
+            let member = verify_member(root, *key, path);
+            let absent = verify_non_member(root, *key, path);
+            match (member, absent) {
+                (true, false) => overlap_uniq += 1,
+                (false, true) => novelty_occ += mult,
+                _ => return None, // invalid path: proves neither (or a broken tree both)
+            }
+        }
+        Some((novelty_occ, overlap_uniq, uniq.len() as u64))
+    }
+
+    /// The full proven intake floor — the function the type-script will run (T7 #4):
+    /// similarity floor on the proven overlap fraction (exact cross-multiplied Q16.16,
+    /// same comparison as `value_fixed`), then the semantic floor on the bytes.
+    pub fn proven_floored_novelty_q16(
+        data: &[u8],
+        root: Hash,
+        proofs: &[[Hash; DEPTH]],
+        theta_sim_q16: u64,
+        theta_ent_q16: u64,
+    ) -> Option<u64> {
+        let (novelty, overlap, total) = novelty_with_proofs(data, root, proofs)?;
+        let floored = if total > 0 && ((overlap as u128) << 16) > (theta_sim_q16 as u128) * total as u128
+        {
+            0
+        } else {
+            novelty
+        };
+        Some(value_fixed::semantic_floor_q16(floored, data, theta_ent_q16))
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::super::smt::NoveltyIndex;
+        use super::super::{value_fixed, Cell, Script};
+        use super::*;
+
+        const SIM: u64 = 52429;
+        const ENT: u64 = 62259;
+
+        fn cell(id: u64, owner: u8, ts: u64, data: &[u8]) -> Cell {
+            Cell {
+                id,
+                lock: Script { code_hash: [1u8; 32], args: vec![owner] },
+                type_script: Script { code_hash: [0xB0; 32], args: vec![owner] },
+                parent: None,
+                timestamp: ts,
+                data: data.to_vec(),
+            }
+        }
+
+        fn index_of(cells: &[Cell]) -> NoveltyIndex {
+            let mut idx = NoveltyIndex::new();
+            for c in cells {
+                for (k, _) in unique_shingles(&c.data) {
+                    idx.insert(k);
+                }
+            }
+            idx
+        }
+
+        fn proofs_for(idx: &NoveltyIndex, data: &[u8]) -> Vec<[super::Hash; super::DEPTH]> {
+            unique_shingles(data).iter().map(|(k, _)| idx.proof(*k)).collect()
+        }
+
+        #[test]
+        fn proven_counts_equal_the_sequential_rule_exactly() {
+            // THE T7 theorem, in-test: for any new cell, the proof-driven floored novelty
+            // equals what the stateful sequential rule assigns it as the last element of
+            // the commit order. History-blind script ≡ history-seeing node.
+            let prior = vec![
+                cell(0, 1, 0, b"alpha-bravo-charlie-delta"),
+                cell(1, 2, 1, b"echo-foxtrot-golf-hotel"),
+            ];
+            let candidates: Vec<&[u8]> = vec![
+                b"india-juliet-kilo-lima",                    // fresh content
+                b"alpha-bravo-charlie-delta",                 // exact duplicate -> floored
+                b"alpha-bravo-charlie-deltX",                 // near-duplicate -> floored
+                b"charlie-delta plus brand new tail words",   // partial overlap
+                b"xy",                                        // sub-window edge case
+            ];
+            let idx = index_of(&prior);
+            for data in candidates {
+                let mut order = prior.clone();
+                order.push(cell(9, 9, 9, data));
+                let sequential =
+                    value_fixed::temporal_novelty_with_similarity_floor_q16(&order, SIM);
+                let seq_last = *sequential.last().unwrap();
+                let seq_floored = value_fixed::semantic_floor_q16(seq_last, data, ENT);
+                let proven =
+                    proven_floored_novelty_q16(data, idx.root(), &proofs_for(&idx, data), SIM, ENT)
+                        .expect("honest proofs verify");
+                assert_eq!(proven, seq_floored, "mismatch for {:?}", &data[..data.len().min(16)]);
+            }
+        }
+
+        #[test]
+        fn omission_and_padding_reject_the_whole_cell() {
+            let prior = vec![cell(0, 1, 0, b"alpha-bravo-charlie-delta")];
+            let idx = index_of(&prior);
+            let data = b"echo-foxtrot-golf-hotel";
+            let mut proofs = proofs_for(&idx, data);
+            proofs.pop(); // omit one shingle's proof
+            assert_eq!(novelty_with_proofs(data, idx.root(), &proofs), None, "omission");
+            let mut padded = proofs_for(&idx, data);
+            padded.push(padded[0]); // pad with an extra
+            assert_eq!(novelty_with_proofs(data, idx.root(), &padded), None, "padding");
+        }
+
+        #[test]
+        fn tampered_or_misaligned_proofs_reject_not_miscount() {
+            // A wrong sibling path proves NEITHER polarity -> the whole cell rejects.
+            // Partial credit is the failure mode this design forbids.
+            let prior = vec![cell(0, 1, 0, b"alpha-bravo-charlie-delta")];
+            let idx = index_of(&prior);
+            let data = b"echo-foxtrot-golf-hotel";
+            let mut proofs = proofs_for(&idx, data);
+            proofs[0][0] = [0xAB; 32]; // corrupt the leaf-level sibling
+            assert_eq!(novelty_with_proofs(data, idx.root(), &proofs), None);
+            // Stale root: proofs against a root that has since moved also reject.
+            let mut newer = index_of(&prior);
+            newer.insert(0xFEED_FACE);
+            let stale_proofs = proofs_for(&idx, data);
+            assert_eq!(novelty_with_proofs(data, newer.root(), &stale_proofs), None, "stale root");
+        }
+
+        #[test]
+        fn noise_cell_is_semantically_floored_through_the_proven_path() {
+            let prior = vec![cell(0, 1, 0, b"alpha-bravo-charlie-delta")];
+            let idx = index_of(&prior);
+            let noise: Vec<u8> = (0u8..64).map(|i| i.wrapping_mul(37).wrapping_add(11)).collect();
+            let v = proven_floored_novelty_q16(&noise, idx.root(), &proofs_for(&idx, &noise), SIM, ENT)
+                .expect("proofs verify; the floor does the zeroing");
+            assert_eq!(v, 0, "novel garbage proven novel — and still floored at the gate");
+        }
+    }
+}

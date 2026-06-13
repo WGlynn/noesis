@@ -1,5 +1,17 @@
 # CONTINUE — Noesis handoff (PRIVATE, stealth)
 
+## ▶ RESUME HERE (2026-06-12 PM-13 — T7 #2 proven verifier, node 160/160; loop 2/4)
+- **`proven` module SHIPPED (T7 #2)**: `novelty_with_proofs` + `proven_floored_novelty_q16`
+  — the function the type-script will run. **The T7 theorem is now IN-TEST**: proof-driven
+  floored novelty ≡ the stateful sequential rule's assignment for the same cell, across
+  fresh / exact-dup / near-dup / partial-overlap / sub-window candidates. Count semantics
+  preserved exactly (novelty per-occurrence, similarity on unique-set fraction). Polarity
+  DERIVED never claimed; canonical sorted proof layout; omission, padding, tampered path,
+  and stale root ⇒ None (reject-whole, never partial credit). Noise still semantically
+  floored through the proven path.
+- **Loop: 2/4 done.** Next = T7 #3 index-cell root-transition rule (per-block batched
+  insertion chain over verify_insert), then #4 on-VM e2e.
+
 ## ▶ RESUME HERE (2026-06-12 PM-12 — T8 settlement mirror, node 156/156; loop 1/4)
 - **`settlement_fixed` SHIPPED (ROADMAP T8 ✅)**: the flow-gated rules in Q32.32/u128 —
   integer damped-Jacobi external flow (mirrors `value_flow_with_own` external-only),
