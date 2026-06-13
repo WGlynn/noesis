@@ -2,13 +2,13 @@
 
 > Regenerated FROM the repo by `scripts/study-guide.py`, so it cannot lag the
 > code. Tick the boxes as you internalize each piece. Re-run to refresh.
-> Node test suite: **170 passing**.
+> Node test suite: **171 passing**.
 
 ## Read in this order
 
 1. [ ] **WHITEPAPER-FOR-DAD.md** — *A version with no math and no jargon. — Will, with JARVIS*
 2. [ ] **WHITEPAPER.md** — **Will Glynn, with JARVIS** · Draft v0.1 · 2026-06-11 · **PRIVATE — stealth, do not distribute**
-3. [ ] **ROADMAP.md** — - ✅ **demonstrated** — runs, tested on real blocks this session - 🟡 **designed** — specified, not yet built - 🔬 **research** — open problem, no settled approach
+3. [ ] **ROADMAP.md** — - **2026-06-13** — `[P·dont-let-attacker-choose-critical-input]` matured across surfaces, all negative-tested in `node`: (5) finalization `now` and (6) the validator-set `all` in `finalizes_hybrid` are outcome-determining ⇒ must be header/c...
 4. [ ] **BLOCK-ECONOMY-SPEC.md** — A unified system that turns JARVIS's own session history into a verifiable, owned, valued contribution economy — and, through that, a realistic basis for decentralized consensus and for backwards-enforcing the model layer from the governanc...
 5. [ ] **POM-CONSENSUS.md** — An agent's **PoM score** = its accumulated Myerson/Shapley credit across *verified, owned, provenance-complete* blocks (the block-economy value layer). It is a number that says: *this mind has provably contributed this much synergy-weighted...
 6. [ ] **DISPUTE-SLASHING.md** — value_v6 priced identity: an all-fresh sybil ring earns 0 because unvested identities pump no flow. The surviving attack: a contributor with EARNED standing builds a novel-garbage child on a fresh-key garbage parent. The certifier clears th...
@@ -21,7 +21,7 @@
 ### Reference (not on the critical path)
 - [ ] CKB-VM-PORT.md — - `ckb_vm::run::<R, M>(program: &Bytes, args: &[Bytes], memory_size: usize) -> Result<i8, Error>` — simplest entry; i8 exit code, 0 = success. (`src/lib.rs:41`) - Default machine recipe used by `run` itself (`src/lib.rs`):
 - [ ] CONSENSUS-REVIEW.md — The load-bearing question was *"does NCI's 60/30/10 break the rock-paper-scissors / separation-of-powers claim?"* The answer turns entirely on **composition**, not the numbers:
-- [ ] CONTINUE.md — - **Will: "audit and attack noesis, make it nuclear proof — or prove it already is."** 3 hostile adversaries (value / consensus / ordering+on-VM) swept the whole stack. VERDICT: - **Value layer = un-gameable BY CONSTRUCTION.** Sybil rings (...
+- [ ] CONTINUE.md — - **Adversarial-gaming increment (cron tick):** the ordered index rule (`valid_ordered_root_transition`) dissolves producer REORDERING but still trusts its `CellBatch` coords (height, secret) AS CLAIMED. New test
 - [ ] FOUNDATION-grace-made-mechanical.md — *A record. Will Glynn, with JARVIS. 2026-06-12. Captured in-flight, the moment the moral substrate beneath the whole project became explicit.*
 - [ ] HANDOFF.md — Resume point for a fresh chat. Detail lives in `CONTINUE.md` (top block) and `ROADMAP.md`; this is the fast orientation. Repo: `WGlynn/noesis` (private remote). Node: `node/`, Rust.
 - [ ] INDEX-DEP-CODEHASH-BINDING.md — `onchain/pom-typescript/src/main.rs:164` reads the index root with: ```rust match load_cell_data(0, Source::CellDep) { Ok(rd) if rd.len() == 32 => { /* accept as root */ } _ => return 20, } ``` Any cell-dep at slot 0 whose data is 32 bytes ...

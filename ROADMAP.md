@@ -3,6 +3,17 @@
 > Stealth. Release when matured. Phases are dependency-ordered; the load-bearing
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
+## Adversarial-loop log (RSAW — newest first)
+- **2026-06-13** — `[P·dont-let-attacker-choose-critical-input]` matured across surfaces, all
+  negative-tested in `node`: (5) finalization `now` and (6) the validator-set `all` in
+  `finalizes_hybrid` are outcome-determining ⇒ must be header/consensus-sourced on-VM;
+  (7) the ordered index rule (`valid_ordered_root_transition`) trusts its `CellBatch` coords
+  AS CLAIMED — a forged-lower-height steals contested novelty ⇒ the coords (height, secret)
+  themselves must be consensus-sourced on-VM (header height + revealed secret), not producer-
+  asserted. Full 3-adversary sweep (value / consensus / ordering+on-VM) found the value layer
+  un-gameable-by-construction; every real break collapses to this one input-binding class,
+  now fully pinned. node 191→196.
+
 ## Tier legend
 - ✅ **demonstrated** — runs, tested on real blocks this session
 - 🟡 **designed** — specified, not yet built

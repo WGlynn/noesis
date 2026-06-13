@@ -5692,6 +5692,75 @@ pub mod index_rule {
                 "a producer-favorable reorder of same-height contenders is rejected"
             );
         }
+
+        #[test]
+        fn ordered_rule_trusts_coords_so_they_must_be_consensus_sourced() {
+            use super::super::commit_order::Committed;
+            // valid_ordered_root_transition dissolves producer REORDERING, but it still trusts the
+            // CellBatch coords (height, secret) AS CLAIMED. is_canonical_order only checks the
+            // presented coords are internally canonical — never that they are TRUE. So a producer
+            // who LIES about a redundant cell's commit height (claims an earlier one) makes it sort
+            // first and bank the contested novelty, and the batch still validates. 7th site of
+            // [P·dont-let-attacker-choose-critical-input]: the coords themselves must be consensus-
+            // sourced on-VM (height from the header the commitment landed in; secret from the
+            // block's reveals), never producer-asserted. This test makes that requirement explicit.
+            let shared = 50u64;
+            let (a_own, b_own) = (101u64, 202u64);
+
+            // Build a batch from (coord, keys) pairs in the SUPPLIED order, inserting against the
+            // rolling root. The first cell to insert `shared` banks it; the later cell omits it
+            // (it could not prove non-membership anyway). Same 3 keys ⇒ same final index root.
+            fn build_in_order(cells: &[(Committed, &[u64])]) -> (Vec<CellBatch>, super::super::smt::Hash) {
+                let mut idx = NoveltyIndex::new();
+                let mut batches = Vec::new();
+                for (coord, ks) in cells {
+                    let steps: Vec<InsertStep> = ks
+                        .iter()
+                        .map(|&k| {
+                            let s = InsertStep { key: k, siblings: idx.proof(k) };
+                            idx.insert(k);
+                            s
+                        })
+                        .collect();
+                    batches.push(CellBatch { coord: coord.clone(), steps });
+                }
+                let root = idx.root();
+                (batches, root)
+            }
+
+            let old_root = NoveltyIndex::new().root();
+            // Honest: A committed at the EARLIER true height (5) and banks the shared coverage;
+            // redundant B is later (6).
+            let (truthful, root_t) = build_in_order(&[
+                (Committed { height: 5, secret: sec(10) }, &[a_own, shared][..]),
+                (Committed { height: 6, secret: sec(20) }, &[b_own][..]),
+            ]);
+            // Forged: B LIES, claiming height 4 (< A's 5), so B sorts first and banks `shared`.
+            let (forged, root_f) = build_in_order(&[
+                (Committed { height: 4, secret: sec(20) }, &[b_own, shared][..]),
+                (Committed { height: 5, secret: sec(10) }, &[a_own][..]),
+            ]);
+
+            assert_eq!(root_t, root_f, "same key set ⇒ same index root regardless of who banks shared");
+            assert!(
+                valid_ordered_root_transition(old_root, root_t, &truthful),
+                "the honest-coord batch validates"
+            );
+            assert!(
+                valid_ordered_root_transition(old_root, root_f, &forged),
+                "the forged-height batch ALSO validates — the rule trusts the claimed coords"
+            );
+            // The contested coverage flipped owner: A banks `shared` honestly; B banks it by a false
+            // height claim. Identify each index-0 winner by its own (non-shared) key.
+            assert!(
+                truthful[0].steps.iter().any(|s| s.key == a_own),
+                "honest order: A (earlier true height) banks the shared coverage"
+            );
+            assert!(
+                forged[0].steps.iter().any(|s| s.key == b_own),
+                "forged order: redundant B banks the shared coverage by claiming a lower height ⇒ coords must be consensus-sourced"
+            );
+        }
     }
 }
 

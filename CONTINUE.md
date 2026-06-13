@@ -1,5 +1,22 @@
 # CONTINUE — Noesis handoff (PRIVATE, stealth)
 
+## ▶ RESUME HERE (2026-06-13 — pom-roadmap-advance: 7th attacker-input site pinned; node 196/196)
+- **Adversarial-gaming increment (cron tick):** the ordered index rule
+  (`valid_ordered_root_transition`) dissolves producer REORDERING but still trusts its
+  `CellBatch` coords (height, secret) AS CLAIMED. New test
+  `ordered_rule_trusts_coords_so_they_must_be_consensus_sourced`: a redundant cell that LIES about
+  its commit height (claims an earlier one) sorts first and BANKS the contested novelty, and the
+  batch still validates (is_canonical_order only checks internal canonicity, not truth). ⇒ 7th site
+  of `[P·dont-let-attacker-choose-critical-input]`: the coords themselves must be consensus-sourced
+  on-VM (header height + revealed secret), never producer-asserted. node 195→196.
+- The invariant now spans 7 sites: code_hash / now-finalization / temporal-order / index-dep /
+  finalization-now / validator-set / ordered-rule-coords. All negative-tested reference-side; all
+  closed on-VM at GATE 2 of `RELEASE-PLAN-VIBESWAP-ON-NOESIS.md` (header/consensus-sourcing).
+- **NEXT:** on-VM ordering port now has a CRISP contract — the ELF must source height from the
+  commitment's header and the XOR seed from the block reveals, and reject any coord it can't
+  re-derive from consensus. Build candidates unchanged: (a) on-VM ordering port; (c) finalization
+  mirror; (d) multi-proof compression.
+
 ## ▶ RESUME HERE (2026-06-13 — RSAW "attack it / make it nuclear-proof" pass; node 195/195)
 - **Will: "audit and attack noesis, make it nuclear proof — or prove it already is."** 3 hostile
   adversaries (value / consensus / ordering+on-VM) swept the whole stack. VERDICT:
