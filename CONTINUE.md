@@ -13,9 +13,19 @@
   already declares `extern crate alloc` — declaring it again is E0259. Also caught: `cargo
   ... | tail` masks build failure ⇒ a && chain copied a STALE ELF once; recopied after a
   verified build. Worth a build-script hardening later.
-- **Remaining production binding — NOW DESIGNED** (`INDEX-DEP-CODEHASH-BINDING.md`, 2026-06-13):
-  the index dep is accepted by SHAPE (32 bytes) at `main.rs:164`, not yet by code_hash
-  identity. Spec + adversarial critical-qa done (qa flipped the design): expected index
+- **Production binding — ON-VM PORTED 2026-06-13** (`INDEX-DEP-CODEHASH-BINDING.md`): the
+  binding logic now COMPILES INTO THE ELF and runs on ckb-vm. `main.rs` has `index_dep_bound(0)`
+  (compile-time `EXPECTED_INDEX_CODE_HASH` + `EXPECTED_INDEX_TYPE_ID`, F1/F2/F3) gating the
+  cell-dep-0 root load, new exit `23`. SENTINEL all-zero const = unset = legacy shape path,
+  so the binding is INACTIVE pre-deploy and all 19 ckb-vm integration tests stay green
+  (regression-verified, ELF rebuilt + recopied to `node/tests/fixtures/pom-typescript`).
+  Host-side reference model `index_binding` (6 node tests) covers bound/mismatch/F3.
+  **STILL PENDING (honest):** the ACTIVATED on-VM path (exit-23-fires) is NOT yet tested
+  on-VM — it needs a build with the const set to a fixture value + a cell-dep with a
+  mismatched type-script. That value is deploy-coupled (= the index type-script's real
+  script-hash), so the activated-path fixture lands when the index cell deploys. Demonstrated:
+  logic on-VM + zero regression. Not demonstrated: exit-23 firing on-VM under a live mismatch.
+- **(superseded — design history)** Spec + adversarial critical-qa (qa flipped the design): expected index
   identity must be a **compile-time / consensus-pinned script-hash constant** in the
   binary, NOT a consumer `args` field (F1: attacker-chosen args = self-assertion, no
   binding); compare the dep's full **script hash** not code_hash alone (F2); `load_cell_type

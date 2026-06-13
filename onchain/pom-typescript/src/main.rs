@@ -14,6 +14,7 @@
 //!   20 = index root missing/malformed (cell-dep 0) or witness missing/short
 //!   21 = a proof fails to classify its shingle (omission/padding/tamper/stale root)
 //!   22 = mint denied: proven floored novelty is ZERO (redundant or floored content)
+//!   23 = index cell-dep identity unbound/mismatched (forged-root source; F1/F2/F3)
 //!
 //! T7 #4 second half: every group OUTPUT must additionally PROVE its novelty against
 //! the live novelty-index root (cell-dep 0, 32 raw bytes). Witness i (GroupOutput) is
@@ -38,7 +39,7 @@ use ckb_std::{
     ckb_constants::Source,
     default_alloc,
     error::SysError,
-    high_level::{load_cell_data, load_script},
+    high_level::{load_cell_data, load_cell_type, load_script},
     syscalls,
 };
 
@@ -48,6 +49,34 @@ default_alloc!();
 const THETA_ENT_Q16: u64 = 62259; // same constants as node value_fixed / noesis-core
 const THETA_SIM_Q16: u64 = 52429;
 const PATH_BYTES: usize = noesis_core::DEPTH * 32;
+
+/// Canonical index type-script identity (INDEX-DEP-CODEHASH-BINDING.md). The cell-dep
+/// carrying the live novelty-index root MUST be this script. F1: this is a COMPILE-TIME
+/// constant, never a tx-chosen arg (a tx-chosen expected-hash would be self-asserted and
+/// gameable). F2: full identity (code_hash + the type-id arg), not code_hash alone. F3:
+/// the type-id pins the canonical singleton instance (CKB type-id + UTXO liveness make an
+/// old root unreferenceable as a live dep). SENTINEL all-zero code_hash = UNSET = legacy
+/// shape path; the binding activates once the index type-script deploys and these are
+/// filled. The node carries the host-side reference model in `index_binding`.
+const EXPECTED_INDEX_CODE_HASH: [u8; 32] = [0u8; 32];
+const EXPECTED_INDEX_TYPE_ID: &[u8] = &[];
+
+/// Is cell-dep `dep` the canonical, identity-bound index cell? Unset sentinel => legacy
+/// shape path (true). Otherwise the dep's type-script code_hash AND type-id arg must both
+/// match the compile-time constants; a dep with no type-script is rejected (F2).
+fn index_dep_bound(dep: usize) -> bool {
+    if EXPECTED_INDEX_CODE_HASH == [0u8; 32] {
+        return true; // binding not yet activated (pre-deploy); shape path preserved
+    }
+    match load_cell_type(dep, Source::CellDep) {
+        Ok(Some(ts)) => {
+            let r = ts.as_reader();
+            r.code_hash().raw_data() == &EXPECTED_INDEX_CODE_HASH[..]
+                && r.args().raw_data() == EXPECTED_INDEX_TYPE_ID
+        }
+        _ => false, // no type-script (F2) or load error => reject when bound
+    }
+}
 
 /// Verify output `index`'s proven novelty: stream witness `index` one sibling path at a
 /// time against the index root. `claimed` carries shingles already minted as novel by
@@ -161,15 +190,20 @@ pub fn program_entry() -> i8 {
                 }
                 let r = match root {
                     Some(r) => r,
-                    None => match load_cell_data(0, Source::CellDep) {
-                        Ok(rd) if rd.len() == 32 => {
-                            let mut h = [0u8; 32];
-                            h.copy_from_slice(&rd);
-                            root = Some(h);
-                            h
+                    None => {
+                        if !index_dep_bound(0) {
+                            return 23; // forged/unbound index source (F1/F2/F3)
                         }
-                        _ => return 20,
-                    },
+                        match load_cell_data(0, Source::CellDep) {
+                            Ok(rd) if rd.len() == 32 => {
+                                let mut h = [0u8; 32];
+                                h.copy_from_slice(&rd);
+                                root = Some(h);
+                                h
+                            }
+                            _ => return 20,
+                        }
+                    }
                 };
                 match proven_mint_value(index, &data, r, &mut claimed) {
                     Ok(0) => return 22, // proven worthless: redundant against history
