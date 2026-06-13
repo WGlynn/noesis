@@ -69,3 +69,45 @@ on deploy is the literal hash constant, not the binding logic.
   source now identity-bound ⇒ the full index path is provenance-closed.
 - Same shape as a pinned-`code_hash` cell-dep in standard CKB scripts (vs `hash_type: data`
   by-shape). We are moving from data-shape acceptance to type-identity acceptance.
+
+## Critical-QA (adversarial pass, 2026-06-13) — run the adversary against the design before building
+
+Three findings; the first inverts part of the spec above.
+
+**F1 (CRITICAL — the args-sourced expected-hash is itself gameable).** The spec sources
+`expected_index_code_hash` from the consuming type-script's own `args`. But a cell's args
+are chosen by whoever assembles that cell. An attacker minting through this program deploys
+their own mint cell, so they pick its args freely — they set `expected_index_code_hash` to
+the code_hash of a *forged* index cell they also deploy, point cell-dep 0 at it, and
+`bound-match` passes trivially. A free arg the attacker controls is not a binding; it is a
+self-assertion. **Fix:** the expected index identity must be a value the attacker cannot
+choose — either (a) a **compile-time constant baked into the pom-typescript binary**
+(`const EXPECTED_INDEX_SCRIPT_HASH`), so every instance of this script enforces the SAME
+index identity, filled at the deploy that fixes the index script; or (b) pinned by the
+consensus/governance layer (a well-known governance cell whose own identity is
+consensus-rooted). Prefer (a) on-VM. The arg path is demoted to dev/test ONLY (never the
+production binding). This flips the spec: the binding lives in the binary, not in args.
+
+**F2 (bind the full Script identity, not code_hash alone).** Two scripts with the same
+`code_hash` but different `hash_type` (`type` vs `data` vs `data1`) are distinct programs.
+Comparing `code_hash` only is a partial check. **Fix:** compare the dep's computed
+**script hash** (the blake2b of the full `Script` molecule: code_hash ‖ hash_type ‖ args),
+or at minimum the `(code_hash, hash_type)` pair. The constant in F1 becomes a 32-byte
+script hash, not a code_hash.
+
+**F3 (code-binding ≠ instance/freshness-binding — the survivor).** Even a correctly
+identity-bound dep can be a STALE instance: a cell carrying the right index type-script but
+an OLD (rolled-back) root is still code-valid, and the mint then proves against that stale
+root under which the attacker's garbage classifies as novel. `valid_root_transition`
+(T7 #3) binds how the root EVOLVES but the mint reads whatever root the presented dep
+carries. **Fix (next layer):** bind the CANONICAL instance — make the index a **singleton**
+via the standard CKB type-id pattern (exactly one live cell carries that type-id), and/or
+require the dep's root to equal the consensus head commitment. This is the surviving attack
+that names the next increment (adversarial-layering): identity-binding is necessary, not
+sufficient; freshness/singleton-binding is the follow-on.
+
+**Net:** the binding is real and worth building, but the args-sourced expected-hash was
+gameable (F1) and code_hash-only was partial (F2). Revised design = compile-time (or
+consensus-pinned) **script-hash** constant, full-Script identity, with **instance/freshness
+binding (F3) pinned as the next layer**. Backward-compat unchanged: production builds embed
+the constant; dev/test may leave it unset (shape path) for the existing fixtures.

@@ -15,12 +15,15 @@
   verified build. Worth a build-script hardening later.
 - **Remaining production binding — NOW DESIGNED** (`INDEX-DEP-CODEHASH-BINDING.md`, 2026-06-13):
   the index dep is accepted by SHAPE (32 bytes) at `main.rs:164`, not yet by code_hash
-  identity. Spec ready-to-build: expected index type-script code_hash in consumer `args`;
-  `load_cell_type(0, CellDep).code_hash()` compared; mismatch ⇒ new exit `23`;
-  optional-when-configured for backward-compat (suite stays green until deploy). Four
-  ckb-vm fixtures specified (bound-match / bound-mismatch / dep-no-type-script /
-  legacy-unset). Only the literal code_hash value waits on the index type-script deploy,
-  not the binding logic. NEXT budgeted session: implement + ELF rebuild + the fixtures.
+  identity. Spec + adversarial critical-qa done (qa flipped the design): expected index
+  identity must be a **compile-time / consensus-pinned script-hash constant** in the
+  binary, NOT a consumer `args` field (F1: attacker-chosen args = self-assertion, no
+  binding); compare the dep's full **script hash** not code_hash alone (F2); `load_cell_type
+  (0, CellDep)` → reject `None`, mismatch ⇒ new exit `23`; dev/test may leave it unset
+  (shape path) so existing fixtures pass. **Survivor / next layer (F3):** code-binding ≠
+  freshness — a stale rolled-back index with the right script is still code-valid; bind the
+  CANONICAL instance via type-id singleton and/or consensus-head root match. NEXT budgeted
+  session: implement the F1/F2 binding + ELF rebuild + four fixtures, then the F3 layer.
 - **Loop2 COMPLETE 3/3** (checkpoint written: WAL epoch + SESSION_STATE + loop file
   deleted). **Next-session candidates**: bind index-dep by code_hash; index-cell
   type-script deployment; metered cycle measurement of a proven mint; multi-proof
