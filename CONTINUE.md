@@ -13,9 +13,14 @@
   already declares `extern crate alloc` — declaring it again is E0259. Also caught: `cargo
   ... | tail` masks build failure ⇒ a && chain copied a STALE ELF once; recopied after a
   verified build. Worth a build-script hardening later.
-- **Remaining production binding (doc-pin, unchanged)**: the index dep is accepted by
-  SHAPE (32 bytes), not yet by code_hash identity — bind when the index cell's own
-  type-script deploys.
+- **Remaining production binding — NOW DESIGNED** (`INDEX-DEP-CODEHASH-BINDING.md`, 2026-06-13):
+  the index dep is accepted by SHAPE (32 bytes) at `main.rs:164`, not yet by code_hash
+  identity. Spec ready-to-build: expected index type-script code_hash in consumer `args`;
+  `load_cell_type(0, CellDep).code_hash()` compared; mismatch ⇒ new exit `23`;
+  optional-when-configured for backward-compat (suite stays green until deploy). Four
+  ckb-vm fixtures specified (bound-match / bound-mismatch / dep-no-type-script /
+  legacy-unset). Only the literal code_hash value waits on the index type-script deploy,
+  not the binding logic. NEXT budgeted session: implement + ELF rebuild + the fixtures.
 - **Loop2 COMPLETE 3/3** (checkpoint written: WAL epoch + SESSION_STATE + loop file
   deleted). **Next-session candidates**: bind index-dep by code_hash; index-cell
   type-script deployment; metered cycle measurement of a proven mint; multi-proof
