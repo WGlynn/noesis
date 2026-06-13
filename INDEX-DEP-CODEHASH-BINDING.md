@@ -112,6 +112,32 @@ consensus-pinned) **script-hash** constant, full-Script identity, with **instanc
 binding (F3) pinned as the next layer**. Backward-compat unchanged: production builds embed
 the constant; dev/test may leave it unset (shape path) for the existing fixtures.
 
+## Critical-QA of the on-VM port (2026-06-13) — two real gaps in the shipped code
+
+The binding logic is on-VM and regression-green, but an adversarial pass on the actual
+`main.rs` code finds two things to close in the ACTIVATED build (both are functionally
+inert pre-deploy, since the binding is sentinel-inactive either way, so no rebuild now):
+
+**QA-port-1 (F2 incomplete on-VM — real).** The shipped check compares `code_hash` and the
+`args` (type-id) but NOT `hash_type`. A CKB `Script` is `(code_hash, hash_type, args)`, and
+two scripts sharing code_hash+args but differing in `hash_type` (Data / Type / Data1) are
+distinct programs. A forged dep reusing the canonical code_hash+type-id under a different
+hash_type would currently pass. This is exactly the F2 "bind the full Script identity" point
+applied to the port — and I dropped hash_type. FIX at activation: add
+`EXPECTED_INDEX_HASH_TYPE` and compare `r.hash_type()` too (verify the `ScriptReader`
+hash_type accessor against the local ckb-std source before coding it — do not guess the API).
+
+**QA-port-2 (sentinel overload — robustness).** `EXPECTED_INDEX_CODE_HASH == [0u8;32]` is
+overloaded to mean "unset / legacy shape path." But all-zero is also a syntactically valid
+code_hash; if a real index script ever had it (vanishingly unlikely for a blake2b output,
+but a smell), "bound to all-zero" would be misread as "unset." FIX: replace the zero-value
+sentinel with an explicit `const BINDING_ACTIVE: bool` flag; the activation state should be
+its own bit, not a magic value of the data being checked.
+
+Both land in the activated build alongside the activated-path fixture (exit-23-fires under a
+live mismatch). The host reference model `index_binding` should grow a hash_type field at the
+same time so it keeps mirroring the on-VM check.
+
 ## F3 resolution (next-layer advance, 2026-06-13) — freshness is free from the cell model
 
 The F3 survivor ("a correctly-identity-bound dep can still be a stale rolled-back instance")
