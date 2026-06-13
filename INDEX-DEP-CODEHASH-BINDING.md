@@ -118,14 +118,20 @@ The binding logic is on-VM and regression-green, but an adversarial pass on the 
 `main.rs` code finds two things to close in the ACTIVATED build (both are functionally
 inert pre-deploy, since the binding is sentinel-inactive either way, so no rebuild now):
 
-**QA-port-1 (F2 incomplete on-VM — real).** The shipped check compares `code_hash` and the
-`args` (type-id) but NOT `hash_type`. A CKB `Script` is `(code_hash, hash_type, args)`, and
-two scripts sharing code_hash+args but differing in `hash_type` (Data / Type / Data1) are
-distinct programs. A forged dep reusing the canonical code_hash+type-id under a different
-hash_type would currently pass. This is exactly the F2 "bind the full Script identity" point
-applied to the port — and I dropped hash_type. FIX at activation: add
-`EXPECTED_INDEX_HASH_TYPE` and compare `r.hash_type()` too (verify the `ScriptReader`
-hash_type accessor against the local ckb-std source before coding it — do not guess the API).
+**QA-port-1 (F2 incomplete on-VM — real). HOST-SIDE CLOSED 2026-06-13; on-VM mirror pending.**
+The shipped check compares `code_hash` and the `args` (type-id) but NOT `hash_type`. A CKB
+`Script` is `(code_hash, hash_type, args)`, and two scripts sharing code_hash+args but differing
+in `hash_type` (Data / Type / Data1) are distinct programs. A forged dep reusing the canonical
+code_hash+type-id under a different hash_type would currently pass.
+- **DONE (reference model):** `index_binding` now carries `HashType{Data,Type,Data1}`, the dep
+  is modeled as a full `DepScript{code_hash, hash_type, args}` triple, and `dep_accepted`
+  compares all three. Regression `bound_wrong_hash_type_rejects` pins it (same code_hash + same
+  type-id + Data-instead-of-Type ⇒ reject; Data1 too). node 197/197.
+- **PENDING (on-VM, deploy-coupled, still inert):** add `EXPECTED_INDEX_HASH_TYPE` to
+  `main.rs` and compare `r.hash_type()` in `index_dep_bound` (verify the `ScriptReader`
+  hash_type accessor against the local ckb-std source before coding it — do not guess the API).
+  Lands in the activated build with QA-port-2 + the activated-path fixture; the binding stays
+  sentinel-inactive until the index script deploys, so existing on-VM fixtures stay green.
 
 **QA-port-2 (sentinel overload — robustness).** `EXPECTED_INDEX_CODE_HASH == [0u8;32]` is
 overloaded to mean "unset / legacy shape path." But all-zero is also a syntactically valid

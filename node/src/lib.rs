@@ -5921,27 +5921,56 @@ pub mod commit_order {
 pub mod index_binding {
     use super::Script;
 
+    /// CKB `hash_type` discriminant. Two scripts sharing `code_hash`+`args` but differing
+    /// in `hash_type` are DISTINCT programs, so identity is incomplete without it (QA-port-1
+    /// / F2-complete). The node Cell model never needed it, so the index-dep identity carries
+    /// it explicitly here rather than bloating the global `Script` struct.
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+    pub enum HashType {
+        Data,
+        Type,
+        Data1,
+    }
+
+    /// A cell-dep's type-script as the on-VM port sees it: the FULL CKB `Script` identity
+    /// `(code_hash, hash_type, args)`. Mirrors `load_cell_type(0, CellDep)` → reader, which
+    /// exposes all three; the node `Script` struct omits `hash_type`, so the dep is modeled
+    /// with this local triple to keep the reference faithful to what the ELF compares.
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+    pub struct DepScript<'a> {
+        pub code_hash: [u8; 32],
+        pub hash_type: HashType,
+        pub args: &'a [u8],
+    }
+
     /// Identity of the canonical index type-script. On-VM the port compares the full CKB
-    /// script hash (blake2b of code_hash ‖ hash_type ‖ args); in the node Cell model
-    /// (no hash_type) identity = (code_hash, args), where args carries the type-id (F3).
+    /// script identity (code_hash ‖ hash_type ‖ args, the molecule blake2b hashes); the
+    /// `type_id` arg pins the canonical singleton instance (F3). F2-complete: `hash_type`
+    /// is part of identity, so a forged dep reusing code_hash+type-id under a different
+    /// hash_type (Data vs Type vs Data1) no longer passes.
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     pub struct IndexIdentity<'a> {
         pub code_hash: [u8; 32],
+        pub hash_type: HashType,
         pub type_id: &'a [u8],
     }
 
     /// Is cell-dep 0 an acceptable index source?
     /// - `expected = None` ⇒ legacy/unset: shape path (accept any cell that HAS a
     ///   type-script). Keeps existing fixtures green until deploy pins the constant.
-    /// - `expected = Some(id)` ⇒ bound: the dep's type-script `code_hash` AND its type-id
-    ///   arg must both match (F1 const + F2 full identity + F3 instance). A dep with no
-    ///   type-script is rejected under binding (F2).
-    pub fn dep_accepted(dep_type_script: Option<&Script>, expected: Option<IndexIdentity>) -> bool {
+    /// - `expected = Some(id)` ⇒ bound: the dep's type-script `code_hash`, `hash_type`, AND
+    ///   its type-id arg must ALL match (F1 const + F2 full identity + F3 instance). A dep
+    ///   with no type-script is rejected under binding (F2).
+    pub fn dep_accepted(dep_type_script: Option<&DepScript>, expected: Option<IndexIdentity>) -> bool {
         match expected {
             None => dep_type_script.is_some(),
             Some(id) => match dep_type_script {
                 None => false,
-                Some(s) => s.code_hash == id.code_hash && s.args.as_slice() == id.type_id,
+                Some(d) => {
+                    d.code_hash == id.code_hash
+                        && d.hash_type == id.hash_type
+                        && d.args == id.type_id
+                }
             },
         }
     }
@@ -5961,17 +5990,26 @@ pub mod index_binding {
         const H: [u8; 32] = [0xA1; 32];
         const WRONG_H: [u8; 32] = [0xB2; 32];
 
+        // A cell-dep type-script as the on-VM port sees it: full (code_hash, hash_type, args).
+        fn dep(code_hash: [u8; 32], hash_type: HashType, args: &[u8]) -> DepScript<'_> {
+            DepScript { code_hash, hash_type, args }
+        }
+        // The canonical expected identity, parameterized by the instance type-id.
+        fn id(type_id: &[u8]) -> IndexIdentity<'_> {
+            IndexIdentity { code_hash: H, hash_type: HashType::Type, type_id }
+        }
+        // For the type-id singleton test (uniqueness needs no hash_type).
         fn ts(code_hash: [u8; 32], args: &[u8]) -> Script {
             Script { code_hash, args: args.to_vec() }
-        }
-        fn id(type_id: &[u8]) -> IndexIdentity<'_> {
-            IndexIdentity { code_hash: H, type_id }
         }
 
         #[test]
         fn bound_match_accepts() {
             let tid: &[u8] = &[7, 7, 7];
-            assert!(dep_accepted(Some(&ts(H, tid)), Some(id(tid))), "right code + right instance");
+            assert!(
+                dep_accepted(Some(&dep(H, HashType::Type, tid)), Some(id(tid))),
+                "right code + right hash_type + right instance"
+            );
         }
 
         #[test]
@@ -5979,13 +6017,29 @@ pub mod index_binding {
             // F2: a forged index reusing the canonical type-id arg but a different
             // type-script code is rejected — code_hash-only would have missed this.
             let tid: &[u8] = &[7, 7, 7];
-            assert!(!dep_accepted(Some(&ts(WRONG_H, tid)), Some(id(tid))));
+            assert!(!dep_accepted(Some(&dep(WRONG_H, HashType::Type, tid)), Some(id(tid))));
+        }
+
+        #[test]
+        fn bound_wrong_hash_type_rejects() {
+            // QA-port-1 / F2-complete: SAME code_hash + SAME type-id, but Data instead of
+            // Type is a DISTINCT program. code_hash-only (the pre-fix model) accepted this;
+            // full-identity rejects it. This is the forged-dep the hash_type field closes.
+            let tid: &[u8] = &[7, 7, 7];
+            assert!(
+                !dep_accepted(Some(&dep(H, HashType::Data, tid)), Some(id(tid))),
+                "code_hash+type-id match but hash_type differs ⇒ distinct program ⇒ reject"
+            );
+            assert!(
+                !dep_accepted(Some(&dep(H, HashType::Data1, tid)), Some(id(tid))),
+                "Data1 is also distinct from Type"
+            );
         }
 
         #[test]
         fn bound_wrong_type_id_rejects() {
             // F3: right code, wrong instance (different type-id) ⇒ reject (not canonical).
-            assert!(!dep_accepted(Some(&ts(H, &[9, 9])), Some(id(&[7, 7, 7]))));
+            assert!(!dep_accepted(Some(&dep(H, HashType::Type, &[9, 9])), Some(id(&[7, 7, 7]))));
         }
 
         #[test]
@@ -5995,7 +6049,10 @@ pub mod index_binding {
 
         #[test]
         fn legacy_unset_is_shape_path() {
-            assert!(dep_accepted(Some(&ts(WRONG_H, &[1])), None), "unset ⇒ any type-scripted cell ok");
+            assert!(
+                dep_accepted(Some(&dep(WRONG_H, HashType::Data, &[1])), None),
+                "unset ⇒ any type-scripted cell ok (hash_type irrelevant on the shape path)"
+            );
             assert!(!dep_accepted(None, None), "still rejects a cell with no type-script");
         }
 

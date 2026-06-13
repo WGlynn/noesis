@@ -4,8 +4,14 @@ Resume point for a fresh chat. Detail lives in `CONTINUE.md` (top block) and `RO
 this is the fast orientation. Repo: `WGlynn/noesis` (private remote). Node: `node/`, Rust.
 
 ## Current state
-- **node: 179/179 green** (`cd node && cargo test`; lib 154 + integration suites).
-- **Last increment (2026-06-13, pom-roadmap tick `a905048`):** encoding-evasion of the
+- **node: 197/197 green** (`cd node && cargo test`; lib 172 + integration suites).
+- **Last increment (2026-06-13, full-auto story-loop):** PM-17 `index_binding` reference
+  model F2-COMPLETED — dep identity grew a `hash_type` field (`HashType{Data,Type,Data1}` +
+  `DepScript` triple); a forged index dep reusing the canonical code_hash+type-id under a
+  different Data/Type/Data1 (a distinct CKB program) is now REJECTED. Closes QA-port-1 host-side
+  (`bound_wrong_hash_type_rejects`, node 196→197). Next: the on-VM `main.rs` mirror
+  (`EXPECTED_INDEX_HASH_TYPE`) + the `BINDING_ACTIVE` flag (QA-port-2), deploy-coupled.
+- **Prior increment (pom-roadmap tick `a905048`):** encoding-evasion of the
   semantic seed floor is CLASS-DISSOLVED economically. Hex/zero-dilute noise slips
   `semantic_floor` AND re-opens the v7 seed-gate pump (on encoded bytes v7≡v6), but the
   v6 standing price is byte-blind (fresh-key ring earns 0) and the dispute slash is

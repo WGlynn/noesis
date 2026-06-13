@@ -4,6 +4,13 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-13** — `index_binding` reference model F2-COMPLETED on-VM identity: the dep
+  identity grew a `hash_type` field (`HashType{Data,Type,Data1}` + `DepScript` triple), so a
+  forged index dep reusing the canonical `code_hash`+type-id under a DIFFERENT hash_type — a
+  distinct CKB program — is now REJECTED (`bound_wrong_hash_type_rejects`). Closes QA-port-1
+  (the design doc's "host model should grow a hash_type field to keep mirroring the on-VM
+  check"); the on-VM `main.rs` mirror (`EXPECTED_INDEX_HASH_TYPE`) + the `BINDING_ACTIVE` flag
+  (QA-port-2) are the next, deploy-coupled increment. node 196→197.
 - **2026-06-13** — `[P·dont-let-attacker-choose-critical-input]` matured across surfaces, all
   negative-tested in `node`: (5) finalization `now` and (6) the validator-set `all` in
   `finalizes_hybrid` are outcome-determining ⇒ must be header/consensus-sourced on-VM;
