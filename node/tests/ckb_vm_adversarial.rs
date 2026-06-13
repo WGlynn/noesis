@@ -111,16 +111,34 @@ fn mint_side_noise_is_floored_t6_closed() {
     let minted_ok = input_cell(10, 7, b"echo-foxtrot-golf-hotel");
     let noise: Vec<u8> = (0u8..64).map(|i| i.wrapping_mul(37).wrapping_add(11)).collect();
     let minted_noise = input_cell(11, 7, &noise);
+    // (T7 update: mints now also need the index dep + proof witnesses; the semantic
+    // floor still fires FIRST, so the noise case needs no proofs at all.)
     let (result, _) = common::run_typescript_tx(
         ELF,
         &consumed.clone(),
         vec![consumed.clone()],
-        vec![minted_ok.clone(), minted_noise],
+        vec![minted_noise, minted_ok.clone()],
     );
     assert_eq!(result.unwrap(), 14, "mint-side noise floored with its own exit code");
-    // Honest mint passes; mint-only (no inputs) is a valid genesis-ish shape too.
-    let (result, _) = common::run_typescript_tx(ELF, &consumed.clone(), vec![consumed], vec![minted_ok.clone()]);
-    assert_eq!(result.unwrap(), 0, "honest mint passes both loops");
-    let (result, _) = common::run_typescript_tx(ELF, &minted_ok.clone(), vec![], vec![minted_ok]);
-    assert_eq!(result.unwrap(), 0, "mint-only group is valid and floored");
+    // Honest mint passes WITH proofs; mint-only (genesis-ish) likewise.
+    let idx = noesis::smt::NoveltyIndex::new();
+    let blob = common::proof_blob(&idx, &minted_ok.data);
+    let (result, _) = common::run_typescript_t7(
+        ELF,
+        &consumed.clone(),
+        vec![consumed],
+        vec![minted_ok.clone()],
+        vec![common::root_dep(&idx)],
+        vec![blob.clone()],
+    );
+    assert_eq!(result.unwrap(), 0, "honest proven mint passes both loops");
+    let (result, _) = common::run_typescript_t7(
+        ELF,
+        &minted_ok.clone(),
+        vec![],
+        vec![minted_ok],
+        vec![common::root_dep(&idx)],
+        vec![blob],
+    );
+    assert_eq!(result.unwrap(), 0, "mint-only group is valid, floored, and proven");
 }

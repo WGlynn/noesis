@@ -159,7 +159,42 @@ pub fn verify_insert(old_root: Hash, new_root: Hash, key: u64, siblings: &[Hash;
 
 // ============ Proven intake verifier (mirror of node proven) ============
 
+/// One shingle's classification under `root` — the STREAMING primitive (the on-VM
+/// program verifies proof-by-proof from the witness without materializing them all).
+pub enum Class {
+    Member,
+    Absent,
+}
+
+pub fn classify(root: Hash, key: u64, path: &[Hash; DEPTH]) -> Option<Class> {
+    match (verify_member(root, key, path), verify_non_member(root, key, path)) {
+        (true, false) => Some(Class::Member),
+        (false, true) => Some(Class::Absent),
+        _ => None,
+    }
+}
+
+/// The floor arithmetic on proven counts — kept here so script and node share ONE copy.
+pub fn floored_from_counts(
+    novelty_occ: u64,
+    overlap_uniq: u64,
+    unique_total: u64,
+    data: &[u8],
+    theta_sim_q16: u64,
+    theta_ent_q16: u64,
+) -> u64 {
+    let floored = if unique_total > 0
+        && ((overlap_uniq as u128) << 16) > (theta_sim_q16 as u128) * unique_total as u128
+    {
+        0
+    } else {
+        novelty_occ
+    };
+    semantic_floor_q16(floored, data, theta_ent_q16)
+}
+
 /// Classify every unique shingle against `root`; counts or whole-cell rejection.
+/// Implemented ON TOP of `classify` so batch and streaming are one source.
 pub fn novelty_with_proofs(data: &[u8], root: Hash, proofs: &[[Hash; DEPTH]]) -> Option<(u64, u64, u64)> {
     let uniq = unique_shingles(data);
     if proofs.len() != uniq.len() {
@@ -168,10 +203,9 @@ pub fn novelty_with_proofs(data: &[u8], root: Hash, proofs: &[[Hash; DEPTH]]) ->
     let mut novelty_occ = 0u64;
     let mut overlap_uniq = 0u64;
     for ((key, mult), path) in uniq.iter().zip(proofs) {
-        match (verify_member(root, *key, path), verify_non_member(root, *key, path)) {
-            (true, false) => overlap_uniq += 1,
-            (false, true) => novelty_occ += mult,
-            _ => return None,
+        match classify(root, *key, path)? {
+            Class::Member => overlap_uniq += 1,
+            Class::Absent => novelty_occ += mult,
         }
     }
     Some((novelty_occ, overlap_uniq, uniq.len() as u64))
@@ -186,11 +220,5 @@ pub fn proven_floored_novelty_q16(
     theta_ent_q16: u64,
 ) -> Option<u64> {
     let (novelty, overlap, total) = novelty_with_proofs(data, root, proofs)?;
-    let floored =
-        if total > 0 && ((overlap as u128) << 16) > (theta_sim_q16 as u128) * total as u128 {
-            0
-        } else {
-            novelty
-        };
-    Some(semantic_floor_q16(floored, data, theta_ent_q16))
+    Some(floored_from_counts(novelty, overlap, total, data, theta_sim_q16, theta_ent_q16))
 }

@@ -1,5 +1,23 @@
 # CONTINUE — Noesis handoff (PRIVATE, stealth)
 
+## ▶ RESUME HERE (2026-06-12 PM-16 — T7 #4 COMPLETE: proven floors ON-VM, node 173/173; loop2 1/3)
+- **T7 DONE — the execution tier (T1-T8) is COMPLETE.** Mint side now requires PROOF:
+  every group output must prove its novelty against the live index root (cell-dep 0,
+  32 raw bytes) via the canonical witness blob (concatenated 64×32B sibling paths,
+  sorted-unique order, nothing else). The program STREAMS one path at a time (fixed 2KB
+  buffer, no large allocation; length probed via partial-load before any verification)
+  through `noesis_core::classify` + `floored_from_counts` — the same single-source
+  functions the node drift-guards. Exit codes: 20 malformed/missing root-or-witness,
+  21 classification failure (tamper/stale/omission-by-content), 22 mint denied
+  (proven floored novelty = 0).
+- **e2e green incl. cross-checks vs host-side ground truth**: novel mint 0, exact-replay
+  22, tampered path 21, stale root 21, truncated witness 20, missing dep 20. T6-era mint
+  tests updated to the T7 tx shape (one ordering fix: semantic floor fires per-output in
+  order, so noise-first demonstrates 14 without proofs).
+- **Honest cost note**: interpreter e2e suites ≈ 17s (≈37 shingles × 64 blake2b × cases)
+  — the design doc's predicted cycle pressure, real. Multi-proofs = named optimization.
+- **Loop2: 1/3 done. Next = adversarial tick on the full T7 stack, then checkpoint.**
+
 ## ▶ RESUME HERE (2026-06-12 PM-15 — T7 #4 FIRST HALF: noesis-core no_std crate, node 168/168; loop 4/4 COMPLETE)
 - **Split decision (WWWD, final loop iteration)**: full #4 e2e is the most intricate piece
   and this chat is deep past rotation ⇒ shipped the RISKY half (no_std portability) and
