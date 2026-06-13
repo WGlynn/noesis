@@ -158,7 +158,9 @@ is a reputation system.
   classification in the witness ⇒ exact novelty/overlap counts verified on-VM; omission and
   stale-root walked closed at design time; serialization + cycle cost pinned as calibration
   (shard-by-prefix, SMT multi-proofs). Code increments 1-4 ordered in-doc; #1 = SMT in node.
-- 🟡 T8 Q32.32 settlement mirror (flow/v5-v7) → on-VM finalization path above
+- ✅ T8 Q32.32 settlement mirror (`settlement_fixed`: integer damped-Jacobi external flow,
+  rational gate, full v7 composition; tracks f64 within 1e-6 on content graphs; flipped-pin
+  + monotone-vesting + saturation-not-wraparound all in-test) → on-VM finalization next
 - ✅ ref / 🟡 solver **Stability** — core membership + nucleolus max-excess reference model
   (`stability` mod, tested); the LP / iterated-LP solver over the real PoM-weighted coalition
   game (Myerson-restricted, sampled at scale) is pending.

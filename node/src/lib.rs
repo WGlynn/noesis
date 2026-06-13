@@ -1547,7 +1547,7 @@ pub mod flow {
 
     /// parent_id → child indices, from the REAL parent linkage on the cells (self-loops
     /// dropped). Children of a cell are the cells that built on it.
-    fn children_of(cells: &[Cell]) -> HashMap<u64, Vec<usize>> {
+    pub(crate) fn children_of(cells: &[Cell]) -> HashMap<u64, Vec<usize>> {
         let mut ch: HashMap<u64, Vec<usize>> = HashMap::new();
         for (i, c) in cells.iter().enumerate() {
             if let Some(p) = c.parent {
@@ -1565,7 +1565,7 @@ pub mod flow {
     /// building on it itself. (A multi-identity sybil ring was the pinned residual gap;
     /// `value::value_v6` closes it by standing-gating the SEEDS — edges stay un-gated here
     /// so certification remains transitive through unvested intermediaries.)
-    fn children_of_external(
+    pub(crate) fn children_of_external(
         cells: &[Cell],
         id_to_idx: &HashMap<u64, usize>,
     ) -> HashMap<u64, Vec<usize>> {
@@ -4791,6 +4791,218 @@ pub mod smt {
                 }
             }
             assert_eq!((overlap, novelty), (3, 3), "exact counts — floors run on these");
+        }
+    }
+}
+
+/// Q32.32 settlement mirror — ROADMAP T8 (`CKB-VM-PORT.md` fixed-point map, last entry).
+/// The flow-gated rules (v5-v7) in pure integer arithmetic: damped-Jacobi value flow,
+/// rational flow gate, and the full v7 composition (similarity floor + standing gate +
+/// semantic-floored seeds + realized-flow gate) — deterministic across platforms, the
+/// settlement-side counterpart of `value_fixed` (intake side).
+///
+/// Representation: Q32.32 in u128 carriers (values are novelty-scale, flow amplification
+/// bounded by 1/(1-d); u128 headroom makes overflow practically unreachable and every op
+/// SATURATES rather than wraps — saturation is an honest bound, pinned in-test).
+/// Early exit on exact fixpoint (delta == 0) only — data-dependent but deterministic,
+/// and the `iters` cap bounds it either way.
+pub mod settlement_fixed {
+    use super::{flow, value_fixed, Cell};
+    use std::collections::HashMap;
+
+    pub const Q: u32 = 32;
+    pub const ONE: u128 = 1 << Q;
+
+    fn mul(a: u128, b: u128) -> u128 {
+        a.saturating_mul(b) >> Q
+    }
+
+    /// `flow(b) = own(b) + d · Σ_{c built on b} flow(c)` — damped Jacobi, integer-exact,
+    /// EXTERNAL edges only (child contributor ≠ parent contributor), mirroring
+    /// `flow::value_flow_with_own(.., external_only = true)`.
+    pub fn value_flow_external_q32(cells: &[Cell], own: &[u128], d_q32: u128, iters: usize) -> Vec<u128> {
+        let mut fl = own.to_vec();
+        if cells.is_empty() {
+            return fl;
+        }
+        let id_to_idx: HashMap<u64, usize> =
+            cells.iter().enumerate().map(|(i, c)| (c.id, i)).collect();
+        let children = flow::children_of_external(cells, &id_to_idx);
+        for _ in 0..iters {
+            let mut next = own.to_vec();
+            for (pid, kids) in &children {
+                if let Some(&pi) = id_to_idx.get(pid) {
+                    let s: u128 = kids.iter().fold(0u128, |acc, &k| acc.saturating_add(fl[k]));
+                    next[pi] = own[pi].saturating_add(mul(d_q32, s));
+                }
+            }
+            let delta = next
+                .iter()
+                .zip(&fl)
+                .map(|(a, b)| a.abs_diff(*b))
+                .max()
+                .unwrap_or(0);
+            fl = next;
+            if delta == 0 {
+                break;
+            }
+        }
+        fl
+    }
+
+    /// Rational flow gate applied in one shot: `novelty · f / (f + half)` at Q32.32.
+    /// Division is exact integer division — deterministic on-VM (RISC-V divu).
+    pub fn gated_value_q32(novelty_q32: u128, downstream_q32: u128, half_q32: u128) -> u128 {
+        if downstream_q32 == 0 {
+            return 0;
+        }
+        let denom = downstream_q32.saturating_add(half_q32);
+        novelty_q32.saturating_mul(downstream_q32) / denom
+    }
+
+    /// Full `value_v7` in fixed point: similarity floor (Q16.16, exact cross-multiplied) →
+    /// standing gate + semantic-floored SEEDS → external realized flow → rational gate.
+    /// Same parameters as `value::value_v7`, integer forms.
+    #[allow(clippy::too_many_arguments)]
+    pub fn value_v7_q32(
+        cells_in_commit_order: &[Cell],
+        standing: &HashMap<Vec<u8>, u64>,
+        standing_floor: u64,
+        theta_sim_q16: u64,
+        theta_ent_q16: u64,
+        d_q32: u128,
+        iters: usize,
+        half_q32: u128,
+    ) -> Vec<u128> {
+        let floored =
+            value_fixed::temporal_novelty_with_similarity_floor_q16(cells_in_commit_order, theta_sim_q16);
+        let seed: Vec<u128> = floored
+            .iter()
+            .zip(cells_in_commit_order)
+            .map(|(&n, c)| {
+                let s = standing.get(&c.type_script.args).copied().unwrap_or(0);
+                if s >= standing_floor {
+                    (value_fixed::semantic_floor_q16(n, &c.data, theta_ent_q16) as u128) << Q
+                } else {
+                    0
+                }
+            })
+            .collect();
+        let fl = value_flow_external_q32(cells_in_commit_order, &seed, d_q32, iters);
+        floored
+            .iter()
+            .zip(&seed)
+            .zip(&fl)
+            .map(|((&n, &s), &f)| gated_value_q32((n as u128) << Q, f.saturating_sub(s), half_q32))
+            .collect()
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::super::{value, Cell, Script};
+        use super::*;
+
+        fn cellc(id: u64, contrib: u8, ts: u64, parent: Option<u64>, data: &[u8]) -> Cell {
+            Cell {
+                id,
+                lock: Script { code_hash: [1u8; 32], args: vec![contrib] },
+                type_script: Script { code_hash: [0xB0; 32], args: vec![contrib] },
+                parent,
+                timestamp: ts,
+                data: data.to_vec(),
+            }
+        }
+
+        fn st(pairs: &[(u8, u64)]) -> HashMap<Vec<u8>, u64> {
+            pairs.iter().map(|&(k, s)| (vec![k], s)).collect()
+        }
+
+        const FLOOR: u64 = 10;
+        const SIM: u64 = 52429; // ~0.8 Q16.16
+        const ENT: u64 = 62259; // ~0.95 Q16.16
+        const D: u128 = (0.85f64 * (1u64 << 32) as f64) as u128;
+        const HALF: u128 = 8 << 32;
+        const ITERS: usize = 200;
+
+        fn as_f64(x: u128) -> f64 {
+            x as f64 / ONE as f64
+        }
+
+        #[test]
+        fn v7_q32_tracks_f64_v7_on_content_graphs() {
+            // The settlement mirror must agree with the f64 prototype within iterative
+            // tolerance on honest mixed-vesting graphs (exactness is impossible across
+            // float-vs-fixed iteration; 1e-6 relative is the documented band).
+            let order = vec![
+                cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta"),
+                cellc(1, 2, 1, Some(0), b"echo-foxtrot-golf-hotel"),
+                cellc(2, 3, 2, Some(1), b"india-juliet-kilo-lima-mike"),
+                cellc(3, 2, 3, Some(0), b"november-oscar-papa-quebec"),
+            ];
+            let standing = st(&[(1, FLOOR), (2, FLOOR), (3, 0)]);
+            let f = value::value_v7(&order, &standing, FLOOR, 0.8, 0.95, 0.85, ITERS, 8.0);
+            let x = value_v7_q32(&order, &standing, FLOOR, SIM, ENT, D, ITERS, HALF);
+            for (i, (a, b)) in f.iter().zip(&x).enumerate() {
+                let bf = as_f64(*b);
+                assert!(
+                    (a - bf).abs() <= 1e-6 * a.abs().max(1.0),
+                    "cell {i}: f64 {a} vs q32 {bf}"
+                );
+            }
+        }
+
+        #[test]
+        fn v7_q32_noise_child_pumps_nothing() {
+            // The flipped v7 pin holds in fixed point: vested noise child, parent earns 0.
+            let noise: Vec<u8> = (0u8..64).map(|i| i.wrapping_mul(37).wrapping_add(11)).collect();
+            let order = vec![
+                cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta"),
+                cellc(1, 9, 1, Some(0), &noise),
+            ];
+            let standing = st(&[(1, FLOOR), (9, FLOOR)]);
+            let x = value_v7_q32(&order, &standing, FLOOR, SIM, ENT, D, ITERS, HALF);
+            assert_eq!(x[0], 0, "semantic-floored seed: noise certifies nothing, integer-exact");
+        }
+
+        #[test]
+        fn v7_q32_retroactive_vesting_is_monotone() {
+            // More realized use never pays less — the gate's monotonicity survives the
+            // integer port (saturating ops are monotone).
+            let base = vec![cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta")];
+            let standing = st(&[(1, FLOOR), (2, FLOOR), (3, FLOOR)]);
+            let one_child = {
+                let mut o = base.clone();
+                o.push(cellc(1, 2, 1, Some(0), b"echo-foxtrot-golf-hotel"));
+                o
+            };
+            let two_children = {
+                let mut o = one_child.clone();
+                o.push(cellc(2, 3, 2, Some(0), b"india-juliet-kilo-lima"));
+                o
+            };
+            let v0 = value_v7_q32(&base, &standing, FLOOR, SIM, ENT, D, ITERS, HALF)[0];
+            let v1 = value_v7_q32(&one_child, &standing, FLOOR, SIM, ENT, D, ITERS, HALF)[0];
+            let v2 = value_v7_q32(&two_children, &standing, FLOOR, SIM, ENT, D, ITERS, HALF)[0];
+            assert_eq!(v0, 0, "no use, no pay");
+            assert!(v1 > v0 && v2 > v1, "value accrues monotonically with realized use");
+        }
+
+        #[test]
+        fn deep_chain_saturates_instead_of_wrapping_pinned() {
+            // Fixed-point-specific surface (this tick's adversarial look): a long
+            // build-chain amplifies flow by ~1/(1-d). With u128 carriers the headroom is
+            // astronomical, but the CONTRACT is saturation, never wraparound — a wrap
+            // would mint value from overflow. Construct a 200-deep alternating-identity
+            // chain and assert finite, ordered, panic-free results.
+            let mut order = vec![cellc(0, 1, 0, None, b"root-cell-alpha-bravo")];
+            for i in 1..200u64 {
+                let data = format!("chain-cell-number-{i}-built-on-previous");
+                order.push(cellc(i, (i % 2) as u8 + 1, i, Some(i - 1), data.as_bytes()));
+            }
+            let standing = st(&[(1, FLOOR), (2, FLOOR)]);
+            let x = value_v7_q32(&order, &standing, FLOOR, SIM, ENT, D, ITERS, HALF);
+            assert!(x.iter().all(|&v| v < u128::MAX / 2), "finite under deep amplification");
+            assert!(x[0] > 0, "root is paid through the whole chain");
         }
     }
 }

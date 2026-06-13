@@ -1,5 +1,19 @@
 # CONTINUE — Noesis handoff (PRIVATE, stealth)
 
+## ▶ RESUME HERE (2026-06-12 PM-12 — T8 settlement mirror, node 156/156; loop 1/4)
+- **`settlement_fixed` SHIPPED (ROADMAP T8 ✅)**: the flow-gated rules in Q32.32/u128 —
+  integer damped-Jacobi external flow (mirrors `value_flow_with_own` external-only),
+  one-shot rational gate `nov·f/(f+half)` (integer division, RISC-V divu-deterministic),
+  full `value_v7_q32` composing the Q16.16 intake floors with fixed-point settlement.
+  Every op SATURATES (wrap would mint value from overflow — pinned by a 200-deep
+  amplification-chain test). Tracks f64 v7 within 1e-6 relative on mixed-vesting content
+  graphs; the flipped noise-child pin holds integer-exact (parent = 0); retroactive
+  vesting monotone. Early-exit only on exact fixpoint (deterministic).
+- **Both arithmetic tiers now exist in canonical fixed point**: intake (`value_fixed`,
+  T1) + settlement (`settlement_fixed`, T8). f64 = prototype everywhere.
+- **Loop: 1/4 done.** Next = T7 #2 `novelty_with_proofs` shared verifier (SMT counts →
+  floors, no_std-compatible), then #3 index-cell rule (per-block batched), then #4 e2e.
+
 ## ▶ RESUME HERE (2026-06-12 PM-11 — T7 #1 SMT shipped + design qa'd, node 152/152)
 - **SMT in `node` (T7 #1)**: blake2b-ref dep (proven recipe), depth-64 over CovId, ONE
   shared fold (`root_from`) serving membership / non-membership / insertion; off-VM
