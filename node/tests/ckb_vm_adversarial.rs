@@ -102,3 +102,25 @@ fn multi_input_all_content_group_still_passes() {
     let (result, _) = run_typescript(ELF, &a, vec![]);
     assert_eq!(result.unwrap(), 12, "empty group rejected — nothing to attest");
 }
+
+#[test]
+fn mint_side_noise_is_floored_t6_closed() {
+    // FLIPS the T6 doc-pin: a tx MINTING noise (clean inputs, noise in the produced
+    // group outputs) was invisible to the program before the output loop. Now: 14.
+    let consumed = input_cell(0, 7, b"alpha-bravo-charlie-delta");
+    let minted_ok = input_cell(10, 7, b"echo-foxtrot-golf-hotel");
+    let noise: Vec<u8> = (0u8..64).map(|i| i.wrapping_mul(37).wrapping_add(11)).collect();
+    let minted_noise = input_cell(11, 7, &noise);
+    let (result, _) = common::run_typescript_tx(
+        ELF,
+        &consumed.clone(),
+        vec![consumed.clone()],
+        vec![minted_ok.clone(), minted_noise],
+    );
+    assert_eq!(result.unwrap(), 14, "mint-side noise floored with its own exit code");
+    // Honest mint passes; mint-only (no inputs) is a valid genesis-ish shape too.
+    let (result, _) = common::run_typescript_tx(ELF, &consumed.clone(), vec![consumed], vec![minted_ok.clone()]);
+    assert_eq!(result.unwrap(), 0, "honest mint passes both loops");
+    let (result, _) = common::run_typescript_tx(ELF, &minted_ok.clone(), vec![], vec![minted_ok]);
+    assert_eq!(result.unwrap(), 0, "mint-only group is valid and floored");
+}

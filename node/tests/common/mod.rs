@@ -15,6 +15,7 @@ pub const SYS_LOAD_SCRIPT: u64 = 2052;
 pub const SYS_LOAD_CELL_DATA: u64 = 2092;
 pub const INDEX_OUT_OF_BOUND: u64 = 1;
 pub const SOURCE_INPUT_LOW: u64 = 1;
+pub const SOURCE_OUTPUT_LOW: u64 = 2;
 
 /// Hand-encoded molecule `Script` table (3 fields: code_hash, hash_type, args).
 /// Layout per molecule spec: u32 total size, 3 × u32 field offsets, then the fields;
@@ -41,15 +42,22 @@ pub struct NoesisSyscalls {
     #[allow(dead_code)]
     pub script: Vec<u8>,
     pub inputs: Vec<Cell>,
+    pub outputs: Vec<Cell>,
     pub served: Arc<AtomicU64>,
 }
 
 impl NoesisSyscalls {
     pub fn for_cell(cell: &Cell, inputs: Vec<Cell>, served: Arc<AtomicU64>) -> Self {
+        Self::for_tx(cell, inputs, Vec::new(), served)
+    }
+
+    /// Full transaction shape: consumed inputs AND produced outputs (the mint side).
+    pub fn for_tx(cell: &Cell, inputs: Vec<Cell>, outputs: Vec<Cell>, served: Arc<AtomicU64>) -> Self {
         let code_hash: [u8; 32] = cell.type_script.code_hash;
         NoesisSyscalls {
             script: molecule_script(&code_hash, 0, &cell.type_script.args),
             inputs,
+            outputs,
             served,
         }
     }
@@ -89,9 +97,14 @@ impl<Mac: SupportMachine> Syscalls<Mac> for NoesisSyscalls {
             SYS_LOAD_CELL_DATA => {
                 let index = machine.registers()[A3].to_u64() as usize;
                 let source = machine.registers()[A4].to_u64();
-                // This harness serves INPUT cells (plain or group-scoped).
-                if source & 0xFF == SOURCE_INPUT_LOW {
-                    if let Some(cell) = self.inputs.get(index) {
+                // Serves both tx directions (plain or group-scoped).
+                let side = match source & 0xFF {
+                    SOURCE_INPUT_LOW => Some(&self.inputs),
+                    SOURCE_OUTPUT_LOW => Some(&self.outputs),
+                    _ => None,
+                };
+                if let Some(cells) = side {
+                    if let Some(cell) = cells.get(index) {
                         let data = cell.data.clone();
                         return self.serve(machine, &data);
                     }
@@ -160,6 +173,29 @@ pub fn run_typescript_metered(
         .instruction_cycle_func(Box::new(ckb_vm::cost_model::estimate_cycles))
         .syscall(Box::new(handler))
         .build();
+    machine
+        .load_program(&program, [].iter().map(|b: &Bytes| Ok(b.clone())))
+        .unwrap();
+    (machine.run(), served.load(std::sync::atomic::Ordering::SeqCst))
+}
+
+/// Full-tx runner: inputs and outputs both served (mint-side validation).
+pub fn run_typescript_tx(
+    elf_path: &str,
+    script_cell: &Cell,
+    inputs: Vec<Cell>,
+    outputs: Vec<Cell>,
+) -> (Result<i8, Error>, u64) {
+    let program = Bytes::from(std::fs::read(elf_path).expect("fixture ELF present"));
+    let served = Arc::new(AtomicU64::new(0));
+    let handler = NoesisSyscalls::for_tx(script_cell, inputs, outputs, served.clone());
+    let core = DefaultCoreMachine::<u64, WXorXMemory<SparseMemory<u64>>>::new_with_memory(
+        ISA_IMC | ISA_A | ISA_B | ISA_MOP,
+        VERSION2,
+        u64::MAX,
+        ckb_vm::RISCV_MAX_MEMORY,
+    );
+    let mut machine = DefaultMachineBuilder::new(core).syscall(Box::new(handler)).build();
     machine
         .load_program(&program, [].iter().map(|b: &Bytes| Ok(b.clone())))
         .unwrap();

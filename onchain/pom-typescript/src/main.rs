@@ -8,8 +8,9 @@
 //! Validation (exit codes are distinct for test triage, vibeswap-cell convention):
 //!   0  = pass
 //!   11 = soulbound contributor identity missing (empty type-script args)
-//!   12 = input cell data unavailable
-//!   13 = semantic floor: payload is incompressible noise (entropy ≥ θ = 62259/2^16)
+//!   12 = empty script group (nothing to attest) or unexpected load error
+//!   13 = semantic floor: a group INPUT is incompressible noise (θ = 62259/2^16)
+//!   14 = semantic floor: a group OUTPUT is incompressible noise — the MINT side
 //!
 //! Honest scope: this enforces the SEMANTIC floor on-VM, over EVERY input in the
 //! script group (closes the input-0-only smuggling gap found by the 2026-06-12
@@ -84,23 +85,40 @@ pub fn program_entry() -> i8 {
     if script.as_reader().args().raw_data().is_empty() {
         return 11; // soulbound identity is not optional
     }
-    // Iterate the WHOLE script group until INDEX_OUT_OF_BOUND — a tx cannot smuggle a
-    // failing cell at a later index (flips on_vm_floor_checks_only_input_zero_open_gap).
+    // Iterate the WHOLE script group in BOTH directions until INDEX_OUT_OF_BOUND —
+    // neither a consumed nor a freshly-MINTED cell can smuggle noise past the floor
+    // (closes ROADMAP T6: mint-side was the survivor of the group-input fix).
+    let mut checked = 0usize;
     let mut index = 0usize;
     loop {
         match load_cell_data(index, Source::GroupInput) {
             Ok(data) => {
                 if is_incompressible(&data) {
-                    return 13; // semantic floor, on-VM, every group input
+                    return 13; // consumed-side floor
                 }
                 index += 1;
+                checked += 1;
             }
             Err(SysError::IndexOutOfBound) => break,
             Err(_) => return 12,
         }
     }
-    if index == 0 {
-        return 12; // a type-script with no group inputs has nothing to attest
+    index = 0;
+    loop {
+        match load_cell_data(index, Source::GroupOutput) {
+            Ok(data) => {
+                if is_incompressible(&data) {
+                    return 14; // MINT-side floor — distinct code for triage
+                }
+                index += 1;
+                checked += 1;
+            }
+            Err(SysError::IndexOutOfBound) => break,
+            Err(_) => return 12,
+        }
+    }
+    if checked == 0 {
+        return 12; // empty group: nothing to attest (burn-only and mint-only are fine)
     }
     0
 }

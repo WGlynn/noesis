@@ -151,9 +151,8 @@ is a reputation system.
 - ✅ T3 syscall environment (Cell model serves load_script/load_cell_data, exact partial-load ABI)
 - ✅ T4 on-VM intake floor (`onchain/pom-typescript`, no_std Q16.16 semantic floor; verdicts ≡ host)
 - ✅ T5 group-input iteration (whole script group floored; index-1 smuggling gap FLIPPED)
-- 🟡 T6 group-OUTPUT validation — pinned survivor of the T5 tick: mint-side cells are not
-  yet floored (host serves inputs only; program iterates GroupInput). Next: host serves
-  Source::GroupOutput from the produced-cells side + program iterates both directions.
+- ✅ T6 group-OUTPUT validation (mint-side noise floored at exit 14; host serves both tx
+  directions; burn-only and mint-only groups valid; empty group rejected)
 - 🟡 T7 cross-cell similarity floor on-VM (seen-shingle state via Noesis syscall)
 - 🟡 T8 Q32.32 settlement mirror (flow/v5-v7) → on-VM finalization path above
 - ✅ ref / 🟡 solver **Stability** — core membership + nucleolus max-excess reference model

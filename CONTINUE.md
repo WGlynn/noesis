@@ -1,5 +1,15 @@
 # CONTINUE — Noesis handoff (PRIVATE, stealth)
 
+## ▶ RESUME HERE (2026-06-12 PM-9 — T6 mint-side validation, node 147/147)
+- **ROADMAP T6 CLOSED** ("noesis development", same chat): host serves Source::GroupOutput
+  (`for_tx` + `run_typescript_tx` in tests/common), program iterates BOTH group directions
+  until IndexOutOfBound — mint-side noise exits **14** (distinct triage code), consumed-side
+  stays 13, honest mint passes, mint-only/burn-only groups valid, empty group ⇒ 12. ELF
+  rebuilt. **Execution tier remaining: T7 cross-cell similarity (seen-shingle state via a
+  Noesis syscall — the next real design problem) and T8 Q32.32 settlement mirror.**
+- Survivor note: no NEW in-tier gap from this tick — the remaining attacks route through
+  the already-named classes (encoding-evasion/out-of-band; cross-cell state = T7).
+
 ## ▶ RESUME HERE (2026-06-12 PM-8 — roadmap-advance: group-input iteration, node 146/146)
 - **Will-ordered in-chat ("noesis roadmap execution story mode form") past rotation
   threshold — single increment, done right:** `onchain/pom-typescript` now iterates its
