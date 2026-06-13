@@ -158,7 +158,11 @@ is a reputation system.
 ## Phase 3 — Consensus
 - ✅ ref / 🟡 on-chain **PoM-weighted finalization** — 2/3-supermajority reference model
   (`consensus::finalizes`, `finalizes_hybrid`), retention-decay, verified vs NCI
-  (`NakamotoConsensusInfinity.sol`); on-VM finalization still pending.
+  (`NakamotoConsensusInfinity.sol`); on-VM finalization 🟡 DESIGNED (`ON-VM-FINALIZATION.md`,
+  2026-06-13): Q32.32 mirror of `finalizes_hybrid` (reuse the T8 settlement infra) + fixed-point
+  retention-decay, drift-guarded; key adversarial pin = `now` MUST be header-sourced not
+  tx-chosen (same "don't let the attacker pick the security-critical input" lesson as the
+  index-dep binding F1). Build (fixed ref + drift-guard + on-VM + fixtures) pending budgeted session.
 
 ### Execution-layer tier marks (2026-06-12, story-loop + roadmap-advance)
 - ✅ T1 fixed-point intake (`value_fixed`, Q16.16, f64-equivalence tested)
