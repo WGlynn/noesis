@@ -70,6 +70,21 @@ is a reputation system.
     content is NOT caught here — that genuinely needs labels/flow, not bytes, and remains
     the 🔬 open core bet (learned outcome-evaluator, already role-bounded). So: noise
     subclass ✅ at the gate; valueless-but-structured ⇒ out-of-band (flow + labels).
+    **Encoding-evasion dissolved economically, not at the content layer (2026-06-12, pom tick):**
+    hex-encoding (or zero-diluting) the 64-byte garbage halves its byte-entropy, so it slips
+    `semantic_floor` — and (sharper than the isolated floor pin) it RE-OPENS the v7 seed-gate
+    pump: v7 floors a raw-noise child's seed to 0, but the encoded child's seed survives and
+    pumps its parent again, because on encoded bytes v7 ≡ v6 (`value::tests::
+    encoded_noise_defeats_the_v7_seed_gate_the_evasion_is_real`). Chasing this at the content
+    layer is case-detection, not class-dissolution (it IS the airgap — bytes cannot separate
+    encoded-noise from encoded-value). The binding defense is content-agnostic and now
+    **demonstrated**, not just asserted: (i) ✅ the v6 standing price is byte-blind — the same
+    encoded child on a FRESH key seeds 0 (`encoded_noise_does_not_buy_past_the_v6_standing_price`),
+    so an encoded-garbage sybil ring earns nothing; (ii) ✅ the dispute slash keys on realized
+    minted value, not entropy — a vested certifier's encoded endorsement is negative-EV
+    identically to raw garbage (`dispute::tests::encoded_noise_endorsement_is_negative_ev_slashing_is_content_agnostic`).
+    So: encoding-evasion is ✅ class-dissolved by the economic composition (no profitable
+    trajectory) while remaining 🔬 unresolvable at the content gate by design.
     **Composition sharpened (2026-06-12, pom tick):** `value_v4_boost_does_not_gate_meaningless_novelty`
     proves the current form `value = novelty·(1+q)` is a BOOST — q→0 noise still earns full novelty,
     so a better quality proxy alone can NEVER close the gap. The fix must change the COMPOSITION to a

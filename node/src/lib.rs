@@ -1120,6 +1120,68 @@ pub mod value {
             );
         }
 
+        // ---- encoding-evasion of the semantic seed floor (adversarial tick 2026-06-12) ----
+
+        /// Hex-encode a payload: the byte alphabet collapses to 16 symbols, so order-0 byte
+        /// entropy drops to ~0.57 — under the floor's theta — while the underlying information
+        /// is unchanged. The canonical evasion pinned in
+        /// `semantic::tests::encoded_noise_evades_the_entropy_floor_open_gap`.
+        fn hex_encoded(data: &[u8]) -> Vec<u8> {
+            data.iter().flat_map(|b| format!("{b:02x}").into_bytes()).collect()
+        }
+
+        #[test]
+        fn encoded_noise_defeats_the_v7_seed_gate_the_evasion_is_real() {
+            // SHARPENS `semantic::tests::encoded_noise_evades_the_entropy_floor_open_gap`: the
+            // evasion is not merely "the floor misses it" — it RE-OPENS the v7 seed-gate pump
+            // that `value_v7_noise_child_no_longer_pumps_the_parent` closed. v7 floors a
+            // RAW-noise child's seed to 0; hex-encoded noise has low byte-entropy, so
+            // semantic_floor passes it ⇒ the seed is live ⇒ the SAME vested identity pumps the
+            // parent's flow gate again. On encoded content v7 collapses to v6 (the floor is
+            // inert) — which is exactly why the binding defense cannot live at the content
+            // layer; the next two tests carry it (standing price + dispute slash).
+            let raw: Vec<u8> = (0u8..64).map(|i| i.wrapping_mul(37).wrapping_add(11)).collect();
+            let parent = || cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta");
+            let st = standing_of(&[(1, FLOOR), (9, FLOOR)]); // attacker (id 9) fully vested
+
+            let raw_child = vec![parent(), cellc(1, 9, 1, Some(0), &raw)];
+            let v7_raw = value_v7(&raw_child, &st, FLOOR, THETA, ENTROPY_THETA, DAMP, ITERS, HALF);
+            assert_eq!(v7_raw[0], 0.0, "raw noise: v7 floors the seed ⇒ parent unpumped");
+
+            let enc_child = vec![parent(), cellc(1, 9, 1, Some(0), &hex_encoded(&raw))];
+            let v7_enc = value_v7(&enc_child, &st, FLOOR, THETA, ENTROPY_THETA, DAMP, ITERS, HALF);
+            assert!(
+                v7_enc[0] > 0.0,
+                "OPEN GAP (sharpened): hex-encoded noise evades the seed floor and re-pumps \
+                 the parent under v7 — the content layer cannot close this (the airgap)"
+            );
+            // The crux: on the encoded payload the semantic floor is inert ⇒ v7 ≡ v6.
+            let v6_enc = value_v6(&enc_child, &st, FLOOR, THETA, DAMP, ITERS, HALF);
+            assert!((v7_enc[0] - v6_enc[0]).abs() < 1e-12, "v7 collapses to v6 on encoded noise");
+        }
+
+        #[test]
+        fn encoded_noise_does_not_buy_past_the_v6_standing_price() {
+            // FIRST binding defense, content-blind on identity. The evasion beats the byte
+            // heuristic but NOT the standing price: the same hex-encoded noise child on a
+            // FRESH (unvested) key seeds 0 regardless of how legible-as-content its bytes look
+            // (v6/v7 gate the seed on EARNED standing, not on entropy). A sybil ring of encoded
+            // garbage on fresh keys therefore earns nothing — encoding gains the adversary 0 here.
+            let raw: Vec<u8> = (0u8..64).map(|i| i.wrapping_mul(37).wrapping_add(11)).collect();
+            let order = vec![
+                cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta"),
+                cellc(1, 9, 1, Some(0), &hex_encoded(&raw)),
+            ];
+            let fresh = standing_of(&[(1, FLOOR)]); // id 9 unvested (no earned standing)
+            let v7 = value_v7(&order, &fresh, FLOOR, THETA, ENTROPY_THETA, DAMP, ITERS, HALF);
+            assert_eq!(v7[0], 0.0, "encoded noise from an unvested key seeds nothing (priced identity)");
+            let v6 = value_v6(&order, &fresh, FLOOR, THETA, DAMP, ITERS, HALF);
+            assert_eq!(
+                v6[0], 0.0,
+                "v6 standing price is content-agnostic: encoding does not buy past it"
+            );
+        }
+
         #[test]
         fn vesting_is_retroactive_value_accrues_as_flow_materializes() {
             // The honest consequence, demonstrated: at intake a cell is worth 0; when another
@@ -2817,6 +2879,62 @@ pub mod dispute {
                 standing[&vec![5u8]] < 50,
                 "the certifier's soulbound standing actually decreased"
             );
+        }
+
+        const ENTROPY_THETA: f64 = 0.95;
+
+        /// `attack_graph` with the garbage payloads HEX-ENCODED — the evasion that slips the
+        /// v7 semantic seed floor (`value::tests::encoded_noise_defeats_the_v7_seed_gate...`).
+        fn encoded_attack_graph() -> (Vec<Cell>, HashMap<Vec<u8>, u64>) {
+            let enc = |seed: u8, n: u8| -> Vec<u8> {
+                (0..n)
+                    .map(|i| seed.wrapping_add(i.wrapping_mul(41)))
+                    .flat_map(|b| format!("{b:02x}").into_bytes())
+                    .collect()
+            };
+            let order = vec![
+                cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta"),
+                cellc(10, 8, 1, None, &enc(0xA0, 48)),
+                cellc(11, 5, 2, Some(10), &enc(0x10, 48)),
+            ];
+            let standing = standing_of(&[(1, 50), (5, 50)]);
+            (order, standing)
+        }
+
+        #[test]
+        fn encoded_noise_endorsement_is_negative_ev_slashing_is_content_agnostic() {
+            // CLASS-DISSOLUTION for the encoding-evasion frontier. The hex-encoded payload
+            // defeats the v7 semantic seed floor (so v7 pays it EXACTLY as v6 does — the floor
+            // is inert on encoded bytes), but the dispute layer never inspected the bytes: it
+            // claws back the REALIZED minted value. The evasion that beats the content gate
+            // buys nothing here — the round is negative-EV identically to raw garbage. No
+            // profitable trajectory survives, regardless of the content heuristic. This is the
+            // demonstrated form of the comment in `encoded_noise_evades_the_entropy_floor_open_gap`
+            // ("v6 standing pricing + dispute slashing stay the binding defense").
+            let (order, mut standing) = encoded_attack_graph();
+            let v6 = value::value_v6(&order, &standing, FLOOR, THETA, DAMP, ITERS, HALF);
+            let v7 = value::value_v7(&order, &standing, FLOOR, THETA, ENTROPY_THETA, DAMP, ITERS, HALF);
+            let gain = v6[1];
+            assert!(gain > 0.0, "encoded pocket is paid at the gate (the evasion is real)");
+            assert!(
+                (v7[1] - gain).abs() < 1e-9,
+                "v7 ≡ v6 on the encoded payload — the semantic seed floor was evaded"
+            );
+
+            let mut entries = vec![VestingEntry { cell_id: 10, amount: gain, realized_epoch: 100 }];
+            let c = Challenge { target: 10, challenger: vec![1], bond: 1.0, opened_epoch: 102 };
+            let share = causal_share(&order, &standing, FLOOR, THETA, DAMP, ITERS, HALF, 1, &[5]);
+            let s = resolve_refuted(&mut entries, &c, &P, &[(vec![5], share)]);
+            assert_eq!(s.canceled, gain, "encoded-pocket payout fully canceled (content-agnostic)");
+            let slashed: f64 = s.slashes.iter().map(|(_, a)| a).sum();
+            assert!(
+                slashed >= gain + P.alpha - 1e-9,
+                "λ·share+α ≥ minted + α ⇒ negative EV on the encoded payload too"
+            );
+            let ev = 0.5 * gain - 0.5 * (gain + P.alpha);
+            assert!(ev < 0.0, "§4 inequality holds regardless of the byte encoding");
+            apply_slashes(&mut standing, &s.slashes);
+            assert!(standing[&vec![5u8]] < 50, "the certifier's soulbound standing decreased");
         }
 
         #[test]
