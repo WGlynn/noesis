@@ -1,0 +1,23 @@
+# Outcome-label fixture — the on-disk contract the DeepFunding distill-over-sets
+# pull must emit. Stdlib-parseable (no serde). Lines:
+#   blank / '#...'            -> ignored
+#   <N_FEATS floats>          -> one coalition's feature row (indexed in file order)
+#   pref <winner> <loser>     -> one pairwise outcome preference into those rows
+# Demo rows: winner = connected (high f2/f3), loser = orphan, SAME breadth/synergy
+# (so the coverage proxy ties them and only the learned model can rank). When real
+# labels land they serialize to exactly this; the harness runs unchanged.
+# feats: [breadth, synergy, connected, depth]
+1.60 0.90 1.00 0.66
+1.60 0.90 0.00 0.33
+1.55 0.88 1.00 0.66
+1.55 0.88 0.00 0.33
+1.62 0.91 1.00 0.66
+1.62 0.91 0.00 0.33
+1.58 0.89 1.00 0.66
+1.58 0.89 0.00 0.33
+# train pairs (winner loser)
+pref 0 1
+pref 2 3
+pref 4 5
+# held-out pair (never trained on)
+pref 6 7

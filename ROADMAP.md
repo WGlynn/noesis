@@ -4,6 +4,15 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-14** — Label-ingestion seam LOCKED (`outcome::load_prefs` + fixture
+  `fixtures/outcome_labels_demo.txt` + test `file_sourced_labels_train_a_model_that_ranks_the_held_out_winner`).
+  The held-out generalization harness had only ever read SYNTHETIC in-test coalitions; it now
+  consumes labels from a FILE — the on-disk contract (`# N_FEATS-float` feature rows + `pref W L`
+  pairs) the DeepFunding distill-over-sets pull must emit. Proven: a model trained on file-sourced
+  labels ranks a held-out winner above the loser at EQUAL coverage (the proxy ties them). Malformed
+  rows are skipped, never partial-credited. 🔬 still data-blocked by design: this locks the SEAM, not
+  real labels — the moat closes only on the real-outcome pull; the harness runs UNCHANGED when it lands.
+  node +1 (8/8 outcome tests green).
 - **2026-06-14** — RSAW tick: NEW vector **novelty front-run / predictive land-grab** (ATTACK 4 in
   `adversarial-game.py`). Temporal-novelty rests on the assumption "honest commits first"; an
   attacker who commits FIRST a block of the most COMMON (boilerplate) atoms steals their novelty

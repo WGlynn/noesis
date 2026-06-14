@@ -4261,10 +4261,65 @@ pub mod outcome {
         v_outcome(w, feats) * (real as f64 / idxs.len() as f64)
     }
 
+    /// Parse file-sourced outcome labels into the `(feats, prefs)` the harness consumes.
+    /// This is the on-disk contract the DeepFunding distill-over-sets pull must emit
+    /// (stdlib, no serde): blank / `#...` lines are ignored; a line of `N_FEATS`
+    /// whitespace-separated floats is one coalition's feature row (indexed in file
+    /// order); a `pref <winner> <loser>` line is one pairwise outcome preference into
+    /// those rows. When real labels land they serialize to exactly this and the harness
+    /// (`train` + `v_outcome` + `pairwise_accuracy`) runs UNCHANGED — the seam, not the
+    /// data, is what this locks. Malformed rows are skipped, never partial-credited.
+    pub fn load_prefs(text: &str) -> (Vec<[f64; N_FEATS]>, Vec<(usize, usize)>) {
+        let mut feats: Vec<[f64; N_FEATS]> = Vec::new();
+        let mut prefs: Vec<(usize, usize)> = Vec::new();
+        for raw in text.lines() {
+            let line = raw.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            if let Some(rest) = line.strip_prefix("pref ") {
+                let nums: Vec<usize> =
+                    rest.split_whitespace().filter_map(|t| t.parse().ok()).collect();
+                if nums.len() == 2 {
+                    prefs.push((nums[0], nums[1]));
+                }
+                continue;
+            }
+            let vals: Vec<f64> =
+                line.split_whitespace().filter_map(|t| t.parse().ok()).collect();
+            if vals.len() == N_FEATS {
+                feats.push(std::array::from_fn(|k| vals[k]));
+            }
+        }
+        (feats, prefs)
+    }
+
     #[cfg(test)]
     mod tests {
         use super::super::{Cell, Script};
         use super::*;
+
+        #[test]
+        fn file_sourced_labels_train_a_model_that_ranks_the_held_out_winner() {
+            // The harness had only ever read synthetic in-test coalitions. This proves the
+            // on-disk contract (load_prefs) feeds train + v_outcome end-to-end, so the moat
+            // cannot be dismissed as in-test-only. Fixture = 4 connected/orphan pairs at
+            // EQUAL breadth/synergy (the coverage proxy ties them), differing only in the
+            // lineage features a learned model can read.
+            let fixture = include_str!("fixtures/outcome_labels_demo.txt");
+            let (feats, prefs) = load_prefs(fixture);
+            assert_eq!(feats.len(), 8, "parsed 8 coalition feature rows from file");
+            assert_eq!(prefs.len(), 4, "parsed 4 preference pairs from file");
+
+            // Train on the first 3 pairs; hold out the 4th (never trained on).
+            let split = prefs.len() - 1;
+            let w = train(&feats, &prefs[..split], 5000, 0.5);
+            let (win, lose) = prefs[split];
+            assert!(
+                v_outcome(&w, &feats[win]) > v_outcome(&w, &feats[lose]),
+                "model trained on FILE-SOURCED labels ranks the held-out winner above the loser"
+            );
+        }
 
         fn cellp(id: u64, ts: u64, parent: Option<u64>, data: &[u8]) -> Cell {
             Cell {
