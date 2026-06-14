@@ -2869,6 +2869,37 @@ pub mod dispute {
         overturned_majority.iter().map(|v| (v.id, r * v.pom)).collect()
     }
 
+    /// §7.1b — LOAD-BEARING juror-exclusion. Unlike [`conflicted_juror_ids`] (hygiene
+    /// only), this recuses edge-connected jurors from BOTH the vote tally and the
+    /// threshold basis, then runs the verdict on the recused panel. It closes a
+    /// PoM-dominant cartel whose judge keys are edge-connected to the target: removing
+    /// its standing from the basis lets the honest remainder clear 2/3, which the
+    /// escalation court alone does NOT do when the cartel holds ≥ 1/3 ÷ NCI.pom of PoM
+    /// (the veto survives the full-mix appeal — see
+    /// `pom_dominant_cartel_vetoes_fullmix_below_global_assumption`). The residual is an
+    /// identity-separated cartel (vested judges with no provenance edge into the ring):
+    /// no edge exists to recuse on, so this does not reach it — see
+    /// `identity_separated_pom_cartel_evades_exclusion_residual`.
+    pub fn verdict_refutes_excluding_conflicted(
+        tribunal: Tribunal,
+        cells: &[Cell],
+        target: u64,
+        juror_keys: &[(u64, Vec<u8>)],
+        voters_for: &[consensus::Validator],
+        all: &[consensus::Validator],
+        now: u64,
+        horizon: u64,
+        quorum_floor_bps: u64,
+    ) -> bool {
+        let conflicted = conflicted_juror_ids(cells, target, juror_keys);
+        let recused = |v: &consensus::Validator| !conflicted.contains(&v.id);
+        let voters: Vec<consensus::Validator> =
+            voters_for.iter().filter(|v| recused(v)).cloned().collect();
+        let panel: Vec<consensus::Validator> =
+            all.iter().filter(|v| recused(v)).cloned().collect();
+        verdict_refutes_at(tribunal, &voters, &panel, now, horizon, quorum_floor_bps)
+    }
+
     #[cfg(test)]
     mod tests {
         use super::super::{Cell, Script};
@@ -3209,6 +3240,104 @@ pub mod dispute {
             let juror_keys = vec![(1u64, vec![1u8]), (5u64, vec![5u8])];
             let conflicted = conflicted_juror_ids(&order, 10, &juror_keys);
             assert_eq!(conflicted, vec![5], "edge-connected juror excluded; bystander sits");
+        }
+
+        /// Honest holds ALL PoW + ALL PoS but only 40% of PoM; cartel holds 60% of PoM and
+        /// nothing else. So the cartel is below 2/3 of EVERY dimension — yet PoM is 60% of
+        /// the NCI mix, so 60% of PoM is 36% of the full-mix court: a veto.
+        fn pom_dominant_courtroom() -> (Vec<consensus::Validator>, Vec<consensus::Validator>) {
+            let v = |id, pow, pos, pom| consensus::Validator {
+                id,
+                pow,
+                pos,
+                pom,
+                last_heartbeat: 0,
+                staked_balance: 1000.0,
+            };
+            let honest = vec![v(1, 50.0, 50.0, 20.0), v(2, 50.0, 50.0, 20.0)];
+            let cartel = vec![v(9, 0.0, 0.0, 60.0)];
+            (honest, cartel)
+        }
+
+        #[test]
+        fn pom_dominant_cartel_vetoes_fullmix_below_global_assumption() {
+            // ADVERSARIAL TICK (pom-roadmap). The §7 escalation court's claim that vetoing
+            // at full-mix "requires cross-dimension capture" is FALSE for a PoM-dominant
+            // cartel. NCI weights PoM at 0.60, so a cartel holding ≥ 1/3 ÷ 0.60 = 55.6% of
+            // PoM holds > 1/3 of the AND-composed court and vetoes on APPEAL — with ZERO
+            // PoW and ZERO PoS, strictly below the ≥2/3-of-every-dimension global
+            // assumption. Here the honest side holds 100% of PoW AND 100% of PoS and STILL
+            // cannot land the refutation. Corrects `cartel_veto_..._overturned_on_appeal`,
+            // whose overturn relied on the cartel holding only 40% of PoM.
+            let (honest, cartel) = pom_dominant_courtroom();
+            let mut all = honest.clone();
+            all.extend(cartel.clone());
+            assert!(
+                !verdict_refutes_at(Tribunal::PomOnly, &honest, &all, 0, 0, 4000),
+                "round 1: PoM-only veto holds"
+            );
+            assert!(
+                !verdict_refutes_at(Tribunal::FullMix, &honest, &all, 0, 0, 4000),
+                "GAP: a 60%-PoM cartel vetoes the full-mix appeal too — cross-dimension \
+                 capture is NOT required, and this sits below the global assumption"
+            );
+        }
+
+        #[test]
+        fn load_bearing_juror_exclusion_closes_the_pom_dominant_edge_connected_cartel() {
+            // THE FIX (this tick): recuse edge-connected standing from the BASIS, not just
+            // flag it. With the cartel's judge key edge-connected to the target, dropping it
+            // from the panel lets the honest remainder clear 2/3 — the PoM-dominant veto is
+            // gone for the edge-connected case.
+            let (honest, cartel) = pom_dominant_courtroom();
+            let mut all = honest.clone();
+            all.extend(cartel.clone());
+            let (order, _) = attack_graph(); // target 10 has a child with type_script.args == [5]
+            let juror_keys = vec![(9u64, vec![5u8])]; // cartel judge 9 IS edge-connected to target 10
+            assert!(
+                verdict_refutes_excluding_conflicted(
+                    Tribunal::FullMix,
+                    &order,
+                    10,
+                    &juror_keys,
+                    &honest,
+                    &all,
+                    0,
+                    0,
+                    4000,
+                ),
+                "load-bearing exclusion recuses the conflicted cartel from the basis ⇒ \
+                 honest clears 2/3"
+            );
+        }
+
+        #[test]
+        fn identity_separated_pom_cartel_evades_exclusion_residual() {
+            // HONEST RESIDUAL: exclusion keys on a provenance EDGE. A cartel that judges
+            // with an identity-separated key (no edge into the ring) has nothing to recuse
+            // on, so the PoM-dominant veto survives. The residual is identity-separated
+            // vested PoM, not edge-connected standing. Candidate next gates: a PoM-share cap
+            // in the dispute tribunal mix, or dilution-indexed slashing keyed on the vote.
+            let (honest, cartel) = pom_dominant_courtroom();
+            let mut all = honest.clone();
+            all.extend(cartel.clone());
+            let (order, _) = attack_graph(); // no child carries the cartel's separated key [77]
+            let juror_keys = vec![(9u64, vec![77u8])];
+            assert!(
+                !verdict_refutes_excluding_conflicted(
+                    Tribunal::FullMix,
+                    &order,
+                    10,
+                    &juror_keys,
+                    &honest,
+                    &all,
+                    0,
+                    0,
+                    4000,
+                ),
+                "identity-separated cartel has no edge to recuse ⇒ the PoM-dominant veto \
+                 survives"
+            );
         }
 
         #[test]

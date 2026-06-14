@@ -4,6 +4,23 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-14** — RSAW tick vs the JUDGE-CARTEL counter. The §7 escalation court's claim
+  that a full-mix appeal "requires cross-dimension capture" is **FALSE for a PoM-dominant
+  cartel**. NCI weights PoM at 0.60, so a cartel holding ≥ 1/3 ÷ 0.60 = **55.6% of PoM**
+  holds > 1/3 of the AND-composed court and vetoes ON APPEAL with ZERO PoW/PoS — strictly
+  *below* the ≥2/3-every-dimension global assumption. DEMONSTRATED: the honest side holding
+  100% of PoW AND 100% of PoS still cannot land the refutation
+  (`pom_dominant_cartel_vetoes_fullmix_below_global_assumption`). This corrects
+  `cartel_veto_..._overturned_on_appeal`, whose overturn relied on the cartel holding only
+  40% of PoM. FIX shipped: **load-bearing juror-exclusion** (`verdict_refutes_excluding_conflicted`)
+  recuses edge-connected standing from the BASIS, not just flags it ⇒ the honest remainder
+  clears 2/3; closes the edge-connected PoM cartel
+  (`load_bearing_juror_exclusion_closes_the_pom_dominant_edge_connected_cartel`). 🔬 residual
+  pinned: an **identity-separated** cartel (vested judges with no provenance edge into the
+  ring) has no edge to recuse on, so the veto survives
+  (`identity_separated_pom_cartel_evades_exclusion_residual`); candidate next gates = a
+  PoM-share cap in the dispute tribunal mix, or dilution-indexed slashing keyed on the vote.
+  node 181→184.
 - **2026-06-14** — Label-ingestion seam LOCKED (`outcome::load_prefs` + fixture
   `fixtures/outcome_labels_demo.txt` + test `file_sourced_labels_train_a_model_that_ranks_the_held_out_winner`).
   The held-out generalization harness had only ever read SYNTHETIC in-test coalitions; it now
@@ -200,12 +217,19 @@ is a reputation system.
       **wired at the cell layer as `soulbound::valid_transition_under_dispute`** (burn denied
       while exposed; pom-decrease capped at settlement-authorized; the slash always lands).
       All with regression tests; doc §5b.
-    - 🔬 **New pinned residual (adversarial tick vs the dispute layer):** JUDGE CARTEL — a
-      >1/3 vested-standing bloc vetoes refutation of its own ring; detection exists,
-      conviction doesn't (`judge_cartel_protects_its_own_garbage_open_gap`, flips when closed).
-      Economic bounds recorded (capture cost, defection bounty, PoM self-dilution — doc §5.3);
-      structural counter = next gate-hardening increment. Candidates: juror-exclusion of
-      edge-connected standing / escalation court / dilution-indexed slashing.
+    - ✅ ref / 🔬 residual **JUDGE CARTEL** — a >1/3 vested-standing bloc vetoes refutation of
+      its own ring. **§7 escalation court + juror-slash SHIPPED** (overturns the PoM-ONLY
+      cartel on appeal; the veto is a bonded liability). **Sharpened (2026-06-14):** the appeal
+      does NOT overturn a **PoM-dominant** cartel — ≥55.6% of PoM is >1/3 of the AND-composed
+      court, vetoing with zero PoW/PoS, below the global assumption
+      (`pom_dominant_cartel_vetoes_fullmix_below_global_assumption`). **Load-bearing
+      juror-exclusion SHIPPED** (`verdict_refutes_excluding_conflicted`, recuses from the
+      basis) closes the **edge-connected** PoM cartel. 🔬 remaining: **identity-separated**
+      vested-PoM cartel (no edge to recuse) — `identity_separated_pom_cartel_evades_exclusion_residual`.
+      Candidate next gates: PoM-share cap in the dispute tribunal mix / dilution-indexed
+      slashing keyed on the vote. (`judge_cartel_protects_its_own_garbage_open_gap` retained
+      as round-1-surface documentation; `full_consensus_capture_..._global_assumption` is the
+      irreducible consensus-layer ceiling.)
   - ✅ ref / 🟡 tune **near-duplicate gap — coverage-similarity floor shipped (2026-06-12).**
     Temporal-novelty alone zeroes only EXACT subsets/duplicates; a near-duplicate (a few tokens
     flipped) leaked small residual novelty from change-spanning shingles, farmable across many
