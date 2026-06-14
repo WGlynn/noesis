@@ -4,6 +4,34 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## ▶ RESUME HERE (2026-06-13 late — 4-build session: ordering port + RSAW fix + moat harness; node 212→220, pushed `8fa8fca`)
+- **Item 2 — on-VM ORDERING PORT shipped** (`36d1bfc`): `onchain/commit-order-typescript` ELF runs
+  `is_canonical_order` on-VM (0 canonical / 40 non-canonical / 41 malformed). `noesis_core::commit_order`
+  gained parse_batch/encode_batch (single-source). 6 e2e tests. Coord provenance (height←header,
+  secret←reveals) is `COORDS_BOUND=false` inert pre-deploy (the deploy-coupled pin).
+- **Item 4 — RSAW found + fixed a REAL break** (`291d30a`): finalization accepted DUPLICATE vote
+  indices ⇒ `[0,0,0]` double-counted validator 0's weight and forged finalization from one voter.
+  `parse_votes` now rejects duplicates; test `duplicate_vote_indices_cannot_inflate_weight`. Also
+  pinned: the finalize PARAMS (threshold/floor/horizon/mix) are as attacker-chosen as `all` ⇒ the
+  registry binding must cover the WHOLE finalization cell (inert pre-deploy).
+- **Item 8 — THE MOAT measured** (`8fa8fca`): held-out generalization harness in `outcome` —
+  `proxy_value` (coverage-only baseline) + `pairwise_accuracy` + test
+  `learned_v_s_beats_coverage_proxy_on_held_out_coalitions`. Trained on 10 templates, tested on 6
+  UNSEEN: learned `v(S)` ≥ 0.9, coverage proxy blind to lineage ties at 0.5. The un-gameable-`v(S)`
+  gate measured not asserted. **Remaining mile = the real-outcome label pull (DeepFunding
+  distill-over-sets); the harness runs unchanged when those labels land.** That is now the ONLY
+  missing input for Phase-1 close, not the measurement.
+- **Item 3 — GitHub/CI verified** (no commit): CI yaml valid (test + 3-crate riscv matrix, green by
+  design), README mermaid renders, root clean. ‼ FLAG: `internal/` (front-run-sensitive RELEASE-PLAN
+  + manifesto + this file) is committed — must be `.gitignore`d / stripped at PUBLIC-release time.
+- **Item 5 — sync HARDENED** (JARVIS substrate, not noesis): `sync-public-substrate.py` now
+  AUTO-DELETES stale public copies of skip-listed / newly-scrubbed files. On first run it removed **4
+  real stale leaks** (clean copies of files that had since gained Pragma/nda-locked/jarvis-private
+  refs). Public substrate verified clean, pushed `3281d1a`.
+- **NEXT 🟡:** the real-outcome label pull (moat data); finalization/ordering coord+registry binding
+  (deploy-coupled, when block plumbing lands); header-recency binding; lean backlog (single-source the
+  other cores, split 6k-line lib.rs). Toolchain: each on-VM crate builds standalone w/ `make elf`.
+
 ## ▶ RESUME HERE (2026-06-13 night — REPO REORG: real-blockchain layout, kept lean; pushed `61c4155`)
 - **⚠ PATHS MOVED.** This file is now `internal/CONTINUE.md` (boot hook updated). The 27 root
   `.md` were restructured to make noesis read as a chain, not an essay folder. Benchmarked vs the
