@@ -4,6 +4,16 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-14** — RSAW tick: NEW vector **novelty front-run / predictive land-grab** (ATTACK 4 in
+  `adversarial-game.py`). Temporal-novelty rests on the assumption "honest commits first"; an
+  attacker who commits FIRST a block of the most COMMON (boilerplate) atoms steals their novelty
+  from honest later reveals. DEMONSTRATED gameable under raw coverage-count on real session-chain
+  blocks (front-run stole 34 of 594 honest novelty), and DEFEATED by value(rarity)-weighted novelty
+  — a proxy stand-in for the learned `v(S)` (attacker 16.5 vs honest 560; regression-asserted).
+  Commit-reveal content-binding already blocks front-running of UNSEEN/original work; the residual is
+  only PUBLIC/common atoms, which a value-by-outcome `v(S)` prices ~0. 🔬 residual: proven only in
+  the rarity proxy — real closure rides the SAME pending learned-`v(S)`-on-real-labels mile (a 2nd
+  independent motivation for the `novelty × quality` junction below), not a separate fix.
 - **2026-06-13** — RSAW tick on `finalizes_fixed`: probed the corners (horizon=0, 100% threshold,
   zero-weight padding, empty voters, all-zero basis). The conservative direction
   `!(fixed && !float)` survives every edge — NO new break; edges pinned. Stop-condition outcome

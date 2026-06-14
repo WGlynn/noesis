@@ -151,14 +151,58 @@ def main():
     print(f"  honest blocks still earn novelty (not zeroed): "
           f"{sum(1 for b in blocks if honest_nv[b] > 0)}/{len(blocks)} blocks > 0")
 
-    print("\nnote: Shapley over coverage is gameable by padding because it splits SHARED "
-          "coverage with later duplicators; temporal-novelty (first-to-reveal-coverage "
-          "earns it, via commit-reveal order) is strategyproof against both attacks while "
-          "preserving honest novelty. coverage = [proxy] for the learned reward model.")
+    # ATTACK 4: novelty FRONT-RUN / predictive land-grab. The temporal-novelty defense
+    # rests on ONE assumption: honest blocks commit FIRST. A front-runner who commits
+    # FIRST a block covering the most COMMON (predictable) atoms steals their novelty
+    # from the honest originators who reveal them later. Commit-reveal binds claimed
+    # coverage to content (you must possess what you commit), so UNSEEN/original honest
+    # work can't be front-run; but high-frequency PUBLIC atoms (boilerplate) are cheaply
+    # substantiated and land-grabbable. This is exactly why raw coverage-count is a
+    # [proxy] and the LEARNED v(S) (value by outcome, not atom count) is load-bearing.
+    from collections import Counter
+    cdf = {b: _cov_of_real(b) for b in blocks}
+    freq = Counter()
+    for b in blocks:
+        freq.update(cdf[b])
+    common = {atom for atom, c in freq.items() if c >= 2}   # predictable/public atoms
+    print("\n=== ATTACK 4: novelty front-run (predictive land-grab, attacker commits FIRST) ===")
+    if not common:
+        print("  no atom occurs in >=2 honest blocks -> attack N/A on this block set")
+    else:
+        cdf["GRAB"] = set(common)
+        honest_baseline = sum(novelty(blocks, {b: cdf[b] for b in blocks})[b] for b in blocks)
+        nvf = novelty(["GRAB"] + blocks, cdf)              # attacker committed FIRST
+        grab_raw, honest_after = nvf["GRAB"], sum(nvf[b] for b in blocks)
+        gameable = grab_raw > 0 and honest_after < honest_baseline
+        print(f"  attacker GRABs {len(common)} common atoms; raw-novelty value = {grab_raw}")
+        print(f"  honest novelty after front-run = {honest_after} (was {honest_baseline}) -> "
+              f"{'GAMEABLE under raw novelty — front-run stole honest value' if gameable else 'no theft'}")
 
+        # DEFENSE: value-weighted novelty. Weight each atom by RARITY (1/freq) -- a
+        # stand-in for the learned v(S), under which common/boilerplate coverage is
+        # low-value and original (rare) coverage is high-value. Land-grabbing common
+        # atoms now earns ~0; honest original coverage keeps value even if revealed late.
+        def vnovelty(order, c, w):
+            seen, val = set(), {}
+            for b in order:
+                new = c[b] - seen
+                val[b] = sum(w.get(a, 1.0) for a in new)
+                seen |= c[b]
+            return val
+        w = {a: 1.0 / cnt for a, cnt in freq.items()}      # rarity ~ outcome-value proxy
+        vf = vnovelty(["GRAB"] + blocks, cdf, w)
+        grab_v, honest_v = vf["GRAB"], sum(vf[b] for b in blocks)
+        print("  DEFENSE: value(rarity)-weighted novelty (proxy for the learned v(S)):")
+        print(f"    attacker land-grab value = {grab_v:.3f}; honest value = {honest_v:.3f} -> "
+              f"{'DEFEATED (front-run earns less than honest)' if grab_v < honest_v else 'still leaks'}")
+        # regression: under value-weighting the front-run must NOT out-earn honest work
+        assert grab_v < honest_v, "front-run land-grab out-earns honest under value-weighting"
 
-if __name__ == "__main__":
-    main()
+    print("\nnote: temporal-novelty (first-to-reveal-coverage, via commit-reveal order) is "
+          "strategyproof vs sybil/padding/collusion (all RE-cover existing coverage) while "
+          "preserving honest novelty. But it assumes honest-commits-first: a predictive "
+          "front-run of COMMON atoms games raw coverage-count, and only VALUE-weighting (the "
+          "learned v(S), outcome not atom-count) defeats it. coverage = [proxy]; v(S) = moat.")
 
 
 if __name__ == "__main__":
