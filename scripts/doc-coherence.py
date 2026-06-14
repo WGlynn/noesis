@@ -29,7 +29,7 @@ import subprocess
 import sys
 
 CODE_GLOBS = ["node/src/**/*.rs", "*.py", "scripts/*.py"]
-DOC_GLOBS = ["*.md", "node/*.md"]
+DOC_GLOBS = ["*.md", "node/*.md", "docs/*.md"]
 MANIFEST = ".doc-coherence.json"
 STALE_NAME = "jarvis-private"  # old repo name; must not appear in any doc
 
@@ -144,7 +144,7 @@ def law_violations(root: str) -> list[str]:
     L13 provisioning-floor (and the L12 AND-over-OR composition rule) get machine-enforced
     presence -- a runtime economic invariant can't be unit-tested here, but its STANDING
     in the laws doc can be guarded."""
-    path = os.path.join(root, "COHERENCE-LAWS.md")
+    path = os.path.join(root, "docs", "COHERENCE-LAWS.md")
     if not os.path.exists(path):
         return ["COHERENCE-LAWS.md missing"]
     with open(path, encoding="utf-8") as f:

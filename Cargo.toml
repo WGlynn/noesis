@@ -1,0 +1,10 @@
+# noesis — workspace root. The host crates (the node reference implementation and the
+# no_std verify-side core it shares with the on-VM scripts) build under one workspace and
+# one lockfile. The RISC-V type-script binaries are EXCLUDED: they pin their own nightly
+# toolchain + `riscv64imac-unknown-none-elf` target and are built standalone
+# (`cd onchain/<crate> && cargo build --release --target riscv64imac-unknown-none-elf`),
+# exactly like CKB keeps its on-chain scripts out of the node workspace.
+[workspace]
+resolver = "2"
+members = ["node", "onchain/noesis-core"]
+exclude = ["onchain/pom-typescript", "onchain/finalization-typescript"]

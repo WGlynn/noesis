@@ -110,7 +110,12 @@ def test_count() -> str:
 
 
 def build() -> str:
-    docs = {p.name: p for p in ROOT.glob("*.md") if p.name != OUT.name}
+    docs = {
+        p.name: p
+        for d in (ROOT, ROOT / "docs", ROOT / "internal")
+        for p in d.glob("*.md")
+        if p.name != OUT.name
+    }
     ordered = [d for d in READ_ORDER if d in docs]
     rest = sorted(n for n in docs if n not in READ_ORDER)
     tc = test_count()

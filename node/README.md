@@ -12,7 +12,7 @@ architecture and reinterpret only the economics for Proof of Mind.
 | **Lock script** | ownership: who may consume/transfer a cell (Bitcoin-shaped) | ✅ `ownership` module, tested (UTXO transfer-fold) |
 | **Type script** | state-transition rules — here it **encapsulates PoM** (the value/novelty rules run as the type script) | 🟡 modeled; RISC-V program TBD |
 | **RISC-V VM (CKB-VM)** | execution layer; scripts are RISC-V programs by `code_hash` | 🟡 integrate `ckb-vm` crate |
-| **State rent / 1 CKB = 1 byte** | `1 PoM = 1 byte of state`; rent → PoM **decay** | 🟡 see `../CRYPTOECONOMICS.md` |
+| **State rent / 1 CKB = 1 byte** | `1 PoM = 1 byte of state`; rent → PoM **decay** | 🟡 see `../docs/CRYPTOECONOMICS.md` |
 | **Secondary issuance** | reinterpreted: issuance = **PoM minted by verified contribution** (earned, not bought) | 🟡 |
 
 ```mermaid
