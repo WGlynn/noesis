@@ -4,6 +4,32 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## ▶ RESUME HERE (2026-06-13 night — REPO REORG: real-blockchain layout, kept lean; pushed `61c4155`)
+- **⚠ PATHS MOVED.** This file is now `internal/CONTINUE.md` (boot hook updated). The 27 root
+  `.md` were restructured to make noesis read as a chain, not an essay folder. Benchmarked vs the
+  live bitcoin / go-ethereum / nervos-ckb / solana roots and matched their credibility signature.
+- **New tree:** `docs/` = 17 protocol specs (WHITEPAPER, POM-CONSENSUS, ON-VM-FINALIZATION, ...).
+  `research/` = 9 prototype `.py`. `internal/` = JARVIS continuity + manifesto (THRONE,
+  WHITEPAPER-FOR-DAD, HANDOFF, this file) + the front-run-sensitive RELEASE-PLAN. Root = README +
+  ROADMAP + STUDY-GUIDE + CONTRIBUTING + SECURITY + LICENSE + Cargo.toml/Makefile/rustfmt/clippy/
+  .editorconfig. **27 root .md → 5.**
+- **Root Cargo workspace** (`node` + `onchain/noesis-core`); the RISC-V type-scripts stay
+  STANDALONE (own nightly + riscv target), `exclude`d from the workspace — build them with
+  `make elf` or `cd onchain/<crate> && cargo build --release --target riscv64imac-unknown-none-elf`.
+- **Added (minimal real-OSS set, NOT more):** LICENSE (proprietary/pre-release — Will chose
+  no-OSS-license-yet during stealth), SECURITY.md, CONTRIBUTING.md, Makefile, rustfmt.toml,
+  clippy.toml, .editorconfig, `.github/workflows/ci.yml` (host suite + RISC-V build = green checks),
+  rewritten protocol README. **Dropped CODE_OF_CONDUCT + CHANGELOG as ceremony** (Bitcoin-lean, per
+  Will 2026-06-13 "LEAN not vibe-coded extra everything").
+- **Ref patches done same pass:** `scripts/study-guide.py` + `scripts/doc-coherence.py` now scan
+  `docs/`; doc-coherence COHERENCE-LAWS path → `docs/`; `~/.claude/BOOT-MESSAGE.md` → `internal/
+  CONTINUE.md`; `node/README.md` link → `docs/`. Gate green, study-guide regen, **212 tests intact**.
+- **Standard now in force** ([F·noesis-is-the-ultimate-blockchain], Will 2026-06-13): noesis ≡ "the
+  ultimate blockchain" ⇒ treat-as-such in execution (top-tier-chain rigor, code ∧ presentation).
+- **NEXT:** unchanged frontier below — (b) on-VM ordering port (`commit_order` ELF) is the next
+  deploy-independent build; then lean backlog (single-source 4 cores, split 6k-line lib.rs); the
+  learned-`v(S)`-on-real-labels mile is still THE moat.
+
 ## ▶ RESUME HERE (2026-06-13 night — finalization ON-VM PROGRAM shipped, Phase-3 step-2; node 203→212)
 - **Build-order step 2 of `ON-VM-FINALIZATION.md` DONE — the consensus finalize rule now runs
   INSIDE the VM.** New crate `onchain/finalization-typescript` (riscv64imac ELF, 153KB, first-try
