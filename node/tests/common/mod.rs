@@ -18,6 +18,8 @@ pub const SOURCE_INPUT_LOW: u64 = 1;
 pub const SOURCE_OUTPUT_LOW: u64 = 2;
 pub const SOURCE_CELL_DEP_LOW: u64 = 3;
 pub const SYS_LOAD_WITNESS: u64 = 2074;
+pub const SYS_LOAD_HEADER: u64 = 2072;
+pub const SOURCE_HEADER_DEP_LOW: u64 = 4;
 
 /// Hand-encoded molecule `Script` table (3 fields: code_hash, hash_type, args).
 /// Layout per molecule spec: u32 total size, 3 × u32 field offsets, then the fields;
@@ -47,6 +49,9 @@ pub struct NoesisSyscalls {
     pub outputs: Vec<Cell>,
     pub deps: Vec<Cell>,
     pub witnesses: Vec<Vec<u8>>,
+    /// Serialized block header served on SYS_LOAD_HEADER (HeaderDep) — the consensus `now`
+    /// source for the finalization type-script. Empty = no header-dep (IndexOutOfBound).
+    pub header: Vec<u8>,
     pub served: Arc<AtomicU64>,
 }
 
@@ -77,8 +82,16 @@ impl NoesisSyscalls {
             outputs,
             deps,
             witnesses,
+            header: Vec::new(),
             served,
         }
+    }
+
+    /// Attach a serialized header (the consensus `now` source). Builder so the existing
+    /// constructors stay header-free.
+    pub fn with_header(mut self, header: Vec<u8>) -> Self {
+        self.header = header;
+        self
     }
 
     /// CKB partial-load protocol: copy min(capacity, avail) from `data[offset..]`,
@@ -140,6 +153,15 @@ impl<Mac: SupportMachine> Syscalls<Mac> for NoesisSyscalls {
                 }
                 machine.set_register(A0, Mac::REG::from_u64(INDEX_OUT_OF_BOUND));
                 Ok(true)
+            }
+            SYS_LOAD_HEADER => {
+                // One header served for HeaderDep regardless of index (only HeaderDep 0 is used).
+                if self.header.is_empty() {
+                    machine.set_register(A0, Mac::REG::from_u64(INDEX_OUT_OF_BOUND));
+                    return Ok(true);
+                }
+                let data = self.header.clone();
+                self.serve(machine, &data)
             }
             _ => Ok(false),
         }
@@ -267,6 +289,44 @@ pub fn proof_blob(idx: &noesis::smt::NoveltyIndex, data: &[u8]) -> Vec<u8> {
         }
     }
     blob
+}
+
+/// A serialized CKB block header with a chosen millisecond `timestamp`. `RawHeader` is a fixed
+/// struct (version u32, compact_target u32, timestamp u64, ...) so the timestamp is the u64 at
+/// byte offset 8; the rest is irrelevant to the finalization script. This is the CONSENSUS time
+/// source the test controls — the script can read `now` from nowhere else.
+pub fn header_with_timestamp(now: u64) -> Vec<u8> {
+    let mut h = vec![0u8; 208]; // RawHeader (192 bytes) + nonce (16 bytes)
+    h[8..16].copy_from_slice(&now.to_le_bytes());
+    h
+}
+
+/// Finalization runner: GroupInput cells carry the finalization cells, `witnesses[i]` the vote
+/// index list for input `i`, and `header` the consensus `now`. Mirrors [`run_typescript_t7`]
+/// but serves a header-dep instead of cell-deps/outputs.
+pub fn run_typescript_finalization(
+    elf_path: &str,
+    script_cell: &Cell,
+    inputs: Vec<Cell>,
+    witnesses: Vec<Vec<u8>>,
+    header: Vec<u8>,
+) -> (Result<i8, Error>, u64) {
+    let program = Bytes::from(std::fs::read(elf_path).expect("fixture ELF present"));
+    let served = Arc::new(AtomicU64::new(0));
+    let handler =
+        NoesisSyscalls::for_full_tx(script_cell, inputs, Vec::new(), Vec::new(), witnesses, served.clone())
+            .with_header(header);
+    let core = DefaultCoreMachine::<u64, WXorXMemory<SparseMemory<u64>>>::new_with_memory(
+        ISA_IMC | ISA_A | ISA_B | ISA_MOP,
+        VERSION2,
+        u64::MAX,
+        ckb_vm::RISCV_MAX_MEMORY,
+    );
+    let mut machine = DefaultMachineBuilder::new(core).syscall(Box::new(handler)).build();
+    machine
+        .load_program(&program, [].iter().map(|b: &Bytes| Ok(b.clone())))
+        .unwrap();
+    (machine.run(), served.load(std::sync::atomic::Ordering::SeqCst))
 }
 
 /// The index-root cell-dep: 32 raw bytes of root.

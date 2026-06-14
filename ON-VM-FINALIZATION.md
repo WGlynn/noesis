@@ -69,10 +69,25 @@ validator set and the vote set; the script recomputes the inequality on-VM and a
    case the real-valued rule rejects — plus a constructed exact-2/3 tie that stays un-finalized.
    `retention_q` matches `consensus::retention` to <1e-9. node 197→202. STILL `now`/validator-set
    sourcing is the on-VM step (below), not yet wired — this is the arithmetic core only.
-2. On-VM program: read validator set + votes + header `now`; recompute; exit codes.
-3. Fixtures: finalizes / does-not-finalize / quorum-floor-binding / **tx-chosen-now-rejected** /
-   **curated-validator-set-rejected** (the bound registry re-derives `all`; a witness-supplied set
-   that omits honest validators is refused) / fixed-vs-f64-boundary. ELF rebuild + recopy.
+2. ✅ **DONE 2026-06-13** — On-VM program `onchain/finalization-typescript` (riscv64imac ELF,
+   153KB, first-try compile). Reads the validator set + params from the finalization cell
+   (GroupInput, wire format single-sourced in `noesis_core::finalization`), the vote index list
+   from `witness[i]`, and **`now` from the block header** (`load_header` HeaderDep 0, the u64
+   `RawHeader.timestamp` at byte offset 8 — NO witness/arg channel exists for it). Recomputes
+   `finalizes_fixed` and exits: 0 finalizes · 30 below threshold · 31 malformed cell/empty group ·
+   32 malformed votes · 33 header missing · 34 registry unbound (sentinel-gated inert). Iterates
+   the whole GroupInput so a second cell can't smuggle a false claim (the intake-script lesson).
+3. ✅ **DONE 2026-06-13** — `node/tests/ckb_vm_finalization.rs` (9 finalization cases, all green; node 203→212).
+   Covers finalizes / below-threshold / **`now_is_header_sourced_not_tx_chosen`** (the SAME cell+
+   votes flips 0→30 purely by changing the header timestamp, via the un-decayed quorum floor) /
+   missing-header-33 / quorum-floor-vs-reference sweep (on-VM exit ≡ `finalizes_fixed` at every
+   now) / malformed-cell-31 / malformed-votes-32 / empty-group / second-cell-smuggle. The harness
+   gained header serving (`SYS_LOAD_HEADER` + `header_with_timestamp`).
+   **STILL PENDING (honest, deploy-coupled):** the **curated-validator-set-rejected** fixture — the
+   registry binding is `REGISTRY_BINDING_ACTIVE = false` (inert pre-deploy), exactly like the
+   index-dep F1/F2/F3 activated path; it lands when the validator-registry cell deploys. Also a
+   header-recency binding (assert the header-dep is the tip via `since`) is a follow-on; today the
+   timestamp is consensus-bound but staleness of the chosen header isn't yet pinned.
 
 ## Composition
 Consensus layer atop the value layer. This doc holds two of the SEVEN sites of the recurring

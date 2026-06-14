@@ -1,0 +1,5 @@
+# Same pinned toolchain that built the 26 vibeswap contracts-ckb cells + pom-typescript.
+[toolchain]
+channel = "nightly-2024-09-01"
+targets = ["riscv64imac-unknown-none-elf"]
+components = ["rust-src", "llvm-tools-preview"]

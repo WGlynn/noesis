@@ -5248,101 +5248,17 @@ pub mod settlement_fixed {
 /// reference over a deterministic fixture sweep — agreement away from the boundary band, and the
 /// conservative direction AT a constructed exact-2/3 tie.
 pub mod finalization_fixed {
-    use super::consensus::{base_weight, effective_weight, finalizes_hybrid, Mix, Validator, BPS};
+    use super::consensus::{Mix, Validator};
 
-    pub const Q: u32 = 32;
-    pub const ONE: u128 = 1 << Q;
-
-    /// Q32.32 product: `(a·b) >> Q`, saturating (a floored result — never wraps).
-    fn mul(a: u128, b: u128) -> u128 {
-        a.saturating_mul(b) >> Q
-    }
-
-    /// Per-dimension mix fractions in Q32.32 (sum ≈ ONE).
-    #[derive(Clone, Copy, Debug)]
-    pub struct MixQ {
-        pub pow: u128,
-        pub pos: u128,
-        pub pom: u128,
-    }
-
-    /// A validator's three proof inputs in Q32.32 + the integer liveness clock.
-    #[derive(Clone, Debug)]
-    pub struct ValidatorQ {
-        pub id: u64,
-        pub pow: u128,
-        pub pos: u128,
-        pub pom: u128,
-        pub last_heartbeat: u64,
-    }
-
-    /// Linear retention in Q32.32: ONE fresh, → 0 as `elapsed → horizon`, clamped. Mirrors
-    /// `consensus::retention`. `(elapsed << Q)` fits u128 for any u64 elapsed, so the division
-    /// is exact integer division (deterministic on RISC-V `divu`).
-    pub fn retention_q(elapsed: u64, horizon: u64) -> u128 {
-        if horizon == 0 {
-            return ONE;
-        }
-        if elapsed >= horizon {
-            return 0;
-        }
-        ONE - (((elapsed as u128) << Q) / horizon as u128)
-    }
-
-    /// `W = pow·m.pow + pos·m.pos + pom·m.pom` in Q32.32 (mirrors `consensus::base_weight`).
-    pub fn base_weight_q(v: &ValidatorQ, m: MixQ) -> u128 {
-        mul(v.pow, m.pow)
-            .saturating_add(mul(v.pos, m.pos))
-            .saturating_add(mul(v.pom, m.pom))
-    }
-
-    /// Retention-adjusted vote weight in Q32.32 (mirrors `consensus::effective_weight`).
-    /// `decay_pos=false` = capital does not decay; `true` = symmetric franchise decay.
-    pub fn effective_weight_q(v: &ValidatorQ, m: MixQ, now: u64, horizon: u64, decay_pos: bool) -> u128 {
-        let ret = retention_q(now.saturating_sub(v.last_heartbeat), horizon);
-        let pos_portion = mul(v.pos, m.pos);
-        let decayable = mul(v.pow, m.pow).saturating_add(mul(v.pom, m.pom));
-        if decay_pos {
-            mul(decayable.saturating_add(pos_portion), ret)
-        } else {
-            pos_portion.saturating_add(mul(decayable, ret))
-        }
-    }
-
-    /// `bps` fraction of a Q32.32 quantity, rounded UP. Used for BOTH the finalize threshold
-    /// (so a boundary tie rounds AGAINST finalization — the bar is never lowered by truncation)
-    /// AND the quorum floor (so the basis is never lowered either; a smaller basis would make
-    /// finalization easier). One direction, one function — the fixed rule never finalizes below
-    /// where the real-valued rule holds.
-    fn bps_of_ceil(x: u128, bps: u64) -> u128 {
-        let num = x.saturating_mul(bps as u128);
-        (num + (BPS as u128 - 1)) / BPS as u128
-    }
-
-    /// Does a proposal finalize, computed entirely in Q32.32? Bit-for-bit deterministic across
-    /// platforms; the on-VM finalization type-script calls this exact arithmetic.
-    #[allow(clippy::too_many_arguments)]
-    pub fn finalizes_fixed(
-        voters_for: &[ValidatorQ],
-        all: &[ValidatorQ],
-        m: MixQ,
-        now: u64,
-        horizon: u64,
-        decay_pos: bool,
-        threshold_bps: u64,
-        quorum_floor_bps: u64,
-    ) -> bool {
-        let weight_for: u128 = voters_for
-            .iter()
-            .fold(0u128, |a, v| a.saturating_add(effective_weight_q(v, m, now, horizon, decay_pos)));
-        let eff_total: u128 = all
-            .iter()
-            .fold(0u128, |a, v| a.saturating_add(effective_weight_q(v, m, now, horizon, decay_pos)));
-        let base_total: u128 = all.iter().fold(0u128, |a, v| a.saturating_add(base_weight_q(v, m)));
-        let floor = bps_of_ceil(base_total, quorum_floor_bps);
-        let basis = eff_total.max(floor);
-        basis > 0 && weight_for >= bps_of_ceil(basis, threshold_bps)
-    }
+    // SINGLE SOURCE (lean): the Q32.32 finalize arithmetic + wire format live in
+    // `noesis-core::finalization`; the on-VM `finalization-typescript` ELF links the SAME
+    // functions. This module is the f64↔fixed boundary (conversion helpers used by the host
+    // and the drift-guard tests) — the arithmetic itself is no longer duplicated here.
+    pub use noesis_core::finalization::{
+        base_weight_q, effective_weight_q, encode_finalization_cell, encode_votes, finalizes_fixed,
+        parse_finalization_cell, parse_votes, retention_q, FinalParams, MixQ, ValidatorQ, ONE, PARAMS_LEN,
+        VREC_LEN,
+    };
 
     /// f64 → Q32.32 (round to nearest). Test/loader helper; the on-VM inputs arrive already fixed.
     pub fn to_q(x: f64) -> u128 {
@@ -5366,7 +5282,7 @@ pub mod finalization_fixed {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use crate::consensus::{NCI, TWO_THIRDS_BPS};
+        use crate::consensus::{base_weight, effective_weight, finalizes_hybrid, BPS, NCI, TWO_THIRDS_BPS};
 
         fn v(id: u64, pow: f64, pos: f64, pom: f64, hb: u64) -> Validator {
             Validator { id, pow, pos, pom, last_heartbeat: hb, staked_balance: 1.0 }

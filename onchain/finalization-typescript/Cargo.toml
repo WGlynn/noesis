@@ -1,0 +1,18 @@
+[package]
+name = "finalization-typescript"
+version = "0.0.1"
+edition = "2021"
+# PRIVATE — Noesis on-VM PoM-weighted finalization (ON-VM-FINALIZATION.md, build-order step 2).
+
+[[bin]]
+name = "finalization-typescript"
+path = "src/main.rs"
+
+[dependencies]
+# Proven recipe from vibeswap contracts-ckb ([F·ckb-cell-build-recipe]):
+ckb-std = { version = "0.16", default-features = false, features = ["ckb-types", "allocator"] }
+noesis-core = { path = "../noesis-core" }
+
+[profile.release]
+overflow-checks = true
+codegen-units = 1

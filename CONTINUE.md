@@ -4,6 +4,36 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## ▶ RESUME HERE (2026-06-13 night — finalization ON-VM PROGRAM shipped, Phase-3 step-2; node 203→212)
+- **Build-order step 2 of `ON-VM-FINALIZATION.md` DONE — the consensus finalize rule now runs
+  INSIDE the VM.** New crate `onchain/finalization-typescript` (riscv64imac ELF, 153KB, first-try
+  compile): reads the validator set + params from the finalization cell (GroupInput), the vote
+  index list from `witness[i]`, recomputes `finalizes_fixed` in Q32.32, exits 0/30/31/32/33/34.
+- **`now` is HEADER-sourced, not tx-chosen — the 5th attacker-input site closed on-VM.** The ELF
+  reads `now` from `load_header(HeaderDep 0)` (the u64 `RawHeader.timestamp` at byte offset 8);
+  there is NO witness/arg channel for it. Headline test `now_is_header_sourced_not_tx_chosen`: the
+  SAME cell + SAME unanimous votes flips finalized→rejected (exit 0→30) purely by changing the
+  header timestamp, driven by the un-decayed quorum floor — an attacker who wants finalization
+  can't inject a favorable `now`. (CKB header-deps are real chain headers, unforgeable by the tx
+  assembler.) Same lesson as index-dep F1 + temporal-order coords.
+- **LEAN (paid the debt at birth):** the Q32.32 finalize arithmetic + the cell/vote wire format are
+  single-sourced in `noesis_core::finalization`; the node lib now `pub use`s them (the old in-lib
+  copy deleted) and the ELF links the SAME functions. ONE implementation, unlike the 4 legacy
+  flat-vs-modular cores still owed. Drift-guard (`finalizes_fixed ≡ finalizes_hybrid`) intact.
+- **9 new tests, node 203→212, full suite green, zero regressions, warning-clean.** Harness gained
+  `SYS_LOAD_HEADER` + `header_with_timestamp`. Coverage: finalizes / below-threshold / header-flip /
+  missing-header-33 / quorum-floor-vs-reference sweep (on-VM ≡ reference at every now) / malformed
+  cell-31 / malformed votes-32 / empty-group / second-cell-smuggle (whole-group iteration).
+- **STILL PENDING (honest, deploy-coupled):** the **curated-validator-set-rejected** path —
+  `REGISTRY_BINDING_ACTIVE = false` (inert pre-deploy), the registry type-id binding lands when the
+  validator-registry cell deploys (the 6th attacker-input site, same shape as index-dep F1/F2/F3).
+  Plus header-recency binding (assert the header-dep is the tip via `since`) — timestamp is
+  consensus-bound today, but staleness of the chosen header isn't yet pinned.
+- **NEXT 🟡 (deploy-independent first):** (b) the on-VM ordering port (`commit_order` ELF, header-
+  height + reveal-XOR sourced — now has a header-serving harness to build on); (c) lean backlog
+  (single-source the other 4 cores + split the 6k-line lib.rs); (d) multi-proof compression. The
+  learned-`v(S)`-on-real-labels mile (Phase-1 close) is still THE moat.
+
 ## ▶ RESUME HERE (2026-06-13 evening — full-auto loop: PM-17 closed both layers + Phase-3 step-1; node 203/203)
 - **6-iteration full-auto run, all pushed to WGlynn/noesis (HEAD `488862c`):**
   1. `index_binding` reference model **F2-complete** — dep identity grew `hash_type`

@@ -308,3 +308,220 @@ pub mod commit_order {
             .all(|(pos, &idx)| pos == idx)
     }
 }
+
+// ============ PoM-weighted finalization in Q32.32 (ON-VM-FINALIZATION.md) ============
+//
+// The consensus finalize rule (`node::consensus::finalizes_hybrid`) ported to exact fixed
+// point so the on-VM finalization type-script and the node reference compute bit-identically.
+// SINGLE SOURCE: the node lib re-exports these (the `finalization-typescript` ELF links them),
+// and the node carries the drift-guard `finalizes_fixed ≡ finalizes_hybrid` over an f64 sweep.
+// The arithmetic mirrors `value_fixed`/`settlement_fixed`: saturating, divu-deterministic, and
+// the threshold/quorum-floor are evaluated with ONE ceil (`bps_of_ceil`) so a boundary tie
+// rounds AGAINST finalization — the fixed rule never finalizes a case the real rule rejects.
+pub mod finalization {
+    use alloc::vec::Vec;
+    use core::convert::TryInto;
+
+    pub const Q: u32 = 32;
+    pub const ONE: u128 = 1 << Q;
+    /// Basis points denominator (mirrors `consensus::BPS`). Local so the no_std core is self-contained.
+    pub const BPS: u64 = 10_000;
+
+    /// Per-dimension mix fractions in Q32.32 (sum ≈ ONE).
+    #[derive(Clone, Copy, Debug)]
+    pub struct MixQ {
+        pub pow: u128,
+        pub pos: u128,
+        pub pom: u128,
+    }
+
+    /// A validator's three proof inputs in Q32.32 + the integer liveness clock.
+    #[derive(Clone, Debug)]
+    pub struct ValidatorQ {
+        pub id: u64,
+        pub pow: u128,
+        pub pos: u128,
+        pub pom: u128,
+        pub last_heartbeat: u64,
+    }
+
+    /// Finalize parameters carried alongside the validator set in the finalization cell.
+    #[derive(Clone, Copy, Debug)]
+    pub struct FinalParams {
+        pub horizon: u64,
+        pub threshold_bps: u64,
+        pub quorum_floor_bps: u64,
+        pub decay_pos: bool,
+    }
+
+    /// Q32.32 product: `(a·b) >> Q`, saturating (a floored result — never wraps).
+    fn mul(a: u128, b: u128) -> u128 {
+        a.saturating_mul(b) >> Q
+    }
+
+    /// Linear retention in Q32.32: ONE fresh, → 0 as `elapsed → horizon`, clamped. Mirrors
+    /// `consensus::retention`. `(elapsed << Q)` fits u128 for any u64 elapsed ⇒ exact integer
+    /// division (deterministic on RISC-V `divu`).
+    pub fn retention_q(elapsed: u64, horizon: u64) -> u128 {
+        if horizon == 0 {
+            return ONE;
+        }
+        if elapsed >= horizon {
+            return 0;
+        }
+        ONE - (((elapsed as u128) << Q) / horizon as u128)
+    }
+
+    /// `W = pow·m.pow + pos·m.pos + pom·m.pom` in Q32.32 (mirrors `consensus::base_weight`).
+    pub fn base_weight_q(v: &ValidatorQ, m: MixQ) -> u128 {
+        mul(v.pow, m.pow)
+            .saturating_add(mul(v.pos, m.pos))
+            .saturating_add(mul(v.pom, m.pom))
+    }
+
+    /// Retention-adjusted vote weight in Q32.32 (mirrors `consensus::effective_weight`).
+    /// `decay_pos=false` = capital does not decay; `true` = symmetric franchise decay.
+    pub fn effective_weight_q(v: &ValidatorQ, m: MixQ, now: u64, horizon: u64, decay_pos: bool) -> u128 {
+        let ret = retention_q(now.saturating_sub(v.last_heartbeat), horizon);
+        let pos_portion = mul(v.pos, m.pos);
+        let decayable = mul(v.pow, m.pow).saturating_add(mul(v.pom, m.pom));
+        if decay_pos {
+            mul(decayable.saturating_add(pos_portion), ret)
+        } else {
+            pos_portion.saturating_add(mul(decayable, ret))
+        }
+    }
+
+    /// `bps` fraction of a Q32.32 quantity, rounded UP. Used for BOTH the finalize threshold
+    /// (a boundary tie rounds AGAINST finalization) AND the quorum floor (the basis is never
+    /// lowered by truncation). One direction, one function.
+    fn bps_of_ceil(x: u128, bps: u64) -> u128 {
+        let num = x.saturating_mul(bps as u128);
+        (num + (BPS as u128 - 1)) / BPS as u128
+    }
+
+    /// Does a proposal finalize, computed entirely in Q32.32? Bit-for-bit deterministic across
+    /// platforms; the on-VM finalization type-script calls this exact arithmetic.
+    #[allow(clippy::too_many_arguments)]
+    pub fn finalizes_fixed(
+        voters_for: &[ValidatorQ],
+        all: &[ValidatorQ],
+        m: MixQ,
+        now: u64,
+        horizon: u64,
+        decay_pos: bool,
+        threshold_bps: u64,
+        quorum_floor_bps: u64,
+    ) -> bool {
+        let weight_for: u128 = voters_for
+            .iter()
+            .fold(0u128, |a, v| a.saturating_add(effective_weight_q(v, m, now, horizon, decay_pos)));
+        let eff_total: u128 = all
+            .iter()
+            .fold(0u128, |a, v| a.saturating_add(effective_weight_q(v, m, now, horizon, decay_pos)));
+        let base_total: u128 = all.iter().fold(0u128, |a, v| a.saturating_add(base_weight_q(v, m)));
+        let floor = bps_of_ceil(base_total, quorum_floor_bps);
+        let basis = eff_total.max(floor);
+        basis > 0 && weight_for >= bps_of_ceil(basis, threshold_bps)
+    }
+
+    // ---- Wire format (single home for the finalization-cell + vote layout) ----
+    // The ELF DECODES; the node/producer ENCODES; both call the same functions so the format
+    // has exactly one definition. All little-endian. Q values are u128 (16B) to match the core
+    // domain with no narrowing; ids/clocks are u64 (8B).
+    //
+    // Finalization cell data:
+    //   header  (PARAMS_LEN=64): mix_pow[0..16] mix_pos[16..32] mix_pom[32..48]
+    //                            horizon[48..56] threshold_bps[56..58] quorum_floor_bps[58..60]
+    //                            decay_pos[60] pad[61..64]
+    //   then N validator records (VREC_LEN=64 each):
+    //                            id[0..8] pow[8..24] pos[24..40] pom[40..56] last_heartbeat[56..64]
+    // Votes witness: u16 LE index list — the validators that voted FOR (each < N).
+    pub const PARAMS_LEN: usize = 64;
+    pub const VREC_LEN: usize = 64;
+
+    fn rd_u64(b: &[u8], o: usize) -> u64 {
+        u64::from_le_bytes(b[o..o + 8].try_into().unwrap())
+    }
+    fn rd_u128(b: &[u8], o: usize) -> u128 {
+        u128::from_le_bytes(b[o..o + 16].try_into().unwrap())
+    }
+
+    /// Decode the finalization cell: (mix, params, validators). `None` on any malformed length
+    /// (short header, or a validator section that is not an exact multiple of VREC_LEN).
+    pub fn parse_finalization_cell(data: &[u8]) -> Option<(MixQ, FinalParams, Vec<ValidatorQ>)> {
+        if data.len() < PARAMS_LEN {
+            return None;
+        }
+        let mix = MixQ { pow: rd_u128(data, 0), pos: rd_u128(data, 16), pom: rd_u128(data, 32) };
+        let params = FinalParams {
+            horizon: rd_u64(data, 48),
+            threshold_bps: u16::from_le_bytes([data[56], data[57]]) as u64,
+            quorum_floor_bps: u16::from_le_bytes([data[58], data[59]]) as u64,
+            decay_pos: data[60] != 0,
+        };
+        let rest = &data[PARAMS_LEN..];
+        if rest.len() % VREC_LEN != 0 {
+            return None;
+        }
+        let mut vs = Vec::with_capacity(rest.len() / VREC_LEN);
+        for r in rest.chunks_exact(VREC_LEN) {
+            vs.push(ValidatorQ {
+                id: rd_u64(r, 0),
+                pow: rd_u128(r, 8),
+                pos: rd_u128(r, 24),
+                pom: rd_u128(r, 40),
+                last_heartbeat: rd_u64(r, 56),
+            });
+        }
+        Some((mix, params, vs))
+    }
+
+    /// Decode a vote witness into validator indices. `None` if the byte length is odd or any
+    /// index is out of range for an `n`-validator set (a vote for a non-existent validator is
+    /// malformed, not silently dropped).
+    pub fn parse_votes(data: &[u8], n: usize) -> Option<Vec<usize>> {
+        if data.len() % 2 != 0 {
+            return None;
+        }
+        let mut out = Vec::with_capacity(data.len() / 2);
+        for c in data.chunks_exact(2) {
+            let idx = u16::from_le_bytes([c[0], c[1]]) as usize;
+            if idx >= n {
+                return None;
+            }
+            out.push(idx);
+        }
+        Some(out)
+    }
+
+    /// Producer/test mirror of `parse_finalization_cell` — the other half of the single source.
+    pub fn encode_finalization_cell(mix: MixQ, p: &FinalParams, validators: &[ValidatorQ]) -> Vec<u8> {
+        let mut out = Vec::with_capacity(PARAMS_LEN + validators.len() * VREC_LEN);
+        out.extend_from_slice(&mix.pow.to_le_bytes());
+        out.extend_from_slice(&mix.pos.to_le_bytes());
+        out.extend_from_slice(&mix.pom.to_le_bytes());
+        out.extend_from_slice(&p.horizon.to_le_bytes());
+        out.extend_from_slice(&(p.threshold_bps as u16).to_le_bytes());
+        out.extend_from_slice(&(p.quorum_floor_bps as u16).to_le_bytes());
+        out.push(p.decay_pos as u8);
+        out.extend_from_slice(&[0u8; 3]); // pad to PARAMS_LEN
+        for v in validators {
+            out.extend_from_slice(&v.id.to_le_bytes());
+            out.extend_from_slice(&v.pow.to_le_bytes());
+            out.extend_from_slice(&v.pos.to_le_bytes());
+            out.extend_from_slice(&v.pom.to_le_bytes());
+            out.extend_from_slice(&v.last_heartbeat.to_le_bytes());
+        }
+        out
+    }
+
+    /// Producer/test mirror of `parse_votes`.
+    pub fn encode_votes(indices: &[u16]) -> Vec<u8> {
+        let mut out = Vec::with_capacity(indices.len() * 2);
+        for &i in indices {
+            out.extend_from_slice(&i.to_le_bytes());
+        }
+        out
+    }
+}
