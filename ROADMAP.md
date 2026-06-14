@@ -4,6 +4,17 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-14** — DESIGN NOTE (execution deferred to a fresh context; PCP-gate at ~310k session
+  tokens: do-it-right-in-fresh-context > grind-in-exhausted-context on the moat). **Next RSAW
+  target = the INVERSE of today's fix.** §7.1c's appeal court down-weights PoM (0.10), so PoW+PoS
+  now DOMINATE the dispute court (0.90 combined). Each fix reveals the next attack: the cartel fix
+  shifted dispute power to PoW/PoS. OPEN: can a PoW/PoS bloc weaponize the appeal escalation to
+  OVER-convict / grief honest PoM contributors — slashing honest PoM standing via the
+  PoW/PoS-dominated appeal court? Approach for the next tick: construct an honest-PoM defendant +
+  PoW/PoS-majority attacker, test whether `Tribunal::AppealCourt` lets them land a refutation that
+  slashes honest standing; if yes, the guard is an ASYMMETRIC appeal (an appeal may only REDUCE
+  conviction of the down-weighted dimension's holders, never increase their slashing) or symmetric
+  cross-dimension recusal. No code this tick — named + scoped only.
 - **2026-06-14** — RSAW follow-tick: the identity-separated PoM-cartel residual is CLOSED via
   **§7.1c dimension-level recusal**. The appeal court down-weights PoM (the captured axis):
   `DISPUTE_APPEAL` mix pow:pos:pom = 0.225:0.675:0.10 (NCI's 1:3 PoW:PoS kept, PoM minimized),
