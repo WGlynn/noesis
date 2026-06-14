@@ -5,7 +5,7 @@ builds on what, and the right to finalize is earned by demonstrated contribution
 than bought with capital — the chain that prices *minds*, not hashes or stake.
 
 > Status: **reference implementation, pre-launch.** The consensus, value, and execution
-> layers are implemented in Rust and exercised by **212 passing tests**; the on-chain
+> layers are implemented in Rust and exercised by **218 passing tests**; the on-chain
 > rules run as type-scripts inside CKB-VM (RISC-V) in-test. There is no public network yet.
 
 ---
@@ -65,7 +65,7 @@ scripts/         Repo-hygiene tooling (doc-coherence, study guide).
 ## Build & test
 
 ```bash
-make test        # host suite — node + noesis-core (212 passing)
+make test        # host suite — node + noesis-core (218 passing)
 make fmt         # rustfmt
 make clippy      # clippy, warnings-as-errors
 make elf         # build the RISC-V type-scripts (nightly + riscv64imac target)

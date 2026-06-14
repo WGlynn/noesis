@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        crate: [pom-typescript, finalization-typescript]
+        crate: [pom-typescript, finalization-typescript, commit-order-typescript]
     steps:
       - uses: actions/checkout@v4
       - name: Install pinned nightly + riscv target

@@ -5990,7 +5990,9 @@ pub mod commit_order {
     // so node RE-EXPORTS it rather than keeping a drift-guarded copy. Lean (Bitcoin-simplicity):
     // ONE implementation, not two. The node-side tests below exercise it through `Cell` /
     // `novelty_in_commit_order`; the pure-permutation properties are tested in noesis-core.
-    pub use noesis_core::commit_order::{block_shuffle, canonical_order, is_canonical_order, Committed};
+    pub use noesis_core::commit_order::{
+        block_shuffle, canonical_order, encode_batch, is_canonical_order, parse_batch, Committed, CREC_LEN,
+    };
 
     #[cfg(test)]
     mod tests {

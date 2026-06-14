@@ -307,6 +307,37 @@ pub mod commit_order {
             .enumerate()
             .all(|(pos, &idx)| pos == idx)
     }
+
+    // ---- Wire format (single home for the committed-batch layout) ----
+    // The on-VM ordering type-script DECODES; the node/producer ENCODES. Each record is 40 bytes:
+    //   height (u64 LE, 8) + secret (Hash, 32). N records, no header.
+    pub const CREC_LEN: usize = 40;
+
+    /// Decode a presented committed-batch. `None` if empty or not a whole number of records (an
+    /// empty batch orders nothing ⇒ malformed, like an empty finalization group).
+    pub fn parse_batch(data: &[u8]) -> Option<Vec<Committed>> {
+        if data.is_empty() || data.len() % CREC_LEN != 0 {
+            return None;
+        }
+        let mut out = Vec::with_capacity(data.len() / CREC_LEN);
+        for r in data.chunks_exact(CREC_LEN) {
+            let height = u64::from_le_bytes(r[0..8].try_into().unwrap());
+            let mut secret = [0u8; 32];
+            secret.copy_from_slice(&r[8..40]);
+            out.push(Committed { height, secret });
+        }
+        Some(out)
+    }
+
+    /// Producer/test mirror of `parse_batch` — the other half of the single source.
+    pub fn encode_batch(items: &[Committed]) -> Vec<u8> {
+        let mut out = Vec::with_capacity(items.len() * CREC_LEN);
+        for c in items {
+            out.extend_from_slice(&c.height.to_le_bytes());
+            out.extend_from_slice(&c.secret);
+        }
+        out
+    }
 }
 
 // ============ PoM-weighted finalization in Q32.32 (ON-VM-FINALIZATION.md) ============

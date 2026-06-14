@@ -89,6 +89,13 @@ gains an ordering precondition on the batch it commits:
   (`ordered_rule_trusts_coords_so_they_must_be_consensus_sourced` — a falsely-earlier claimed height
   steals novelty, proving the coords must be consensus-derived). The permutation core is also ported
   to `noesis-core` (no_std, builds riscv64imac) ready for the ELF to link.
-- NOT YET: the on-VM ELF port (header-sourced height + reveal-sourced XOR seed + RE-DERIVE-and-reject
-  the claimed coords + canonical-order exit), which is deploy-coupled (needs the commit-reveal block
-  plumbing live), honestly deferred like the index-dep activated path and the finalization mirror.
+- DEMONSTRATED (on-VM, 2026-06-13): the **ORDERING RULE now runs inside the VM** —
+  `onchain/commit-order-typescript` (riscv64imac ELF) reads the presented batch, runs
+  `is_canonical_order` (single-sourced from `noesis_core::commit_order`), and exits 0 canonical /
+  40 non-canonical / 41 malformed. 6 e2e cases (`node/tests/ckb_vm_commit_order.rs`): canonical
+  accepted, reversed/cross-block-descending rejected, on-VM ≡ reference across presentations.
+- NOT YET (deploy-coupled): COORD PROVENANCE — re-deriving `height` from each cell's commit-block
+  header and `secret` from the block's reveals, and rejecting any claimed coord. Gated INERT behind
+  `COORDS_BOUND` pre-deploy (needs the commit-reveal block plumbing live), honestly deferred like the
+  index-dep activated path and the finalization registry binding. The order rule is enforced on-VM;
+  the provenance of the coords it orders is the remaining activated path.

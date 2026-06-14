@@ -1,0 +1,18 @@
+[package]
+name = "commit-order-typescript"
+version = "0.0.1"
+edition = "2021"
+# PRIVATE — Noesis on-VM commit-order assertion (TEMPORAL-ORDER-ONCHAIN.md, the ordering port).
+
+[[bin]]
+name = "commit-order-typescript"
+path = "src/main.rs"
+
+[dependencies]
+# Proven recipe from vibeswap contracts-ckb ([F·ckb-cell-build-recipe]):
+ckb-std = { version = "0.16", default-features = false, features = ["ckb-types", "allocator"] }
+noesis-core = { path = "../noesis-core" }
+
+[profile.release]
+overflow-checks = true
+codegen-units = 1
