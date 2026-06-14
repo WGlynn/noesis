@@ -3,7 +3,7 @@
 //! ckb_vm_syscalls.rs; the ABI provenance notes live there.
 #![allow(dead_code)]
 
-use ckb_vm::machine::{CoreMachine, DefaultCoreMachine, DefaultMachineBuilder, SupportMachine, VERSION2};
+use ckb_vm::machine::{DefaultCoreMachine, DefaultMachineBuilder, SupportMachine, VERSION2};
 use ckb_vm::memory::{sparse::SparseMemory, wxorx::WXorXMemory, Memory};
 use ckb_vm::registers::{A0, A1, A2, A3, A4, A7};
 use ckb_vm::{Bytes, Error, Register, Syscalls, ISA_A, ISA_B, ISA_IMC, ISA_MOP};
