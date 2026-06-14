@@ -4,6 +4,10 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-13** — RSAW tick on `finalizes_fixed`: probed the corners (horizon=0, 100% threshold,
+  zero-weight padding, empty voters, all-zero basis). The conservative direction
+  `!(fixed && !float)` survives every edge — NO new break; edges pinned. Stop-condition outcome
+  (the fixed mirror's safety reduces to the f64 reference + the ceil rounding direction). node 202→203.
 - **2026-06-13** — Phase 3 build-order step 1 SHIPPED: `finalization_fixed` — `finalizes_hybrid`
   recomputed in pure Q32.32 (fixed-point retention-decay + effective/base weight + max(eff,
   floor) basis + 2/3 threshold). Drift-guarded vs the f64 reference over a deterministic sweep;

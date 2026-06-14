@@ -5465,6 +5465,42 @@ pub mod finalization_fixed {
         }
 
         #[test]
+        fn adversarial_edges_hold_conservative_direction() {
+            // RSAW tick on the increment: probe the corners the sweep underweights and assert the
+            // load-bearing safety property — the fixed rule NEVER finalizes a case the float rule
+            // rejects — survives every edge. Each is also checked for off-boundary agreement.
+            let base = vec![
+                v(1, 0.7, 0.5, 0.9, 0),
+                v(2, 0.6, 0.8, 0.4, 0),
+                v(3, 0.9, 0.3, 0.7, 0),
+            ];
+            // horizon = 0 ⇒ retention pinned to 1 (no decay), regardless of staleness.
+            for &now in &[0u64, 1, 1_000_000] {
+                let (fx, fl) = both(&base, &base, NCI, now, 0, true, TWO_THIRDS_BPS, 3333);
+                assert!(!(fx && !fl), "horizon=0 conservative break at now={now}");
+                assert_eq!(fx, fl, "horizon=0 ⇒ no decay ⇒ should agree (now={now})");
+            }
+            // threshold = 100% (BPS): only a unanimous effective vote finalizes.
+            let (fx, fl) = both(&base, &base, NCI, 0, 100, true, BPS, 0);
+            assert!(!(fx && !fl) && fx == fl, "100% threshold, unanimous");
+            let (fx2, fl2) = both(&base[..2], &base, NCI, 0, 100, true, BPS, 0);
+            assert!(!(fx2 && !fl2), "100% threshold, 2/3 ⇒ fixed must not over-finalize");
+            // A zero-weight validator padding `all` (pow=pos=pom=0) — must not break basis>0
+            // and must not let the fixed rule diverge upward.
+            let mut padded = base.clone();
+            padded.push(v(4, 0.0, 0.0, 0.0, 0));
+            let (fx3, fl3) = both(&base, &padded, NCI, 0, 100, true, TWO_THIRDS_BPS, 3333);
+            assert!(!(fx3 && !fl3), "zero-weight padding conservative break");
+            // Empty voters_for ⇒ weight_for = 0 ⇒ never finalizes (both).
+            let (fx4, fl4) = both(&[], &base, NCI, 0, 100, true, TWO_THIRDS_BPS, 3333);
+            assert!(!fx4 && !fl4, "no voters ⇒ neither finalizes");
+            // All-zero `all` ⇒ basis = 0 ⇒ the basis>0 guard rejects (no divide-by-nothing finalize).
+            let zeros = vec![v(9, 0.0, 0.0, 0.0, 0)];
+            let (fx5, fl5) = both(&zeros, &zeros, NCI, 0, 100, true, TWO_THIRDS_BPS, 3333);
+            assert!(!fx5 && !fl5, "empty basis ⇒ neither finalizes (guarded)");
+        }
+
+        #[test]
         fn exact_two_thirds_tie_does_not_finalize_in_fixed() {
             // Construct an exact 2:1 split where voters_for hold exactly 2/3 of a no-decay basis.
             // The real bar is 6667 bps > 6666.6..%, so even the float rule rejects a clean 2/3;

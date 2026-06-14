@@ -4,7 +4,11 @@ Resume point for a fresh chat. Detail lives in `CONTINUE.md` (top block) and `RO
 this is the fast orientation. Repo: `WGlynn/noesis` (private remote). Node: `node/`, Rust.
 
 ## Current state
-- **node: 202/202 green** (`cd node && cargo test`; lib 177 + integration suites).
+- **node: 203/203 green** (`cd node && cargo test`; lib 178 + integration suites).
+- **RSAW tick on the above (2026-06-13):** adversarial edge probe of `finalizes_fixed`
+  (horizon=0 no-decay, 100% threshold, zero-weight padding, empty voters, all-zero basis) — the
+  conservative direction `!(fixed && !float)` holds at every corner; NO break found, edges pinned
+  (`adversarial_edges_hold_conservative_direction`). node 202→203.
 - **Latest increment (2026-06-13, full-auto loop):** Phase 3 build-order step 1 — `finalization_fixed`
   module: `consensus::finalizes_hybrid` recomputed in pure Q32.32 (fixed-point retention-decay +
   effective/base weight + max(eff,floor) basis + 2/3 threshold, ceil-rounded against finalization),
