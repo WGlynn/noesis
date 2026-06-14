@@ -74,8 +74,19 @@ The whole system is only as honest as `v(S)`. Until this is solid, everything ab
 is a reputation system.
 - 🟡 **Learned reward-model `v(S)`** — Bradley-Terry over block features → generalizes
   to unseen blocks (RLHF reward model). Replaces the coverage proxy. `reward-model.py`
+  - ✅ **Held-out generalization MEASURED (2026-06-13, `outcome` module):** `proxy_value` +
+    `pairwise_accuracy` + `learned_v_s_beats_coverage_proxy_on_held_out_coalitions` — trained on
+    10 templates, tested on 6 UNSEEN: learned `v(S)` ≥ 0.9, coverage proxy blind to lineage ties
+    at 0.5. The gate measured, not asserted.
+  - ✅ **Fake-lineage spoof CLOSED AT THE SCORE (2026-06-13, pom-roadmap tick):** the survivor of
+    `fake_lineage_garbage_...` (spoofed structure fools the bare model) is closed by
+    `v_outcome_floored` — the entropy floor AND-composed into the learned score (single-sourced
+    with the intake floor), so a fake lineage of NOISE scores 0 while real work keeps its value.
+    Structure can no longer manufacture value from noise. Test:
+    `semantic_floor_closes_the_fake_lineage_spoof_at_the_score`.
 - 🟡 **Outcome-value labels** — coalition-level "how good is the outcome using only S"
-  judgments (model/jury, DeepFunding-distill over *sets*).
+  judgments (model/jury, DeepFunding-distill over *sets*). The model + held-out harness are
+  built; this real-label pull is the remaining mile (the harness runs unchanged when it lands).
 - ✅ **Strategyproofness — production rule shipped** (`value-v3.py`). The canonical
   value rule is **temporal-novelty** (value = coverage novel vs earlier-committed
   blocks, via commit-reveal order), strategyproof **by construction**: sybil-split,

@@ -4232,6 +4232,35 @@ pub mod outcome {
         correct / prefs.len() as f64
     }
 
+    /// Semantic-floored learned value — the AND-composition named by
+    /// `fake_lineage_garbage_fools_the_model_but_is_contained_below`. Spoofed STRUCTURE (a fake
+    /// lineage of noise) raises the connectedness/depth features, but if the coalition's content is
+    /// incompressible noise the floor zeroes the score: structure cannot manufacture value from
+    /// noise. The floor can only LOWER, never rescue (same rule as the value gate). The noise check
+    /// is single-sourced from the intake floor (`noesis_core::is_incompressible_q16`, same `theta`),
+    /// so a coalition the chain refuses to mint cannot score here either. Closes the fake-lineage
+    /// gaming vector AT THE SCORE, not just below it via the bounded evaluator.
+    pub fn v_outcome_floored(
+        w: &[f64; N_FEATS],
+        feats: &[f64; N_FEATS],
+        cells: &[Cell],
+        idxs: &[usize],
+        theta_q16: u64,
+    ) -> f64 {
+        if idxs.is_empty() {
+            return 0.0;
+        }
+        let real = idxs
+            .iter()
+            .filter(|&&i| !noesis_core::is_incompressible_q16(&cells[i].data, theta_q16))
+            .count();
+        if real == 0 {
+            return 0.0; // all content is incompressible noise ⇒ no structure can rescue it
+        }
+        // AND-compose: scale the structural score by the non-noise fraction (never raises it).
+        v_outcome(w, feats) * (real as f64 / idxs.len() as f64)
+    }
+
     #[cfg(test)]
     mod tests {
         use super::super::{Cell, Script};
@@ -4364,6 +4393,42 @@ pub mod outcome {
             //     evidence, where being fooled costs the evaluator-pool a timing bet, never
             //     minted value. Next increment if ever wired into scoring: AND-compose the
             //     learned semantic floor (Role C) so spoofed structure cannot raise novelty.
+        }
+
+        /// ADVERSARIAL-GAMING increment (2026-06-13, pom-roadmap-advance): CLOSE the fake-lineage
+        /// spoof AT THE SCORE. The survivor above shows spoofed structure fools the bare model; the
+        /// semantic-floored `v_outcome_floored` AND-composes the entropy floor, so a fake lineage of
+        /// noise scores 0 even though its structure looks like value — structure can no longer
+        /// manufacture value from noise. Real work keeps its score.
+        #[test]
+        fn semantic_floor_closes_the_fake_lineage_spoof_at_the_score() {
+            const THETA: u64 = 62259; // same entropy threshold as the on-VM intake floor
+            let noise = |s: u8| -> Vec<u8> { (0u8..24).map(|i| s.wrapping_add(i.wrapping_mul(53))).collect() };
+            let fake_lineage = vec![
+                cellp(30, 0, None, &noise(0x10)),
+                cellp(31, 1, Some(30), &noise(0x40)),
+                cellp(32, 2, Some(31), &noise(0x90)),
+            ];
+            let real = value_set();
+            let w = train(
+                &[
+                    coalition_features(&value_set(), &[0, 1, 2]),
+                    coalition_features(&garbage_set(), &[0, 1, 2]),
+                ],
+                &vec![(0usize, 1usize); 8],
+                4000,
+                0.3,
+            );
+            let fake_feat = coalition_features(&fake_lineage, &[0, 1, 2]);
+            let real_feat = coalition_features(&real, &[0, 1, 2]);
+            // Bare model: the spoof scores high (the known survivor).
+            assert!(v_outcome(&w, &fake_feat) > 0.5, "bare model is fooled by spoofed structure");
+            // Floored: the fake lineage of noise collapses to 0; real work keeps its value.
+            let fake_floored = v_outcome_floored(&w, &fake_feat, &fake_lineage, &[0, 1, 2], THETA);
+            let real_floored = v_outcome_floored(&w, &real_feat, &real, &[0, 1, 2], THETA);
+            assert_eq!(fake_floored, 0.0, "fake-lineage NOISE scores 0 under the semantic-floored v(S)");
+            assert!(real_floored > 0.0, "real work keeps its learned value through the floor");
+            assert!(real_floored > fake_floored, "the floor closes the spoof at the score, not only below it");
         }
 
         #[test]
