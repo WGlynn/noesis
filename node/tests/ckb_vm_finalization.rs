@@ -159,6 +159,22 @@ fn malformed_votes_are_rejected() {
     assert_eq!(res2.unwrap(), 32, "odd-length vote witness is malformed");
 }
 
+/// RSAW 2026-06-13: a repeated vote index would double-count that validator's effective weight and
+/// forge finalization from a single real voter. The vote set must reject duplicates.
+#[test]
+fn duplicate_vote_indices_cannot_inflate_weight() {
+    let vs = vec![vq(1, 0.9, 0), vq(2, 0.9, 0), vq(3, 0.9, 0)];
+    let p = params(100, TWO_THIRDS_BPS, 0, true);
+    let cell = fin_cell(encode_finalization_cell(nci(), &p, &vs));
+    // One honest vote is below the 2/3 bar — it must NOT finalize.
+    let (single, _) = run_typescript_finalization(ELF, &cell, vec![cell.clone()], vec![encode_votes(&[0])], header_with_timestamp(0));
+    assert_eq!(single.unwrap(), 30, "one real vote is below threshold");
+    // Tripling that same vote [0,0,0] would sum 3x its weight and clear the bar if counted —
+    // it is rejected as malformed instead, so no inflation is possible.
+    let (dup, _) = run_typescript_finalization(ELF, &cell, vec![cell.clone()], vec![encode_votes(&[0, 0, 0])], header_with_timestamp(0));
+    assert_eq!(dup.unwrap(), 32, "duplicate vote indices rejected — weight cannot be inflated");
+}
+
 #[test]
 fn empty_group_is_rejected() {
     let (res, _) = run_typescript_finalization(ELF, &fin_cell(vec![0u8; 64]), Vec::new(), Vec::new(), header_with_timestamp(0));

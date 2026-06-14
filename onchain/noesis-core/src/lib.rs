@@ -521,6 +521,11 @@ pub mod finalization {
             if idx >= n {
                 return None;
             }
+            // A vote set is a SET: a repeated index would double-count that validator's effective
+            // weight and inflate `weight_for`, forging finalization. Reject duplicates (RSAW 2026-06-13).
+            if out.contains(&idx) {
+                return None;
+            }
             out.push(idx);
         }
         Some(out)

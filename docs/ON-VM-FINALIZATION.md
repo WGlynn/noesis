@@ -55,6 +55,16 @@ validator set and the vote set; the script recomputes the inequality on-VM and a
   SAME mechanism as `INDEX-DEP-CODEHASH-BINDING.md` — and RE-DERIVE it from that bound cell, never
   the witness. A caller-supplied `all` is rejected. (Same re-derive-and-reject rule as the temporal-
   order coords: "comes from consensus" is only real if the ELF refuses any input it can't reconstruct.)
+  **RSAW 2026-06-13 extension:** the finalize PARAMS — `threshold_bps`, `quorum_floor_bps`, `horizon`,
+  and `mix` — ride in the SAME attacker-creatable finalization cell as `all`. A producer who sets
+  `threshold_bps = 0` finalizes on any single vote; one who shrinks the floor or skews the mix tilts
+  the bar. So the registry binding must cover the WHOLE cell (params + validator set), not `all` alone
+  — the params are exactly as outcome-determining as the set. (Pre-deploy this is inert with the rest
+  of the binding; the order rule + arithmetic are what run on-VM today.)
+- **Vote set is a SET (RSAW 2026-06-13, FIXED).** `parse_votes` now rejects a repeated index: a
+  duplicated vote would double-count that validator's effective weight and forge finalization from a
+  single real voter. Pinned by `duplicate_vote_indices_cannot_inflate_weight` — one honest vote stays
+  below the bar, tripling it is rejected (exit 32) rather than finalizing.
 - **Quorum floor** uses `base_weight` (un-decayed) — carry both base and effective sums; the
   floor must not itself be decayable or low-participation epochs become un-finalizable by design
   (which may be intended; flag for the consensus review).
