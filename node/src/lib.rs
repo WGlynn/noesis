@@ -4291,6 +4291,11 @@ pub mod outcome {
                 feats.push(std::array::from_fn(|k| vals[k]));
             }
         }
+        // Adversarial robustness: drop any preference that references a coalition row
+        // outside the parsed set. A malformed or hostile label file must not index out
+        // of bounds into the harness (which would panic) or train on a phantom coalition.
+        let n = feats.len();
+        prefs.retain(|&(w, l)| w < n && l < n);
         (feats, prefs)
     }
 
@@ -4319,6 +4324,13 @@ pub mod outcome {
                 v_outcome(&w, &feats[win]) > v_outcome(&w, &feats[lose]),
                 "model trained on FILE-SOURCED labels ranks the held-out winner above the loser"
             );
+
+            // Adversarial robustness: out-of-range pref indices are dropped, not indexed
+            // out of bounds into the harness. (0,99) and (7,0) reference rows that don't
+            // exist in a 2-row file ⇒ only the valid pair survives.
+            let (f2, p2) = load_prefs("0.1 0.2 0.3 0.4\n0.5 0.6 0.7 0.8\npref 0 1\npref 0 99\npref 7 0");
+            assert_eq!(f2.len(), 2);
+            assert_eq!(p2, vec![(0usize, 1usize)], "malformed out-of-range prefs dropped; valid pair kept");
         }
 
         fn cellp(id: u64, ts: u64, parent: Option<u64>, data: &[u8]) -> Cell {

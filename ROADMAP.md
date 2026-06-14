@@ -12,7 +12,9 @@
   labels ranks a held-out winner above the loser at EQUAL coverage (the proxy ties them). Malformed
   rows are skipped, never partial-credited. 🔬 still data-blocked by design: this locks the SEAM, not
   real labels — the moat closes only on the real-outcome pull; the harness runs UNCHANGED when it lands.
-  node +1 (8/8 outcome tests green).
+  node +1 (8/8 outcome tests green). Hardened same tick: out-of-range `pref` indices are dropped,
+  never indexed out of bounds into the harness — a malformed/adversarial label file can't panic or
+  train on a phantom coalition (folded into the same test).
 - **2026-06-14** — RSAW tick: NEW vector **novelty front-run / predictive land-grab** (ATTACK 4 in
   `adversarial-game.py`). Temporal-novelty rests on the assumption "honest commits first"; an
   attacker who commits FIRST a block of the most COMMON (boilerplate) atoms steals their novelty
