@@ -60,7 +60,15 @@ validator set and the vote set; the script recomputes the inequality on-VM and a
   (which may be intended; flag for the consensus review).
 
 ## Build order (fresh session)
-1. `finalizes_fixed` (Q32.32) in node + drift-guard vs `finalizes_hybrid` over a fixture sweep.
+1. ✅ **DONE 2026-06-13** — `finalization_fixed` module: `finalizes_fixed` (Q32.32) + fixed-point
+   `retention_q` / `effective_weight_q` / `base_weight_q`, drift-guarded vs `finalizes_hybrid`
+   over a deterministic fixture sweep (liveness × decay-mode × voter-subset). The threshold and
+   quorum floor are evaluated with a single ceil (`bps_of_ceil`) so rounding is AGAINST
+   finalization; the sweep asserts (a) agreement away from the boundary band and (b) the
+   conservative direction everywhere — `!(fixed && !float)`, the fixed rule NEVER finalizes a
+   case the real-valued rule rejects — plus a constructed exact-2/3 tie that stays un-finalized.
+   `retention_q` matches `consensus::retention` to <1e-9. node 197→202. STILL `now`/validator-set
+   sourcing is the on-VM step (below), not yet wired — this is the arithmetic core only.
 2. On-VM program: read validator set + votes + header `now`; recompute; exit codes.
 3. Fixtures: finalizes / does-not-finalize / quorum-floor-binding / **tx-chosen-now-rejected** /
    **curated-validator-set-rejected** (the bound registry re-derives `all`; a witness-supplied set

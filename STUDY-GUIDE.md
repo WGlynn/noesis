@@ -2,13 +2,13 @@
 
 > Regenerated FROM the repo by `scripts/study-guide.py`, so it cannot lag the
 > code. Tick the boxes as you internalize each piece. Re-run to refresh.
-> Node test suite: **172 passing**.
+> Node test suite: **177 passing**.
 
 ## Read in this order
 
 1. [ ] **WHITEPAPER-FOR-DAD.md** — *A version with no math and no jargon. — Will, with JARVIS*
 2. [ ] **WHITEPAPER.md** — **Will Glynn, with JARVIS** · Draft v0.1 · 2026-06-11 · **PRIVATE — stealth, do not distribute**
-3. [ ] **ROADMAP.md** — - **2026-06-13** — on-VM mirror of the F2 fix: `main.rs` `index_dep_bound` now compares `r.hash_type().as_slice()[0]` against `EXPECTED_INDEX_HASH_TYPE` (ckb-gen-types 0.119 `ScriptHashType::Type`; accessor verified vs local ckb-std 0.16.4,...
+3. [ ] **ROADMAP.md** — - **2026-06-13** — Phase 3 build-order step 1 SHIPPED: `finalization_fixed` — `finalizes_hybrid` recomputed in pure Q32.32 (fixed-point retention-decay + effective/base weight + max(eff, floor) basis + 2/3 threshold). Drift-guarded vs the f...
 4. [ ] **BLOCK-ECONOMY-SPEC.md** — A unified system that turns JARVIS's own session history into a verifiable, owned, valued contribution economy — and, through that, a realistic basis for decentralized consensus and for backwards-enforcing the model layer from the governanc...
 5. [ ] **POM-CONSENSUS.md** — An agent's **PoM score** = its accumulated Myerson/Shapley credit across *verified, owned, provenance-complete* blocks (the block-economy value layer). It is a number that says: *this mind has provably contributed this much synergy-weighted...
 6. [ ] **DISPUTE-SLASHING.md** — value_v6 priced identity: an all-fresh sybil ring earns 0 because unvested identities pump no flow. The surviving attack: a contributor with EARNED standing builds a novel-garbage child on a fresh-key garbage parent. The certifier clears th...
@@ -54,6 +54,7 @@
 - [ ] `harness` — Harness checker-routing (the JARVIS core thesis, modeled and tested)
 - [ ] `smt` — Sparse Merkle Tree over 64-bit shingle keys — T7 #1 (`T7-CROSS-CELL-SIMILARITY.md`)
 - [ ] `settlement_fixed` — Q32.32 settlement mirror — ROADMAP T8 (`CKB-VM-PORT.md` fixed-point map, last entry)
+- [ ] `finalization_fixed` — PoM-weighted finalization mirror in Q32.32 — `ON-VM-FINALIZATION.md` build-order step 1
 - [ ] `proven` — T7 #2 — the shared proof-driven intake verifier (`T7-CROSS-CELL-SIMILARITY.md` §increments)
 - [ ] `index_rule` — T7 #3 — the index-cell root-transition rule (`T7-CROSS-CELL-SIMILARITY.md` §QA R2: per-block batched update)
 - [ ] `commit_order` — The fix for the temporal-order attacker-choosable-input finding ([P·dont-let-attacker-choose-critical-input], 2026-06-13)

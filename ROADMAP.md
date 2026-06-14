@@ -4,6 +4,14 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-13** — Phase 3 build-order step 1 SHIPPED: `finalization_fixed` — `finalizes_hybrid`
+  recomputed in pure Q32.32 (fixed-point retention-decay + effective/base weight + max(eff,
+  floor) basis + 2/3 threshold). Drift-guarded vs the f64 reference over a deterministic sweep;
+  threshold + floor both ceil'd ⇒ rounding is AGAINST finalization; the sweep proves the
+  conservative direction everywhere (`!(fixed && !float)` — fixed never finalizes a float-rejected
+  case) and agreement off the boundary band, with a constructed exact-2/3 tie staying un-finalized.
+  The third and last on-VM arithmetic surface after value_fixed (intake) + settlement_fixed
+  (value). node 197→202. The `now`/validator-set consensus-sourcing is the remaining on-VM step.
 - **2026-06-13** — on-VM mirror of the F2 fix: `main.rs` `index_dep_bound` now compares
   `r.hash_type().as_slice()[0]` against `EXPECTED_INDEX_HASH_TYPE` (ckb-gen-types 0.119
   `ScriptHashType::Type`; accessor verified vs local ckb-std 0.16.4, not guessed) AND the
@@ -186,7 +194,8 @@ is a reputation system.
   2026-06-13): Q32.32 mirror of `finalizes_hybrid` (reuse the T8 settlement infra) + fixed-point
   retention-decay, drift-guarded; key adversarial pin = `now` MUST be header-sourced not
   tx-chosen (same "don't let the attacker pick the security-critical input" lesson as the
-  index-dep binding F1). Build (fixed ref + drift-guard + on-VM + fixtures) pending budgeted session.
+  index-dep binding F1). Build: ✅ fixed ref + drift-guard SHIPPED (`finalization_fixed`,
+  node 202); on-VM program + header-`now` sourcing + fixtures pending budgeted session.
 
 ### Execution-layer tier marks (2026-06-12, story-loop + roadmap-advance)
 - ✅ T1 fixed-point intake (`value_fixed`, Q16.16, f64-equivalence tested)

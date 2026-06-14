@@ -4,7 +4,14 @@ Resume point for a fresh chat. Detail lives in `CONTINUE.md` (top block) and `RO
 this is the fast orientation. Repo: `WGlynn/noesis` (private remote). Node: `node/`, Rust.
 
 ## Current state
-- **node: 197/197 green** (`cd node && cargo test`; lib 172 + integration suites).
+- **node: 202/202 green** (`cd node && cargo test`; lib 177 + integration suites).
+- **Latest increment (2026-06-13, full-auto loop):** Phase 3 build-order step 1 — `finalization_fixed`
+  module: `consensus::finalizes_hybrid` recomputed in pure Q32.32 (fixed-point retention-decay +
+  effective/base weight + max(eff,floor) basis + 2/3 threshold, ceil-rounded against finalization),
+  drift-guarded vs the f64 reference over a deterministic liveness×decay×subset sweep — conservative
+  direction proven everywhere (`!(fixed && !float)`), agreement off the boundary band, exact-2/3 tie
+  stays un-finalized. The 3rd/last on-VM arithmetic surface after value_fixed + settlement_fixed.
+  node 197→202. Remaining: the on-VM program + header-`now`/validator-set sourcing.
 - **Last increments (2026-06-13, full-auto story-loop):** PM-17 index-dep binding, both
   layers. (1) `index_binding` reference model F2-COMPLETED — dep identity grew a `hash_type`
   field (`HashType{Data,Type,Data1}` + `DepScript`); a forged dep reusing code_hash+type-id

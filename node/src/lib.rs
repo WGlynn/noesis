@@ -5233,6 +5233,250 @@ pub mod settlement_fixed {
     }
 }
 
+/// PoM-weighted finalization mirror in Q32.32 — `ON-VM-FINALIZATION.md` build-order step 1.
+/// `consensus::finalizes_hybrid` recomputed in pure integer arithmetic (no floats): effective
+/// vote weight with fixed-point linear retention-decay, the `max(effective_total, quorum_floor)`
+/// basis, and the 2/3 threshold. This is the consensus-side counterpart of `value_fixed` (intake)
+/// and `settlement_fixed` (value) — the third and last on-VM arithmetic surface, the one a
+/// finalization-cell type-script will run. The threshold is evaluated rounded AGAINST finalization
+/// (ceil): a borderline tie that the real-valued rule leaves un-finalized is never flipped to
+/// finalized by fixed-point rounding (the documented direction the design doc requires).
+///
+/// Representation: Q32.32 in u128. The proof inputs (pow/pos/pom, mix fractions in [0,1]) carry
+/// at most ~unit magnitude, so saturation is unreachable for realistic validator sets; every op
+/// saturates rather than wraps regardless (an honest bound). Drift-guarded against the f64
+/// reference over a deterministic fixture sweep — agreement away from the boundary band, and the
+/// conservative direction AT a constructed exact-2/3 tie.
+pub mod finalization_fixed {
+    use super::consensus::{base_weight, effective_weight, finalizes_hybrid, Mix, Validator, BPS};
+
+    pub const Q: u32 = 32;
+    pub const ONE: u128 = 1 << Q;
+
+    /// Q32.32 product: `(a·b) >> Q`, saturating (a floored result — never wraps).
+    fn mul(a: u128, b: u128) -> u128 {
+        a.saturating_mul(b) >> Q
+    }
+
+    /// Per-dimension mix fractions in Q32.32 (sum ≈ ONE).
+    #[derive(Clone, Copy, Debug)]
+    pub struct MixQ {
+        pub pow: u128,
+        pub pos: u128,
+        pub pom: u128,
+    }
+
+    /// A validator's three proof inputs in Q32.32 + the integer liveness clock.
+    #[derive(Clone, Debug)]
+    pub struct ValidatorQ {
+        pub id: u64,
+        pub pow: u128,
+        pub pos: u128,
+        pub pom: u128,
+        pub last_heartbeat: u64,
+    }
+
+    /// Linear retention in Q32.32: ONE fresh, → 0 as `elapsed → horizon`, clamped. Mirrors
+    /// `consensus::retention`. `(elapsed << Q)` fits u128 for any u64 elapsed, so the division
+    /// is exact integer division (deterministic on RISC-V `divu`).
+    pub fn retention_q(elapsed: u64, horizon: u64) -> u128 {
+        if horizon == 0 {
+            return ONE;
+        }
+        if elapsed >= horizon {
+            return 0;
+        }
+        ONE - (((elapsed as u128) << Q) / horizon as u128)
+    }
+
+    /// `W = pow·m.pow + pos·m.pos + pom·m.pom` in Q32.32 (mirrors `consensus::base_weight`).
+    pub fn base_weight_q(v: &ValidatorQ, m: MixQ) -> u128 {
+        mul(v.pow, m.pow)
+            .saturating_add(mul(v.pos, m.pos))
+            .saturating_add(mul(v.pom, m.pom))
+    }
+
+    /// Retention-adjusted vote weight in Q32.32 (mirrors `consensus::effective_weight`).
+    /// `decay_pos=false` = capital does not decay; `true` = symmetric franchise decay.
+    pub fn effective_weight_q(v: &ValidatorQ, m: MixQ, now: u64, horizon: u64, decay_pos: bool) -> u128 {
+        let ret = retention_q(now.saturating_sub(v.last_heartbeat), horizon);
+        let pos_portion = mul(v.pos, m.pos);
+        let decayable = mul(v.pow, m.pow).saturating_add(mul(v.pom, m.pom));
+        if decay_pos {
+            mul(decayable.saturating_add(pos_portion), ret)
+        } else {
+            pos_portion.saturating_add(mul(decayable, ret))
+        }
+    }
+
+    /// `bps` fraction of a Q32.32 quantity, rounded UP. Used for BOTH the finalize threshold
+    /// (so a boundary tie rounds AGAINST finalization — the bar is never lowered by truncation)
+    /// AND the quorum floor (so the basis is never lowered either; a smaller basis would make
+    /// finalization easier). One direction, one function — the fixed rule never finalizes below
+    /// where the real-valued rule holds.
+    fn bps_of_ceil(x: u128, bps: u64) -> u128 {
+        let num = x.saturating_mul(bps as u128);
+        (num + (BPS as u128 - 1)) / BPS as u128
+    }
+
+    /// Does a proposal finalize, computed entirely in Q32.32? Bit-for-bit deterministic across
+    /// platforms; the on-VM finalization type-script calls this exact arithmetic.
+    #[allow(clippy::too_many_arguments)]
+    pub fn finalizes_fixed(
+        voters_for: &[ValidatorQ],
+        all: &[ValidatorQ],
+        m: MixQ,
+        now: u64,
+        horizon: u64,
+        decay_pos: bool,
+        threshold_bps: u64,
+        quorum_floor_bps: u64,
+    ) -> bool {
+        let weight_for: u128 = voters_for
+            .iter()
+            .fold(0u128, |a, v| a.saturating_add(effective_weight_q(v, m, now, horizon, decay_pos)));
+        let eff_total: u128 = all
+            .iter()
+            .fold(0u128, |a, v| a.saturating_add(effective_weight_q(v, m, now, horizon, decay_pos)));
+        let base_total: u128 = all.iter().fold(0u128, |a, v| a.saturating_add(base_weight_q(v, m)));
+        let floor = bps_of_ceil(base_total, quorum_floor_bps);
+        let basis = eff_total.max(floor);
+        basis > 0 && weight_for >= bps_of_ceil(basis, threshold_bps)
+    }
+
+    /// f64 → Q32.32 (round to nearest). Test/loader helper; the on-VM inputs arrive already fixed.
+    pub fn to_q(x: f64) -> u128 {
+        (x * ONE as f64).round() as u128
+    }
+
+    /// Convert an f64 reference `Validator`/`Mix` to the fixed forms (same inputs, both rules).
+    pub fn val_to_q(v: &Validator) -> ValidatorQ {
+        ValidatorQ {
+            id: v.id,
+            pow: to_q(v.pow),
+            pos: to_q(v.pos),
+            pom: to_q(v.pom),
+            last_heartbeat: v.last_heartbeat,
+        }
+    }
+    pub fn mix_to_q(m: Mix) -> MixQ {
+        MixQ { pow: to_q(m.pow), pos: to_q(m.pos), pom: to_q(m.pom) }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::consensus::{NCI, TWO_THIRDS_BPS};
+
+        fn v(id: u64, pow: f64, pos: f64, pom: f64, hb: u64) -> Validator {
+            Validator { id, pow, pos, pom, last_heartbeat: hb, staked_balance: 1.0 }
+        }
+
+        // Run both rules on the SAME inputs; return (fixed, float).
+        #[allow(clippy::too_many_arguments)]
+        fn both(
+            voters_for: &[Validator],
+            all: &[Validator],
+            m: Mix,
+            now: u64,
+            horizon: u64,
+            decay_pos: bool,
+            threshold_bps: u64,
+            floor_bps: u64,
+        ) -> (bool, bool) {
+            let vf_q: Vec<ValidatorQ> = voters_for.iter().map(val_to_q).collect();
+            let all_q: Vec<ValidatorQ> = all.iter().map(val_to_q).collect();
+            let fixed = finalizes_fixed(&vf_q, &all_q, mix_to_q(m), now, horizon, decay_pos, threshold_bps, floor_bps);
+            let float = finalizes_hybrid(voters_for, all, m, now, horizon, decay_pos, threshold_bps, floor_bps);
+            (fixed, float)
+        }
+
+        #[test]
+        fn retention_q_mirrors_reference() {
+            for &(e, h) in &[(0u64, 100u64), (25, 100), (50, 100), (99, 100), (100, 100), (250, 100), (0, 0)] {
+                let q = retention_q(e, h) as f64 / ONE as f64;
+                let f = crate::consensus::retention(e, h);
+                assert!((q - f).abs() < 1e-9, "retention({e},{h}): q {q} vs f {f}");
+            }
+        }
+
+        #[test]
+        fn clear_pass_and_clear_fail_agree() {
+            // Three identical fresh validators, all vote for ⇒ 100% ≥ 2/3 ⇒ finalize.
+            let all = vec![v(1, 0.9, 0.9, 0.9, 0), v(2, 0.9, 0.9, 0.9, 0), v(3, 0.9, 0.9, 0.9, 0)];
+            let (fx, fl) = both(&all, &all, NCI, 0, 100, true, TWO_THIRDS_BPS, 3333);
+            assert!(fx && fl, "unanimous fresh ⇒ both finalize");
+            // Only one of three votes ⇒ ~33% < 2/3 ⇒ neither finalizes.
+            let (fx2, fl2) = both(&all[..1], &all, NCI, 0, 100, true, TWO_THIRDS_BPS, 3333);
+            assert!(!fx2 && !fl2, "one-of-three ⇒ both reject");
+        }
+
+        #[test]
+        fn quorum_floor_binding_agrees() {
+            // All stale (now ≫ horizon) ⇒ eff_total → 0; the base-weight quorum floor becomes the
+            // basis. Two fresh voters_for against a 4-validator base: exercise the floor path.
+            let all = vec![
+                v(1, 0.8, 0.8, 0.8, 100),
+                v(2, 0.8, 0.8, 0.8, 100),
+                v(3, 0.8, 0.8, 0.8, 0),
+                v(4, 0.8, 0.8, 0.8, 0),
+            ];
+            for &now in &[0u64, 50, 100, 150] {
+                let (fx, fl) = both(&all[..2], &all, NCI, now, 100, true, TWO_THIRDS_BPS, 5000);
+                assert_eq!(fx, fl, "quorum-floor path disagreement at now={now}");
+            }
+        }
+
+        #[test]
+        fn staleness_sweep_agrees_away_from_boundary() {
+            // Deterministic sweep over liveness, decay modes, and voter subsets. Where the f64
+            // margin is clearly off the bar, the fixed verdict MUST match (the drift-guard).
+            let all = vec![
+                v(1, 0.7, 0.5, 0.9, 0),
+                v(2, 0.6, 0.8, 0.4, 10),
+                v(3, 0.9, 0.3, 0.7, 25),
+                v(4, 0.5, 0.6, 0.6, 40),
+                v(5, 0.8, 0.7, 0.5, 60),
+            ];
+            let horizon = 100u64;
+            let mut compared = 0;
+            for &decay in &[true, false] {
+                for &now in &[0u64, 20, 50, 80, 100, 200] {
+                    for k in 1..=all.len() {
+                        let vf = &all[..k];
+                        // f64 relative margin of weight_for vs the bar.
+                        let wf: f64 = vf.iter().map(|x| effective_weight(x, NCI, now, horizon, decay)).sum();
+                        let eff: f64 = all.iter().map(|x| effective_weight(x, NCI, now, horizon, decay)).sum();
+                        let base: f64 = all.iter().map(|x| base_weight(x, NCI)).sum();
+                        let basis = eff.max(base * 5000.0 / BPS as f64);
+                        let bar = basis * TWO_THIRDS_BPS as f64 / BPS as f64;
+                        let margin = if bar > 0.0 { (wf - bar) / bar } else { 0.0 };
+                        let (fx, fl) = both(vf, &all, NCI, now, horizon, decay, TWO_THIRDS_BPS, 5000);
+                        // Conservative direction ALWAYS holds: fixed never finalizes what f64 rejects.
+                        assert!(!(fx && !fl), "fixed finalized a float-rejected case (now={now},k={k},decay={decay})");
+                        if margin.abs() > 1e-3 {
+                            assert_eq!(fx, fl, "drift away from boundary (now={now},k={k},decay={decay},margin={margin})");
+                            compared += 1;
+                        }
+                    }
+                }
+            }
+            assert!(compared > 30, "sweep should compare many off-boundary points, got {compared}");
+        }
+
+        #[test]
+        fn exact_two_thirds_tie_does_not_finalize_in_fixed() {
+            // Construct an exact 2:1 split where voters_for hold exactly 2/3 of a no-decay basis.
+            // The real bar is 6667 bps > 6666.6..%, so even the float rule rejects a clean 2/3;
+            // the fixed rule must also reject (round-against-finalization keeps the tie un-finalized).
+            let all = vec![v(1, 1.0, 1.0, 1.0, 0), v(2, 1.0, 1.0, 1.0, 0), v(3, 1.0, 1.0, 1.0, 0)];
+            let (fx, fl) = both(&all[..2], &all, NCI, 0, 100, false, TWO_THIRDS_BPS, 0);
+            assert!(!fl, "two-of-three = 66.67% < 6667bps bar ⇒ float rejects");
+            assert!(!fx, "fixed rounds against finalization ⇒ also rejects (no boundary flip)");
+        }
+    }
+}
+
 /// T7 #2 — the shared proof-driven intake verifier (`T7-CROSS-CELL-SIMILARITY.md` §increments).
 /// Turns SMT classifications into EXACTLY the numbers the sequential rule computes, so the
 /// on-VM script (which cannot see history) and the off-VM node (which can) agree by
