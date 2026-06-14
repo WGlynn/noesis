@@ -4,6 +4,39 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## ▶ RESUME HERE (2026-06-13 evening — full-auto loop: PM-17 closed both layers + Phase-3 step-1; node 203/203)
+- **6-iteration full-auto run, all pushed to WGlynn/noesis (HEAD `488862c`):**
+  1. `index_binding` reference model **F2-complete** — dep identity grew `hash_type`
+     (`HashType{Data,Type,Data1}` + `DepScript` triple); forged dep reusing code_hash+type-id under
+     a different Data/Type/Data1 rejected (`bound_wrong_hash_type_rejects`). 196→197.
+  2. **on-VM mirror** — `onchain/pom-typescript/src/main.rs` `index_dep_bound` now compares
+     `r.hash_type().as_slice()[0]` vs `EXPECTED_INDEX_HASH_TYPE` (=1 Type; ckb-gen-types 0.119, API
+     verified not guessed) AND the overloaded `[0;32]` sentinel → explicit `const BINDING_ACTIVE: bool`
+     (QA-port-2). ELF rebuilt riscv64imac, 22 on-VM fixtures green (binding still inert).
+  3. `COMPETITIVE-POSITION.md` (Will Q: stance vs blockchain ecosystem — idea-axis ahead/uncontested,
+     deploy-axis at-zero/pre-launch; gated on learned v(S) + real labels = the moat).
+  4. lean: dropped unused `CoreMachine` import (`tests/common/mod.rs`), warning-clean.
+  5. **`finalization_fixed`** (Phase 3 step 1, `ON-VM-FINALIZATION.md`) — `consensus::finalizes_hybrid`
+     in pure Q32.32: `retention_q`/`effective_weight_q`/`base_weight_q` + max(eff,floor) basis + 2/3
+     threshold, threshold+floor ceil'd (`bps_of_ceil`) ⇒ rounds AGAINST finalization. Drift-guarded
+     vs f64 over a liveness×decay×subset sweep: agreement off-boundary + conservative direction
+     `!(fixed && !float)` everywhere + exact-2/3 tie stays un-finalized. 3rd/last on-VM arithmetic
+     surface after value_fixed + settlement_fixed. 197→202.
+  6. RSAW edge tick on (5): horizon=0 / 100% threshold / zero-weight padding / empty voters / all-zero
+     basis — conservative direction holds at every corner, NO break, edges pinned. 202→203.
+- **PM-17 STATUS:** reference + on-VM both F1/F2/F3 + QA-port-1/2 closed; the ONLY remaining piece is
+  the **activated-path fixture** (real deployed script-hash ⇒ exit-23 under live mismatch) — deploy-coupled.
+- **NEXT 🟡 candidates (deploy-independent first):** (a) finalization on-VM PROGRAM (build-order step 2:
+  read validator-set + votes + header-`now`; recompute `finalizes_fixed`; exit codes — but `now`/`all`
+  must be header/registry-sourced not tx-chosen, the 5th/6th attacker-input sites); (b) the on-VM ordering
+  port (`commit_order` ELF, header-height + reveal-XOR sourced); (c) lean backlog: single-source the other
+  4 cores (smt/proven/value_fixed/semantic — needs core reorg) + split the 6k-line lib.rs per-module;
+  (d) multi-proof compression. The learned-`v(S)`-on-real-labels mile (Phase 1 close) is still THE moat.
+- **Cross-substrate note (Will, Odysseus #4121):** today's QA-port-2 (overloaded sentinel → explicit
+  `BINDING_ACTIVE`) and F2 (data-shape → full identity) are the SAME anti-pattern as that issue's fix
+  (presence-check → explicit `budget_is_explicit()` predicate). "Never overload an implicit signal to
+  carry intent." Convergence-across-substrates = the abstraction is real (cf. OKF-convergence).
+
 ## ▶ RESUME HERE (2026-06-13 — LEAN: single-sourced commit_order + LOC audit; node 196/196)
 - **Lean-audit recon (story pick 5):** total **7,577 Rust LOC**, but `node/src/lib.rs` = **6,099**
   (80%, 23 modules in one file — the auditability target). ~40/60 code/test (healthy). Heaviest:
