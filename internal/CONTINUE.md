@@ -4,7 +4,11 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
-## ▶ RESUME HERE (2026-06-13 late — 4-build session: ordering port + RSAW fix + moat harness; node 212→220, pushed `8fa8fca`)
+## ▶ RESUME HERE (2026-06-13 late — 5-increment session: ordering port + RSAW + moat + spoof-closure; node 212→221, pushed `ec36f18`)
+- **+ pom-roadmap tick** (`ec36f18`): `outcome::v_outcome_floored` AND-composes the entropy floor
+  into the learned `v(S)` (single-sourced with the intake floor) ⇒ the fake-lineage NOISE spoof
+  scores **0** at the score (not just contained below); real work keeps its value. node 220→221.
+  Test `semantic_floor_closes_the_fake_lineage_spoof_at_the_score`. ROADMAP Phase-1 marks updated.
 - **Item 2 — on-VM ORDERING PORT shipped** (`36d1bfc`): `onchain/commit-order-typescript` ELF runs
   `is_canonical_order` on-VM (0 canonical / 40 non-canonical / 41 malformed). `noesis_core::commit_order`
   gained parse_batch/encode_batch (single-source). 6 e2e tests. Coord provenance (height←header,
