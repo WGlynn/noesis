@@ -4198,6 +4198,40 @@ pub mod outcome {
         sigmoid(dot)
     }
 
+    /// The COVERAGE-PROXY baseline: what a coalition scores under the per-block rule alone — total
+    /// union coverage, `ln(1 + |union|)`. This is the value the per-block proxy CAN see; it is blind
+    /// to lineage and synergy structure. The moat is the gap between this and a model trained on
+    /// real outcomes: value the proxy cannot express. Same quantity as feature f0 (breadth).
+    pub fn proxy_value(cells: &[Cell], idxs: &[usize]) -> f64 {
+        let mut union: HashSet<_> = HashSet::new();
+        for &i in idxs {
+            union.extend(coverage(&cells[i].data));
+        }
+        (1.0 + union.len() as f64).ln()
+    }
+
+    /// Generalization metric: the fraction of HELD-OUT `(winner, loser)` pairs a scorer ranks
+    /// correctly (`score(winner) > score(loser)`; a tie is 0.5). Train on one split, measure here on
+    /// UNSEEN coalitions — this is the number that decides whether a learned `v(S)` actually beats
+    /// the proxy, the mile the whole value layer rests on.
+    pub fn pairwise_accuracy<F: Fn(usize) -> f64>(score: F, prefs: &[(usize, usize)]) -> f64 {
+        if prefs.is_empty() {
+            return 0.0;
+        }
+        let mut correct = 0.0;
+        for &(w, l) in prefs {
+            let (sw, sl) = (score(w), score(l));
+            correct += if sw > sl {
+                1.0
+            } else if sw == sl {
+                0.5
+            } else {
+                0.0
+            };
+        }
+        correct / prefs.len() as f64
+    }
+
     #[cfg(test)]
     mod tests {
         use super::super::{Cell, Script};
@@ -4344,6 +4378,62 @@ pub mod outcome {
             // a corrupt high score routed through the evaluator on a fresh identity = 0 advance
             let advance = crate::evaluator::intake_advance(v, 40, 0, 0.5, 0.5);
             assert_eq!(advance, 0.0, "corrupt outcome score still cannot mint via the evaluator");
+        }
+
+        /// THE MOAT MEASUREMENT: train on labeled coalition preferences, then on HELD-OUT (unseen)
+        /// coalitions measure whether the learned `v(S)` ranks them better than the coverage proxy
+        /// can. Ground truth here is LINEAGE — at IDENTICAL coverage, a connected work-built-on-work
+        /// coalition is worth more than the same cells dumped as orphans. The proxy sees only
+        /// coverage, so it is blind to this BY CONSTRUCTION; a model with the connectedness/depth
+        /// features is not. (In production the labels come from real outcomes — the DeepFunding
+        /// distill-over-sets — not a hand-set lineage rule; this proves the harness + that the
+        /// features carry signal the proxy cannot, and that it GENERALIZES to coalitions never
+        /// trained on. The remaining mile is the real-outcome label pull, OUTCOME-EVALUATOR.md §4.)
+        #[test]
+        fn learned_v_s_beats_coverage_proxy_on_held_out_coalitions() {
+            // A connected and an orphaned coalition built from the SAME cell data ⇒ identical
+            // coverage (so the proxy ties them), differing only in lineage (so the model can rank).
+            fn coalition(t: u64, connected: bool) -> Vec<Cell> {
+                let d = |n: u64| format!("tk{t}-{n}-aaa bb{t}{n}b cc{t}{n}c dd{t}{n}d").into_bytes();
+                let par = |id: u64| if connected { Some(id) } else { None };
+                vec![
+                    cellp(t * 10, 0, None, &d(0)),
+                    cellp(t * 10 + 1, 1, par(t * 10), &d(1)),
+                    cellp(t * 10 + 2, 2, par(t * 10 + 1), &d(2)),
+                ]
+            }
+            let templates: u64 = 16;
+            let mut feats: Vec<[f64; N_FEATS]> = Vec::new();
+            let mut store: Vec<Vec<Cell>> = Vec::new();
+            let mut prefs: Vec<(usize, usize)> = Vec::new(); // (winner = connected, loser = orphan)
+            for t in 0..templates {
+                let (conn, orph) = (coalition(t, true), coalition(t, false));
+                let ci = feats.len();
+                feats.push(coalition_features(&conn, &[0, 1, 2]));
+                store.push(conn);
+                let oi = feats.len();
+                feats.push(coalition_features(&orph, &[0, 1, 2]));
+                store.push(orph);
+                prefs.push((ci, oi));
+            }
+            // Held-out split: train on the first 10 templates, TEST on the last 6 (never seen).
+            let split = 10usize;
+            let train_prefs: Vec<(usize, usize)> = prefs[..split].to_vec();
+            let test_prefs: Vec<(usize, usize)> = prefs[split..].to_vec();
+            let w = train(&feats, &train_prefs, 5000, 0.5);
+
+            let learned = pairwise_accuracy(|i| v_outcome(&w, &feats[i]), &test_prefs);
+            let proxy = pairwise_accuracy(|i| proxy_value(&store[i], &[0, 1, 2]), &test_prefs);
+
+            assert!(
+                learned > proxy,
+                "learned v(S) ({learned}) must beat the coverage proxy ({proxy}) on held-out coalitions"
+            );
+            assert!(learned >= 0.9, "learned v(S) generalizes to UNSEEN coalitions (got {learned})");
+            assert!(
+                (proxy - 0.5).abs() < 1e-9,
+                "the coverage proxy is blind to lineage at equal coverage ⇒ a coin-flip (got {proxy})"
+            );
         }
     }
 }

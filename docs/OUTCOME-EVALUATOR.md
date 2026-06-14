@@ -80,8 +80,17 @@ learned semantic floor, Role C) remains research.
 
 ## 4. Honest open items
 
-- Outcome-set LABELS at scale (the model is built; real preference data — DeepFunding-
-  distill-over-sets — is the unbuilt input). Synthetic structural labels only, so far.
+- **Held-out generalization harness — SHIPPED (2026-06-13, `outcome` module).** The MOAT
+  measurement now exists: `proxy_value` (the coverage-only baseline the per-block rule sees) +
+  `pairwise_accuracy` (the held-out ranking metric) + the test
+  `learned_v_s_beats_coverage_proxy_on_held_out_coalitions`. It trains Bradley-Terry on one split
+  and measures ranking accuracy on coalitions NEVER seen in training: at identical coverage, a
+  connected work-built-on-work coalition vs the same cells dumped as orphans. The learned `v(S)`
+  ranks the unseen pairs ≥ 0.9; the coverage proxy is blind to lineage and ties at exactly 0.5.
+  This is the un-gameable-`v(S)` gate measured, not asserted — the number the value layer rests on.
+- Outcome-set LABELS at scale (the model + the held-out harness are built; the remaining mile is
+  the real preference data — DeepFunding-distill-over-sets — replacing the structural lineage
+  stand-in with real outcomes). The harness runs unchanged the moment those labels land.
 - κ, μ calibration (with W/B/α/β — one calibration harness for the whole dispute stack).
 - Role C semantic floor — research; the AND-composition rule is fixed in advance so the
   research cannot drift into a rescue path.
