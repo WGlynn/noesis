@@ -2636,6 +2636,14 @@ pub mod dispute {
     /// §2 verdict: judges = vested standing, PoM-only mix, same 2/3 + quorum-floor
     /// finalization the consensus layer uses. Proof-over-vote at the value layer.
     pub const POM_ONLY: consensus::Mix = consensus::Mix { pow: 0.0, pos: 0.0, pom: 1.0 };
+    /// §7.1c — the appeal court's mix DOWN-WEIGHTS PoM, the dimension whose capture a
+    /// judge-cartel dispute alleges. Dimension-level recusal: the proof axis under attack
+    /// does not judge its own case. A PoM-concentrated ring (even identity-separated, so
+    /// edge-recusal cannot reach it) cannot veto here without ALSO holding PoW+PoS — which
+    /// is exactly the consensus layer's already-priced cross-dimension global assumption.
+    /// Mirrors NCI's PoW:PoS ratio (0.10:0.30 → kept proportional) with PoM minimized.
+    pub const DISPUTE_APPEAL: consensus::Mix =
+        consensus::Mix { pow: 0.225, pos: 0.675, pom: 0.10 };
 
     pub fn verdict_refutes(
         voters_for: &[consensus::Validator],
@@ -2803,6 +2811,9 @@ pub mod dispute {
     pub enum Tribunal {
         PomOnly,
         FullMix,
+        /// PoM-minimized appeal mix (§7.1c) for judge-cartel disputes: the captured
+        /// dimension is recused from the court that judges it.
+        AppealCourt,
     }
 
     /// §7.2 — verdict at a given tribunal. Same finalization machinery, different mix.
@@ -2817,6 +2828,7 @@ pub mod dispute {
         let mix = match tribunal {
             Tribunal::PomOnly => POM_ONLY,
             Tribunal::FullMix => consensus::NCI,
+            Tribunal::AppealCourt => DISPUTE_APPEAL,
         };
         consensus::finalizes_hybrid(
             voters_for,
@@ -3337,6 +3349,49 @@ pub mod dispute {
                 ),
                 "identity-separated cartel has no edge to recuse ⇒ the PoM-dominant veto \
                  survives"
+            );
+        }
+
+        #[test]
+        fn appeal_court_overturns_the_identity_separated_pom_cartel() {
+            // THE FIX for the identity-separated residual (this tick, §7.1c). The appeal
+            // court DOWN-WEIGHTS PoM (the captured dimension): DISPUTE_APPEAL pom=0.10.
+            // The same 60%-PoM / 0-PoW / 0-PoS cartel that vetoed FullMix now holds only
+            // 0.10×0.6 = 6% of the appeal court — honest PoW+PoS carry 94% ≥ 2/3 and the
+            // refutation lands. No edge-recusal needed: dimension-level recusal reaches the
+            // identity-separated cartel that `verdict_refutes_excluding_conflicted` cannot.
+            let (honest, cartel) = pom_dominant_courtroom();
+            let mut all = honest.clone();
+            all.extend(cartel.clone());
+            assert!(
+                verdict_refutes_at(Tribunal::AppealCourt, &honest, &all, 0, 0, 4000),
+                "PoM-minimized appeal court overturns the identity-separated PoM cartel"
+            );
+        }
+
+        #[test]
+        fn appeal_court_still_yields_to_full_cross_dimension_capture() {
+            // CEILING PRESERVED. The appeal court closes the PoM-only residual DOWN TO the
+            // consensus layer's irreducible global assumption — no further. A cartel holding
+            // ≥2/3 of EVERY dimension still vetoes even the PoM-minimized court, exactly as
+            // `full_consensus_capture_..._global_assumption` documents. The §7.1c fix adds no
+            // new trust assumption; it merely makes "cross-dimension capture required" TRUE.
+            let v = |id, pow, pos, pom| consensus::Validator {
+                id,
+                pow,
+                pos,
+                pom,
+                last_heartbeat: 0,
+                staked_balance: 1000.0,
+            };
+            let cartel = vec![v(9, 80.0, 80.0, 80.0)];
+            let honest = vec![v(1, 20.0, 20.0, 20.0)];
+            let mut all = cartel.clone();
+            all.extend(honest.clone());
+            assert!(
+                !verdict_refutes_at(Tribunal::AppealCourt, &honest, &all, 0, 0, 4000),
+                "≥2/3 cross-dimension capture defeats even the PoM-minimized appeal court \
+                 — the consensus layer's own ceiling, unchanged"
             );
         }
 

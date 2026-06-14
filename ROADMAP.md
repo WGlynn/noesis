@@ -4,6 +4,17 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-14** — RSAW follow-tick: the identity-separated PoM-cartel residual is CLOSED via
+  **§7.1c dimension-level recusal**. The appeal court down-weights PoM (the captured axis):
+  `DISPUTE_APPEAL` mix pow:pos:pom = 0.225:0.675:0.10 (NCI's 1:3 PoW:PoS kept, PoM minimized),
+  reached via `Tribunal::AppealCourt`. The 60%-PoM / 0-PoW / 0-PoS cartel that vetoed FullMix
+  holds only 0.10×0.6 = 6% of the appeal court ⇒ honest PoW+PoS = 94% ≥ 2/3 refutes
+  (`appeal_court_overturns_the_identity_separated_pom_cartel`). No edge-recusal needed — it
+  reaches the identity-separated cartel that `verdict_refutes_excluding_conflicted` cannot.
+  Ceiling preserved: a ≥2/3-of-EVERY-dimension cartel still vetoes even the PoM-minimized court
+  (`appeal_court_still_yields_to_full_cross_dimension_capture`) ⇒ the residual collapses to the
+  consensus layer's already-priced global assumption, NO new trust added; "cross-dimension
+  capture required" is now TRUE, not asserted. node 184→186.
 - **2026-06-14** — RSAW tick vs the JUDGE-CARTEL counter. The §7 escalation court's claim
   that a full-mix appeal "requires cross-dimension capture" is **FALSE for a PoM-dominant
   cartel**. NCI weights PoM at 0.60, so a cartel holding ≥ 1/3 ÷ 0.60 = **55.6% of PoM**
@@ -224,10 +235,13 @@ is a reputation system.
       court, vetoing with zero PoW/PoS, below the global assumption
       (`pom_dominant_cartel_vetoes_fullmix_below_global_assumption`). **Load-bearing
       juror-exclusion SHIPPED** (`verdict_refutes_excluding_conflicted`, recuses from the
-      basis) closes the **edge-connected** PoM cartel. 🔬 remaining: **identity-separated**
-      vested-PoM cartel (no edge to recuse) — `identity_separated_pom_cartel_evades_exclusion_residual`.
-      Candidate next gates: PoM-share cap in the dispute tribunal mix / dilution-indexed
-      slashing keyed on the vote. (`judge_cartel_protects_its_own_garbage_open_gap` retained
+      basis) closes the **edge-connected** PoM cartel. ✅ **identity-separated** vested-PoM
+      cartel now CLOSED via **§7.1c dimension-level recusal** — `Tribunal::AppealCourt`
+      (`DISPUTE_APPEAL` PoM-minimized mix) overturns it down to the global cross-dimension
+      assumption (`appeal_court_overturns_the_identity_separated_pom_cartel` +
+      `appeal_court_still_yields_to_full_cross_dimension_capture`). The judge-cartel class is
+      now dissolved to the consensus layer's own irreducible ceiling.
+      (`judge_cartel_protects_its_own_garbage_open_gap` retained
       as round-1-surface documentation; `full_consensus_capture_..._global_assumption` is the
       irreducible consensus-layer ceiling.)
   - ✅ ref / 🟡 tune **near-duplicate gap — coverage-similarity floor shipped (2026-06-12).**
