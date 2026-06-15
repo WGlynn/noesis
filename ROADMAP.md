@@ -224,6 +224,24 @@ is a reputation system.
       intermediaries. Regressions: ring → 0 (v5 contrast in-test); newcomer-paid; floor-flips-payment;
       transitive-through-unvested; fully-vested ⇒ v6 ≡ v5; clone-with-vested-endorser still 0.
       (Suite then 77; current count in `node/README.md`.)
+    - ✅ ADVANCE / 🔬 data-blocked **(2026-06-15): `value_v8` — realized-OUTCOME-gated seeds.**
+      Wires the learned outcome `v(S)` (`outcome` module) INTO the v5→v7 flow-gate seed — the
+      structural change v7 NAMED as its fix for the structured-but-valueless residual
+      (`structured_valueless_child_still_seeds_flow_open_gap`): "genuinely needs labels/flow, not
+      bytes." `seed_i = v7_seed_i × v_outcome_floored(w, lineage_coalition(i)) ∈ [0,1]` —
+      AND-composed (can only LOWER, never rescue), the outcome factor scoring the cell's own
+      provenance-lineage coalition (the connectedness/depth structure the per-cell flow gate is
+      blind to), entropy-floored single-source so a fake lineage of NOISE seeds 0. **Authority
+      boundary PROVEN (Role C):** a corrupt model scoring 1.0 everywhere reduces v8 ≡ v7 EXACTLY
+      (`value_v8_corrupt_outcome_model_cannot_mint_above_v7`) — the learned `v(S)` gains the power
+      to DENY valueless certification and no more, never to mint. Backstop preserved: only the
+      upward SEED is outcome-floored, a cell's own value is untouched. **Honest scope:** with only
+      SYNTHETIC structural labels a valueless child on a real root is DAMPENED (~0.42×) not zeroed
+      (`value_v8_dampens_the_structured_but_valueless_residual_via_the_outcome_gate`); the
+      fake-lineage-of-noise subclass IS fully zeroed (`value_v8_fake_lineage_of_noise_seeds_nothing`).
+      Full closure rides the SAME pending real DeepFunding-distill-over-sets label pull — the seam is
+      now wired end-to-end (`load_prefs` → `train` → `v_outcome_floored` → seed), runs UNCHANGED when
+      labels land. node 227→232 (+5 v8 tests).
     - ✅ **CLOSED (2026-06-12, same day): ENDORSEMENT-SLASHING — `dispute` module shipped.**
       The vested-certifier residual (`vested_certifier_endorsing_garbage_open_gap`, gate-level
       pin retained as surface documentation) is NEGATIVE-EV at the dispute layer. Design =

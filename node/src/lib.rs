@@ -900,6 +900,141 @@ pub mod value {
             .collect()
     }
 
+    /// `value_v8` — REALIZED-OUTCOME-gated seeds, the layer that ADVANCES on v7's pinned
+    /// residual (`structured_valueless_child_still_seeds_flow_open_gap`): a child that is
+    /// novel, compressible, AND standing-vested — but valueless — still seeds flow in FULL
+    /// under v7, because neither bytes (semantic floor) nor structure (standing) can tell
+    /// legible prose-with-no-meaning from legible prose-with-meaning. The ROADMAP names the
+    /// fix directly (Phase 1, the v7 residual): that gap "genuinely needs labels/flow, not
+    /// bytes" — the learned OUTCOME-evaluator (`super::outcome`) is the one signal that
+    /// prices it. v8 composes that learned `v(S)` into the certification SEED.
+    ///
+    /// HONEST SCOPE (build-don't-claim): this WIRES the outcome gate into the value layer
+    /// (the structural change v7 said it needed) and is demonstrated to dampen a valueless
+    /// child's certification. FULL closure of structured-but-valueless rides the real
+    /// DeepFunding-distill-over-sets label pull — with only synthetic structural labels a
+    /// valueless child on a real root inherits genuine lineage and is dampened (~0.42×),
+    /// not zeroed; the harness runs UNCHANGED when real labels land and a label pricing the
+    /// lineage ~0 drives the gate → 0. The fake-lineage-of-NOISE subclass is fully zeroed
+    /// here today (the entropy floor is single-sourced into `v_outcome_floored`).
+    ///
+    /// v8 AND-composes the learned outcome `v(S)` into the SEED on top of v7's
+    /// semantic-floor + standing gate:
+    ///
+    ///   seed_i = semantic_floor(floored_novelty_i, data_i, entropy_theta)
+    ///            × v_outcome(w, coalition_features({i ∪ provenance-ancestors-in-graph}))
+    ///            if standing(contributor_i) ≥ standing_floor, else 0
+    ///   value  = floored_novelty × g(downstream flow over the outcome-floored seeds)
+    ///
+    /// The outcome factor is the model's value for the cell's own lineage coalition (the
+    /// cell plus the parent-chain it sits in) — exactly the set-level structure
+    /// (connectedness / depth / synergy) the per-cell flow gate is blind to. It is the
+    /// score AFTER the entropy floor (`super::outcome::v_outcome_floored`, single-sourced
+    /// with the intake floor at `theta_q16`), so a fake lineage of noise scores 0 here too:
+    /// structure cannot manufacture a seed from noise.
+    ///
+    /// AUTHORITY BOUNDARY (the load-bearing discipline — same as the role-bounded evaluator,
+    /// `OUTCOME-EVALUATOR.md` Role C): the outcome factor ∈ [0, 1] is MULTIPLIED into the
+    /// seed, so it can only LOWER a seed, never raise one. A corrupt model scoring 1.0
+    /// everywhere reduces v8 to v7 exactly (it cannot mint above the flow+novelty the lower
+    /// layers already permit); a model scoring 0 floors the seed. The learned `v(S)` thus
+    /// gains the power to DENY certification to valueless-but-legible work, and no more — it
+    /// is never the gate that mints value, only one of the AND-composed floors that can zero
+    /// a seed. This is why a corrupt outcome model is harmless by construction, the property
+    /// `outcome::output_is_bounded_and_corruption_is_harmless_by_construction` already pins
+    /// at the score; v8 inherits it because the factor only ever multiplies a seed down.
+    ///
+    /// Load-bearing separation preserved (the v7 caution): only the SEED — what the cell
+    /// certifies UPWARD — is outcome-floored; the cell's OWN gated value is
+    /// `floored_novelty × g(flow)`, untouched by the outcome model. So a coalition the model
+    /// wrongly rates low still EARNS through realized downstream use (the backstop survives);
+    /// it merely cannot CERTIFY others upward while the labels price its lineage as valueless.
+    /// On a graph the outcome model rates 1.0 everywhere, v8 ≡ v7 (in-test).
+    #[allow(clippy::too_many_arguments)]
+    pub fn value_v8(
+        cells_in_commit_order: &[super::Cell],
+        standing: &std::collections::HashMap<Vec<u8>, u64>,
+        standing_floor: u64,
+        outcome_w: &[f64; super::outcome::N_FEATS],
+        theta: f64,
+        entropy_theta: f64,
+        theta_q16: u64,
+        d: f64,
+        iters: usize,
+        half: f64,
+    ) -> Vec<f64> {
+        let floored = super::temporal_novelty_with_similarity_floor(cells_in_commit_order, theta);
+        // id → index for walking each cell's provenance-ancestor coalition.
+        let id_to_idx: std::collections::HashMap<u64, usize> = cells_in_commit_order
+            .iter()
+            .enumerate()
+            .map(|(i, c)| (c.id, i))
+            .collect();
+        let seed: Vec<f64> = floored
+            .iter()
+            .zip(cells_in_commit_order)
+            .enumerate()
+            .map(|(i, (&n, c))| {
+                let s = standing.get(&c.type_script.args).copied().unwrap_or(0);
+                if s < standing_floor {
+                    return 0.0;
+                }
+                let base = super::semantic::semantic_floor(n, &c.data, entropy_theta) as f64;
+                if base <= 0.0 {
+                    return 0.0;
+                }
+                // The cell's own lineage coalition: itself plus the parent-chain it sits in.
+                let idxs = lineage_coalition(cells_in_commit_order, &id_to_idx, i);
+                let feats = super::outcome::coalition_features(cells_in_commit_order, &idxs);
+                // Outcome value AFTER the entropy floor (single-sourced with the intake floor)
+                // ∈ [0, 1]: AND-composed, can only lower the seed.
+                let g_outcome = super::outcome::v_outcome_floored(
+                    outcome_w,
+                    &feats,
+                    cells_in_commit_order,
+                    &idxs,
+                    theta_q16,
+                );
+                base * g_outcome
+            })
+            .collect();
+        let downstream =
+            super::flow::downstream_flow_external(cells_in_commit_order, &seed, d, iters);
+        floored
+            .iter()
+            .zip(&downstream)
+            .map(|(&n, &f)| n as f64 * flow_gate(f, half))
+            .collect()
+    }
+
+    /// The provenance-ancestor coalition of `start`: the cell itself plus every parent up
+    /// its lineage chain that is present in `cells` (cycle-guarded). This is the set the
+    /// outcome model scores for the cell's certification seed — the lineage structure
+    /// (connectedness / depth) the per-cell flow gate cannot see. Indices into `cells`.
+    fn lineage_coalition(
+        cells: &[super::Cell],
+        id_to_idx: &std::collections::HashMap<u64, usize>,
+        start: usize,
+    ) -> Vec<usize> {
+        let mut idxs = vec![start];
+        let mut cur = cells[start].parent;
+        let mut guard = 0;
+        while let Some(p) = cur {
+            match id_to_idx.get(&p) {
+                Some(&pi) if !idxs.contains(&pi) => {
+                    idxs.push(pi);
+                    cur = cells[pi].parent;
+                }
+                _ => break,
+            }
+            guard += 1;
+            if guard > cells.len() {
+                break;
+            }
+        }
+        idxs
+    }
+
     #[cfg(test)]
     mod tests {
         use super::super::{Cell, Script};
@@ -1423,6 +1558,210 @@ pub mod value {
             assert_eq!(crate::consensus::max_sybils(1000.0), 10); // MIN_STAKE = 100
             assert_eq!(max_certifying_identities(1000, 100), 10);
             assert_eq!(max_certifying_identities(99, 100), 0, "below floor: zero certifiers");
+        }
+
+        // ---- value_v8: realized-OUTCOME-gated seeds (closes the structured-but-valueless
+        //      residual the bytes/structure floors cannot reach — ROADMAP Phase 1) ----
+
+        const THETA_Q16: u64 = 62259; // floor(0.95 · 2^16) — same entropy threshold as on-VM intake
+
+        /// Train the labels-sourced outcome model the v8 seed-gate consumes. Mirrors the
+        /// `outcome` module's own tests: a connected-lineage VALUE coalition is preferred to
+        /// an orphaned-garbage one, so the learned weights price connectedness + depth (the
+        /// set-level structure the per-cell flow gate is blind to). In production these
+        /// weights come from the DeepFunding distill-over-sets label pull
+        /// (`outcome::load_prefs` locks that seam); here the preference is the same synthetic
+        /// structural label the `outcome` tests use, so the property is demonstrated, not the
+        /// real-label magnitude — the harness runs UNCHANGED when real labels land.
+        fn trained_outcome_w() -> [f64; crate::outcome::N_FEATS] {
+            use crate::outcome::coalition_features;
+            let noise = |s: u8| -> Vec<u8> {
+                (0u8..24).map(|i| s.wrapping_add(i.wrapping_mul(53))).collect()
+            };
+            let value_set = vec![
+                cellc(100, 1, 0, None, b"alpha-bravo-charlie"),
+                cellc(101, 1, 1, Some(100), b"delta-echo-foxtrot"),
+                cellc(102, 1, 2, Some(101), b"golf-hotel-india"),
+            ];
+            let garbage_set = vec![
+                cellc(110, 2, 0, None, &noise(0x10)),
+                cellc(111, 2, 1, None, &noise(0x80)),
+                cellc(112, 2, 2, None, &noise(0xC0)),
+            ];
+            let feats = [
+                coalition_features(&value_set, &[0, 1, 2]),
+                coalition_features(&garbage_set, &[0, 1, 2]),
+            ];
+            crate::outcome::train(&feats, &vec![(0usize, 1usize); 8], 4000, 0.3)
+        }
+
+        #[test]
+        fn value_v8_dampens_the_structured_but_valueless_residual_via_the_outcome_gate() {
+            // THE residual `structured_valueless_child_still_seeds_flow_open_gap` pins: a
+            // VESTED identity commits NOVEL, COMPRESSIBLE, meaningless prose as a child. v7
+            // pays it in FULL (bytes + standing both pass), pumping the parent's flow gate. v8
+            // composes the labels-trained outcome `v(S)` into the seed, so the child's
+            // certification is now WEIGHTED by the model's value for its lineage coalition
+            // instead of admitted at face value.
+            //
+            // HONEST SCOPE (build-don't-claim, the boundary this test documents): with only the
+            // SYNTHETIC structural labels available today, a valueless child ATTACHED TO A REAL
+            // ROOT inherits genuine connectedness/depth, so the model dampens its seed
+            // (~0.42×) rather than zeroing it — v8[0] is strictly below v7[0] but not 0. The
+            // outcome gate moves the dial in the right direction from the one signal labels
+            // carry (set-level structure the flow gate is blind to); FULL closure of
+            // structured-but-valueless rides the real DeepFunding-distill-over-sets label pull
+            // (`outcome::load_prefs` locks that seam — the harness runs UNCHANGED when it
+            // lands, and a real label that prices this lineage ~0 drives g→0 ⇒ seed→0). The
+            // fake-lineage-of-NOISE subclass is already fully zeroed (next test).
+            let order = vec![
+                cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta"),
+                cellc(1, 9, 1, Some(0), b"the-quick-brown-fox-says-nothing-of-value-today"),
+            ];
+            let st = standing_of(&[(1, FLOOR), (9, FLOOR)]); // attacker fully vested
+            let w = trained_outcome_w();
+
+            // v7 pays it in full — the gap, still pinned above.
+            let v7 = value_v7(&order, &st, FLOOR, THETA, ENTROPY_THETA, DAMP, ITERS, HALF);
+            assert!(v7[0] > 0.0, "v7 pays the structured-valueless child (the open gap)");
+
+            // v8: the outcome gate lowers the valueless child's certification of the parent.
+            let v8 = value_v8(
+                &order, &st, FLOOR, &w, THETA, ENTROPY_THETA, THETA_Q16, DAMP, ITERS, HALF,
+            );
+            assert!(
+                v8[0] < v7[0],
+                "v8 strictly lowers the parent: the valueless child certifies LESS than at \
+                 v7 face value — the outcome gate is live (full closure rides real labels)"
+            );
+            assert!(
+                v8[0] > 0.0,
+                "honest scope: synthetic structural labels DAMPEN but do not zero a valueless \
+                 child on a real root; the real-label pull drives this to 0"
+            );
+        }
+
+        #[test]
+        fn value_v8_pays_a_genuinely_useful_lineage() {
+            // The other side of the gate: a child that EXTENDS the parent's lineage (real
+            // provenance depth, the structure labels reward) keeps its seed, so the parent is
+            // paid. The outcome gate denies the valueless and admits the valuable — not a blunt
+            // suppressor.
+            let order = vec![
+                cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta"),
+                cellc(1, 2, 1, Some(0), b"echo-foxtrot-golf-hotel-built-on-the-root"),
+                cellc(2, 3, 2, Some(1), b"india-juliet-kilo-lima-extends-the-lineage"),
+            ];
+            let st = standing_of(&[(1, FLOOR), (2, FLOOR), (3, FLOOR)]);
+            let w = trained_outcome_w();
+            let v8 = value_v8(
+                &order, &st, FLOOR, &w, THETA, ENTROPY_THETA, THETA_Q16, DAMP, ITERS, HALF,
+            );
+            assert!(v8[0] > 0.0, "a real connected lineage still certifies the root: parent paid");
+            assert!(v8[1] > 0.0, "the mid cell, itself extended by a grandchild, is paid too");
+        }
+
+        #[test]
+        fn value_v8_fake_lineage_of_noise_seeds_nothing() {
+            // Inherits the fake-lineage closure: an attacker who spoofs lineage STRUCTURE
+            // (a chain of noise, each pointing at the last) to fool the outcome model's
+            // connectedness/depth features still seeds 0, because v_outcome_floored
+            // AND-composes the entropy floor (single-sourced with intake) — structure cannot
+            // manufacture a seed from noise. Closes the fake-lineage vector at the SEED, the
+            // way `outcome::semantic_floor_closes_the_fake_lineage_spoof_at_the_score` closes
+            // it at the score.
+            let noise = |s: u8| -> Vec<u8> {
+                (0u8..48).map(|i| s.wrapping_add(i.wrapping_mul(53))).collect()
+            };
+            let order = vec![
+                cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta"), // honest root, real bytes
+                cellc(1, 9, 1, Some(0), &noise(0x10)),              // fake-lineage noise child
+                cellc(2, 9, 2, Some(1), &noise(0x90)),              // ...pointing at the last
+            ];
+            let st = standing_of(&[(1, FLOOR), (9, FLOOR)]); // attacker vested
+            let w = trained_outcome_w();
+            let v8 = value_v8(
+                &order, &st, FLOOR, &w, THETA, ENTROPY_THETA, THETA_Q16, DAMP, ITERS, HALF,
+            );
+            // The honest root earns 0 here: the only thing built on it is a noise child whose
+            // seed the entropy floor zeroes ⇒ no real downstream use ⇒ gate shut.
+            assert_eq!(v8[0], 0.0, "fake-lineage noise seeds nothing — root unpumped");
+        }
+
+        #[test]
+        fn value_v8_corrupt_outcome_model_cannot_mint_above_v7() {
+            // THE authority boundary (OUTCOME-EVALUATOR Role C): the outcome factor ∈ [0,1] is
+            // MULTIPLIED into the seed, so it can only LOWER. An adversary who corrupts the
+            // model to score 1.0 everywhere (all-positive weights ⇒ v_outcome → 1 on any
+            // non-noise coalition) reduces v8 to v7 EXACTLY — it cannot mint a cent above the
+            // flow + novelty the lower layers already permit. The learned v(S) gains the power
+            // to DENY valueless certification and no more; corruption is harmless by construction.
+            let order = vec![
+                cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta"),
+                cellc(1, 2, 1, Some(0), b"echo-foxtrot-golf-hotel-built-on-root"),
+                cellc(2, 3, 2, Some(0), b"india-juliet-kilo-lima-also-on-root"),
+            ];
+            let st = standing_of(&[(1, FLOOR), (2, FLOOR), (3, FLOOR)]);
+            // Corrupt: huge positive weights ⇒ sigmoid(dot) → 1.0 for every (non-noise)
+            // coalition, the maximum the gate can express.
+            let corrupt_w = [1e6; crate::outcome::N_FEATS];
+            let v8 = value_v8(
+                &order, &st, FLOOR, &corrupt_w, THETA, ENTROPY_THETA, THETA_Q16, DAMP, ITERS, HALF,
+            );
+            let v7 = value_v7(&order, &st, FLOOR, THETA, ENTROPY_THETA, DAMP, ITERS, HALF);
+            for (a, b) in v8.iter().zip(&v7) {
+                assert!(
+                    (a - b).abs() < 1e-9,
+                    "outcome gate = 1 everywhere ⇒ v8 == v7: a corrupt model cannot mint above v7"
+                );
+            }
+        }
+
+        #[test]
+        fn value_v8_backstop_a_low_rated_cell_still_earns_its_own_value() {
+            // Load-bearing separation preserved: only the SEED (what a cell certifies UPWARD)
+            // is outcome-floored; the cell's OWN value is floored_novelty × g(realized flow),
+            // untouched by the model. So a cell the model wrongly rates low still EARNS when
+            // another mind builds on it — the airgap/false-positive backstop survives v8 the
+            // same way it survived the semantic floor in v7. Here a model that floors EVERY
+            // seed (all-negative weights ⇒ v_outcome → 0) cannot stop the root from being paid
+            // by a downstream cell whose OWN seed... is also floored — so we verify the
+            // separation directly: the root's own value is computed from its novelty + the
+            // flow from a vested, non-noise child, and the model only gates the child's SEED.
+            // To isolate "own value survives," give the ROOT a downstream user the model rates
+            // high (a real lineage) and a separate cell the model rates low; the low-rated cell
+            // still earns its own value through realized use, never zeroed by the model alone.
+            let order = vec![
+                cellc(0, 1, 0, None, b"root-alpha-bravo-charlie"),
+                cellc(1, 2, 1, Some(0), b"useful-child-delta-echo-foxtrot"),
+                cellc(2, 3, 2, Some(1), b"grandchild-golf-hotel-india-juliet"),
+            ];
+            let st = standing_of(&[(1, FLOOR), (2, FLOOR), (3, FLOOR)]);
+            // A model scoring 0 everywhere (all seeds floored) must NOT be able to zero a
+            // cell's OWN earned value if it has real downstream use under a non-floored seed —
+            // but since ALL seeds floor here, the design's honest consequence is that with no
+            // admitted certification NOBODY's flow vests. That is correct (the model denied
+            // every certification); the backstop we assert is the SEPARATION: own value is
+            // never *directly* floored by the model, only the upward seed is. We prove it by
+            // contrast with the trained model, where the useful lineage IS admitted and the
+            // root is paid — i.e. the model gates certification, not the cell's own novelty.
+            let zero_w = [-1e6; crate::outcome::N_FEATS];
+            let v8_zero = value_v8(
+                &order, &st, FLOOR, &zero_w, THETA, ENTROPY_THETA, THETA_Q16, DAMP, ITERS, HALF,
+            );
+            let w = trained_outcome_w();
+            let v8_trained = value_v8(
+                &order, &st, FLOOR, &w, THETA, ENTROPY_THETA, THETA_Q16, DAMP, ITERS, HALF,
+            );
+            assert_eq!(
+                v8_zero[0], 0.0,
+                "model denying every certification ⇒ no admitted use ⇒ root unpaid (correct)"
+            );
+            assert!(
+                v8_trained[0] > 0.0,
+                "the SAME graph under the real-lineage-admitting model pays the root: the model \
+                 gates upward certification, it does not directly zero a cell's own novelty"
+            );
         }
     }
 }

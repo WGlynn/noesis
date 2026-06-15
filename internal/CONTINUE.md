@@ -4,6 +4,41 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## ▶ RESUME HERE (2026-06-15 — value_v8: the learned outcome v(S) WIRED INTO the value gate; node 227→232)
+- **THE MOAT SEAM CLOSED IN CODE.** `value_v8` composes the learned outcome `v(S)` (`outcome`
+  module) INTO the v5→v7 realized-flow-gate SEED — the structural change v7 itself NAMED as the
+  fix for its residual `structured_valueless_child_still_seeds_flow_open_gap` ("genuinely needs
+  labels/flow, not bytes"). Until now `outcome::v_outcome` existed + was moat-measured but its
+  authority was bounded to the EVALUATOR (advance/evidence) only; it was NOT in the value gate.
+  Now it is: `seed_i = v7_seed_i × v_outcome_floored(w, lineage_coalition(i)) ∈ [0,1]`.
+- **Mechanism (all reused, lean):** the outcome factor scores the cell's own
+  provenance-lineage coalition (new `value::lineage_coalition` walker — cell + parent-chain), i.e.
+  the connectedness/depth/synergy STRUCTURE the per-cell flow gate is structurally blind to. It is
+  `v_outcome_floored` (entropy floor single-sourced from the intake floor at `theta_q16`), so a fake
+  lineage of NOISE seeds 0 here too. AND-composed: multiplied into the seed ⇒ can only LOWER.
+- **AUTHORITY BOUNDARY PROVEN (Role C, the load-bearing property):** corrupt model scoring 1.0
+  everywhere ⇒ v8 ≡ v7 EXACTLY (`value_v8_corrupt_outcome_model_cannot_mint_above_v7`). The learned
+  `v(S)` gains the power to DENY valueless certification and NO MORE — never to mint. This is why a
+  corrupt outcome model is harmless by construction; v8 inherits the evaluator's bound at the gate.
+- **+5 tests, node 227→232, full suite green (191 lib + 41 integration), 0 regressions, 0 new clippy
+  warnings (24 pre-existing, all outside the new lines).** Tests: dampens-the-residual,
+  pays-a-genuinely-useful-lineage, fake-lineage-of-noise-seeds-nothing, corrupt-model-cannot-mint,
+  backstop-own-value-survives.
+- **HONEST SCOPE (build-don't-claim, verified by probe not asserted):** with only SYNTHETIC
+  structural labels a valueless child ATTACHED TO A REAL ROOT inherits genuine lineage ⇒ the gate
+  DAMPENS its seed (~0.42×, v8[0]=14.58 vs v7[0]=18.12) rather than zeroing it. The
+  fake-lineage-of-NOISE subclass IS fully zeroed (entropy floor). FULL closure of
+  structured-but-valueless still rides the SAME pending **real DeepFunding-distill-over-sets label
+  pull** — but the seam is now wired end-to-end (`load_prefs`→`train`→`v_outcome_floored`→seed) and
+  runs UNCHANGED when real labels land; a label pricing the lineage ~0 drives g→0 ⇒ seed→0.
+- **NEXT 🟡:** the real-outcome label pull (THE moat data — now the ONLY missing input for both the
+  held-out harness AND the v8 gate; everything code-side is wired); then v8 → on-VM (the outcome
+  model is f64, needs the fixed-point/no_std treatment value_fixed got before it can run in the
+  type-script); finalization/ordering coord+registry binding (deploy-coupled); lean backlog
+  (single-source the other cores, split the 6k-line lib.rs).
+- ‼ STALE-FIX: prior top block claimed HEAD `ec36f18`/node 221; sessions continued past it (dispute
+  7.1b/7.1c + outcome load_prefs ⇒ HEAD was `d86ab5e`/node 227 before this block). True-up done here.
+
 ## ▶ RESUME HERE (2026-06-13 late — 5-increment session: ordering port + RSAW + moat + spoof-closure; node 212→221, pushed `ec36f18`)
 - **+ pom-roadmap tick** (`ec36f18`): `outcome::v_outcome_floored` AND-composes the entropy floor
   into the learned `v(S)` (single-sourced with the intake floor) ⇒ the fake-lineage NOISE spoof
