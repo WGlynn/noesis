@@ -4,7 +4,24 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
-## ▶ RESUME HERE (2026-06-15 — value_v8: the learned outcome v(S) WIRED INTO the value gate; node 227→232)
+## ▶ RESUME HERE (2026-06-15 — asymmetric-appeal guard: PoW/PoS appeal-grief CLOSED; node 232→233)
+- **DECIDED→DEMONSTRATED.** Built `dispute::appeal_refutes_asymmetric` (§7.1c-guard): the
+  PoM-minimized appeal court may only MONOTONE-DECREASE a down-weighted-dimension DEFENDANT's
+  conviction (`pre_appeal && appeal`), a one-way ratchet toward acquittal. Closes the inverse of
+  the §7.1c cartel-break — a PoW/PoS majority (0.90 of the appeal court) over-convicting an honest
+  PoM defendant. Keys on the DEFENDANT's standing (not the jury's) ⇒ cartel-break untouched (PoM
+  cartel sit as jurors). Test `honest_pom_defendant_vs_powpos_majority_appeal_cannot_increase_slash`
+  proves grief real (full-mix acquits, ungated appeal convicts) then clamped. `cargo test` 233/233.
+  Committed + pushed `fd407cf`.
+- **NEXT RSAW target (each fix reveals the next):** the guard is a verdict-level boolean clamp. Open
+  for the next tick — wire it into the live settlement path (`resolve_refuted` off the guarded
+  verdict) and prove the slash-level invariant `appeal_slash ≤ pre_appeal_slash` end-to-end; AND
+  bind the `defendant_holds_downweighted_dim` flag to consensus-derived defendant standing, never
+  producer-asserted (the dont-let-attacker-choose-critical-input class applied to the guard's own
+  input). Build: wire + a binding test.
+- ─ prior resume block (history) ─
+
+## ▶ (2026-06-15 — value_v8: the learned outcome v(S) WIRED INTO the value gate; node 227→232)
 - **THE MOAT SEAM CLOSED IN CODE.** `value_v8` composes the learned outcome `v(S)` (`outcome`
   module) INTO the v5→v7 realized-flow-gate SEED — the structural change v7 itself NAMED as the
   fix for its residual `structured_valueless_child_still_seeds_flow_open_gap` ("genuinely needs
