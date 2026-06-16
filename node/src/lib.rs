@@ -16,6 +16,11 @@
 
 use std::collections::{HashMap, HashSet};
 
+/// Node runtime — the replicated state machine over the mechanism library (orchestration
+/// only; two nodes that finalize the same blocks converge byte-for-byte). Transport-agnostic
+/// by design: peer discovery / gossip layer plugs in above the `Node` API.
+pub mod runtime;
+
 /// A CKB-style script: a RISC-V program (by code hash) + its arguments. VM success
 /// = valid. Lock scripts gate ownership; type scripts gate state transitions.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

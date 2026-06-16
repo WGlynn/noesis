@@ -4,6 +4,15 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-16 (c)** — BUILT: node runtime + first 2-node convergence (`node/src/runtime.rs` +
+  `node/tests/two_node.rs`, 3/3 green). Deterministic state-machine replication over the mechanism
+  library — two nodes finalize the same blocks and hold byte-identical (cells, novelty-index root, PoM)
+  state; orchestration only, no new mechanism. + DESIGN-LOCKED the value-dimension matrix as MIXED
+  3-layer (physics > constitutional > governance, NOT immutable; boundary = the completeness/weights
+  cleavage per value-disputes-are-incompleteness-bias — completeness has a fact-of-matter, final weights
+  do not). + ARMED 6 threads (T1 SOTA peer transport w/ CKB-shape COMMITTED; T2 ML-native consensus;
+  T3 PoW finality-lag vs PoS/PoM; T4 matrix-governance ✅; T5 shard+commit-reveal+pairwise from
+  VibeSwap/JARVIS; T6 2-node runtime ✅) — detail in CONTINUE.md top block.
 - **2026-06-16 (b)** — DESIGN NOTE (not built; surfaced in a public-thesis session, captured here):
   an orthogonal family for un-gameable `v(S)` — **elicit, don't measure**. Phase 1 currently assumes
   `v(S)` must be MEASURED (learned reward-model on real labels), which IS the data-blocked critical mile.

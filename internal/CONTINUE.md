@@ -4,6 +4,45 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## ▶ RESUME HERE (2026-06-16 (c) — NODE RUNTIME + 2-NODE CONVERGENCE shipped; 6 design/research threads armed)
+- **MILESTONE — first multi-replica run of the state machine.** New `node/src/runtime.rs`
+  (orchestration ONLY, ~215 LoC, NO new mechanism): `Constitution` (value-matrix governance frame),
+  `Ledger` (cells + novelty-index + PoM + height), `Block` (commit-reveal batch, canonical-ordered via
+  `commit_order`), `Node` (submit/propose/validate/apply), `finalizes` (wraps `consensus::finalizes_hybrid`).
+  Wires the existing modules into a deterministic block loop. `node/tests/two_node.rs` 3/3 green:
+  (1) two replicas hold byte-identical cells+index-root+PoM after EVERY block (deterministic SMR),
+  (2) block assembly presentation-independent, (3) non-canonical reorder rejected at the order gate.
+  This is the in-process milestone BENEATH any real transport — peer/gossip swaps in above the `Node` API.
+- **DESIGN-LOCKED (Will 2026-06-16) — value-dimension matrix = MIXED 3-LAYER, NOT immutable.** physics
+  (anchor-in-realized-downstream-flow + noise floor; near-immutable) > constitutional (amendment rules: a
+  dimension admitted ONLY if it predicts realized downstream value — verifier-gated; weights bounded,
+  no zeroing a real dim, redistribution non-plutocratic) > governance (weights within the bounded set;
+  fluid). Boundary = the completeness/weights cleavage from [[value-disputes-are-incompleteness-bias]]
+  ("fact-of-matter about completeness, none about final weights"). AugGov on the attribution surface;
+  THRONE "mechanism serves, never rules" ⇒ governance proposes, the verifier disposes. Currently the
+  `Constitution` STRUCT stub; NEXT = a constitutional CELL whose transitions obey the verifier gate.
+- **OPEN THREADS (Will-armed 2026-06-16 full-auto; results → THIS repo only, never public):**
+  - **T1 · SOTA peer-discovery transport** — CKB-SHAPE COMMITTED (cell/RISC-V-VM/type-script stays),
+    TRANSPORT open. Will: *"better node peer tech might be out there."* Survey tentacle (CKB-native) vs
+    rust-libp2p (Kademlia DHT + GossipSub + QUIC) vs discv5 (Ethereum) vs newer 2025-26. FOUNDATIONAL /
+    hard-to-reverse ⇒ Will-confirm BEFORE build. [RESEARCH]
+  - **T2 · ML-native / "intelligent" consensus** — ML maths to make finalization AI-native. The learned
+    outcome `v(S)` already feeds the VALUE gate (Role-C bounded); question = should a learned signal feed
+    CONSENSUS (weighting / leader-selection / liveness), and how to keep it role-bounded (can't mint /
+    can't forge finality). [RESEARCH + DESIGN]
+  - **T3 · PoW finality-lag** — eliminate or account-for PoW probabilistic finality vs PoS/PoM fast
+    finality in the NCI 10/30/60 mix. Core question: does PoW GATE finality at all, or only liveness /
+    ordering / sybil-cost? `finalizes_hybrid` counts all three dims at once today. [RESEARCH + DESIGN]
+  - **T4 · value-matrix governance** — ✅ ANSWERED (mixed 3-layer above); code stub in `Constitution`.
+  - **T5 · shard + commit-reveal + pairwise-comparison architecture** (from VibeSwap/JARVIS) MUST fit:
+    `shard_of(cell, n) = id % n` exists; VibeSwap commit-reveal batch = the `Block` shape (have it);
+    PsiNet CRPC two-round commit-reveal PAIRWISE comparison = the `outcome` module's Bradley-Terry
+    surface (`pairwise_accuracy`). DESIGN: how per-shard commit-reveal batches + cross-shard pairwise
+    verification compose with the single-chain runtime (shard = independent cell partition; pairwise =
+    the verification/dispute layer). [DESIGN]
+  - **T6 · 2-node runtime** — ✅ DONE (this block).
+- ─ prior resume block (history) ─
+
 ## ▶ RESUME HERE (2026-06-16 — per-certifier asymmetric clamp BUILT; lib 194 / full 235 green)
 - **DECIDED (cf31d23) → BUILT.** `resolve_refuted_guarded` no longer gates the whole settlement
   on one `defendant_id`; it judges EACH certifier on its OWN standing. New param
