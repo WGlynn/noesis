@@ -4,6 +4,29 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-15** — DESIGN tick (no code; PCP-gate at ~330k session tokens, AND a full moat
+  BUILD already shipped this session — the asymmetric-appeal guard below; a second delicate
+  settlement-code build in the same context is exactly what the gate guards). Advances the
+  NEXT target named in `internal/CONTINUE.md` from *named* → **DECIDED**: how to bind
+  `appeal_refutes_asymmetric`'s `defendant_holds_downweighted_dim` flag to consensus, not to a
+  producer's assertion (the dont-let-attacker-choose-critical-input class applied to the guard's
+  OWN input). **Decision — derive the flag by a counterfactual on the defendant's OWN standing,
+  not a passed bool:** the flag is TRUE iff the defendant's standing in the down-weighted
+  dimension is *load-bearing to their full-mix acquittal* — i.e. `full_mix_refutes(defendant) ==
+  false` AND `full_mix_refutes(defendant with the defendant's OWN down-weighted-dim standing
+  removed) == true`. This is elegant because it is exactly the predicate that separates the two
+  cases the guard must not conflate: in the GRIEF, the honest defendant's own PoM is what defends
+  them at full mix, so removing it flips the verdict ⇒ flag TRUE ⇒ clamp applies; in the
+  CARTEL-BREAK, the defendant is the garbage cell defended by the *jury* cartel's PoM (not its
+  own), so removing the defendant's own PoM does not change full-mix ⇒ flag FALSE ⇒ the overturn
+  convicts unrestricted. The predicate reads only the consensus standing set (the same set the
+  verdict already consumes), so an attacker cannot set it by assertion — it is derived, like
+  `now`/coords before it. **Build (deferred to fresh context):** (1) `defendant_holds_downweighted_dim`
+  becomes a derived fn over `(defendant_key, all, mix)` running the counterfactual; (2) wire the
+  guarded verdict into `resolve_refuted` so the slash-level invariant `appeal_slash ≤
+  pre_appeal_slash` holds end-to-end, not just at the verdict boolean; (3) a binding test that a
+  producer-asserted flag is ignored (only the counterfactual decides) + the cartel-break stays
+  green. No code this tick — DECIDED + the build scoped. node unchanged.
 - **2026-06-15** — BUILD tick: the PoW/PoS-appeal-grief vector goes **DECIDED → DEMONSTRATED**.
   Built the decided candidate (a) ASYMMETRIC APPEAL as `dispute::appeal_refutes_asymmetric` +
   its regression `honest_pom_defendant_vs_powpos_majority_appeal_cannot_increase_slash`. The

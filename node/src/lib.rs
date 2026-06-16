@@ -3288,6 +3288,85 @@ pub mod dispute {
         }
     }
 
+    /// §7.1c-guard input DERIVATION — the `defendant_holds_downweighted_dim` flag, derived
+    /// by a counterfactual on the defendant's OWN standing, never producer-asserted. This is
+    /// the dont-let-the-attacker-choose-a-critical-input class applied to the guard's own
+    /// input (same lesson as header-sourced `now` and reveal-sourced coords).
+    ///
+    /// The flag must be TRUE exactly when the appeal court's PoM down-weighting would strip an
+    /// HONEST defendant of the standing that defends them — i.e. when the defendant's own PoM
+    /// is *load-bearing to their full-mix acquittal*. Predicate:
+    ///
+    ///   `!full_mix_convicts(panel)  AND  full_mix_convicts(panel with the defendant's own PoM removed)`
+    ///
+    /// In the GRIEF the honest defendant's own PoM holds the full-mix court below 2/3; removing
+    /// it flips the verdict ⇒ TRUE ⇒ the asymmetric clamp applies. In the CARTEL-BREAK the
+    /// defendant is the garbage cell defended by the JURY cartel's PoM, not its own — removing
+    /// the defendant's negligible own PoM changes nothing ⇒ FALSE ⇒ the overturn convicts
+    /// unrestricted. It reads only the consensus standing set the verdict already consumes, so
+    /// an attacker cannot set it by assertion — it is derived, like `now`/coords before it.
+    pub fn defendant_holds_downweighted_dim(
+        voters_for: &[consensus::Validator],
+        all: &[consensus::Validator],
+        defendant_id: u64,
+        now: u64,
+        horizon: u64,
+        quorum_floor_bps: u64,
+    ) -> bool {
+        let full_mix_convicts = |panel: &[consensus::Validator]| {
+            verdict_refutes_at(Tribunal::FullMix, voters_for, panel, now, horizon, quorum_floor_bps)
+        };
+        // If the full-mix court already convicts WITH the defendant's standing present, the
+        // defendant's own PoM is not what's defending them — not load-bearing.
+        if full_mix_convicts(all) {
+            return false;
+        }
+        // Counterfactual: remove the defendant's OWN down-weighted-dimension (PoM) standing
+        // from the basis and re-run the full-mix court. A flip to conviction means the
+        // defendant's own PoM was the load-bearing defense.
+        let stripped: Vec<consensus::Validator> = all
+            .iter()
+            .map(|v| {
+                if v.id == defendant_id {
+                    let mut nv = v.clone();
+                    nv.pom = 0.0;
+                    nv
+                } else {
+                    v.clone()
+                }
+            })
+            .collect();
+        full_mix_convicts(&stripped)
+    }
+
+    /// §7.1c-guard, END-TO-END — the asymmetric-appeal verdict with the guard's own input
+    /// DERIVED from consensus standing, not accepted from the producer. This is the form the
+    /// settlement path calls: there is no boolean channel for an attacker to set, so a
+    /// producer-asserted "I don't hold the down-weighted dimension" cannot escape the clamp —
+    /// only the counterfactual over the consensus standing set decides.
+    pub fn appeal_refutes_guarded(
+        voters_for: &[consensus::Validator],
+        all: &[consensus::Validator],
+        defendant_id: u64,
+        now: u64,
+        horizon: u64,
+        quorum_floor_bps: u64,
+    ) -> bool {
+        let pre_appeal =
+            verdict_refutes_at(Tribunal::FullMix, voters_for, all, now, horizon, quorum_floor_bps);
+        let appeal = verdict_refutes_at(
+            Tribunal::AppealCourt,
+            voters_for,
+            all,
+            now,
+            horizon,
+            quorum_floor_bps,
+        );
+        let holds =
+            defendant_holds_downweighted_dim(voters_for, all, defendant_id, now, horizon, quorum_floor_bps);
+        appeal_refutes_asymmetric(holds, pre_appeal, appeal)
+    }
+
     #[cfg(test)]
     mod tests {
         use super::super::{Cell, Script};
@@ -3847,6 +3926,70 @@ pub mod dispute {
                 appeal_refutes_asymmetric(false, false, true),
                 "non-down-weighted defendant (garbage cell): appeal convicts unrestricted ⇒ \
                  §7.1c cartel-break is untouched"
+            );
+        }
+
+        #[test]
+        fn guard_flag_is_derived_from_standing_not_producer_asserted() {
+            // RSAW BUILD (increment 1): the §7.1c-guard's `defendant_holds_downweighted_dim`
+            // input is now DERIVED by counterfactual over the consensus standing set, not
+            // accepted as a producer bool. `appeal_refutes_guarded` exposes NO boolean channel,
+            // so an attacker cannot assert "I don't hold the down-weighted dimension" to escape
+            // the clamp — only the counterfactual decides. This proves both branches derive
+            // correctly AND that the two regimes the guard must not conflate are separated by
+            // the predicate, not by a passed flag.
+            let v = |id, pow, pos, pom| consensus::Validator {
+                id,
+                pow,
+                pos,
+                pom,
+                last_heartbeat: 0,
+                staked_balance: 1000.0,
+            };
+
+            // ---- GRIEF: honest PoM defendant (id 1) vs PoW/PoS-majority attacker (id 9) ----
+            // The defendant's OWN PoM is load-bearing to the full-mix acquittal: removing it
+            // flips full-mix to conviction ⇒ derived flag TRUE ⇒ the clamp applies.
+            let g_attacker = vec![v(9, 80.0, 80.0, 10.0)];
+            let mut g_all = g_attacker.clone();
+            g_all.push(v(1, 20.0, 20.0, 80.0));
+            assert!(
+                defendant_holds_downweighted_dim(&g_attacker, &g_all, 1, 0, 0, 4000),
+                "grief: the defendant's OWN PoM defends them at full mix (removing it convicts) \
+                 ⇒ flag derived TRUE — no producer assertion involved"
+            );
+            assert!(
+                !appeal_refutes_guarded(&g_attacker, &g_all, 1, 0, 0, 4000),
+                "the grief is clamped end-to-end through the derived guard (no bool channel to \
+                 flip): the PoM-minimized appeal cannot convict the honest PoM defendant"
+            );
+
+            // ---- CARTEL-BREAK: garbage defendant (id 7, ~0 own PoM) defended by a PoM JURY
+            // cartel (id 9); honest PoW/PoS (id 1,2) vote to refute the garbage. ----
+            // The defendant's OWN PoM is NOT load-bearing — the JURY's is — so removing the
+            // defendant's own PoM does not change full-mix ⇒ derived flag FALSE ⇒ the overturn
+            // convicts unrestricted (the §7.1c cartel-break is untouched).
+            let cb_honest = vec![v(1, 50.0, 50.0, 20.0), v(2, 50.0, 50.0, 20.0)];
+            let mut cb_all = cb_honest.clone();
+            cb_all.push(v(9, 0.0, 0.0, 60.0)); // jury cartel's PoM, not the defendant's
+            cb_all.push(v(7, 0.0, 0.0, 1.0)); // garbage author: negligible own PoM
+            assert!(
+                !defendant_holds_downweighted_dim(&cb_honest, &cb_all, 7, 0, 0, 4000),
+                "cartel-break: the garbage defendant's OWN PoM defends nothing (the cartel's \
+                 does) ⇒ flag derived FALSE"
+            );
+            assert!(
+                appeal_refutes_guarded(&cb_honest, &cb_all, 7, 0, 0, 4000),
+                "cartel-break preserved end-to-end: the overturn still convicts the garbage \
+                 through the guard (derived flag FALSE ⇒ no clamp)"
+            );
+
+            // The two regimes are separated by the COUNTERFACTUAL, not by who passed which bool:
+            // same guard call, opposite outcomes, driven only by whose PoM is load-bearing.
+            assert_ne!(
+                appeal_refutes_guarded(&g_attacker, &g_all, 1, 0, 0, 4000),
+                appeal_refutes_guarded(&cb_honest, &cb_all, 7, 0, 0, 4000),
+                "grief clamps (false) while cartel-break convicts (true) — derived, not asserted"
             );
         }
     }
