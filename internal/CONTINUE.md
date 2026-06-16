@@ -17,13 +17,19 @@
   `guard_flag_is_derived_from_standing_not_producer_asserted`,
   `guarded_settlement_cannot_exceed_pre_appeal_slash`. Full lib suite 194 green, 0 new clippy.
   Committed: increment 1 `54b426e`; increment 2 this tick.
-- **NEXT RSAW target (each fix reveals the next):** the gate is WHOLE-SETTLEMENT (one
-  `defendant_id`) but `resolve_refuted` slashes PER-CERTIFIER. A mixed panel — one honest-PoM
-  certifier + one garbage certifier on the same target — is all-or-nothing today. Build a
-  PER-CERTIFIER asymmetric clamp (protect each down-weighted-dim certifier individually, still
-  slash the garbage). Lean sub-item: single-source the "which dimension is recused" constant so
-  the derivation's stripped dim (hardcoded PoM) and the appeal `Tribunal`'s down-weighted dim
-  (hardcoded PoM in `DISPUTE_APPEAL`) cannot drift apart.
+- **NEXT RSAW target — per-certifier asymmetric clamp — now DECIDED (2026-06-16), build deferred
+  to fresh context (PCP-gate):** the gate is WHOLE-SETTLEMENT (one `defendant_id`) but
+  `resolve_refuted` slashes PER-CERTIFIER, so a mixed panel (one honest-PoM certifier + one
+  garbage certifier on the same target) is all-or-nothing. DECISION: `resolve_refuted_guarded`
+  gains `certifier_keys: &[(u64, Vec<u8>)]` (the SAME key↔id join idiom as
+  `juror_keys`/`conflicted_juror_ids` — no new channel) and gates PER SHARE: for each
+  `(key, share)`, look up the validator id and run `defendant_holds_downweighted_dim(…, that_id,
+  …)`; drop that certifier's slash iff their own PoM is load-bearing to the full-mix
+  non-conviction, keep it otherwise. Build steps: (1) per-share gate; (2) mixed-panel test
+  (honest dropped, garbage kept, totals exact); (3) single-defendant tests stay green
+  (whole-settlement = per-share with one certifier). EXPLICITLY DECLINED (PONYTAIL/YAGNI): do NOT
+  abstract the recused-dimension constant — one appeal court exists; the `RECUSED_DIM` indirection
+  is premature until a PoW/PoS-minimized court is added. Re-evaluate then.
 - ─ prior resume block (history) ─
 
 ## ▶ RESUME HERE (2026-06-15 — asymmetric-appeal guard: PoW/PoS appeal-grief CLOSED; node 232→233)

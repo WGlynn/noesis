@@ -4,6 +4,31 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-16** — DESIGN tick (no code; PCP-gate — ~7h-45m session, heavy context: the delicate
+  per-certifier settlement build belongs in a fresh context, exactly the moat-code the gate
+  guards). Advances the NEXT target from *named* → **DECIDED**: resolves the one open question the
+  per-certifier asymmetric clamp needs — how to map a certifier's slash-key (`Vec<u8>`) to its
+  consensus validator id (`u64`) for the per-certifier counterfactual. **Decision — reuse the
+  existing key↔id JOIN idiom, do not invent a new channel:** the dispute module already binds
+  contributor keys to validator ids via `juror_keys: &[(u64, Vec<u8>)]`
+  (`conflicted_juror_ids`/`verdict_refutes_excluding_conflicted`). The per-certifier clamp takes
+  the same `certifier_keys: &[(u64, Vec<u8>)]` join and, for each `(key, share)` in
+  `certifier_shares`, looks up the validator id and runs
+  `defendant_holds_downweighted_dim(voters_for, all, that_id, …)` — dropping THAT certifier's
+  slash iff their own PoM is load-bearing to the full-mix non-conviction (the grief), keeping it
+  otherwise (a garbage certifier riding along is still slashed). This replaces the current
+  whole-settlement single-`defendant_id` gate in `resolve_refuted_guarded` with a per-share gate,
+  so a MIXED panel (one honest-PoM certifier + one garbage certifier on the same target) slashes
+  the garbage and spares the honest one — the all-or-nothing coarseness is removed. The id is
+  consensus-derived (the join is the same set the verdict consumes), so no producer-asserted input
+  is added. **Build (deferred to fresh context):** (1) `resolve_refuted_guarded` gains
+  `certifier_keys` and gates per-share; (2) test a mixed panel: honest-PoM certifier's slash
+  dropped, garbage certifier's slash kept, totals exact; (3) the existing single-defendant tests
+  stay green (the whole-settlement case = the per-share case with one certifier). LEAN sub-item
+  left EXPLICITLY un-built per PONYTAIL/YAGNI: do NOT abstract the recused-dimension constant yet —
+  there is one appeal court (PoM-minimized); a `RECUSED_DIM` indirection is premature until a
+  second (PoW/PoS-minimized) court exists. Re-evaluate when that court is added, not before. No
+  code this tick — DECIDED + build scoped + a premature-abstraction explicitly declined. node unchanged.
 - **2026-06-15** — BUILD tick (fresh context, Will-armed 2-increment loop): the
   asymmetric-appeal guard goes **DECIDED → WIRED END-TO-END**, closing both halves of the
   prior tick's named NEXT target. (1) `defendant_holds_downweighted_dim` is no longer a
