@@ -4,6 +4,23 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-16 (b)** — DESIGN NOTE (not built; surfaced in a public-thesis session, captured here):
+  an orthogonal family for un-gameable `v(S)` — **elicit, don't measure**. Phase 1 currently assumes
+  `v(S)` must be MEASURED (learned reward-model on real labels), which IS the data-blocked critical mile.
+  Alternative/complement: make a claimant REVEAL subjective value via skin-in-the-game (Harberger / COST
+  self-assessment) instead of a central learned measure. Claimant self-assesses the `v(S)` of their
+  contribution and posts a holding stake/tax proportional to the declaration: over-claim is costly
+  (tax + forfeit on successful challenge), under-claim cedes the claim. This reduces the oracle from
+  CONTINUOUS MEASUREMENT to a COMMIT-DECLARE-CHALLENGE dispute layer (cheap, fires only on contest —
+  same shape as the commit-reveal + dispute-window patterns already in use). Honest residuals 🔬:
+  (a) the challenge leg still needs SOME downstream-value signal to RESOLVE disputes, so it SHRINKS
+  rather than eliminates the learned-`v(S)` dependence (dispute oracle, not continuous oracle);
+  (b) naive Harberger allocates by ability-to-pay, not intensity, so it must pair with quadratic
+  weighting OR redistribute the tax as a commons-dividend to stay non-plutocratic (cooperative-capitalist,
+  not pay-to-play). STATUS: design candidate / complement to learned-`v(S)`, NOT a replacement, NOT
+  demonstrated. Concrete spike when built fresh: does commit-declare-challenge + redistribution price
+  the PUBLIC/common-atom front-run residual (the 2026-06-14 novelty land-grab) to ~0 WITHOUT real labels?
+  If yes, it partially unblocks Phase 1 ahead of the labels mile.
 - **2026-06-16** — DESIGN tick (no code; PCP-gate — ~7h-45m session, heavy context: the delicate
   per-certifier settlement build belongs in a fresh context, exactly the moat-code the gate
   guards). Advances the NEXT target from *named* → **DECIDED**: resolves the one open question the
