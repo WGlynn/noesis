@@ -3251,6 +3251,43 @@ pub mod dispute {
         verdict_refutes_at(tribunal, &voters, &panel, now, horizon, quorum_floor_bps)
     }
 
+    /// §7.1c-guard — ASYMMETRIC APPEAL (the monotone-decrease ratchet).
+    ///
+    /// The PoM-minimized appeal court ([`DISPUTE_APPEAL`]) exists to BREAK a PoM cartel by
+    /// down-weighting PoM, so honest PoW+PoS can overturn a cartel that vetoes the refutation
+    /// of its own garbage (`appeal_court_overturns_the_identity_separated_pom_cartel`, where
+    /// the cartel are the JURORS and the garbage cell is the defendant). But down-weighting
+    /// PoM to 0.10 hands 0.90 of that court to PoW+PoS, so a PoW/PoS majority could weaponize
+    /// it the OTHER way — to over-convict a defendant who is HIMSELF an honest holder of the
+    /// down-weighted dimension and can no longer defend at full PoM weight.
+    ///
+    /// The appeal court therefore has NO legitimate CONVICTING power over a *defendant* who
+    /// holds the dimension it down-weights: a conviction of such a holder belongs to the
+    /// full-mix court, where that dimension defends at its full weight. This guard enforces
+    /// the asymmetry as a one-way ratchet toward acquittal:
+    ///
+    ///   `appeal_refutes(defendant who holds the down-weighted dim) ≤ pre_appeal_refutes`
+    ///
+    /// A refutation the pre-appeal (full-mix) round did NOT reach is clamped to the prior
+    /// outcome, so the PoM-minimized court can only LOWER such a defendant's conviction/slash,
+    /// never raise it (worst case for honest PoM = no change). `defendant_holds_downweighted_dim`
+    /// keys on the DEFENDANT's standing, not the jury's — so the cartel-break is untouched: in
+    /// that case the PoM cartel sit as jurors while the defendant is the garbage cell (not a
+    /// down-weighted-dim holder), so the flag is `false` and the appeal convicts unrestricted.
+    pub fn appeal_refutes_asymmetric(
+        defendant_holds_downweighted_dim: bool,
+        pre_appeal_refuted: bool,
+        appeal_court_refutes: bool,
+    ) -> bool {
+        if defendant_holds_downweighted_dim {
+            // false < true, so the AND can only ratchet the conviction toward acquittal:
+            // appeal_court_refutes can lower a pre-appeal conviction, never create a new one.
+            pre_appeal_refuted && appeal_court_refutes
+        } else {
+            appeal_court_refutes
+        }
+    }
+
     #[cfg(test)]
     mod tests {
         use super::super::{Cell, Script};
@@ -3742,6 +3779,75 @@ pub mod dispute {
                 b = appeal_bond(b);
             }
             assert!((b - 32.0).abs() < 1e-9, "3 appeals: 4 → 32 (2^3 × B)");
+        }
+
+        #[test]
+        fn honest_pom_defendant_vs_powpos_majority_appeal_cannot_increase_slash() {
+            // RSAW BUILD (this tick): the INVERSE of the §7.1c cartel-break. Down-weighting
+            // PoM to 0.10 to break a PoM cartel hands 0.90 of the appeal court to PoW+PoS, so a
+            // PoW/PoS majority can weaponize the PoM-minimized court to OVER-convict a defendant
+            // who is himself an honest PoM holder (he can no longer defend at full PoM weight).
+            // Guard = ASYMMETRIC APPEAL: a down-weighted-dimension *defendant's* conviction may
+            // only MONOTONE-DECREASE on appeal, never rise.
+            let v = |id, pow, pos, pom| consensus::Validator {
+                id,
+                pow,
+                pos,
+                pom,
+                last_heartbeat: 0,
+                staked_balance: 1000.0,
+            };
+            // Attacker jurors: PoW/PoS-heavy, low PoM — they vote to refute (convict) the
+            // honest PoM defendant. Honest defendant: PoM-heavy (the down-weighted dimension).
+            let attacker = vec![v(9, 80.0, 80.0, 10.0)];
+            let honest = vec![v(1, 20.0, 20.0, 80.0)];
+            let mut all = attacker.clone();
+            all.extend(honest.clone());
+
+            // 1) The FULL-MIX court, where PoM defends at its full 0.60, does NOT convict:
+            //    the honest defendant holds 80/90 of PoM, so the attacker can't reach 2/3.
+            let pre_appeal_refuted =
+                verdict_refutes_at(Tribunal::FullMix, &attacker, &all, 0, 0, 4000);
+            assert!(
+                !pre_appeal_refuted,
+                "full-mix court does not convict the honest PoM defendant"
+            );
+
+            // 2) THE GRIEF is real: at the PoM-minimized appeal court the PoW/PoS majority DOES
+            //    reach a refutation against the honest PoM defendant (PoM down-weighted to 0.10).
+            let raw_appeal =
+                verdict_refutes_at(Tribunal::AppealCourt, &attacker, &all, 0, 0, 4000);
+            assert!(
+                raw_appeal,
+                "ungated appeal court lets the PoW/PoS majority convict honest PoM (the grief)"
+            );
+
+            // 3) THE GUARD: asymmetric appeal clamps it — a down-weighted-dimension defendant's
+            //    conviction can only ratchet toward acquittal, so the appeal adds no slash.
+            assert!(
+                !appeal_refutes_asymmetric(true, pre_appeal_refuted, raw_appeal),
+                "asymmetric appeal: no new conviction of the down-weighted-dimension holder ⇒ \
+                 no slash increase"
+            );
+
+            // 4) The cartel-break is PRESERVED. (a) An appeal still ACQUITS a down-weighted-dim
+            //    holder the prior round wrongly convicted (convict → acquit still flows). (b) A
+            //    refutation the prior round already reached is not weakened. (c) For a defendant
+            //    who is NOT a down-weighted-dim holder (the garbage cell in the cartel-break,
+            //    where the PoM cartel are jurors), the appeal convicts unrestricted.
+            assert!(
+                !appeal_refutes_asymmetric(true, true, false),
+                "acquittal on appeal still flows (cartel-break / overturn preserved)"
+            );
+            assert!(
+                appeal_refutes_asymmetric(true, true, true),
+                "a pre-appeal-reached refutation is not weakened"
+            );
+            assert!(
+                appeal_refutes_asymmetric(false, false, true),
+                "non-down-weighted defendant (garbage cell): appeal convicts unrestricted ⇒ \
+                 §7.1c cartel-break is untouched"
+            );
         }
     }
 }

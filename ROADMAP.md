@@ -4,6 +4,22 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-15** — BUILD tick: the PoW/PoS-appeal-grief vector goes **DECIDED → DEMONSTRATED**.
+  Built the decided candidate (a) ASYMMETRIC APPEAL as `dispute::appeal_refutes_asymmetric` +
+  its regression `honest_pom_defendant_vs_powpos_majority_appeal_cannot_increase_slash`. The
+  test constructs the grief end-to-end on real validators: a PoW/PoS-heavy attacker (pow=pos=80,
+  pom=10) vs an honest PoM defendant (pom=80) — (1) the FULL-MIX court does NOT convict (honest
+  PoM holds 80/90 of the 0.60 PoM weight), yet (2) the ungated PoM-minimized appeal court (pom
+  down-weighted to 0.10 ⇒ PoW/PoS carry 0.90) DOES land the refutation against the honest
+  defendant — the grief is real, not asserted — and (3) the guard clamps it: a down-weighted-
+  dimension DEFENDANT's conviction may only ratchet toward acquittal (`pre_appeal && appeal`),
+  so the appeal adds no slash. KEY DISTINCTION that keeps the §7.1c cartel-break intact: the
+  flag keys on the DEFENDANT's standing, not the jury's. In the cartel-break the PoM cartel sit
+  as JURORS while the defendant is the garbage cell (not a down-weighted-dim holder), so the
+  guard is inert there and the overturn still convicts — proven by the in-test assertion
+  `appeal_refutes_asymmetric(false, false, true) == true`. Worst case for honest PoM is now
+  no-change; any real PoM conviction must still clear the full-mix court where PoM defends at
+  0.60. node 232→233 (+1; full `cargo test` tally, lib 191→192). DEMONSTRATED.
 - **2026-06-15** — DESIGN tick (no code; PCP-gate at ~410k session tokens — the design *decision*
   is context-safe, the Rust test + guard on the moat is NOT, so it is deferred to a fresh context;
   this advances the design rather than repeating the prior "named + scoped only" tick). Resolves the
@@ -291,7 +307,13 @@ is a reputation system.
       (`DISPUTE_APPEAL` PoM-minimized mix) overturns it down to the global cross-dimension
       assumption (`appeal_court_overturns_the_identity_separated_pom_cartel` +
       `appeal_court_still_yields_to_full_cross_dimension_capture`). The judge-cartel class is
-      now dissolved to the consensus layer's own irreducible ceiling.
+      now dissolved to the consensus layer's own irreducible ceiling. ✅ **INVERSE CLOSED
+      (2026-06-15):** down-weighting PoM to break the cartel handed 0.90 of the appeal court to
+      PoW/PoS, opening an appeal-grief where a PoW/PoS majority over-convicts an honest PoM
+      *defendant*. `dispute::appeal_refutes_asymmetric` (§7.1c-guard, ASYMMETRIC APPEAL) closes
+      it: a down-weighted-dimension defendant's conviction may only monotone-decrease on appeal,
+      keyed on the DEFENDANT's standing so the cartel-break (PoM cartel as jurors) is untouched
+      (`honest_pom_defendant_vs_powpos_majority_appeal_cannot_increase_slash`).
       (`judge_cartel_protects_its_own_garbage_open_gap` retained
       as round-1-surface documentation; `full_consensus_capture_..._global_assumption` is the
       irreducible consensus-layer ceiling.)
