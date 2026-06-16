@@ -3092,6 +3092,41 @@ pub mod dispute {
         }
     }
 
+    /// §7.1c-guard at the SETTLEMENT level — the verdict→slash binding that makes the
+    /// asymmetric clamp END-TO-END, not just a verdict boolean. Runs the refuted settlement
+    /// ONLY if the GUARDED appeal verdict ([`appeal_refutes_guarded`], whose
+    /// down-weighted-dimension flag is DERIVED from consensus standing, not producer-asserted)
+    /// convicts; otherwise returns the empty (no-slash) settlement.
+    ///
+    /// Slash-level invariant (proven in `guarded_settlement_cannot_exceed_pre_appeal_slash`):
+    /// for a down-weighted-dimension defendant, `total_slash(guarded) ≤ total_slash(pre_appeal)`.
+    /// It holds because the guard can only turn a conviction OFF — clamp a refutation the
+    /// pre-appeal full-mix round did not reach — never ON: so no certifier is slashed under the
+    /// PoM-minimized appeal that the full-mix round would not also have slashed. The appeal
+    /// court thus cannot manufacture NEW slash against an honest holder of the dimension it
+    /// down-weights; its only power over such a defendant is acquittal. NOTE: `defendant_id` is
+    /// the consensus standing id of the party whose conviction is at stake (the down-weighted-
+    /// dimension certifier being defended), the same id space the verdict already consumes.
+    #[allow(clippy::too_many_arguments)]
+    pub fn resolve_refuted_guarded(
+        entries: &mut [VestingEntry],
+        c: &Challenge,
+        p: &Params,
+        certifier_shares: &[(Vec<u8>, f64)],
+        voters_for: &[consensus::Validator],
+        all: &[consensus::Validator],
+        defendant_id: u64,
+        now: u64,
+        horizon: u64,
+        quorum_floor_bps: u64,
+    ) -> Settlement {
+        if appeal_refutes_guarded(voters_for, all, defendant_id, now, horizon, quorum_floor_bps) {
+            resolve_refuted(entries, c, p, certifier_shares)
+        } else {
+            Settlement::default()
+        }
+    }
+
     /// UPHELD path (§2): challenger forfeits the bond (γ to the challenged author as
     /// nuisance compensation, rest burned); the target's vesting clock is NOT reset.
     /// γ clamped to [0,1] (no mint-by-misconfiguration).
@@ -3990,6 +4025,96 @@ pub mod dispute {
                 appeal_refutes_guarded(&g_attacker, &g_all, 1, 0, 0, 4000),
                 appeal_refutes_guarded(&cb_honest, &cb_all, 7, 0, 0, 4000),
                 "grief clamps (false) while cartel-break convicts (true) — derived, not asserted"
+            );
+        }
+
+        #[test]
+        fn guarded_settlement_cannot_exceed_pre_appeal_slash() {
+            // RSAW BUILD (increment 2): the §7.1c-guard wired into the SETTLEMENT path, so the
+            // asymmetric clamp is end-to-end (slash-level), not just a verdict boolean. For a
+            // down-weighted-dimension defendant the invariant `total_slash(guarded) ≤
+            // total_slash(pre_appeal)` holds because the guard can only turn a conviction OFF.
+            let v = |id, pow, pos, pom| consensus::Validator {
+                id,
+                pow,
+                pos,
+                pom,
+                last_heartbeat: 0,
+                staked_balance: 1000.0,
+            };
+            let total_slash = |s: &Settlement| -> f64 { s.slashes.iter().map(|(_, a)| a).sum() };
+
+            // A real unvested entry on the target + a non-empty certifier share, so a conviction
+            // ACTUALLY slashes (otherwise the invariant would be vacuously satisfied). The slashed
+            // certifier IS the down-weighted-dimension defendant (id 1 ↔ key [1]) being defended.
+            let c = Challenge { target: 7, challenger: vec![9], bond: 2.0, opened_epoch: 105 };
+            let shares = vec![(vec![1u8], 12.0)];
+            let fresh = || vec![VestingEntry { cell_id: 7, amount: 12.0, realized_epoch: 100 }];
+
+            // GRIEF: honest PoM defendant (id 1) vs PoW/PoS-majority attacker-challenger (id 9).
+            let attacker = vec![v(9, 80.0, 80.0, 10.0)];
+            let mut all = attacker.clone();
+            all.push(v(1, 20.0, 20.0, 80.0));
+
+            // 1) PRE-APPEAL (full-mix) settlement: full-mix acquits ⇒ gate false ⇒ no slash.
+            let pre = if verdict_refutes_at(Tribunal::FullMix, &attacker, &all, 0, 0, 4000) {
+                resolve_refuted(&mut fresh(), &c, &P, &shares)
+            } else {
+                Settlement::default()
+            };
+            assert_eq!(total_slash(&pre), 0.0, "full-mix acquits the honest PoM defendant ⇒ 0 slash");
+
+            // 2) UNGUARDED appeal settlement: the PoM-minimized court convicts ⇒ the grief lands.
+            let raw = if verdict_refutes_at(Tribunal::AppealCourt, &attacker, &all, 0, 0, 4000) {
+                resolve_refuted(&mut fresh(), &c, &P, &shares)
+            } else {
+                Settlement::default()
+            };
+            assert!(
+                total_slash(&raw) > 0.0,
+                "ungated appeal slashes the honest PoM defendant (the realized grief)"
+            );
+
+            // 3) GUARDED settlement: the clamp removes the grief end-to-end (no bool channel).
+            let guarded =
+                resolve_refuted_guarded(&mut fresh(), &c, &P, &shares, &attacker, &all, 1, 0, 0, 4000);
+            assert_eq!(
+                total_slash(&guarded),
+                0.0,
+                "guarded settlement adds no slash to the honest PoM defendant"
+            );
+
+            // THE INVARIANT: appeal_slash ≤ pre_appeal_slash for the down-weighted-dim defendant,
+            // AND the grief is strictly removed relative to the unguarded path.
+            assert!(
+                total_slash(&guarded) <= total_slash(&pre),
+                "slash-level monotone clamp holds end-to-end: appeal_slash ≤ pre_appeal_slash"
+            );
+            assert!(
+                total_slash(&guarded) < total_slash(&raw),
+                "the guard strictly removes the realized grief slash"
+            );
+
+            // CARTEL-BREAK preserved at the SETTLEMENT level: when the defendant's own PoM is NOT
+            // load-bearing (garbage cell id 7, flag derives FALSE), the guarded settlement EQUALS
+            // the unguarded appeal settlement — the overturn still slashes the garbage's certifiers.
+            let cb_honest = vec![v(1, 50.0, 50.0, 20.0), v(2, 50.0, 50.0, 20.0)];
+            let mut cb_all = cb_honest.clone();
+            cb_all.push(v(9, 0.0, 0.0, 60.0));
+            cb_all.push(v(7, 0.0, 0.0, 1.0));
+            let cb_raw = if verdict_refutes_at(Tribunal::AppealCourt, &cb_honest, &cb_all, 0, 0, 4000) {
+                resolve_refuted(&mut fresh(), &c, &P, &shares)
+            } else {
+                Settlement::default()
+            };
+            let cb_guarded =
+                resolve_refuted_guarded(&mut fresh(), &c, &P, &shares, &cb_honest, &cb_all, 7, 0, 0, 4000);
+            assert!(total_slash(&cb_raw) > 0.0, "cartel-break: the overturn convicts the garbage");
+            assert_eq!(
+                total_slash(&cb_guarded),
+                total_slash(&cb_raw),
+                "cartel-break preserved end-to-end: guarded == unguarded when the defendant's own \
+                 PoM is not load-bearing"
             );
         }
     }

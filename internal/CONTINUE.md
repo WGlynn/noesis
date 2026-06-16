@@ -4,6 +4,28 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## ▶ RESUME HERE (2026-06-15 — asymmetric-appeal guard WIRED END-TO-END; +2 tests, lib 194)
+- **DECIDED → WIRED.** Will-armed 2-increment loop in a fresh context closed BOTH halves of the
+  prior NEXT target. (1) `dispute::defendant_holds_downweighted_dim` — the guard's flag is now
+  DERIVED by a counterfactual on the defendant's OWN PoM (`!full_mix_convicts(panel) &&
+  full_mix_convicts(panel minus the defendant's own PoM)`); `appeal_refutes_guarded` exposes no
+  bool channel ⇒ an attacker cannot assert past the clamp (the dont-let-the-attacker-choose-a-
+  critical-input class, like header-`now`/coords). (2) `dispute::resolve_refuted_guarded` gates
+  the slash on the guarded verdict ⇒ the clamp is end-to-end at the slash level, invariant
+  `total_slash(guarded) ≤ total_slash(pre_appeal)` proven non-vacuously (real unvested entry +
+  non-empty certifier share) and the cartel-break preserved at settlement. Tests:
+  `guard_flag_is_derived_from_standing_not_producer_asserted`,
+  `guarded_settlement_cannot_exceed_pre_appeal_slash`. Full lib suite 194 green, 0 new clippy.
+  Committed: increment 1 `54b426e`; increment 2 this tick.
+- **NEXT RSAW target (each fix reveals the next):** the gate is WHOLE-SETTLEMENT (one
+  `defendant_id`) but `resolve_refuted` slashes PER-CERTIFIER. A mixed panel — one honest-PoM
+  certifier + one garbage certifier on the same target — is all-or-nothing today. Build a
+  PER-CERTIFIER asymmetric clamp (protect each down-weighted-dim certifier individually, still
+  slash the garbage). Lean sub-item: single-source the "which dimension is recused" constant so
+  the derivation's stripped dim (hardcoded PoM) and the appeal `Tribunal`'s down-weighted dim
+  (hardcoded PoM in `DISPUTE_APPEAL`) cannot drift apart.
+- ─ prior resume block (history) ─
+
 ## ▶ RESUME HERE (2026-06-15 — asymmetric-appeal guard: PoW/PoS appeal-grief CLOSED; node 232→233)
 - **DECIDED→DEMONSTRATED.** Built `dispute::appeal_refutes_asymmetric` (§7.1c-guard): the
   PoM-minimized appeal court may only MONOTONE-DECREASE a down-weighted-dimension DEFENDANT's

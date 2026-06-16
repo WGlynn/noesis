@@ -4,6 +4,31 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-15** — BUILD tick (fresh context, Will-armed 2-increment loop): the
+  asymmetric-appeal guard goes **DECIDED → WIRED END-TO-END**, closing both halves of the
+  prior tick's named NEXT target. (1) `defendant_holds_downweighted_dim` is no longer a
+  producer bool — it is DERIVED by a counterfactual on the defendant's OWN PoM standing
+  (`!full_mix_convicts(panel) && full_mix_convicts(panel with the defendant's own PoM
+  removed)`), and `appeal_refutes_guarded` exposes NO boolean channel, so an attacker cannot
+  assert their way out of the clamp (the dont-let-the-attacker-choose-a-critical-input class
+  applied to the guard's own input, same as header-`now`/coords). Test
+  `guard_flag_is_derived_from_standing_not_producer_asserted` proves the grief clamps and the
+  cartel-break convicts, separated by the counterfactual not by a passed flag. (2)
+  `resolve_refuted_guarded` wires the guarded verdict into the settlement path, so the clamp is
+  end-to-end at the SLASH level, not just the verdict boolean. Test
+  `guarded_settlement_cannot_exceed_pre_appeal_slash` proves the invariant `total_slash(guarded)
+  ≤ total_slash(pre_appeal)` for a down-weighted-dim defendant on a real unvested entry + a
+  non-empty certifier share (so the invariant is not vacuous), AND that the cartel-break is
+  preserved at the settlement level (guarded == unguarded when the defendant's own PoM is not
+  load-bearing). +2 tests, full lib suite green (194), 0 new clippy warnings. **NEXT RSAW
+  target (each fix reveals the next):** the guard's gate is WHOLE-SETTLEMENT (one
+  `defendant_id`), but `resolve_refuted` slashes PER-CERTIFIER. A mixed panel — one honest-PoM
+  certifier AND one garbage certifier on the same target — is currently all-or-nothing: the gate
+  clamps everyone or no one. The next tick is a PER-CERTIFIER asymmetric clamp (each
+  down-weighted-dim certifier individually protected, the garbage still slashed), plus a lean
+  note: keep the derivation's stripped dimension in lockstep with whichever dimension the active
+  appeal `Tribunal` down-weights (today both hardcode PoM — single-source the "which dim is
+  recused" constant so they cannot drift).
 - **2026-06-15** — DESIGN tick (no code; PCP-gate at ~330k session tokens, AND a full moat
   BUILD already shipped this session — the asymmetric-appeal guard below; a second delicate
   settlement-code build in the same context is exactly what the gate guards). Advances the
