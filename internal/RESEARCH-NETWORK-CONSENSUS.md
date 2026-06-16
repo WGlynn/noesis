@@ -142,7 +142,45 @@ rust-libp2p GossipSub's peer-scoring** so high-contribution nodes are preferenti
 propagation meshes. Audited, formally analyzed, Rust-ready; no $DAG baggage. (Same conclusion as T1's
 "standing-weighted peer scoring" note — two independent agents converged here.)
 
-## T11 — Solana-style PoS vs value-function-native PoS   [PENDING — agent running]
+## T11 — Solana-style PoS vs value-function-native PoS   ✅ CAPITAL-ORTHOGONALITY IS A FEATURE
+
+**Two NOs and a structural reason.** (1) NOT Solana-style — PoH is a clock not consensus; deterministic
+leader schedule = censorship/MEV-targetable; decentralization actively degrading (validators −68%,
+Nakamoto coeff −35%, 88% one client, 7 halts). (2) **NOT value/intrinsic-weighted stake** — and this is
+the load-bearing finding: because PoM (60%) already carries the subjective value signal, the PoS (30%)
+dimension's JOB is to be what PoM is NOT — objective, capital-at-risk, slashable, sybil-costly.
+
+Three structural facts (all map to Will's own primitives):
+- **Buterin subjectivity spectrum**: PoW objective · PoS weakly-subjective · reputation/value-score FULLY
+  subjective. PoM (learned value model) is the most expressive AND most gameable/opaque axis. A consensus
+  needs an OBJECTIVE ANCHOR a fresh node can verify without trusting a model — PoS-as-pure-capital IS that
+  anchor. Value-weighting stake deletes the only objective axis.
+- **Minotaur fungibility (CCS 2022)**: multi-resource security comes from the axes being INDEPENDENT — an
+  attacker must beat all simultaneously. `corr(PoM, PoS)→high` collapses 3 axes to ~2: gaming the value
+  model would capture BOTH. ⇒ orthogonality is literally where the security lives. (= [[primitive_multi-axis-robustness-for-architectural-defense]].)
+- **Filter-coincidence / skin-in-the-game** ([[primitive_filter-coincidence-as-structural-edge]]): PoM is
+  backward-looking, model-scored, gameable, and NOT slashable-as-cost. Capital-at-risk is the forward-looking,
+  objective, SLASHABLE cost-of-attack PoM structurally lacks. PoM ⟂ PoS = subjective-value ⟂ objective-cost.
+
+**Empirical caution:** the designs that DID make consensus-weight = intrinsic-value (NEM Proof-of-Importance
+via tx-graph PageRank; Token-Curated Registries) were deployed and effectively ABANDONED — subjective scores
+are gameable without a clear Schelling point (the same TCR failure that threatens any learned v(S) carrying
+hard security weight). Intrinsic value's safe home = PoM + reward distribution (our `ShapleyDistributor`
+pattern), NEVER the sybil-resistance weight.
+
+**RECOMMEND:** PoS = pure capital-at-risk **× time-lock** (vote-escrow; time is the only objective+slashable
+enrichment), **VRF private leader selection** (Algorand/Ouroboros — no pre-targetable leader, unlike Solana),
+**Phragmén-flatten** stake across validators (counter plutocracy without making weight subjective). Keep all
+"intrinsic value" in PoM. **One-liner: for a chain where PoM already IS the value-function, the PoS dimension's
+value is precisely that it is NOT one.**
+
+## SHIPPED from the research — T3 finality fix (runtime level)
+`runtime::finality::finalizes_pos_pom` (3 tests, suite 250 green): PoW removed from the finality mix
+(`FINALITY_MIX = {pow:0, pos:1/3, pom:2/3}`), 2/3-of-the-fast-final-set, + **anti-concentration rule**
+(`MIN_DIM_BPS`, each dim must independently clear its floor). Tests prove: both dims finalize; a PoM whale
+clearing 2/3-of-set is REJECTED for zero capital participation (capital-orthogonality T11 enforced in code);
+PoW giant contributes nothing to finality. Core `consensus::finalizes_hybrid` (235-test) left intact.
+`MIN_DIM_BPS` + the renormalized threshold are CONSTITUTIONAL constants (T4 physics/constitutional layer).
 
 ## Convergence (the architecture the research points to)
 - **Transport**: rust-libp2p (QUIC + GossipSub v1.2) + custom Bitcoin/RFC0012 addr-gossip discovery;

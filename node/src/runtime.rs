@@ -219,3 +219,113 @@ pub fn finalizes(c: &Constitution, voters_for: &[Validator], all: &[Validator], 
         c.quorum_floor_bps,
     )
 }
+
+// ============ PoS+PoM finality gadget (T3 — PoW out of finality) ============
+//
+// Research T3 (RESEARCH-NETWORK-CONSENSUS.md) found a latent bug: the face-value 3-way sum counts
+// PoW weight as final the instant it is mined, but PoW finality is probabilistic/reorgeable — so
+// PoW lag becomes a finality-SAFETY vector. The production pattern (Casper-FFG / GRANDPA / Babylon /
+// Decred) keeps the probabilistic layer OUT of the immediate finality weight. This module is the
+// runtime-level fix; the 235-test core `consensus::finalizes_hybrid` rule is left intact and reused.
+pub mod finality {
+    use crate::consensus::{self, Mix, Validator};
+
+    /// Finality mix — PoW REMOVED (it secures production / ordering / sybil-cost, never finality).
+    /// PoS:PoM = 30:60 renormalized so the set sums to 1, so the 2/3 bar is 2/3 OF THE FAST-FINAL
+    /// SET (PoS+PoM), not of a mixed-confidence global total.
+    pub const FINALITY_MIX: Mix = Mix { pow: 0.0, pos: 1.0 / 3.0, pom: 2.0 / 3.0 };
+
+    /// Anti-concentration floor (T3 + T11): each fast-final DIMENSION must independently supply at
+    /// least this fraction (BPS) of its OWN dimension total for a checkpoint to finalize. This forces
+    /// BOTH the objective capital axis (PoS) AND the subjective value axis (PoM) to participate, so
+    /// PoM's 60% cannot unilaterally finalize — capital-orthogonality (T11) enforced in code. A
+    /// CONSTITUTIONAL constant (physics/constitutional layer of the value-matrix governance, not
+    /// governance-tunable).
+    pub const MIN_DIM_BPS: u64 = 5000;
+
+    fn dim_ok(weight_for: f64, weight_all: f64) -> bool {
+        // a dimension absent from the whole set can't gate (avoids div-by-zero); otherwise the
+        // voting weight in that dimension must clear MIN_DIM_BPS of the dimension's total.
+        weight_all <= 0.0 || weight_for >= weight_all * MIN_DIM_BPS as f64 / 10_000.0
+    }
+
+    /// Finalize a checkpoint on PoS+PoM only, with the anti-concentration rule. PoW is excluded by
+    /// the mix; `now`/`horizon`/`decay_pos`/`threshold_bps` carry the usual liveness/threshold
+    /// semantics. Returns true iff (1) PoS+PoM voting weight ≥ 2/3 of the fast-final set AND (2)
+    /// each of PoS and PoM independently clears the anti-concentration floor.
+    pub fn finalizes_pos_pom(
+        voters_for: &[Validator],
+        all: &[Validator],
+        now: u64,
+        horizon: u64,
+        decay_pos: bool,
+        threshold_bps: u64,
+    ) -> bool {
+        if !consensus::finalizes_hybrid(
+            voters_for,
+            all,
+            FINALITY_MIX,
+            now,
+            horizon,
+            decay_pos,
+            threshold_bps,
+            0,
+        ) {
+            return false;
+        }
+        let pos_for: f64 = voters_for.iter().map(|v| v.pos).sum();
+        let pos_all: f64 = all.iter().map(|v| v.pos).sum();
+        let pom_for: f64 = voters_for.iter().map(|v| v.pom).sum();
+        let pom_all: f64 = all.iter().map(|v| v.pom).sum();
+        dim_ok(pos_for, pos_all) && dim_ok(pom_for, pom_all)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::finality::{finalizes_pos_pom, MIN_DIM_BPS, FINALITY_MIX};
+    use crate::consensus::{Validator, TWO_THIRDS_BPS};
+
+    fn v(id: u64, pow: f64, pos: f64, pom: f64) -> Validator {
+        Validator { id, pow, pos, pom, last_heartbeat: 0, staked_balance: 0.0 }
+    }
+
+    #[test]
+    fn pos_pom_both_dims_finalize() {
+        // two validators each carrying capital (pos) AND contribution (pom); both vote.
+        let all = vec![v(0, 0.0, 100.0, 100.0), v(1, 0.0, 100.0, 100.0)];
+        assert!(finalizes_pos_pom(&all, &all, 1, 0, false, TWO_THIRDS_BPS));
+    }
+
+    #[test]
+    fn pom_alone_cannot_finalize_anti_concentration() {
+        // a PoM "whale" (no capital) + a capital holder (no PoM). The whale alone clears 2/3 of the
+        // PoS+PoM SET, but contributes ZERO to the capital axis ⇒ anti-concentration must reject it.
+        let whale = v(0, 0.0, 0.0, 200.0);
+        let capital = v(1, 0.0, 100.0, 0.0);
+        let all = vec![whale.clone(), capital.clone()];
+        let pom_only = vec![whale];
+        assert!(
+            !finalizes_pos_pom(&pom_only, &all, 1, 0, false, TWO_THIRDS_BPS),
+            "PoM unilaterally finalized — capital-orthogonality not enforced"
+        );
+        // but both axes participating DOES finalize.
+        assert!(finalizes_pos_pom(&all, &all, 1, 0, false, TWO_THIRDS_BPS));
+    }
+
+    #[test]
+    fn pow_is_excluded_from_finality() {
+        // a PoW giant with no stake/contribution must not help finalize — PoW is out of the gadget.
+        let pow_giant = v(0, 1_000_000.0, 0.0, 0.0);
+        let pos = v(1, 0.0, 100.0, 0.0);
+        let pom = v(2, 0.0, 0.0, 100.0);
+        let all = vec![pow_giant.clone(), pos.clone(), pom.clone()];
+        // PoW giant alone: FINALITY_MIX zeroes pow ⇒ contributes nothing ⇒ cannot finalize.
+        assert!(!finalizes_pos_pom(&[pow_giant], &all, 1, 0, false, TWO_THIRDS_BPS));
+        // the two fast-final dimensions together finalize, PoW irrelevant.
+        assert!(finalizes_pos_pom(&[pos, pom], &all, 1, 0, false, TWO_THIRDS_BPS));
+        // the mix really does exclude PoW.
+        assert_eq!(FINALITY_MIX.pow, 0.0);
+        assert_eq!(MIN_DIM_BPS, 5000);
+    }
+}

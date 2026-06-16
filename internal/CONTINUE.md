@@ -39,10 +39,17 @@
   10. **Persistence** — ledger is in-memory only.
   11. **Header/clock** — `now` must be header-sourced (T3); runtime uses height.
   12. **Confirmation-tier API** — soft (sub-block) vs final (ordering block), per T9.
-- **IMMEDIATE NEXT BUILD (continuing):** T3 finality fix at the RUNTIME level (leave the 235-test core
-  `finalizes_hybrid` intact) — a `runtime::finalizes` that finalizes on PoS+PoM with the anti-concentration
-  rule, + adversarial tests (PoM-alone cannot finalize; Byzantine proposer rejected). Then gap #4 (wire
-  tokens into block validation) + gap #7 (Byzantine test).
+- **✅ SHIPPED — T3 finality fix + T11:** `runtime::finality::finalizes_pos_pom` (3 tests, suite 250):
+  PoW removed from finality (`FINALITY_MIX={pow:0,pos:1/3,pom:2/3}`), 2/3-of-fast-final-set, +
+  anti-concentration `MIN_DIM_BPS` (each of PoS/PoM must independently clear its floor ⇒ PoM-60% cannot
+  unilaterally finalize = T11 capital-orthogonality in code). Core `finalizes_hybrid` (235-test) intact.
+  T11 verdict recorded: PoS = pure capital-at-risk × time-lock + VRF + Phragmén; intrinsic value stays in
+  PoM, NEVER in security weight (Minotaur fungibility + Buterin subjectivity + filter-coincidence).
+- **IMMEDIATE NEXT BUILD (continuing):** gap #4 — wire T8 token conservation into the runtime's block
+  validation (a finalized block carrying token cells must conserve); then gap #7 — Byzantine 2-node test
+  (faulty proposer / equivocation rejected by the honest node). Both pure-additive (no core change).
+  THEN Will-gated: T1 transport choice (rust-libp2p vs tentacle — FOUNDATIONAL, confirm before build),
+  T5 shard+commit-reveal+pairwise wiring, T9 two-tier sub/ordering blocks, genesis/chain-spec (gap #1).
 
 ## ▶ RESUME HERE (2026-06-16 (c) — NODE RUNTIME + 2-NODE CONVERGENCE shipped; 6 design/research threads armed)
 - **MILESTONE — first multi-replica run of the state machine.** New `node/src/runtime.rs`
