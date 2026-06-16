@@ -4,6 +4,29 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## ▶ RESUME HERE (2026-06-16 — per-certifier asymmetric clamp BUILT; lib 194 / full 235 green)
+- **DECIDED (cf31d23) → BUILT.** `resolve_refuted_guarded` no longer gates the whole settlement
+  on one `defendant_id`; it judges EACH certifier on its OWN standing. New param
+  `certifier_keys: &[(u64, Vec<u8>)]` (the same key↔id join idiom as `juror_keys`/
+  `conflicted_juror_ids` — no new channel) replaces `defendant_id`. Per certifier: look up its
+  validator id, run `appeal_refutes_guarded(...,that_id,...)`; drop the slash iff that
+  certifier's OWN PoM is load-bearing to the full-mix non-conviction (one-way ratchet acquits
+  it), keep it otherwise. `bounded_shares` computed over the FULL certifier set so a spared
+  certifier never inflates another's bounded slash (totals stay exact). Cancel-iff-≥1-convicted
+  preserves the single-defendant acquittal (empty settlement, target not canceled).
+  REDUCTION proven: one certifier ≡ old whole-settlement guard (the two prior call sites
+  translate via `[(1,[1])]` grief / `[(7,[1])]` cartel-break and stay green). New mixed-panel
+  coverage (honest [1]↔id1 dropped, garbage [7]↔id7 kept, totals exact; standing derived not
+  asserted). dispute 25/25, lib 194, full 235, 0 new clippy. README+coherence stamped.
+- **NEXT RSAW target (each fix reveals the next):** `certifier_keys` is the gate's new critical
+  input — it MUST be consensus/standing-sourced, never producer-asserted (the same
+  dont-let-attacker-choose-a-critical-input class as header-`now` / reveal-coords / the
+  index-binding identity). An unmapped key currently defaults to UNPROTECTED (id u64::MAX,
+  conservative) which is safe, but a forged key↔id join that maps a garbage certifier onto an
+  honest holder's id would steal the clamp. Bind the join to the on-VM standing set + add the
+  binding test. STILL DECLINED (YAGNI): the `RECUSED_DIM` abstraction (one appeal court exists).
+- ─ prior resume block (history) ─
+
 ## ▶ RESUME HERE (2026-06-15 — asymmetric-appeal guard WIRED END-TO-END; +2 tests, lib 194)
 - **DECIDED → WIRED.** Will-armed 2-increment loop in a fresh context closed BOTH halves of the
   prior NEXT target. (1) `dispute::defendant_holds_downweighted_dim` — the guard's flag is now

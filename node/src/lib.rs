@@ -3093,20 +3093,24 @@ pub mod dispute {
     }
 
     /// §7.1c-guard at the SETTLEMENT level — the verdict→slash binding that makes the
-    /// asymmetric clamp END-TO-END, not just a verdict boolean. Runs the refuted settlement
-    /// ONLY if the GUARDED appeal verdict ([`appeal_refutes_guarded`], whose
-    /// down-weighted-dimension flag is DERIVED from consensus standing, not producer-asserted)
-    /// convicts; otherwise returns the empty (no-slash) settlement.
+    /// asymmetric clamp END-TO-END, and PER-CERTIFIER. Each certifier is judged on its OWN
+    /// standing: its slash is dropped iff that certifier's own PoM is load-bearing to the
+    /// full-mix non-conviction (the [`appeal_refutes_guarded`] one-way ratchet toward
+    /// acquittal applies to it), and kept iff the appeal legitimately convicts it. The
+    /// key↔id join reuses the `juror_keys` idiom (`certifier_keys`) — no new channel; an
+    /// unmapped key cannot assert protection (it falls back to the unprotected verdict).
     ///
-    /// Slash-level invariant (proven in `guarded_settlement_cannot_exceed_pre_appeal_slash`):
-    /// for a down-weighted-dimension defendant, `total_slash(guarded) ≤ total_slash(pre_appeal)`.
-    /// It holds because the guard can only turn a conviction OFF — clamp a refutation the
-    /// pre-appeal full-mix round did not reach — never ON: so no certifier is slashed under the
-    /// PoM-minimized appeal that the full-mix round would not also have slashed. The appeal
-    /// court thus cannot manufacture NEW slash against an honest holder of the dimension it
-    /// down-weights; its only power over such a defendant is acquittal. NOTE: `defendant_id` is
-    /// the consensus standing id of the party whose conviction is at stake (the down-weighted-
-    /// dimension certifier being defended), the same id space the verdict already consumes.
+    /// Why per-certifier: the prior whole-settlement form gated EVERY certifier on one
+    /// `defendant_id`, so a mixed panel (an honest PoM holder + a garbage endorser on the
+    /// same target) was all-or-nothing. Now the honest certifier is spared while the
+    /// garbage's slash lands. `bounded_shares` is computed over the FULL certifier set, so
+    /// a spared certifier never inflates another's bounded slash (totals stay exact).
+    ///
+    /// Slash-level invariant (`guarded_settlement_cannot_exceed_pre_appeal_slash`): for a
+    /// down-weighted-dimension certifier, `total_slash(guarded) ≤ total_slash(pre_appeal)`.
+    /// The guard can only turn a conviction OFF — clamp a refutation the pre-appeal full-mix
+    /// round did not reach — never ON. REDUCTION: with one certifier this is exactly the old
+    /// whole-settlement guard, its mapped id being the single defendant.
     #[allow(clippy::too_many_arguments)]
     pub fn resolve_refuted_guarded(
         entries: &mut [VestingEntry],
@@ -3115,15 +3119,51 @@ pub mod dispute {
         certifier_shares: &[(Vec<u8>, f64)],
         voters_for: &[consensus::Validator],
         all: &[consensus::Validator],
-        defendant_id: u64,
+        certifier_keys: &[(u64, Vec<u8>)],
         now: u64,
         horizon: u64,
         quorum_floor_bps: u64,
     ) -> Settlement {
-        if appeal_refutes_guarded(voters_for, all, defendant_id, now, horizon, quorum_floor_bps) {
-            resolve_refuted(entries, c, p, certifier_shares)
-        } else {
-            Settlement::default()
+        // A certifier is convicted iff the guarded appeal verdict on ITS OWN standing id
+        // convicts. Unmapped key ⇒ id u64::MAX (absent from the panel) ⇒ no protection.
+        let convicts = |who: &[u8]| -> bool {
+            let id = certifier_keys
+                .iter()
+                .find(|(_, key)| key.as_slice() == who)
+                .map(|(id, _)| *id)
+                .unwrap_or(u64::MAX);
+            appeal_refutes_guarded(voters_for, all, id, now, horizon, quorum_floor_bps)
+        };
+        if !certifier_shares.iter().any(|(who, _)| convicts(who)) {
+            // No certifier convicted ⇒ no refutation lands (preserves the single-defendant
+            // acquittal: empty settlement, target NOT canceled).
+            return Settlement::default();
+        }
+        let mut canceled = 0.0;
+        for e in entries.iter_mut() {
+            if e.cell_id == c.target && !is_vested(e, c.opened_epoch, p) {
+                canceled += e.amount;
+                e.amount = 0.0;
+            }
+        }
+        let bounded = bounded_shares(certifier_shares, canceled);
+        let mut slashes = Vec::new();
+        let mut total_slashed = 0.0;
+        for (who, share) in &bounded {
+            if *share <= 0.0 || !convicts(who) {
+                continue;
+            }
+            let amt = p.lambda * share + p.alpha;
+            slashes.push((who.clone(), amt));
+            total_slashed += amt;
+        }
+        let bounty = p.beta.clamp(0.0, 1.0) * total_slashed;
+        Settlement {
+            canceled,
+            slashes,
+            challenger_payout: c.bond + bounty,
+            author_compensation: 0.0,
+            burned: canceled + total_slashed - bounty,
         }
     }
 
@@ -4077,7 +4117,7 @@ pub mod dispute {
 
             // 3) GUARDED settlement: the clamp removes the grief end-to-end (no bool channel).
             let guarded =
-                resolve_refuted_guarded(&mut fresh(), &c, &P, &shares, &attacker, &all, 1, 0, 0, 4000);
+                resolve_refuted_guarded(&mut fresh(), &c, &P, &shares, &attacker, &all, &[(1u64, vec![1u8])], 0, 0, 4000);
             assert_eq!(
                 total_slash(&guarded),
                 0.0,
@@ -4108,13 +4148,64 @@ pub mod dispute {
                 Settlement::default()
             };
             let cb_guarded =
-                resolve_refuted_guarded(&mut fresh(), &c, &P, &shares, &cb_honest, &cb_all, 7, 0, 0, 4000);
+                resolve_refuted_guarded(&mut fresh(), &c, &P, &shares, &cb_honest, &cb_all, &[(7u64, vec![1u8])], 0, 0, 4000);
             assert!(total_slash(&cb_raw) > 0.0, "cartel-break: the overturn convicts the garbage");
             assert_eq!(
                 total_slash(&cb_guarded),
                 total_slash(&cb_raw),
                 "cartel-break preserved end-to-end: guarded == unguarded when the defendant's own \
                  PoM is not load-bearing"
+            );
+
+            // MIXED PANEL — the new per-certifier capability. One honest-PoM certifier
+            // (key [1] ↔ id 1, own PoM load-bearing to the full-mix acquittal) and one
+            // garbage endorser (key [7] ↔ id 7, not load-bearing) on the SAME target. The
+            // honest slash is DROPPED while the garbage's is KEPT — no longer all-or-nothing.
+            let mut mp_all = all.clone(); // [v9(80,80,10), v1(20,20,80)]
+            mp_all.push(v(7, 0.0, 0.0, 1.0)); // garbage endorser standing, PoM not load-bearing
+            let mp_voters = attacker.clone(); // PoW/PoS majority (id 9) votes to refute
+            let mp_shares = vec![(vec![1u8], 6.0), (vec![7u8], 6.0)];
+            let mp_keys = vec![(1u64, vec![1u8]), (7u64, vec![7u8])];
+            // standing derived, not asserted: id 1 protected, id 7 not.
+            assert!(
+                defendant_holds_downweighted_dim(&mp_voters, &mp_all, 1, 0, 0, 4000),
+                "honest certifier id 1: own PoM load-bearing ⇒ protected"
+            );
+            assert!(
+                !defendant_holds_downweighted_dim(&mp_voters, &mp_all, 7, 0, 0, 4000),
+                "garbage certifier id 7: own PoM not load-bearing ⇒ unprotected"
+            );
+            let mp = resolve_refuted_guarded(
+                &mut vec![VestingEntry { cell_id: 7, amount: 12.0, realized_epoch: 100 }],
+                &c,
+                &P,
+                &mp_shares,
+                &mp_voters,
+                &mp_all,
+                &mp_keys,
+                0,
+                0,
+                4000,
+            );
+            assert!(
+                mp.slashes.iter().all(|(who, _)| who != &vec![1u8]),
+                "honest PoM certifier dropped from the slash set"
+            );
+            assert!(
+                mp.slashes.iter().any(|(who, _)| who == &vec![7u8]),
+                "garbage certifier kept in the slash set"
+            );
+            // totals exact: the garbage's bounded slash is unchanged by the honest
+            // certifier's presence (bounded over the FULL set, not the kept subset).
+            let expected_garbage = {
+                let bounded = bounded_shares(&mp_shares, mp.canceled);
+                let gshare = bounded.iter().find(|(w, _)| w == &vec![7u8]).unwrap().1;
+                P.lambda * gshare + P.alpha
+            };
+            assert_eq!(
+                total_slash(&mp),
+                expected_garbage,
+                "totals exact: only the garbage certifier's bounded slash, honest spared"
             );
         }
     }

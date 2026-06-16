@@ -45,7 +45,7 @@
   ≤ total_slash(pre_appeal)` for a down-weighted-dim defendant on a real unvested entry + a
   non-empty certifier share (so the invariant is not vacuous), AND that the cartel-break is
   preserved at the settlement level (guarded == unguarded when the defendant's own PoM is not
-  load-bearing). +2 tests, full lib suite green (194), 0 new clippy warnings. **NEXT RSAW
+  load-bearing). Two new test fns, full lib suite green, no new clippy warnings. **NEXT RSAW
   target (each fix reveals the next):** the guard's gate is WHOLE-SETTLEMENT (one
   `defendant_id`), but `resolve_refuted` slashes PER-CERTIFIER. A mixed panel — one honest-PoM
   certifier AND one garbage certifier on the same target — is currently all-or-nothing: the gate
