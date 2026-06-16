@@ -21,6 +21,11 @@ use std::collections::{HashMap, HashSet};
 /// by design: peer discovery / gossip layer plugs in above the `Node` API.
 pub mod runtime;
 
+/// Starter Rust analogs of the ERC token standards in the cell model (fungible/ERC-20,
+/// nft/ERC-721, multi/ERC-1155). Conservation is a pure function of the tx — no oracle layer,
+/// the airgap is closed so token accounting is fully on-chain.
+pub mod tokens;
+
 /// A CKB-style script: a RISC-V program (by code hash) + its arguments. VM success
 /// = valid. Lock scripts gate ownership; type scripts gate state transitions.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

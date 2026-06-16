@@ -4,6 +4,46 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## ▶ RESUME HERE (2026-06-16 (d) — ERC tokens shipped + research landed + GAP LIST)
+- **SHIPPED — T8 ERC token analogs** `node/src/tokens.rs` (9 token cases; suite 247 green): fungible/ERC-20 (sUDT-style,
+  conservation + issuer-only mint + burn), nft/ERC-721 (id-set preserved, duplicate=forgery, issuer-only
+  new ids), multi/ERC-1155 (per-id independent conservation). T7 baked in: conservation is a PURE function
+  of the tx — no oracle, airgap closed. cargo test 247/247.
+- **RESEARCH LANDED** (full detail `internal/RESEARCH-NETWORK-CONSENSUS.md`):
+  - T1 transport → **rust-libp2p lean** (QUIC + GossipSub v1.2 + custom RFC0012 addr-gossip, skip DHT);
+    tentacle #2 (lightest, TCP-only). FOUNDATIONAL ⇒ Will-confirm before build.
+  - T2 ML-consensus → role-bounded learned signal VALIDATES our design; safe add = CLAMPED deterministic
+    weight multiplier (constitutional clamp), VRF leader-shortlist, anomaly pre-filter. DO-NOT: float on
+    consensus path / score gates finality / model-agreement-as-truth.
+  - T3 PoW finality-lag → **‼ latent bug**: `finalizes_hybrid` counts reorgeable PoW weight as final.
+    FIX (#1): PoW OUT of finality, PoS+PoM gadget on a lagging ordering-prefix, renormalized 2/3-of-set,
+    **anti-concentration rule (no single dim ≥2/3 ⇒ PoM-60% can't capture)**, accountable slashing,
+    weak-subjectivity. AUDIT PoM distribution before shipping (PoM = finality kingmaker).
+  - T9 Ergo sub-blocks → **adopt**: two-tier (sub-blocks fast/revertible, ordering blocks = PoM finality
+    checkpoints), gate re-derived from contribution-weight not PoW, compact weak-ID propagation, honest
+    soft≠final confirmation-tier API.
+  - T10 Constellation → mostly hype; salvage only standing-weighted GossipSub peer-scoring (converges w/ T1).
+  - T11 Solana-PoS-vs-value-native → agent still running.
+  - **Convergence**: libp2p+GossipSub(standing-scored) · two-tier sub/ordering blocks · PoS+PoM finality
+    (PoW out) · learned signal clamped+deterministic. Coherent stack, cross-validated by independent agents.
+- **GAP LIST — what's still unnamed but needed for a real 2-node testnet** (Will: "think of anything I missed"):
+  1. **Genesis / chain-spec** — shared genesis (initial validator set + standing dist + the constitution cell) so 2 nodes start identical.
+  2. **Block/cell wire serialization** — canonical encoding for gossip (commit_order has one; blocks/cells don't).
+  3. **State-rent / capacity / fee model** — CKB "1 PoM = 1 byte"; spam bound + native-token issuance (JUL=money / VIBE=gov / CKB-native=state-rent roles).
+  4. **Full tx-validation pipeline** — lock-sig verify + type-script run; WIRE T8 token conservation into runtime block validation.
+  5. **Mempool policy** — admission / eviction / priority (anti-spam); currently a naive Vec.
+  6. **Equivocation detection + slashing in the round loop** — dispute/consensus modules exist but the runtime never calls them.
+  7. **Byzantine 2-node test** — faulty proposer + equivocation rejected by honest node (RSAW next, pure-additive).
+  8. **Sync / late-joiner** — download + verify finalized prefix (real "2nd node joins").
+  9. **VRF leader selection** — fair rotation; runtime currently has a fixed leader.
+  10. **Persistence** — ledger is in-memory only.
+  11. **Header/clock** — `now` must be header-sourced (T3); runtime uses height.
+  12. **Confirmation-tier API** — soft (sub-block) vs final (ordering block), per T9.
+- **IMMEDIATE NEXT BUILD (continuing):** T3 finality fix at the RUNTIME level (leave the 235-test core
+  `finalizes_hybrid` intact) — a `runtime::finalizes` that finalizes on PoS+PoM with the anti-concentration
+  rule, + adversarial tests (PoM-alone cannot finalize; Byzantine proposer rejected). Then gap #4 (wire
+  tokens into block validation) + gap #7 (Byzantine test).
+
 ## ▶ RESUME HERE (2026-06-16 (c) — NODE RUNTIME + 2-NODE CONVERGENCE shipped; 6 design/research threads armed)
 - **MILESTONE — first multi-replica run of the state machine.** New `node/src/runtime.rs`
   (orchestration ONLY, ~215 LoC, NO new mechanism): `Constitution` (value-matrix governance frame),

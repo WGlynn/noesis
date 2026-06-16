@@ -2,7 +2,7 @@
 
 > Regenerated FROM the repo by `scripts/study-guide.py`, so it cannot lag the
 > code. Tick the boxes as you internalize each piece. Re-run to refresh.
-> Node test suite: **194 passing**.
+> Node test suite: **203 passing**.
 
 ## Read in this order
 
@@ -22,7 +22,7 @@
 - [ ] CKB-VM-PORT.md — - `ckb_vm::run::<R, M>(program: &Bytes, args: &[Bytes], memory_size: usize) -> Result<i8, Error>` — simplest entry; i8 exit code, 0 = success. (`src/lib.rs:41`) - Default machine recipe used by `run` itself (`src/lib.rs`):
 - [ ] COMPETITIVE-POSITION.md — Every standard chain is a **possession chain**: it records *who holds which token*, orders blocks by an exogenous cost (burned energy in PoW, staked capital in PoS), and lets an off-chain market set worth. Bitcoin's "work" is hashing — deco...
 - [ ] CONSENSUS-REVIEW.md — The load-bearing question was *"does NCI's 60/30/10 break the rock-paper-scissors / separation-of-powers claim?"* The answer turns entirely on **composition**, not the numbers:
-- [ ] CONTINUE.md — - **MILESTONE — first multi-replica run of the state machine.** New `node/src/runtime.rs` (orchestration ONLY, ~215 LoC, NO new mechanism): `Constitution` (value-matrix governance frame), `Ledger` (cells + novelty-index + PoM + height), `Bl...
+- [ ] CONTINUE.md — - **SHIPPED — T8 ERC token analogs** `node/src/tokens.rs` (9 token cases; suite 247 green): fungible/ERC-20 (sUDT-style, conservation + issuer-only mint + burn), nft/ERC-721 (id-set preserved, duplicate=forgery, issuer-only
 - [ ] CONTRIBUTING.md — noesis is in a pre-release / stealth period: development is currently closed and external contributions are not yet open. This document describes how the codebase is built and the discipline it is held to, so the workflow is legible now and...
 - [ ] FOUNDATION-grace-made-mechanical.md — *A record. Will Glynn, with JARVIS. 2026-06-12. Captured in-flight, the moment the moral substrate beneath the whole project became explicit.*
 - [ ] HANDOFF.md — Resume point for a fresh chat. Detail lives in `CONTINUE.md` (top block) and `ROADMAP.md`; this is the fast orientation. Repo: `WGlynn/noesis` (private remote). Node: `node/`, Rust.
@@ -32,6 +32,7 @@
 - [ ] ON-VM-FINALIZATION.md — `finalizes_hybrid(voters_for, all, mix, now, horizon, decay_pos, threshold_bps, quorum_floor_bps)`: - `weight_for = Σ effective_weight(v)` over voters_for - `eff_total  = Σ effective_weight(v)` over all; `base_total = Σ base_weight(v)`
 - [ ] README.md — **A Proof-of-Mind value chain.** Blocks are owned, value flows along the graph of what builds on what, and the right to finalize is earned by demonstrated contribution rather than bought with capital — the chain that prices *minds*, not has...
 - [ ] RELEASE-PLAN-VIBESWAP-ON-NOESIS.md — ---
+- [ ] RESEARCH-NETWORK-CONSENSUS.md — **Recommendation: build on `rust-libp2p`, LEAN profile** — QUIC + GossipSub v1.2 + Identify + a **custom Bitcoin-style addr-gossip discovery** (replicate CKB RFC0012 as a `NetworkBehaviour`) INSTEAD of enabling the Kademlia DHT. Gets modern...
 - [ ] SECURITY-AUDIT-attacker-choosable-inputs.md — | Surface | Critical input | Source today | Attacker-choosable? | Status | |---|---|---|---|---| | Value gate | cell DATA (content) | tx-supplied | yes, BY DESIGN — content is the thing measured | ✅ OK: floors + flow + standing price the co...
 - [ ] SECURITY.md — noesis is a pre-launch protocol; there is no public network and no funds at risk. If you find a flaw in the consensus, value, dispute, or execution layers, please report it privately rather than opening a public issue. Open a
 - [ ] T7-CROSS-CELL-SIMILARITY.md — Intake floors split by what they read: - **Content-local** (semantic floor): pure function of the cell's bytes — ON-VM since T4. - **History-dependent** (temporal novelty + similarity floor): need `seen` = the union of
@@ -41,6 +42,7 @@
 ## Code map (`node/src/lib.rs`)
 
 - [ ] `runtime` — Node runtime — the replicated state machine over the mechanism library (orchestration only; two nodes that finalize the same blocks converge...
+- [ ] `tokens` — Starter Rust analogs of the ERC token standards in the cell model (fungible/ERC-20, nft/ERC-721, multi/ERC-1155)
 - [ ] `soulbound` — SOULBOUND in the cell/UTXO model
 - [ ] `ownership` — Bitcoin-shaped ownership (port of block-ownership.py): current owner = genesis folded over a signed transfer log
 - [ ] `value` — Capability layer (port of value-v4.py + reward-model Bradley-Terry)
