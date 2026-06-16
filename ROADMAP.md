@@ -4,6 +4,28 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-15** — DESIGN tick (no code; PCP-gate at ~410k session tokens — the design *decision*
+  is context-safe, the Rust test + guard on the moat is NOT, so it is deferred to a fresh context;
+  this advances the design rather than repeating the prior "named + scoped only" tick). Resolves the
+  2026-06-14 PoW/PoS-appeal-grief vector from **named → DECIDED**. The §7.1c appeal court
+  (`DISPUTE_APPEAL`, PoM-minimized 0.225:0.675:0.10) was built to BREAK a PoM-cartel by reducing
+  PoM's appeal weight — its legitimate function is OVERTURN (acquit a down-weighted-dimension holder
+  the captured court wrongly convicted). It has NO legitimate *convicting* function for that
+  dimension: a conviction of a PoM holder belongs to the full-mix court, where PoM defends at its
+  full 0.60. ⇒ the correct guard is **candidate (a) ASYMMETRIC APPEAL**, not symmetric recusal: the
+  appeal court may only MONOTONE-DECREASE the conviction/slash of the down-weighted dimension's
+  holders, never increase it. Invariant: `appeal_slash(holder of the appeal-down-weighted dim) ≤
+  pre_appeal_slash` — a one-way ratchet toward acquittal. This KEEPS the cartel-break (acquittals
+  still flow on appeal) while REMOVING the grief: a PoW/PoS majority cannot weaponize the
+  PoM-minimized court to over-convict honest PoM (worst case = no-change), and any real PoM
+  conviction must still clear the full-mix court where PoM has standing to defend. Rejected (b)
+  symmetric cross-dimension recusal — heavier, and it over-recuses honest cross-dimension jurors
+  to solve a one-directional problem. **DESIGNED, not demonstrated.** Fresh-session build = the
+  adversarial test (`honest_pom_defendant_vs_powpos_majority_appeal_cannot_increase_slash`:
+  construct honest-PoM defendant + PoW/PoS-majority attacker, assert the appeal yields no slash
+  increase) + the monotone-decrease clamp in `Tribunal::AppealCourt`; if the test shows the current
+  court CAN raise the slash, the clamp is the fix and the test is its regression. node unchanged
+  (design tick — no test added, so no count bump).
 - **2026-06-14** — DESIGN NOTE (execution deferred to a fresh context; PCP-gate at ~310k session
   tokens: do-it-right-in-fresh-context > grind-in-exhausted-context on the moat). **Next RSAW
   target = the INVERSE of today's fix.** §7.1c's appeal court down-weights PoM (0.10), so PoW+PoS
