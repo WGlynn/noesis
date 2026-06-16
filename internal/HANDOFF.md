@@ -1,77 +1,65 @@
-# Noesis HANDOFF — 2026-06-12 (PRIVATE, stealth)
+# Noesis HANDOFF — 2026-06-16 (PRIVATE, stealth)
 
-Resume point for a fresh chat. Detail lives in `CONTINUE.md` (top block) and `ROADMAP.md`;
-this is the fast orientation. Repo: `WGlynn/noesis` (private remote). Node: `node/`, Rust.
+Fast orientation for a fresh chat. DETAIL lives in `CONTINUE.md` (top block, newest first),
+`ROADMAP.md`, and `internal/RESEARCH-NETWORK-CONSENSUS.md`. Repo: `WGlynn/noesis` (private remote).
+Node: `node/`, Rust. Keep ALL of it out of public substrate (leak-gate enforces).
 
-## Current state
-- **node: 203/203 green** (`cd node && cargo test`; lib 178 + integration suites).
-- **RSAW tick on the above (2026-06-13):** adversarial edge probe of `finalizes_fixed`
-  (horizon=0 no-decay, 100% threshold, zero-weight padding, empty voters, all-zero basis) — the
-  conservative direction `!(fixed && !float)` holds at every corner; NO break found, edges pinned
-  (`adversarial_edges_hold_conservative_direction`). node 202→203.
-- **Latest increment (2026-06-13, full-auto loop):** Phase 3 build-order step 1 — `finalization_fixed`
-  module: `consensus::finalizes_hybrid` recomputed in pure Q32.32 (fixed-point retention-decay +
-  effective/base weight + max(eff,floor) basis + 2/3 threshold, ceil-rounded against finalization),
-  drift-guarded vs the f64 reference over a deterministic liveness×decay×subset sweep — conservative
-  direction proven everywhere (`!(fixed && !float)`), agreement off the boundary band, exact-2/3 tie
-  stays un-finalized. The 3rd/last on-VM arithmetic surface after value_fixed + settlement_fixed.
-  node 197→202. Remaining: the on-VM program + header-`now`/validator-set sourcing.
-- **Last increments (2026-06-13, full-auto story-loop):** PM-17 index-dep binding, both
-  layers. (1) `index_binding` reference model F2-COMPLETED — dep identity grew a `hash_type`
-  field (`HashType{Data,Type,Data1}` + `DepScript`); a forged dep reusing code_hash+type-id
-  under a different Data/Type/Data1 is REJECTED (`bound_wrong_hash_type_rejects`, node 196→197).
-  (2) on-VM mirror — `main.rs` `index_dep_bound` compares `r.hash_type()` (QA-port-1) and the
-  overloaded `[0;32]` sentinel is now an explicit `const BINDING_ACTIVE: bool` (QA-port-2);
-  ELF rebuilt, 22 on-VM fixtures green (binding inert). Reference ↔ on-VM now F2-parity. Only
-  the activated-path fixture (real deployed script-hash) remains deploy-coupled.
-- **Prior increment (pom-roadmap tick `a905048`):** encoding-evasion of the
-  semantic seed floor is CLASS-DISSOLVED economically. Hex/zero-dilute noise slips
-  `semantic_floor` AND re-opens the v7 seed-gate pump (on encoded bytes v7≡v6), but the
-  v6 standing price is byte-blind (fresh-key ring earns 0) and the dispute slash is
-  content-agnostic (vested certifier = negative-EV, identically to raw garbage). Chasing
-  it at the content layer = case-detection vs the airgap; the economic layer dissolves the
-  class. Added three regression cases; ROADMAP + README tier marks updated. Next 🟡: bind
-  index-dep by code_hash (CONTINUE.md PM-17).
-- Value layer is comprehensively built + adversarially hardened (suite grew from 5 at the
-  start of the continuous run to the count above, via the adversarial-layering method: each
-  layer's surviving attack named the next, until the survivor was the consensus layer's own
-  ≥2/3 cross-dimension capture ceiling — pinned as a never-flips test).
+## Current state (HEAD `4bd589d`, suite 255 green)
+The mechanism library (22 modules in `node/src/lib.rs`, ~6k lines) now has a NODE RUNTIME on top, so
+the chain can be RUN, not just unit-tested. This session (full-auto, Will-armed) added:
 
-## The layer stack (all in `node/src/lib.rs`, all tested)
-- `value` v4/v5/v6/v7 — realized-flow gate (v5) → priced identity via standing-gated seeds
-  (v6) → semantic-floored seeds (v7: noise certifies nothing, even vested; own-value airgap
-  backstop preserved by flooring the seed, not the cell's own gated value).
-- `dispute` — endorsement-slashing: windowed vesting + deterministic causal-share clawback
-  + PoM-only 2/3 verdict (reuses `consensus::finalizes_hybrid`) + escalation court (full-mix
-  tribunal + juror accountability) closing the judge-cartel veto.
-- `soulbound::valid_transition_under_dispute` — exit-block so you can't burn standing to dodge a slash.
-- `evaluator` — role-bounded learned-signal consumer (advance timing + dispute evidence,
-  never mint; corrupt-evaluator-can't-mint is the load-bearing test).
-- `outcome` — learned coalition v(S), Bradley-Terry over set-level structural features.
-- `claims` — concurrent-claims settlement (seniority, exposure-freezes-borrowing, pool-eats-deficit).
-- `calibration` — feasible-region sweep + soundness guard (refuses to certify p_min<1/2).
-- `semantic` — compressibility floor: closes the incompressible-NOISE subclass of garbage-novelty
-  at the gate (entropy ≥ θ ⇒ 0), AND-composed, airgap false-positive honestly pinned.
+- **`node/src/runtime.rs`** — replicated state machine (orchestration only, no new mechanism):
+  `Constitution` (value-matrix governance frame), `Ledger` (cells + novelty-index + PoM + height),
+  `Block` (canonical commit-reveal batch), `Node` (submit/propose/validate/apply), `finalizes`
+  (wraps `consensus::finalizes_hybrid`), and `finality::finalizes_pos_pom` (T3 fix — see below).
+- **`node/tests/two_node.rs`** (3) — deterministic state-machine replication: two nodes hold
+  byte-identical (cells, index root, PoM) after every block; presentation-independent assembly;
+  non-canonical reorder rejected.
+- **`node/tests/byzantine.rs`** (5) — honest node rejects wrong-height/reordered/empty blocks;
+  equivocation detected; Byzantine minority can't finalize; honest supermajority can.
+- **`node/src/tokens.rs`** (9) — starter ERC analogs: fungible/ERC-20 (sUDT-style), nft/ERC-721,
+  multi/ERC-1155. Conservation = a PURE function of the tx (no oracle, airgap closed — Will T7).
 
-## Open frontier (post story-loop 10/10, 2026-06-12 evening)
-1. ✅ DONE 2026-06-12 PM-8/PM-9 — group-input iteration AND T6 mint-side validation
-   shipped; both smuggling pins FLIPPED (input index-1 ⇒ 13, minted noise ⇒ 14).
-   Execution tier now open at T7 (cross-cell similarity state) + T8 (Q32.32 settlement).
-2. **Cross-cell similarity floor on-VM** — needs the seen-shingle state served via a
-   Noesis syscall (host exists, tests/common/mod.rs).
-3. **Q32.32 settlement mirror** — flow/v5-v7 in fixed point (design in CKB-VM-PORT.md).
-4. **Real outcome-LABEL data** (DeepFunding-distill-over-sets) — external dependency.
-5. **Structured-but-valueless novelty** — out-of-band (labels/flow); encoding-evasion
-   pin (`encoded_noise_evades_the_entropy_floor_open_gap`) folds into this class.
+**Honest scope:** the 2-node milestone is achieved IN-PROCESS (deterministic SMR, adversarial-safe).
+It is NOT yet two OS processes over a network — that needs the transport (T1), genesis, persistence.
 
-## Infra that now runs itself
-- `scripts/doc-coherence.py` (--check/--stamp) + `scripts/study-guide.py` (--check, generates
-  STUDY-GUIDE.md from the repo) + `scripts/pre-commit` (installed via `scripts/install-hooks.sh`)
-  auto-enforce doc + study-guide freshness on every commit. Caught its own first drift.
-- Auto-continue cron `3b8e2f47` (pom-roadmap-advance, every 3h) advances this roadmap one
-  increment per fire; keep it private (leak-gate enforces).
+## Key decisions this session (and why)
+- **Value-dimension matrix = MIXED 3-layer, NOT immutable** (Will). physics (anchor-in-realized-flow +
+  noise floor; near-immutable) > constitutional (amendment rules: a dimension admitted only if it
+  predicts realized value — verifier-gated; weights bounded) > governance (weights, fluid). Boundary =
+  the completeness/weights cleavage (value-disputes-are-incompleteness-bias). Immutable would foreclose
+  debiasing-by-completion; free-governance would reopen gameability. Code: `Constitution` struct (stub).
+- **T3 — PoW OUT of finality.** `finalizes_hybrid` had a latent bug: it counted reorgeable PoW weight
+  as final ⇒ PoW lag = finality-safety vector. Fix at runtime level (core left intact):
+  `finalizes_pos_pom` uses `FINALITY_MIX={pow:0,pos:1/3,pom:2/3}`, 2/3-of-fast-final-set, +
+  `MIN_DIM_BPS` anti-concentration (each dim must independently clear its floor).
+- **T11 — capital-orthogonality is a FEATURE.** Do NOT value-weight PoS. Because PoM (60%) already
+  carries subjective value, PoS (30%) must be the objective, capital-at-risk, slashable complement.
+  Value-weighting stake would correlate the axes and destroy the Minotaur multi-resource security gain
+  (= multi-axis-robustness + filter-coincidence). The anti-concentration rule enforces this in code.
+- **CKB-shape COMMITTED** (Will); only the transport/peer layer is open.
 
-## Method (saved as a memory primitive)
-`adversarial-layering-self-names-next-layer`: run the adversary against every new v(S) the
-moment it lands; the surviving attack is the spec for the next layer; pin each gap as a
-passing test; converge when the survivor is the system's irreducible global assumption.
+## Research verdicts (full detail in RESEARCH-NETWORK-CONSENSUS.md)
+- T1 transport → **rust-libp2p lean** (QUIC + GossipSub v1.2 + custom RFC0012 addr-gossip, skip DHT);
+  tentacle #2 (lightest, TCP-only). FOUNDATIONAL ⇒ Will-confirm before build.
+- T2 ML-consensus → role-bound learned signal VALIDATES the existing design; safe add = clamped
+  deterministic weight multiplier; DO-NOT float-on-consensus-path / score-gates-finality.
+- T9 Ergo sub-blocks → ADOPT two-tier (sub-blocks fast/revertible, ordering blocks = finality
+  checkpoints), gate re-derived from contribution-weight not PoW.
+- T10 Constellation → mostly hype; salvage only standing-weighted GossipSub peer-scoring (converges w/ T1).
+
+## Open threads / next steps
+- **Will-gated:** (1) T1 transport choice (rust-libp2p vs tentacle); (2) audit PoM validator/identity
+  distribution before shipping finality (PoM=60%=kingmaker).
+- **Pure-additive builds (no core change):** genesis/chain-spec (gap #1) · tx input/output model + wire
+  token conservation into block validation (gap #4) · VRF leader selection + Phragmén (T11) · two-tier
+  sub/ordering blocks (T9) · mempool policy · persistence · sync/late-joiner.
+- **Design:** T5 shard + commit-reveal + pairwise wiring (VibeSwap CommitRevealAuction + PsiNet CRPC);
+  constitutional-cell whose transitions obey the verifier gate (matures the `Constitution` stub).
+- The 12-item gap list is in CONTINUE.md top block (d).
+
+## Build / verify
+`cd node && cargo test` (255 green). Pre-commit hooks (doc-coherence + study-guide) enforce doc
+freshness — if blocked: `python scripts/study-guide.py && python scripts/doc-coherence.py --stamp`,
+then `git add -A`, retry. Watch for the `N tests` regex false-positive (don't write "(9 tests)" in a
+doc — the checker compares it to the suite total).
