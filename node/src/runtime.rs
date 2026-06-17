@@ -22,8 +22,8 @@
 use crate::commit_order::{canonical_order, is_canonical_order, Committed};
 use crate::consensus::{self, Mix, Validator, NCI, TWO_THIRDS_BPS};
 use crate::smt::{Hash, NoveltyIndex};
-use crate::{coverage, pom_scores, tokens, Cell};
-use std::collections::HashMap;
+use crate::{coverage, pom_scores, tokens, Cell, Script};
+use std::collections::{HashMap, HashSet};
 
 // ============ Constitution — how value is measured (the amendment frame) ============
 
@@ -279,16 +279,45 @@ impl Node {
     /// (2) cells and coords align, (3) the coords are in canonical commit order (a
     /// producer-favorable reorder is rejected before any state math — no probe signal),
     /// (4) every coordinate's height matches the block (single-block batch in v1),
-    /// (5) every token movement conserves under its standard (an unauthorized mint /
-    /// non-conserving transfer makes the whole block invalid — value cannot be forged into
-    /// a finalized block).
+    /// (5) every token movement conserves under its standard and spends only live inputs (an
+    /// unauthorized mint / non-conserving transfer / phantom input makes the whole block invalid
+    /// — value cannot be forged into a finalized block), AND (6) no input is spent twice within
+    /// the block (within-block double-spend; the cross-block half is enforced by [`apply`] retiring
+    /// consumed inputs from the live set).
     pub fn validate(&self, b: &Block) -> bool {
         b.height == self.ledger.height + 1
             && b.cells.len() == b.coords.len()
             && !b.cells.is_empty()
             && is_canonical_order(&b.coords)
             && b.coords.iter().all(|c| c.height == b.height)
-            && b.token_txs.iter().all(|tx| tx.is_valid_in_ledger(&self.ledger.cells))
+            && self.token_txs_conserve_and_single_use(b)
+    }
+
+    /// Checks (5)+(6) for a block's token movements: each tx is ledger-valid (conserves AND spends
+    /// only live inputs — [`TokenTx::is_valid_in_ledger`]), AND no input identity is consumed more
+    /// than once across the whole block. (6) closes the WITHIN-BLOCK double-spend the (h) existence
+    /// fix left open: `is_valid_in_ledger` proves each input EXISTS, but two txs (or two inputs of
+    /// one tx) could each consume the SAME live authority/value cell — minting or transferring off
+    /// one cell twice. We fold a consumed-identity set across `token_txs` in canonical order and
+    /// reject the first reuse. The identity is the SAME consensus-derived tuple the existence check
+    /// keys on — `(id, lock, type_script)` — not a producer-asserted nullifier, so it stays in the
+    /// `[P·dont-let-attacker-choose-critical-input]` class. The crypto nullifier / on-VM UTXO-set
+    /// retirement is the deploy-coupled layer; this reference set models both block scopes.
+    fn token_txs_conserve_and_single_use(&self, b: &Block) -> bool {
+        let mut consumed: HashSet<(u64, Script, Script)> = HashSet::new();
+        for tx in &b.token_txs {
+            if !tx.is_valid_in_ledger(&self.ledger.cells) {
+                return false;
+            }
+            for inp in &tx.inputs {
+                let identity = (inp.id, inp.lock.clone(), inp.type_script.clone());
+                // insert returns false iff this identity was already consumed in this block.
+                if !consumed.insert(identity) {
+                    return false;
+                }
+            }
+        }
+        true
     }
 
     /// A node's vote on a proposal is its honest local validation.
@@ -301,6 +330,19 @@ impl Node {
     /// index rule), advance the height, and recompute PoM attribution over the full chain.
     /// Identical inputs ⇒ identical (cells, index.root(), pom) ⇒ replicas converge.
     pub fn apply(&mut self, b: &Block) {
+        // CROSS-BLOCK single-use: retire each consumed token input from the live set, so a later
+        // block's `is_valid_in_ledger` existence check fails for an already-spent cell — the same
+        // real authority/value cell cannot be respent across blocks (UTXO retirement). Identity is
+        // the same consensus-derived tuple the existence check keys on (`id + lock + type_script`),
+        // never producer-asserted. Retire BEFORE appending this block's new cells. (The crypto
+        // nullifier set is the deploy-coupled layer; this models the reference UTXO retirement.)
+        for tx in &b.token_txs {
+            for inp in &tx.inputs {
+                self.ledger
+                    .cells
+                    .retain(|c| !(c.id == inp.id && c.lock == inp.lock && c.type_script == inp.type_script));
+            }
+        }
         for cell in &b.cells {
             for key in coverage(&cell.data) {
                 self.ledger.index.insert(key);
@@ -562,6 +604,135 @@ mod tests {
         // authority cell, the identical mint validates — existence was the whole difference.
         node.ledger.cells.push(fabricated_authority);
         assert!(node.validate(&block.with_token_txs(vec![mint])));
+    }
+
+    // ---- input single-use: no double-spend within OR across blocks (the (i) closure) ----
+    // The (h) existence fix proved every consumed input EXISTS as a live finalized cell, but
+    // `apply` only APPENDED cells and never RETIRED a consumed one, so a REAL authority cell
+    // passed existence and could be spent repeatedly. These pin both scopes.
+
+    #[test]
+    fn same_authority_spent_twice_in_one_block_is_rejected() {
+        let (mut node, block) = node_and_carrier_block();
+        let code = [20u8; 32];
+        // exactly ONE real authority cell exists.
+        node.ledger.cells.push(ft_cell(b"USD", b"USD", 0));
+        let mint_to = |to: &'static [u8]| TokenTx {
+            standard: TokenStandard::Fungible,
+            code_hash: code,
+            args: b"USD".to_vec(),
+            inputs: vec![ft_cell(b"USD", b"USD", 0)],
+            outputs: vec![ft_cell(b"USD", to, 1000)],
+        };
+        let m1 = mint_to(b"alice");
+        let m2 = mint_to(b"bob");
+        // each tx ALONE is ledger-valid — the authority cell really exists ...
+        assert!(m1.is_valid_in_ledger(&node.ledger.cells));
+        assert!(m2.is_valid_in_ledger(&node.ledger.cells));
+        // ... but spending that SAME authority identity twice in one block is a double-spend.
+        assert!(
+            !node.validate(&block.with_token_txs(vec![m1, m2])),
+            "the same authority cell was spent twice in one block (within-block double-spend)"
+        );
+    }
+
+    #[test]
+    fn spend_then_respend_across_blocks_is_rejected() {
+        let (mut node, block1) = node_and_carrier_block();
+        let code = [20u8; 32];
+        node.ledger.cells.push(ft_cell(b"USD", b"USD", 0));
+        let mint = || TokenTx {
+            standard: TokenStandard::Fungible,
+            code_hash: code,
+            args: b"USD".to_vec(),
+            inputs: vec![ft_cell(b"USD", b"USD", 0)],
+            outputs: vec![ft_cell(b"USD", b"alice", 1000)],
+        };
+        // block 1 spends the authority cell — valid — then is applied, retiring it.
+        let b1 = block1.with_token_txs(vec![mint()]);
+        assert!(node.validate(&b1), "first spend of a live authority cell must be valid");
+        node.apply(&b1);
+
+        // a height-2 carrier block re-spending the SAME authority cell: it was retired by apply,
+        // so the existence check now fails — no respend across blocks.
+        let c2 = Cell {
+            id: 2,
+            lock: Script { code_hash: [0u8; 32], args: b"al".to_vec() },
+            type_script: Script { code_hash: [1u8; 32], args: b"alice".to_vec() },
+            parent: None,
+            timestamp: 2,
+            data: b"a distinct second-block attribution payload".to_vec(),
+        };
+        let carrier2 = Block::assemble(2, &[(c2, Committed { height: 2, secret: [22u8; 32] })]);
+        let b2 = carrier2.with_token_txs(vec![mint()]);
+        assert!(
+            !node.validate(&b2),
+            "an already-spent authority cell was respent in a later block (cross-block double-spend)"
+        );
+    }
+
+    #[test]
+    fn distinct_inputs_each_spent_once_still_validate() {
+        // single-use rejects REUSE of one identity, never DISTINCT inputs. A block carrying a USD
+        // mint (spends the USD authority cell) AND a conserving EUR transfer (spends alice's EUR
+        // cell) consumes two different identities — both must validate (no over-rejection).
+        let (mut node, block) = node_and_carrier_block();
+        let code = [20u8; 32];
+        node.ledger.cells.push(ft_cell(b"USD", b"USD", 0));
+        node.ledger.cells.push(ft_cell(b"EUR", b"alice", 10));
+        let usd_mint = TokenTx {
+            standard: TokenStandard::Fungible,
+            code_hash: code,
+            args: b"USD".to_vec(),
+            inputs: vec![ft_cell(b"USD", b"USD", 0)],
+            outputs: vec![ft_cell(b"USD", b"alice", 1000)],
+        };
+        let eur_xfer = TokenTx {
+            standard: TokenStandard::Fungible,
+            code_hash: code,
+            args: b"EUR".to_vec(),
+            inputs: vec![ft_cell(b"EUR", b"alice", 10)],
+            outputs: vec![ft_cell(b"EUR", b"alice", 4), ft_cell(b"EUR", b"bob", 6)],
+        };
+        assert!(usd_mint.is_valid() && eur_xfer.is_valid());
+        assert!(
+            node.validate(&block.with_token_txs(vec![usd_mint, eur_xfer])),
+            "two txs spending DISTINCT inputs must both validate — single-use rejects reuse, not distinctness"
+        );
+    }
+
+    #[test]
+    fn existence_and_single_use_compose() {
+        // the (h) existence gate and the (i) single-use gate are BOTH live in `validate` and
+        // independent: neither masks the other.
+        let (mut node, block) = node_and_carrier_block();
+        let code = [20u8; 32];
+        node.ledger.cells.push(ft_cell(b"USD", b"USD", 0)); // the ONE real authority cell
+        let real_spend = TokenTx {
+            standard: TokenStandard::Fungible,
+            code_hash: code,
+            args: b"USD".to_vec(),
+            inputs: vec![ft_cell(b"USD", b"USD", 0)],
+            outputs: vec![ft_cell(b"USD", b"alice", 1000)],
+        };
+        // a fabricated EUR authority cell that was never finalized into the ledger.
+        let fabricated = TokenTx {
+            standard: TokenStandard::Fungible,
+            code_hash: code,
+            args: b"EUR".to_vec(),
+            inputs: vec![ft_cell(b"EUR", b"EUR", 0)],
+            outputs: vec![ft_cell(b"EUR", b"mallory", 1000)],
+        };
+        // real spend alongside a fabricated input ⇒ rejected by EXISTENCE (h).
+        assert!(
+            !node.validate(&block.clone().with_token_txs(vec![real_spend.clone(), fabricated])),
+            "a fabricated input rode along beside a real spend (existence gate)"
+        );
+        // the SAME real authority spent twice ⇒ rejected by SINGLE-USE (i).
+        assert!(
+            !node.validate(&block.with_token_txs(vec![real_spend.clone(), real_spend])),
+            "a real authority cell was double-spent (single-use gate)"
+        );
     }
 
     #[test]

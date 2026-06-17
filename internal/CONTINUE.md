@@ -4,6 +4,23 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## ▶ RESUME HERE (2026-06-17 (j) — RSAW: double-spend / input single-use CLOSED at the reference layer; node lib 211→215)
+- **BUILT — the (i) closure.** (h) proved input EXISTENCE but `apply` never RETIRED a consumed input ⇒
+  a real authority cell could be respent. FIX at both scopes, keyed on the (h) identity tuple
+  (`id + lock + type_script`), no producer-asserted nullifier: (1) within-block — `validate` →
+  `token_txs_conserve_and_single_use` folds a `consumed: HashSet` across `token_txs` and rejects reuse
+  (also catches intra-tx dup inputs); (2) cross-block — `apply` retires each consumed input from
+  `ledger.cells` before appending, so a later block's existence check fails for a spent cell. +4 tests
+  (within-block dup rejected / cross-block respend rejected / distinct inputs still validate / existence
+  ∧ single-use compose). node lib 211→215, integration green (two_node/byzantine/gaming — empty
+  `token_txs` ⇒ retire is a no-op), 0 new clippy (27 pre-existing).
+- **HONEST SCOPE:** reference-layer in-memory UTXO retirement; the crypto nullifier set + on-VM
+  UTXO-set retirement are the deploy-coupled layer (same boundary as index-dep / header-`now` / lock-sig).
+- **NEXT RSAW target:** on-VM enforcement of single-use — the type-script must reject a tx whose input
+  is absent from the live UTXO set / present in a nullifier set (deploy-coupled crypto layer); OR
+  continue the pure-additive gap list — the full-tx pipeline (#4-next) that PERSISTS outputs into a
+  token ledger is the natural partner of retiring inputs, or genesis/chain-spec (#1). Will-gated: T1 transport.
+
 ## ▶ RESUME HERE (2026-06-16 (g) — RSAW: pinned the input-authenticity residual of the (f) fix; suite 262)
 - **PINNED (no code change) — the honest residual of (f).** The derived-minter fix relocated trust to
   the AUTHENTICITY of the consumed authority input; pre-sig / pre-ledger an attacker can FABRICATE an

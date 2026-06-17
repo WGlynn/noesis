@@ -4,6 +4,26 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-17 (j)** — BUILT (adversarial-gaming loop, the moat): the (i) double-spend / input
+  single-use closure is WIRED at the reference layer, closing the gap (i) named. (h) closed input
+  EXISTENCE, but `Node::apply` only APPENDED to `ledger.cells` and never RETIRED a consumed input, so
+  a REAL authority cell passed the existence check and could be spent repeatedly. FIX at both scopes,
+  keyed on the SAME consensus-derived identity the existence check uses (`id + lock + type_script`),
+  no producer-asserted nullifier: (1) WITHIN-BLOCK — `Node::validate` routes token checks through a new
+  `token_txs_conserve_and_single_use`, which folds a `consumed: HashSet<(id, lock, type_script)>` across
+  `token_txs` in canonical order and rejects the first reuse (also catches intra-tx duplicate inputs);
+  (2) CROSS-BLOCK — `Node::apply` retires each consumed input from `ledger.cells` BEFORE appending the
+  block's cells, so a later block's `is_valid_in_ledger` existence check fails for an already-spent
+  cell. +4 single-use tests: same authority spent twice in one block rejected; spend-then-respend across blocks
+  rejected (apply retires → later validate fails existence); distinct inputs each spent once still
+  validate (single-use rejects reuse, not distinctness); existence ∧ single-use compose (neither gate
+  masks the other). LEAN (PONYTAIL/YAGNI honored): reused the (h) identity tuple inline, NO separate
+  nullifier type. HONEST SCOPE: reference-layer / pre-deploy — in-memory UTXO retirement; the crypto
+  nullifier set + on-VM UTXO-set retirement remain the deploy-coupled layer (same "structure now,
+  crypto at deploy" boundary as index-dep / header-`now` / lock-sig). node lib 211→215, integration
+  suite green (two_node 3 / byzantine 5 / gaming 2 — empty `token_txs` ⇒ retirement is a no-op,
+  convergence unaffected), 0 new clippy (27 pre-existing). (pom-roadmap-advance tick — the adversary
+  that never sleeps built the closure it decided one tick prior.)
 - **2026-06-17 (i)** — DESIGN tick (no code; PCP-gate at ~323k session tokens — a 2nd delicate moat
   build in this very-long context is exactly what the gate guards, and the (h) build already shipped
   this session). Advances the next adversarial surface (h)'s honest-scope named — DOUBLE-SPEND /
