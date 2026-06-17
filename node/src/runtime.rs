@@ -118,18 +118,20 @@ pub enum TokenStandard {
 }
 
 /// A token value-movement carried inside a block: consume `inputs`, produce `outputs`,
-/// under one token's standard and identity (`args` = the issuer). `minter` is the party
-/// authorizing this tx — only the issuer may increase supply or introduce new ids.
-/// Validity is a PURE function of the tx (no oracle; the airgap is closed structurally —
-/// see the `tokens` module), and the runtime calls it at the block gate so a non-conserving
-/// movement can never finalize. Validation only in v1; spending the inputs / persisting the
-/// outputs into a token ledger is the deploy-coupled full-tx pipeline (gap #4 next layer).
+/// under one token's standard and identity (`args` = the issuer). Validity is a PURE function
+/// of the tx (no oracle; the airgap is closed structurally — see the `tokens` module), and the
+/// runtime calls it at the block gate so a non-conserving movement can never finalize.
+///
+/// NOTE the mint authority is NOT a field. An earlier shape carried a `minter: Vec<u8>`, but a
+/// producer-asserted minter is self-assertion, not a check: an attacker mints any token by naming
+/// itself the issuer. The minter is therefore DERIVED from the consumed inputs (see [`is_valid`]),
+/// the 8th site of `[P·dont-let-attacker-choose-critical-input]`. Validation only in v1; spending
+/// the inputs / persisting the outputs into a token ledger is the deploy-coupled full-tx pipeline.
 #[derive(Clone)]
 pub struct TokenTx {
     pub standard: TokenStandard,
     pub code_hash: [u8; 32],
     pub args: Vec<u8>,
-    pub minter: Vec<u8>,
     pub inputs: Vec<Cell>,
     pub outputs: Vec<Cell>,
 }
@@ -138,21 +140,39 @@ impl TokenTx {
     /// Does this movement satisfy its standard's conservation (and mint-authority) rule?
     /// Single-sourced from the `tokens` reference analogs — the same functions the on-VM
     /// type-script port mirrors, so the block gate and the chain agree by construction.
+    ///
+    /// The mint authority is DERIVED, never self-declared: a mint is authorized iff the issuer
+    /// SPENDS an authority cell it controls — an input of this token (same type-script identity)
+    /// whose current owner (`lock.args`) is the issuer (`args`). An attacker that names itself the
+    /// issuer but controls no such input gets a minter that cannot match, so any supply increase /
+    /// new id is rejected; conserving transfers and burns are unaffected. Pre-deploy `lock.args`
+    /// stands in for the verified owner — binding it to a checked signature is the lock-sig layer.
     pub fn is_valid(&self) -> bool {
+        // a token with no issuer identity is not well-formed (also makes the non-issuer minter
+        // sentinel below sound: a non-empty issuer can never equal the empty slice).
+        if self.args.is_empty() {
+            return false;
+        }
+        let issuer_controls_authority_input = self.inputs.iter().any(|c| {
+            c.type_script.code_hash == self.code_hash
+                && c.type_script.args == self.args
+                && c.lock.args == self.args
+        });
+        let minter: &[u8] = if issuer_controls_authority_input { &self.args } else { &[] };
         match self.standard {
             TokenStandard::Fungible => tokens::fungible::mint_or_conserve(
                 &self.inputs,
                 &self.outputs,
                 &self.code_hash,
                 &self.args,
-                &self.minter,
+                minter,
             ),
             TokenStandard::Nft => tokens::nft::mint_or_conserve(
                 &self.inputs,
                 &self.outputs,
                 &self.code_hash,
                 &self.args,
-                &self.minter,
+                minter,
             ),
             // the starter multi analog has no issuer-mint path ⇒ pure conservation only.
             TokenStandard::Multi => {
@@ -400,12 +420,11 @@ mod tests {
         let (node, block) = node_and_carrier_block();
         // carrier block alone (no token movement) is valid.
         assert!(node.validate(&block));
-        // alice (NOT the issuer "USD") tries to inflate supply 10 -> 11.
+        // alice (NOT the issuer "USD") tries to inflate supply 10 -> 11 from a cell she owns.
         let inflate = TokenTx {
             standard: TokenStandard::Fungible,
             code_hash: [20u8; 32],
             args: b"USD".to_vec(),
-            minter: b"alice".to_vec(),
             inputs: vec![ft_cell(b"USD", b"alice", 10)],
             outputs: vec![ft_cell(b"USD", b"alice", 11)],
         };
@@ -420,17 +439,62 @@ mod tests {
     #[test]
     fn block_with_conserving_transfer_validates() {
         let (node, block) = node_and_carrier_block();
-        // 10 -> 7 + 3: a pure split, conserves supply.
+        // 10 -> 7 + 3: a pure split, conserves supply (no mint authority needed).
         let split = TokenTx {
             standard: TokenStandard::Fungible,
             code_hash: [20u8; 32],
             args: b"USD".to_vec(),
-            minter: b"alice".to_vec(),
             inputs: vec![ft_cell(b"USD", b"alice", 10)],
             outputs: vec![ft_cell(b"USD", b"alice", 7), ft_cell(b"USD", b"bob", 3)],
         };
         assert!(split.is_valid());
         assert!(node.validate(&block.with_token_txs(vec![split])));
+    }
+
+    // ---- mint authority is DERIVED, not self-declared (8th attacker-input site) ----
+
+    #[test]
+    fn mint_authority_cannot_be_self_declared() {
+        let (node, block) = node_and_carrier_block();
+        let code = [20u8; 32];
+        // mallory mints 1000 USD from nothing, controlling no USD authority cell.
+        let forge = TokenTx {
+            standard: TokenStandard::Fungible,
+            code_hash: code,
+            args: b"USD".to_vec(),
+            inputs: vec![],
+            outputs: vec![ft_cell(b"USD", b"mallory", 1000)],
+        };
+        // vector premise: the raw primitive WOULD authorize the mint if handed a self-declared
+        // minter equal to the issuer — i.e. the danger is real if the runtime trusted a free field.
+        assert!(
+            fungible::mint_or_conserve(&forge.inputs, &forge.outputs, &code, b"USD", b"USD"),
+            "premise: the primitive trusts whatever minter it is handed"
+        );
+        // but the runtime DERIVES the minter from issuer-controlled inputs, so the forge fails:
+        // there is no self-declared minter channel to set.
+        assert!(
+            !forge.is_valid(),
+            "self-declared mint authority accepted — 8th attacker-input site open"
+        );
+        assert!(!node.validate(&block.with_token_txs(vec![forge])));
+    }
+
+    #[test]
+    fn issuer_mints_by_spending_its_authority_cell() {
+        let (node, block) = node_and_carrier_block();
+        let code = [20u8; 32];
+        // the issuer USD spends an authority cell it controls (a USD-token cell it OWNS:
+        // type_script.args == lock.args == "USD"), and mints 1000 to alice.
+        let mint = TokenTx {
+            standard: TokenStandard::Fungible,
+            code_hash: code,
+            args: b"USD".to_vec(),
+            inputs: vec![ft_cell(b"USD", b"USD", 0)],
+            outputs: vec![ft_cell(b"USD", b"alice", 1000)],
+        };
+        assert!(mint.is_valid(), "issuer spending its own authority cell cannot mint");
+        assert!(node.validate(&block.with_token_txs(vec![mint])));
     }
 
     #[test]

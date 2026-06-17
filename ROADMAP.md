@@ -4,6 +4,19 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-16 (f)** — RSAW (adversarial-gaming loop, the moat) on the NEW token gate found + closed a
+  SELF-INTRODUCED vector. The gap #4 block-validation gate carried a producer-asserted `minter` field;
+  `TokenTx::is_valid` authorized a fungible/NFT mint purely by `minter == args`, so an attacker mints any
+  token by naming itself the issuer. **8th site of `[P·dont-let-attacker-choose-critical-input]`.** FIX:
+  removed the `minter` field — the runtime DERIVES it from issuer control of a consumed authority cell
+  (an input of this token whose owner `lock.args` == issuer `args`). A non-issuer gets a minter that
+  cannot match ⇒ supply-increase / new-id rejected; conserving transfers + burns unaffected. Empty-issuer
+  guard makes the non-issuer sentinel sound. +2 regression tests: `mint_authority_cannot_be_self_declared`
+  (the raw primitive WOULD trust a handed minter, but the runtime exposes no such channel) +
+  `issuer_mints_by_spending_its_authority_cell` (the legitimate path). HONEST SCOPE: reference-layer /
+  pre-deploy — `lock.args` stands in for the verified owner; binding it to a checked signature is the
+  deploy-coupled lock-sig layer. lib 208→210, suite 259→261, 0 new clippy. (pom-roadmap-advance tick —
+  the adversary that never sleeps caught code shipped 2h prior, same session.)
 - **2026-06-16 (e)** — BUILT (adversarial-gaming loop, runtime level): un-gameable-`v(S)` sybil/padding
   resistance now pinned THROUGH the live node, not just the lib. `node/tests/gaming.rs` (2): a 5-identity
   sybil ring submitting IDENTICAL content banks ≤1 cell's coverage (adding identities ≠ more standing —

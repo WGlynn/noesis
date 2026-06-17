@@ -4,6 +4,24 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## ▶ RESUME HERE (2026-06-16 (f) — RSAW: derived mint authority closes the self-declared-minter vector; suite 261)
+- **HARDENED — adversarial-gaming tick on the (e) token gate.** RSAW found a vector I introduced in (e):
+  `TokenTx` carried a producer-asserted `minter` field, and `is_valid` authorized a mint by `minter == args`
+  ⇒ anyone mints any token by naming itself the issuer. **8th site of `[P·dont-let-attacker-choose-critical-input]`.**
+  FIX: removed the `minter` field; the runtime DERIVES it from issuer control of a consumed authority cell
+  (an input of this token whose owner `lock.args` == issuer `args`). Non-issuer ⇒ minter can't match ⇒
+  mint rejected; transfers/burns unaffected; empty-issuer guard makes the sentinel sound. +2 regression
+  tests (`mint_authority_cannot_be_self_declared`, `issuer_mints_by_spending_its_authority_cell`).
+  lib 208→210, suite 259→261, 0 new clippy.
+- **HONEST SCOPE:** reference-layer / pre-deploy. `lock.args` stands in for the verified owner; binding it
+  to a checked signature (verify the issuer actually signed) is the deploy-coupled lock-sig layer (same
+  pattern as index-dep / header-`now` — structure now, crypto-enforcement at deploy). Multi still has no
+  mint path (conservation only).
+- **NEXT:** the lock-sig layer (bind `lock.args` owner-proxy to a verified signature) closes this site
+  cryptographically; OR continue the pure-additive gap list — genesis/chain-spec (#1, also the natural home
+  for the FIRST token allocation now that runtime mint needs an issuer authority cell), or the full-tx
+  pipeline (#4-next) that makes `token_txs` move state. Will-gated: T1 transport; PoM-distribution audit.
+
 ## ▶ RESUME HERE (2026-06-16 (e) — gap #4: token conservation WIRED INTO block validation; suite 259)
 - **SHIPPED — gap #4 (block-validation half): token conservation at the block gate.**
   `node/src/runtime.rs`: new `TokenTx` + `TokenStandard{Fungible,Nft,Multi}` carry a value-movement
