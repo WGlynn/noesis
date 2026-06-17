@@ -4,6 +4,34 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-17 (l)** — DESIGN tick (no code; PCP-gate — a FRESH session at ~250k context after an
+  unrelated heavy build hour; delicate state-transition surgery on the moat belongs in a low-context
+  window, exactly what the gate guards). Advances the (k)-pinned PREREQUISITE — the full-tx token-state
+  persistence pipeline — from *named* → **DECIDED**, and DISSOLVES (k)'s open "new crate vs
+  fold-into-index-rule" question. **Finding (grounded, named — not from memory):** `Node::apply`
+  (`runtime.rs:332`) RETIRES consumed token inputs from `ledger.cells` (the (j) cross-block single-use)
+  but NEVER persists `TokenTx::outputs`; `is_valid_in_ledger` (`runtime.rs:199`) resolves input
+  EXISTENCE against `ledger.cells` ⇒ a transfer's outputs are unspendable downstream (multi-hop token
+  flow A→B→C is currently impossible at the reference layer), and on-VM single-use cannot retire from a
+  set the outputs were never written to (confirms (k)'s build-order). SHARPER: naively pushing token
+  outputs into `ledger.cells` would POLLUTE the novelty index + `pom_scores` (both fold over
+  `ledger.cells` in `apply`) ⇒ value-movements would manufacture attribution/PoM — a self-introduced
+  gaming vector avoided at design time. **Decision — token state is a SEPARATE set, `ledger.token_cells`,
+  never commingled with attribution `cells`:** (1) `is_valid_in_ledger`'s existence check resolves token
+  inputs against `token_cells`; (2) `apply` retires consumed inputs from + appends each `tx.outputs` to
+  `token_cells`, leaving `cells`/index/`pom_scores` token-blind (no PoM pollution from value flow);
+  (3) issuance authority cells seed into `token_cells`. **(k)'s open question dissolved:** at the
+  reference layer it is NEITHER a new crate NOR a fold-into-index-rule — token-state persistence is a
+  runtime/`Ledger` state concern (one field + `apply`/`validate` transitions), orthogonal to the index
+  rule; the new on-VM type-script crate question only arises at the on-VM PORT (after the reference
+  token-state ledger exists), so it is correctly deferred there, not decided now — the dichotomy was a
+  false one at this layer. **Build (deferred to fresh context, scoped):** (1) add `token_cells: Vec<Cell>`
+  to `Ledger`; (2) point the existence check at `token_cells` + seed issuance; (3) `apply` retire-then-
+  append on `token_cells`; (4) tests — multi-hop A→B→C transfer validates across blocks; spend of an
+  unpersisted output rejected (pre-fix) → accepted (post-fix); a token movement leaves `pom_scores`
+  unchanged (state isolation); cross-block single-use still holds on `token_cells`. LEAN (PONYTAIL/YAGNI):
+  one `Vec` field + redirected existence, NO new crate, NO nullifier type — reuse the (j) identity tuple
+  `(id, lock, type_script)` for retirement against `token_cells`. node unchanged (design tick — no count bump).
 - **2026-06-17 (k)** — DESIGN tick (no code; PCP-gate — (j) already shipped a delicate moat build
   THIS session at ~246k context, and a 2nd in the same tired window is exactly what the gate guards).
   Advances the (j) NEXT target — ON-VM single-use enforcement — from *named* → **DECIDED**, and pins
