@@ -4,6 +4,25 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-17 (h)** — BUILT (adversarial-gaming loop, the moat): the (g) residual is CLOSED at the
+  reference layer. The derived-minter gate trusts `inputs` as provided, so an attacker could FABRICATE
+  an authority cell (right shape, `lock.args` == issuer) and mint — the gate alone cannot tell a real
+  authority input from a fabricated one. FIX: a new ledger-aware gate `TokenTx::is_valid_in_ledger(live)`
+  requires every consumed input to EXIST as a live finalized cell (identity = id + lock + type_script)
+  AND pass the pure rule; `Node::validate` now calls it instead of the pure `is_valid`, so a fabricated
+  cell — never finalized into `ledger.cells` — can never enter `inputs`. The fabrication path to a mint
+  is gone, and a conserving transfer can no longer spend phantom inputs either. The prior residual-pinning
+  test became the CLOSURE test `fabricated_authority_cell_is_rejected_by_ledger_existence`: the pure gate
+  still accepts the fabricated mint (`is_valid` == true — the residual lived exactly there), the
+  ledger-aware gate rejects it (`is_valid_in_ledger` == false), and the identical mint validates once the
+  issuer's authority cell is really finalized (existence was the whole difference). Two legit-path tests
+  (`block_with_conserving_transfer_validates`, `issuer_mints_by_spending_its_authority_cell`) now seed
+  the spent input into the ledger — a transfer/mint from a never-finalized cell is correctly no longer
+  valid. HONEST SCOPE: this proves EXISTENCE, not CONTROL or single-use — the lock-sig (owner actually
+  authorized) and UTXO-retirement (no double-spend) remain the deploy-coupled layers, same "structure
+  now, crypto at deploy" boundary as index-dep / header-`now`. lib 211 green (the doc-pin test became the
+  closure test, net count unchanged), full integration suite green (gaming/two_node/byzantine/ckb_vm),
+  0 new clippy. (pom-roadmap-advance tick — the adversary that never sleeps closed the gap it named 1 day prior.)
 - **2026-06-16 (g)** — RSAW follow-tick on the (f) fix: PINNED the honest residual. The derived-minter
   fix relocated mint-authority trust from a self-declared field to the AUTHENTICITY of the consumed
   authority input — strictly better (same input-authenticity every tx needs), but NOT closed: pre-sig /
