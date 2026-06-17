@@ -4,6 +4,21 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## ▶ RESUME HERE (2026-06-17 (k) — DESIGN: on-VM single-use enforcement DECIDED + build-order pinned; node unchanged)
+- **DESIGN tick (no code; PCP-gate — (j) shipped a delicate moat build this session @ ~246k).** Advances
+  the (j) NEXT target (on-VM single-use) named→DECIDED.
+- **DECISION:** on-VM single-use = committed-UTXO-set membership + rolling-root retirement, consensus-sourced,
+  sentinel-gated inert (index-dep / header-`now` class). (1) existence = SMT membership proof of each input's
+  `(id+lock+type_script)` identity vs the live-UTXO-set root in a cell-dep (consensus-head-sourced); (2) single-use
+  = the spent input MUST be deleted in the output state-root transition (rolling-root deletion chain mirroring
+  `index_rule::valid_root_transition`, intermediates computed not claimed ⇒ re-spend unprovable). Nullifier-in-effect
+  WITHOUT a new nullifier type (LEAN: reuse SMT + rolling-root). New exits: input-not-in-set / input-not-retired.
+- **BUILD ORDER pinned:** the full-tx pipeline (#4-next, PERSIST token outputs into a token-state ledger) is the
+  PREREQUISITE; on-VM single-use lands AFTER. No token type-script crate yet (new crate vs fold-into-index-rule,
+  decided at build). Will-gated: T1 transport.
+- **NEXT BUILD (fresh context):** #4-next token-state persistence (deploy-independent, pure-additive) — the natural
+  partner of (j)'s input retirement; THEN on-VM single-use.
+
 ## ▶ RESUME HERE (2026-06-17 (j) — RSAW: double-spend / input single-use CLOSED at the reference layer; node lib 211→215)
 - **BUILT — the (i) closure.** (h) proved input EXISTENCE but `apply` never RETIRED a consumed input ⇒
   a real authority cell could be respent. FIX at both scopes, keyed on the (h) identity tuple

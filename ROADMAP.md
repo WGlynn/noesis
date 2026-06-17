@@ -4,6 +4,26 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-17 (k)** — DESIGN tick (no code; PCP-gate — (j) already shipped a delicate moat build
+  THIS session at ~246k context, and a 2nd in the same tired window is exactly what the gate guards).
+  Advances the (j) NEXT target — ON-VM single-use enforcement — from *named* → **DECIDED**, and pins
+  the build ORDER. (j) retires consumed inputs from the in-memory `ledger.cells` Vec; on-VM a
+  type-script cannot hold the set, so single-use must verify against a COMMITTED set root, reusing the
+  T7 novelty-index machinery rather than a new structure. **Decision — committed-UTXO-set membership +
+  rolling-root retirement, both consensus-sourced, sentinel-gated inert (same class as index-dep /
+  header-`now`):** (1) EXISTENCE = an SMT membership proof of each consumed input's identity
+  (`id + lock + type_script`, the (h)/(j) tuple) against the live-UTXO-set root carried in a cell-dep,
+  the root sourced from the consensus head, never producer-asserted; (2) SINGLE-USE = the spent input
+  MUST be deleted in the output state-root transition — a rolling-root deletion chain mirroring the
+  index-rule insertion chain `valid_root_transition` (intermediates COMPUTED never claimed ⇒ a re-spend
+  is structurally unprovable: a later tx cannot show membership of an input the prior block's root
+  already removed). This is a nullifier set in effect WITHOUT a separate nullifier type — LEAN/YAGNI:
+  reuse SMT membership + the rolling-root transition; introduce a dedicated nullifier SMT only when a
+  shielded / non-membership path needs it. New exit codes: input-not-in-live-set / input-not-retired-
+  in-output-root. **Build ORDER pinned (deferred, deploy-coupled):** the full-tx pipeline (#4-next) that
+  PERSISTS token outputs into a token-state ledger is the PREREQUISITE (you can only retire from a set
+  that exists on-VM); on-VM single-use lands AFTER it. No token type-script crate exists yet — new crate
+  vs fold-into-index-rule decided at build time. node unchanged (design tick — no count bump).
 - **2026-06-17 (j)** — BUILT (adversarial-gaming loop, the moat): the (i) double-spend / input
   single-use closure is WIRED at the reference layer, closing the gap (i) named. (h) closed input
   EXISTENCE, but `Node::apply` only APPENDED to `ledger.cells` and never RETIRED a consumed input, so
