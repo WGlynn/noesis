@@ -4,6 +4,27 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-17 (i)** — DESIGN tick (no code; PCP-gate at ~323k session tokens — a 2nd delicate moat
+  build in this very-long context is exactly what the gate guards, and the (h) build already shipped
+  this session). Advances the next adversarial surface (h)'s honest-scope named — DOUBLE-SPEND /
+  input single-use — from *named* → **DECIDED**. (h) closed input EXISTENCE (a fabricated authority
+  cell cannot enter `inputs`), but `Node::apply` only APPENDS to `ledger.cells` and never RETIRES a
+  consumed input, so a REAL authority cell passes the existence check and can be spent repeatedly:
+  the same authority input reused across two `token_txs` in ONE block, or re-spent in a LATER block,
+  both currently validate. **Decision — track consumed inputs by the SAME identity the existence
+  check uses (`id + lock + type_script`), at two scopes:** (1) within-block — `validate` folds a
+  consumed-set across `token_txs` in canonical order and rejects a tx whose input identity already
+  appears (double-spend inside one block); (2) cross-block — `apply` removes each consumed input from
+  `ledger.cells`, so a later block's existence check fails for an already-spent cell. The key is the
+  consensus-derived cell identity, not a producer assertion, so it stays in the
+  `[P·dont-let-attacker-choose-critical-input]` class. The crypto nullifier / on-VM UTXO-set
+  retirement is the deploy-coupled layer; the reference-layer set models BOTH scopes. **Build
+  (deferred to fresh context):** (1) `validate` threads a `consumed: HashSet<identity>` and rejects
+  reuse; (2) `apply` retires consumed inputs from the live set; (3) tests — same authority spent
+  twice in one block rejected, spend-then-respend across blocks rejected, legit single-spend +
+  conserving transfer still green, existence ∧ double-spend compose. LEAN (PONYTAIL/YAGNI): reuse
+  the (h) identity tuple inline, do NOT introduce a separate nullifier type until the on-VM layer
+  needs it. node unchanged (design tick — no count bump).
 - **2026-06-17 (h)** — BUILT (adversarial-gaming loop, the moat): the (g) residual is CLOSED at the
   reference layer. The derived-minter gate trusts `inputs` as provided, so an attacker could FABRICATE
   an authority cell (right shape, `lock.args` == issuer) and mint — the gate alone cannot tell a real
