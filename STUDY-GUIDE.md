@@ -2,13 +2,13 @@
 
 > Regenerated FROM the repo by `scripts/study-guide.py`, so it cannot lag the
 > code. Tick the boxes as you internalize each piece. Re-run to refresh.
-> Node test suite: **210 passing**.
+> Node test suite: **211 passing**.
 
 ## Read in this order
 
 1. [ ] **WHITEPAPER-FOR-DAD.md** — *A version with no math and no jargon. — Will, with JARVIS*
 2. [ ] **WHITEPAPER.md** — **Will Glynn, with JARVIS** · Draft v0.1 · 2026-06-11 · **PRIVATE — stealth, do not distribute**
-3. [ ] **ROADMAP.md** — - **2026-06-16 (f)** — RSAW (adversarial-gaming loop, the moat) on the NEW token gate found + closed a SELF-INTRODUCED vector. The gap #4 block-validation gate carried a producer-asserted `minter` field;
+3. [ ] **ROADMAP.md** — - **2026-06-16 (g)** — RSAW follow-tick on the (f) fix: PINNED the honest residual. The derived-minter fix relocated mint-authority trust from a self-declared field to the AUTHENTICITY of the consumed authority input — strictly better (same...
 4. [ ] **BLOCK-ECONOMY-SPEC.md** — A unified system that turns JARVIS's own session history into a verifiable, owned, valued contribution economy — and, through that, a realistic basis for decentralized consensus and for backwards-enforcing the model layer from the governanc...
 5. [ ] **POM-CONSENSUS.md** — An agent's **PoM score** = its accumulated Myerson/Shapley credit across *verified, owned, provenance-complete* blocks (the block-economy value layer). It is a number that says: *this mind has provably contributed this much synergy-weighted...
 6. [ ] **DISPUTE-SLASHING.md** — value_v6 priced identity: an all-fresh sybil ring earns 0 because unvested identities pump no flow. The surviving attack: a contributor with EARNED standing builds a novel-garbage child on a fresh-key garbage parent. The certifier clears th...
@@ -22,7 +22,7 @@
 - [ ] CKB-VM-PORT.md — - `ckb_vm::run::<R, M>(program: &Bytes, args: &[Bytes], memory_size: usize) -> Result<i8, Error>` — simplest entry; i8 exit code, 0 = success. (`src/lib.rs:41`) - Default machine recipe used by `run` itself (`src/lib.rs`):
 - [ ] COMPETITIVE-POSITION.md — Every standard chain is a **possession chain**: it records *who holds which token*, orders blocks by an exogenous cost (burned energy in PoW, staked capital in PoS), and lets an off-chain market set worth. Bitcoin's "work" is hashing — deco...
 - [ ] CONSENSUS-REVIEW.md — The load-bearing question was *"does NCI's 60/30/10 break the rock-paper-scissors / separation-of-powers claim?"* The answer turns entirely on **composition**, not the numbers:
-- [ ] CONTINUE.md — - **HARDENED — adversarial-gaming tick on the (e) token gate.** RSAW found a vector I introduced in (e): `TokenTx` carried a producer-asserted `minter` field, and `is_valid` authorized a mint by `minter == args`
+- [ ] CONTINUE.md — - **PINNED (no code change) — the honest residual of (f).** The derived-minter fix relocated trust to the AUTHENTICITY of the consumed authority input; pre-sig / pre-ledger an attacker can FABRICATE an
 - [ ] CONTRIBUTING.md — noesis is in a pre-release / stealth period: development is currently closed and external contributions are not yet open. This document describes how the codebase is built and the discipline it is held to, so the workflow is legible now and...
 - [ ] FOUNDATION-grace-made-mechanical.md — *A record. Will Glynn, with JARVIS. 2026-06-12. Captured in-flight, the moment the moral substrate beneath the whole project became explicit.*
 - [ ] HANDOFF.md — Fast orientation for a fresh chat. DETAIL lives in `CONTINUE.md` (top block, newest first), `ROADMAP.md`, and `internal/RESEARCH-NETWORK-CONSENSUS.md`. Repo: `WGlynn/noesis` (private remote). Node: `node/`, Rust. Keep ALL of it out of publi...

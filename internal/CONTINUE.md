@@ -4,6 +4,18 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## ▶ RESUME HERE (2026-06-16 (g) — RSAW: pinned the input-authenticity residual of the (f) fix; suite 262)
+- **PINNED (no code change) — the honest residual of (f).** The derived-minter fix relocated trust to
+  the AUTHENTICITY of the consumed authority input; pre-sig / pre-ledger an attacker can FABRICATE an
+  authority cell naming the issuer as owner and mint. Test
+  `derived_mint_authority_is_input_authenticity_bound_open_residual` documents it (asserts the gate
+  accepts a fabricated authority today) + names the close: lock-sig + ledger-input-existence layer.
+  suite 261→262 (+1 doc-pin). Not assume-closed.
+- **NEXT BUILD (crisp contract now):** verify each tx input EXISTS in the ledger AND lock-sig proves
+  control of its claimed owner ⇒ a fabricated authority cell can never enter `inputs`. This is the
+  lock-sig + ledger-input layer; it closes the 8th attacker-input site cryptographically and is the
+  natural partner of the full-tx pipeline (#4-next). Alternatively genesis/chain-spec (#1).
+
 ## ▶ RESUME HERE (2026-06-16 (f) — RSAW: derived mint authority closes the self-declared-minter vector; suite 261)
 - **HARDENED — adversarial-gaming tick on the (e) token gate.** RSAW found a vector I introduced in (e):
   `TokenTx` carried a producer-asserted `minter` field, and `is_valid` authorized a mint by `minter == args`

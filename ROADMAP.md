@@ -4,6 +4,16 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-16 (g)** — RSAW follow-tick on the (f) fix: PINNED the honest residual. The derived-minter
+  fix relocated mint-authority trust from a self-declared field to the AUTHENTICITY of the consumed
+  authority input — strictly better (same input-authenticity every tx needs), but NOT closed: pre-sig /
+  pre-ledger, `inputs` aren't verified to exist in the ledger or be controlled by their claimed owner,
+  so an attacker can FABRICATE an authority cell naming the issuer as owner and mint. Test
+  `derived_mint_authority_is_input_authenticity_bound_open_residual` documents the residual is real and
+  names where it closes — the lock-sig + ledger-input-existence layer (deploy-coupled), the same class as
+  index-dep / header-`now` (structure now, crypto-enforcement at deploy). No silent assume-closed. suite
+  261→262 (+1 doc-pin test, no code change). NEXT BUILD with a crisp contract: verify each input exists in
+  the ledger AND lock-sig proves control ⇒ a fabricated authority cell can never enter `inputs`.
 - **2026-06-16 (f)** — RSAW (adversarial-gaming loop, the moat) on the NEW token gate found + closed a
   SELF-INTRODUCED vector. The gap #4 block-validation gate carried a producer-asserted `minter` field;
   `TokenTx::is_valid` authorized a fungible/NFT mint purely by `minter == args`, so an attacker mints any

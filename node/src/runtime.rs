@@ -498,6 +498,36 @@ mod tests {
     }
 
     #[test]
+    fn derived_mint_authority_is_input_authenticity_bound_open_residual() {
+        // HONEST RESIDUAL (deploy-coupled). The (f) fix relocated mint-authority trust from a
+        // self-declared `minter` field to the AUTHENTICITY of the consumed authority input — a
+        // strictly better place (the same input-authenticity every tx already needs). But pre-sig /
+        // pre-ledger, `inputs` are not yet verified to EXIST in the ledger or to be CONTROLLED by
+        // their claimed owner, so an attacker can FABRICATE an authority cell that names the issuer
+        // as owner and mint. This test PINS that the residual is real and names where it closes —
+        // the lock-sig + ledger-input-existence layer — so it is documented, not assumed-closed.
+        let (node, block) = node_and_carrier_block();
+        let code = [20u8; 32];
+        // mallory fabricates a USD authority cell (owner == issuer == "USD") she does not control,
+        // then mints 1000 to herself. The gate accepts it: the trust now lives one layer down.
+        let fabricated_authority = ft_cell(b"USD", b"USD", 0);
+        let mint = TokenTx {
+            standard: TokenStandard::Fungible,
+            code_hash: code,
+            args: b"USD".to_vec(),
+            inputs: vec![fabricated_authority],
+            outputs: vec![ft_cell(b"USD", b"mallory", 1000)],
+        };
+        assert!(
+            mint.is_valid(),
+            "residual moved: the gate alone cannot tell a real authority input from a fabricated one"
+        );
+        assert!(node.validate(&block.with_token_txs(vec![mint])));
+        // CLOSED BY: verify each input exists in the ledger AND lock-sig proves control, so a
+        // fabricated authority cell can never enter `inputs`. That is the deploy-coupled next layer.
+    }
+
+    #[test]
     fn pos_pom_both_dims_finalize() {
         // two validators each carrying capital (pos) AND contribution (pom); both vote.
         let all = vec![v(0, 0.0, 100.0, 100.0), v(1, 0.0, 100.0, 100.0)];

@@ -4,7 +4,7 @@ Fast orientation for a fresh chat. DETAIL lives in `CONTINUE.md` (top block, new
 `ROADMAP.md`, and `internal/RESEARCH-NETWORK-CONSENSUS.md`. Repo: `WGlynn/noesis` (private remote).
 Node: `node/`, Rust. Keep ALL of it out of public substrate (leak-gate enforces).
 
-## Current state (suite 261 green)
+## Current state (suite 262 green)
 The mechanism library (22 modules in `node/src/lib.rs`, ~6k lines) now has a NODE RUNTIME on top, so
 the chain can be RUN, not just unit-tested. Latest increment (2026-06-16 (f), RSAW) hardened the gap #4
 token gate: the mint authority is now DERIVED from issuer control of a consumed authority cell, not a
@@ -69,7 +69,7 @@ It is NOT yet two OS processes over a network — that needs the transport (T1),
 - The 12-item gap list is in CONTINUE.md top block (d).
 
 ## Build / verify
-`cd node && cargo test` (261 green). Pre-commit hooks (doc-coherence + study-guide) enforce doc
+`cd node && cargo test` (262 green). Pre-commit hooks (doc-coherence + study-guide) enforce doc
 freshness — if blocked: `python scripts/study-guide.py && python scripts/doc-coherence.py --stamp`,
 then `git add -A`, retry. Watch for the `N tests` regex false-positive (don't write "(9 tests)" in a
 doc — the checker compares it to the suite total).
