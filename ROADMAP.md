@@ -4,6 +4,14 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-16 (e)** — BUILT (adversarial-gaming loop, runtime level): un-gameable-`v(S)` sybil/padding
+  resistance now pinned THROUGH the live node, not just the lib. `node/tests/gaming.rs` (2): a 5-identity
+  sybil ring submitting IDENTICAL content banks ≤1 cell's coverage (adding identities ≠ more standing —
+  whoever the consensus shuffle orders first banks it, the rest earn 0); a cross-block re-post of
+  already-committed content earns 0. Composes `temporal_novelty` + `pom_scores` through the real
+  propose→validate→finalize→apply path. No new gaming vector found — the property holds at integration.
+  suite 255→257. (pom-roadmap-advance cron tick; PCP-gate kept the delicate v(S) CORE surgery out —
+  this is the additive integration-coverage grain appropriate to a high-context window.)
 - **2026-06-16 (c)** — BUILT: node runtime + first 2-node convergence (`node/src/runtime.rs` +
   `node/tests/two_node.rs`, 3/3 green). Deterministic state-machine replication over the mechanism
   library — two nodes finalize the same blocks and hold byte-identical (cells, novelty-index root, PoM)
