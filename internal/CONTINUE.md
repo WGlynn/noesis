@@ -4,6 +4,32 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## ▶ RESUME HERE (2026-06-16 (e) — gap #4: token conservation WIRED INTO block validation; suite 259)
+- **SHIPPED — gap #4 (block-validation half): token conservation at the block gate.**
+  `node/src/runtime.rs`: new `TokenTx` + `TokenStandard{Fungible,Nft,Multi}` carry a value-movement
+  (inputs→outputs, issuer `args`, authorizing `minter`) inside a `Block` (new `token_txs` field, empty
+  by default ⇒ existing blocks unaffected; `Block::with_token_txs` builder). `TokenTx::is_valid`
+  single-sources the `tokens` reference analogs (fungible/nft `mint_or_conserve`, multi `conserves`).
+  `Node::validate` gains check (5): a block carrying ANY non-conserving / unauthorized-mint movement
+  is REJECTED before finalization — value cannot be forged into a finalized block. PURE-ADDITIVE
+  (no core/mechanism change). +2 runtime tests (unauthorized-mint rejected; conserving split
+  validates). lib 206→208, full suite 257→259, 0 new clippy (3 runtime.rs hits all pre-existing:
+  Constitution doc / state_digest complex-type).
+- **HONEST SCOPE — VALIDATION ONLY.** `apply` still does NOT spend inputs / persist outputs into a
+  token-state ledger; that's the full-tx pipeline (lock-sig verify + type-script run + token ledger),
+  deploy-coupled = the gap #4 NEXT layer. The gate is the half that earns its place today: a
+  non-conserving block can't finalize. Multi has no issuer-mint path in the starter analog ⇒ pure
+  conservation only (noted in code).
+- **GAP LIST status now:** #4 block-validation half ✓ · #7 Byzantine 2-node ✓ (already shipped).
+  Remaining pure-additive: genesis/chain-spec (#1), block/cell wire-serialization (#2),
+  state-rent/capacity/fee (#3), full-tx pipeline + token-state ledger (#4 next), mempool policy (#5),
+  equivocation-in-round-loop (#6), sync/late-joiner (#8), VRF leader (#9), persistence (#10),
+  header-clock (#11), confirmation-tier API (#12).
+- **IMMEDIATE NEXT BUILD:** continue the pure-additive gap list — genesis/chain-spec (#1) is the next
+  natural one for a real 2-node testnet, or the full-tx pipeline (#4-next) that makes `token_txs`
+  actually MOVE state. Still Will-gated: T1 transport (FOUNDATIONAL, confirm before build); audit PoM
+  validator/identity distribution before shipping finality (PoM=60%=kingmaker).
+
 ## ▶ RESUME HERE (2026-06-16 (d) — ERC tokens shipped + research landed + GAP LIST)
 - **SHIPPED — T8 ERC token analogs** `node/src/tokens.rs` (9 token cases; suite 247 green): fungible/ERC-20 (sUDT-style,
   conservation + issuer-only mint + burn), nft/ERC-721 (id-set preserved, duplicate=forgery, issuer-only

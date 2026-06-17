@@ -22,7 +22,7 @@
 use crate::commit_order::{canonical_order, is_canonical_order, Committed};
 use crate::consensus::{self, Mix, Validator, NCI, TWO_THIRDS_BPS};
 use crate::smt::{Hash, NoveltyIndex};
-use crate::{coverage, pom_scores, Cell};
+use crate::{coverage, pom_scores, tokens, Cell};
 use std::collections::HashMap;
 
 // ============ Constitution — how value is measured (the amendment frame) ============
@@ -104,6 +104,64 @@ impl Default for Ledger {
     }
 }
 
+// ============ Token transactions — value movement gated at the block level ============
+
+/// Which ERC analog a [`TokenTx`] settles under (its `type_script.code_hash` standard).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TokenStandard {
+    /// ERC-20 / sUDT — fungible supply conservation, issuer-only mint.
+    Fungible,
+    /// ERC-721 — id-set preservation, issuer-only new ids, no duplicates.
+    Nft,
+    /// ERC-1155 — per-sub-id independent conservation.
+    Multi,
+}
+
+/// A token value-movement carried inside a block: consume `inputs`, produce `outputs`,
+/// under one token's standard and identity (`args` = the issuer). `minter` is the party
+/// authorizing this tx — only the issuer may increase supply or introduce new ids.
+/// Validity is a PURE function of the tx (no oracle; the airgap is closed structurally —
+/// see the `tokens` module), and the runtime calls it at the block gate so a non-conserving
+/// movement can never finalize. Validation only in v1; spending the inputs / persisting the
+/// outputs into a token ledger is the deploy-coupled full-tx pipeline (gap #4 next layer).
+#[derive(Clone)]
+pub struct TokenTx {
+    pub standard: TokenStandard,
+    pub code_hash: [u8; 32],
+    pub args: Vec<u8>,
+    pub minter: Vec<u8>,
+    pub inputs: Vec<Cell>,
+    pub outputs: Vec<Cell>,
+}
+
+impl TokenTx {
+    /// Does this movement satisfy its standard's conservation (and mint-authority) rule?
+    /// Single-sourced from the `tokens` reference analogs — the same functions the on-VM
+    /// type-script port mirrors, so the block gate and the chain agree by construction.
+    pub fn is_valid(&self) -> bool {
+        match self.standard {
+            TokenStandard::Fungible => tokens::fungible::mint_or_conserve(
+                &self.inputs,
+                &self.outputs,
+                &self.code_hash,
+                &self.args,
+                &self.minter,
+            ),
+            TokenStandard::Nft => tokens::nft::mint_or_conserve(
+                &self.inputs,
+                &self.outputs,
+                &self.code_hash,
+                &self.args,
+                &self.minter,
+            ),
+            // the starter multi analog has no issuer-mint path ⇒ pure conservation only.
+            TokenStandard::Multi => {
+                tokens::multi::conserves(&self.inputs, &self.outputs, &self.code_hash, &self.args)
+            }
+        }
+    }
+}
+
 // ============ Block — a commit-reveal batch in canonical order ============
 
 /// A proposed block: cells paired with their consensus-sourced ordering coordinates,
@@ -114,6 +172,9 @@ pub struct Block {
     pub height: u64,
     pub cells: Vec<Cell>,
     pub coords: Vec<Committed>,
+    /// token value-movements settled by this block; each must conserve (see [`Node::validate`]).
+    /// Empty for a pure attribution block — existing blocks are unaffected by the gate.
+    pub token_txs: Vec<TokenTx>,
 }
 
 impl Block {
@@ -124,7 +185,14 @@ impl Block {
         let order = canonical_order(&raw);
         let cells = order.iter().map(|&i| proposals[i].0.clone()).collect();
         let coords = order.iter().map(|&i| raw[i].clone()).collect();
-        Block { height, cells, coords }
+        Block { height, cells, coords, token_txs: Vec::new() }
+    }
+
+    /// Attach token movements to a proposed block (builder; empty by default). Each tx is
+    /// gated by [`Node::validate`] — one non-conserving movement makes the whole block invalid.
+    pub fn with_token_txs(mut self, txs: Vec<TokenTx>) -> Block {
+        self.token_txs = txs;
+        self
     }
 }
 
@@ -166,13 +234,17 @@ impl Node {
     /// check it can verify against its OWN replica. (1) it extends our chain by one,
     /// (2) cells and coords align, (3) the coords are in canonical commit order (a
     /// producer-favorable reorder is rejected before any state math — no probe signal),
-    /// (4) every coordinate's height matches the block (single-block batch in v1).
+    /// (4) every coordinate's height matches the block (single-block batch in v1),
+    /// (5) every token movement conserves under its standard (an unauthorized mint /
+    /// non-conserving transfer makes the whole block invalid — value cannot be forged into
+    /// a finalized block).
     pub fn validate(&self, b: &Block) -> bool {
         b.height == self.ledger.height + 1
             && b.cells.len() == b.coords.len()
             && !b.cells.is_empty()
             && is_canonical_order(&b.coords)
             && b.coords.iter().all(|c| c.height == b.height)
+            && b.token_txs.iter().all(TokenTx::is_valid)
     }
 
     /// A node's vote on a proposal is its honest local validation.
@@ -284,10 +356,81 @@ pub mod finality {
 #[cfg(test)]
 mod tests {
     use super::finality::{finalizes_pos_pom, MIN_DIM_BPS, FINALITY_MIX};
+    use super::{Block, Constitution, Node, TokenStandard, TokenTx};
+    use crate::commit_order::Committed;
     use crate::consensus::{Validator, TWO_THIRDS_BPS};
+    use crate::tokens::fungible;
+    use crate::{Cell, Script};
 
     fn v(id: u64, pow: f64, pos: f64, pom: f64) -> Validator {
         Validator { id, pow, pos, pom, last_heartbeat: 0, staked_balance: 0.0 }
+    }
+
+    // ---- block-level token-conservation gate (gap #4) ----
+
+    fn ft_cell(issuer: &[u8], owner: &[u8], amt: u128) -> Cell {
+        Cell {
+            id: 0,
+            lock: Script { code_hash: [0u8; 32], args: owner.to_vec() },
+            type_script: Script { code_hash: [20u8; 32], args: issuer.to_vec() },
+            parent: None,
+            timestamp: 0,
+            data: fungible::encode(amt),
+        }
+    }
+
+    /// A fresh node and a structurally-valid one-cell carrier block at height 1, so the only
+    /// thing a token tx can flip in `validate` is the conservation gate itself.
+    fn node_and_carrier_block() -> (Node, Block) {
+        let node = Node::new(0, vec![v(0, 0.0, 100.0, 100.0)], Constitution::default());
+        let c = Cell {
+            id: 1,
+            lock: Script { code_hash: [0u8; 32], args: b"al".to_vec() },
+            type_script: Script { code_hash: [1u8; 32], args: b"alice".to_vec() },
+            parent: None,
+            timestamp: 1,
+            data: b"the quick brown fox jumps over".to_vec(),
+        };
+        let block = Block::assemble(1, &[(c, Committed { height: 1, secret: [11u8; 32] })]);
+        (node, block)
+    }
+
+    #[test]
+    fn block_with_unauthorized_mint_is_rejected() {
+        let (node, block) = node_and_carrier_block();
+        // carrier block alone (no token movement) is valid.
+        assert!(node.validate(&block));
+        // alice (NOT the issuer "USD") tries to inflate supply 10 -> 11.
+        let inflate = TokenTx {
+            standard: TokenStandard::Fungible,
+            code_hash: [20u8; 32],
+            args: b"USD".to_vec(),
+            minter: b"alice".to_vec(),
+            inputs: vec![ft_cell(b"USD", b"alice", 10)],
+            outputs: vec![ft_cell(b"USD", b"alice", 11)],
+        };
+        assert!(!inflate.is_valid(), "non-issuer inflation must be invalid");
+        let bad = block.with_token_txs(vec![inflate]);
+        assert!(
+            !node.validate(&bad),
+            "honest node finalized a block carrying a non-conserving token tx"
+        );
+    }
+
+    #[test]
+    fn block_with_conserving_transfer_validates() {
+        let (node, block) = node_and_carrier_block();
+        // 10 -> 7 + 3: a pure split, conserves supply.
+        let split = TokenTx {
+            standard: TokenStandard::Fungible,
+            code_hash: [20u8; 32],
+            args: b"USD".to_vec(),
+            minter: b"alice".to_vec(),
+            inputs: vec![ft_cell(b"USD", b"alice", 10)],
+            outputs: vec![ft_cell(b"USD", b"alice", 7), ft_cell(b"USD", b"bob", 3)],
+        };
+        assert!(split.is_valid());
+        assert!(node.validate(&block.with_token_txs(vec![split])));
     }
 
     #[test]

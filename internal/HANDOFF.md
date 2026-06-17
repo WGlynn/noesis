@@ -4,9 +4,13 @@ Fast orientation for a fresh chat. DETAIL lives in `CONTINUE.md` (top block, new
 `ROADMAP.md`, and `internal/RESEARCH-NETWORK-CONSENSUS.md`. Repo: `WGlynn/noesis` (private remote).
 Node: `node/`, Rust. Keep ALL of it out of public substrate (leak-gate enforces).
 
-## Current state (HEAD `8c20324`, suite 257 green)
+## Current state (suite 259 green)
 The mechanism library (22 modules in `node/src/lib.rs`, ~6k lines) now has a NODE RUNTIME on top, so
-the chain can be RUN, not just unit-tested. This session (full-auto, Will-armed) added:
+the chain can be RUN, not just unit-tested. Latest increment (2026-06-16 (e)) wired **gap #4 — token
+conservation into block validation**: `runtime::TokenTx` / `TokenStandard` ride inside a `Block`
+(empty by default), and `Node::validate` rejects any block carrying a non-conserving / unauthorized-mint
+movement (single-sourced from the `tokens` analogs). Validation only — spending/persisting token state
+is the deploy-coupled next layer. Prior session (full-auto, Will-armed) added:
 
 - **`node/src/runtime.rs`** — replicated state machine (orchestration only, no new mechanism):
   `Constitution` (value-matrix governance frame), `Ledger` (cells + novelty-index + PoM + height),
@@ -63,7 +67,7 @@ It is NOT yet two OS processes over a network — that needs the transport (T1),
 - The 12-item gap list is in CONTINUE.md top block (d).
 
 ## Build / verify
-`cd node && cargo test` (255 green). Pre-commit hooks (doc-coherence + study-guide) enforce doc
+`cd node && cargo test` (259 green). Pre-commit hooks (doc-coherence + study-guide) enforce doc
 freshness — if blocked: `python scripts/study-guide.py && python scripts/doc-coherence.py --stamp`,
 then `git add -A`, retry. Watch for the `N tests` regex false-positive (don't write "(9 tests)" in a
 doc — the checker compares it to the suite total).
