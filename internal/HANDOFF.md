@@ -4,7 +4,7 @@ Fast orientation for a fresh chat. DETAIL lives in `CONTINUE.md` (top block, new
 `ROADMAP.md`, and `internal/RESEARCH-NETWORK-CONSENSUS.md`. Repo: `WGlynn/noesis` (private remote).
 Node: `node/`, Rust. Keep ALL of it out of public substrate (leak-gate enforces).
 
-## Current state (HEAD `4bd589d`, suite 255 green)
+## Current state (HEAD `8c20324`, suite 257 green)
 The mechanism library (22 modules in `node/src/lib.rs`, ~6k lines) now has a NODE RUNTIME on top, so
 the chain can be RUN, not just unit-tested. This session (full-auto, Will-armed) added:
 
@@ -19,6 +19,10 @@ the chain can be RUN, not just unit-tested. This session (full-auto, Will-armed)
   equivocation detected; Byzantine minority can't finalize; honest supermajority can.
 - **`node/src/tokens.rs`** (9) — starter ERC analogs: fungible/ERC-20 (sUDT-style), nft/ERC-721,
   multi/ERC-1155. Conservation = a PURE function of the tx (no oracle, airgap closed — Will T7).
+- **`runtime::finality::finalizes_pos_pom`** (3) — T3 fix: PoW out of finality, PoS+PoM gadget,
+  anti-concentration rule (PoM-60% can't unilaterally finalize = T11 capital-orthogonality in code).
+- **`node/tests/gaming.rs`** (2) — adversarial-gaming loop at runtime level: a 5-identity sybil ring
+  banks ≤1 cell's coverage; cross-block re-post earns 0. Un-gameable-`v(S)` holds through the live node.
 
 **Honest scope:** the 2-node milestone is achieved IN-PROCESS (deterministic SMR, adversarial-safe).
 It is NOT yet two OS processes over a network — that needs the transport (T1), genesis, persistence.
