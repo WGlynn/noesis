@@ -4,20 +4,29 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
-## ▶ RESUME HERE (2026-06-17 (k) — DESIGN: on-VM single-use enforcement DECIDED + build-order pinned; node unchanged)
-- **DESIGN tick (no code; PCP-gate — (j) shipped a delicate moat build this session @ ~246k).** Advances
-  the (j) NEXT target (on-VM single-use) named→DECIDED.
-- **DECISION:** on-VM single-use = committed-UTXO-set membership + rolling-root retirement, consensus-sourced,
-  sentinel-gated inert (index-dep / header-`now` class). (1) existence = SMT membership proof of each input's
-  `(id+lock+type_script)` identity vs the live-UTXO-set root in a cell-dep (consensus-head-sourced); (2) single-use
-  = the spent input MUST be deleted in the output state-root transition (rolling-root deletion chain mirroring
-  `index_rule::valid_root_transition`, intermediates computed not claimed ⇒ re-spend unprovable). Nullifier-in-effect
-  WITHOUT a new nullifier type (LEAN: reuse SMT + rolling-root). New exits: input-not-in-set / input-not-retired.
-- **BUILD ORDER pinned:** the full-tx pipeline (#4-next, PERSIST token outputs into a token-state ledger) is the
-  PREREQUISITE; on-VM single-use lands AFTER. No token type-script crate yet (new crate vs fold-into-index-rule,
-  decided at build). Will-gated: T1 transport.
-- **NEXT BUILD (fresh context):** #4-next token-state persistence (deploy-independent, pure-additive) — the natural
-  partner of (j)'s input retirement; THEN on-VM single-use.
+## ▶ RESUME HERE (2026-06-17 (l) — DESIGN: token-state persistence DECIDED; (k) crate-question dissolved; node unchanged)
+- **DESIGN tick (no code; PCP-gate — fresh session @ ~250k after an unrelated heavy build hour).** Advances the
+  (k)-pinned PREREQUISITE (#4-next token-state persistence) named→DECIDED.
+- **GROUNDED FINDING:** `Node::apply` (`runtime.rs:332`) retires consumed token inputs but never persists
+  `TokenTx::outputs`; `is_valid_in_ledger` (`runtime.rs:199`) checks existence vs `ledger.cells` ⇒ multi-hop token
+  flow impossible at the reference layer + on-VM single-use can't retire from an unwritten set. Naive fix via
+  `ledger.cells` would POLLUTE the novelty index + `pom_scores` (both fold over `cells`).
+- **DECISION:** token state = a SEPARATE `ledger.token_cells` set. Existence resolves token inputs vs `token_cells`;
+  `apply` retires inputs from + appends `tx.outputs` to `token_cells`; `cells`/index/`pom_scores` stay token-blind;
+  issuance authority cells seed into `token_cells`.
+- **(k) crate-question DISSOLVED:** reference layer = a runtime `Ledger` field (NOT index-rule, NOT a new crate);
+  the on-VM type-script crate question only arises at the on-VM PORT.
+- **NEXT BUILD (fresh context, scoped):** (1) `token_cells: Vec<Cell>` on `Ledger`; (2) point existence at it + seed
+  issuance; (3) `apply` retire-then-append on `token_cells`; (4) tests — multi-hop A→B→C validates; spend of an
+  unpersisted output rejected→accepted; token movement leaves `pom_scores` unchanged; cross-block single-use holds.
+  THEN on-VM single-use per (k)'s SMT-membership + rolling-root decision. pushed `b914b59` (master, WGlynn/noesis).
+
+### prior — (k) on-VM single-use DECISION (the build AFTER token-state persistence)
+- on-VM single-use = committed-UTXO-set membership + rolling-root retirement, consensus-sourced, sentinel-gated inert
+  (index-dep / header-`now` class). (1) existence = SMT membership proof of each input's `(id+lock+type_script)` vs the
+  live-UTXO-set root in a cell-dep (consensus-head-sourced); (2) single-use = spent input deleted in the output
+  state-root transition (rolling-root deletion chain mirroring `index_rule::valid_root_transition`). Nullifier-in-effect
+  WITHOUT a new nullifier type. New exits: input-not-in-set / input-not-retired. Will-gated: T1 transport.
 
 ## ▶ RESUME HERE (2026-06-17 (j) — RSAW: double-spend / input single-use CLOSED at the reference layer; node lib 211→215)
 - **BUILT — the (i) closure.** (h) proved input EXISTENCE but `apply` never RETIRED a consumed input ⇒
