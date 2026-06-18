@@ -4,6 +4,34 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-17 (p)** — DESIGN tick (no code; PCP-gate — 3rd moat tick this session at ~415k context
+  during an unrelated OPH-absorption marathon; `value_flow_with_own` is the highest-blast-radius moat
+  fn (feeds v5–v8), so its surgery belongs in a fresh low-context window). DESIGNS the closure of the
+  (n) gaming vector — per-identity volume defeats v8 dampening — named→DECIDED. **Grounded current
+  state:** `value_flow_with_own` updates a parent as `next[p] = own[p] + d·Σ_{k∈children_of_external(p)}
+  flow[k]`; the sum is over child CELLS with NO per-identity cap (`children_of_external` only drops
+  same-identity self-edges), so N distinct novel-but-valueless children from ONE vested identity
+  amplify the parent LINEARLY in N (the (n) finding). **DECISION — group-by-identity diminishing-returns
+  damping:** for each parent p, partition its external children by certifying identity g (=
+  `type_script.args`); sort g's children to p by canonical commit order (deterministic, already fixed by
+  the ledger); weight the r-th child from g by ω_r = λ^r (geometric, λ∈(0,1)); parent contribution =
+  Σ_g Σ_r ω_r·flow[child_{g,r}]. **Effect:** volume attack collapses from linear-in-N to a geometric
+  sum ≤ flow/(1−λ) (saturation, not amplification — the attacker can no longer buy off the gate with
+  volume); DISTINCT identities stay full-weight at rank 0 (honest diverse certification untouched — that
+  axis is already governed by `max_certifying_identities`, orthogonal); an honest identity re-building on
+  the same parent still earns with diminishing returns, which is defensible (the same mind re-endorsing
+  the same parent has lower marginal certification value). **Determinism preserved:** grouping + commit-
+  order sort is canonical ⇒ replicas converge (state_digest stable). **Substrate-geometry match:** rank-0
+  full + decay mirrors novelty-index first-commit-wins; λ = 1/φ candidate per FibonacciScaling progressive
+  damping. **Param choice (build-time):** first-commit-wins (ω_0=1, ω_{r>0}=0; hardest, simplest) vs
+  geometric λ=1/φ (soft, preserves honest multi-build). Lean geometric λ=1/φ per PONYTAIL (don't break
+  honest cases). **BUILD CONTRACT (next low-context session):** (1) replace the flat `Σ flow[k]` in
+  `value_flow_with_own` with the per-identity-grouped λ^r sum (helper: group by `type_script.args`, sort
+  by index, apply decay); (2) the (n) open_gap test `single_identity_volume_defeats_v8_dampening_open_gap`
+  must FLIP to closed — assert volume is now BOUNDED (v8(8) ≈ v8(1), v8(4) ≤ v7(1)); (3) ALL honest v5–v8
+  tests stay green — they use distinct-identity / single-child-per-parent lineages, so the same-identity
+  damping is INERT on them ⇒ expected SMALL blast radius, but MUST verify the v(S) suite + two_node/
+  gaming/byzantine for any cascade; (4) honest-number on any expectation shift. node unchanged (design tick).
 - **2026-06-17 (o)** — BUILT ✅ — critical-qa pass on the (m) token-state change FOUND + CLOSED a
   **value-forgery hole** (more serious than (n); pre-existing, not a (m) regression, but (m) made
   value movement real so it now bites). **Finding (probed + reproduced, not memory):**

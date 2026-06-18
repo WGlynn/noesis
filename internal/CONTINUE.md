@@ -4,6 +4,20 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## ▶ RESUME HERE (2026-06-17 (p) — DESIGN: per-identity flow-normalization decided; closes the (n) gaming vector; node unchanged)
+- **DESIGN tick (no code; PCP-gate — 3rd moat tick this session @ ~415k context in an unrelated
+  OPH-marathon; `value_flow_with_own` feeds v5–v8 = highest blast radius ⇒ build in fresh low-context).**
+- **DECISION:** group a parent's external children by certifying identity g (`type_script.args`), sort
+  by commit order, weight r-th child by ω_r=λ^r (geometric). Parent flow = Σ_g Σ_r λ^r·flow[child_{g,r}].
+  Volume attack: linear-in-N → geometric ≤ flow/(1−λ) (saturates, ¬ amplifies). Distinct identities full-
+  weight @ rank 0 (honest diverse-cert untouched, orthogonal to `max_certifying_identities`). Deterministic
+  (canonical sort ⇒ replicas converge). λ=1/φ candidate (FibonacciScaling). first-commit-wins = harder alt.
+- **NEXT BUILD (scoped, fresh context):** (1) replace flat `Σ flow[k]` in `value_flow_with_own` with the
+  per-identity λ^r sum; (2) FLIP `single_identity_volume_defeats_v8_dampening_open_gap` to closed (assert
+  v8(8)≈v8(1), v8(4)≤v7(1)); (3) ALL honest v5–v8 stay green (distinct-id/single-child lineages ⇒ damping
+  INERT ⇒ small blast radius, but VERIFY no cascade + two_node/gaming/byzantine); (4) honest-number any shift.
+- Other open: lock-sig binding (existence→control) · on-VM single-use per (k). pushed (master, WGlynn/noesis).
+
 ## ▶ RESUME HERE (2026-06-17 (o) — critical-qa CLOSED a value-forgery hole in the token layer; lib 219→220)
 - **BUILT ✅ — found + fixed via /critical-qa on (m).** `is_valid_in_ledger` bound input existence to
   `(id, lock, type_script)` but NOT `data` (the amount), and conservation trusts the producer's input
