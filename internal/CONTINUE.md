@@ -4,6 +4,14 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## ⚑ COLLABORATORS (2026-06-18) — Pragma Research brought in
+Will: "invite Tom lindeman and Bernhard to noesis private repo so they can help us."
+- Tom Lindeman = `EtherDotBlue` (Runtime Verification Inc) — write-invite `322876564` PENDING.
+- Bernhard Mueller = `muellerberndt` — write-invite `322876565` PENDING.
+- Both verified against Will's GH following list (no impostor). Repo no longer solo ⇒ when onboarding,
+  give them the lean-like-Bitcoin design constraint + the value-flow moat thread (the un-gameable v(S)).
+- Check acceptance: `gh api repos/WGlynn/noesis/invitations`.
+
 ## ▶ RESUME HERE (2026-06-17 (p) — DESIGN: per-identity flow-normalization decided; closes the (n) gaming vector; node unchanged)
 - **DESIGN tick (no code; PCP-gate — 3rd moat tick this session @ ~415k context in an unrelated
   OPH-marathon; `value_flow_with_own` feeds v5–v8 = highest blast radius ⇒ build in fresh low-context).**
