@@ -4,6 +4,29 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-17 (n)** — BUILT (adversarial-gaming loop, the moat) — found + PINNED a NEW `v(S)`
+  gaming vector: **per-identity volume defeats v8's outcome dampening.** SHARPENS
+  `structured_valueless_child_still_seeds_flow_open_gap`. **Grounded finding (read, then measured —
+  not from memory):** `value_v8` dampens ONE valueless child's certification (~0.42–0.81× depending
+  on lineage), but `flow::value_flow_with_own` accumulates a parent's downstream flow as
+  `s = Σ flow[k]` over `children_of_external` with **no per-identity cap**. So a SINGLE vested
+  attacker identity (≠ the root's) posting N distinct novel-but-valueless children drives the root's
+  flow gate toward saturation regardless of the per-child gate — the dampening is a constant factor
+  bought off in N, not a brake. **Measured (new test, real numbers):** root value pumps 14.28 (N=1)
+  → 19.33 (N=4) → 20.57 (N=8); at N=4 the v8-DAMPENED root (19.33) already EXCEEDS what ONE
+  UNDAMPENED child reaches at v7 (17.63 — the full pump v8 exists to prevent), and N=8 reaches ~96%
+  of v7's undampened N=8. **Distinct from closed vectors:** v6 sybil ring is UNVESTED (seed 0);
+  identical content is novelty-deduped; self-certification is excluded by `children_of_external`'s
+  same-identity skip; the similarity floor does NOT bound it (payloads are mutually dissimilar).
+  **Increment = the pin, not the patch** (PCP-gate: 2nd delicate moat tick this session at growing
+  context — the (k)/(l) discipline; a content-untouching regression test is additive + low-risk,
+  moat-logic surgery is not). Test `single_identity_volume_defeats_v8_dampening_open_gap` asserts
+  (1) volume amplifies > 1.3× N=1→N=8, (2) v8(4) > v7(1) [the gap], (3) v8(8) < v7(8) [gate real but
+  insufficient]. node lib **218→219** green; 0 new clippy (27 pre-existing). **CLOSE (next build,
+  fresh context):** PER-IDENTITY flow-contribution normalization at the flow layer — the analog of
+  `max_certifying_identities` one level down: cap / diminish a single identity's SUMMED certifying
+  flow into one parent rather than linearly summing it. NOT the label-bound structured-valueless
+  closure (that still rides the real DeepFunding pull) — this one is structural and label-free.
 - **2026-06-17 (m)** — BUILT ✅ — token-state persistence: the (l)-DECIDED `token_cells` separation,
   shipped and tested. **What changed (reference layer, `node/src/runtime.rs`):** (1) `Ledger` gains a
   SEPARATE `token_cells: Vec<Cell>` value-UTXO set; (2) `is_valid_in_ledger`'s existence check resolves

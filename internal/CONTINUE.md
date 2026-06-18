@@ -4,6 +4,22 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## ▶ RESUME HERE (2026-06-17 (n) — RSAW: NEW v(S) gaming vector pinned — per-identity volume defeats v8 dampening; lib 218→219)
+- **BUILT (adversarial-gaming loop) — found + pinned a new vector, grounded + measured.** `value_v8`
+  dampens ONE valueless child, but `flow::value_flow_with_own` sums a parent's children flow with NO
+  per-identity cap ⇒ a SINGLE vested attacker identity posting N distinct novel-but-valueless children
+  saturates the root's flow gate; dampening is a constant factor bought off in N. Measured: root 14.28
+  (N=1)→19.33 (N=4)→20.57 (N=8); v8(4)=19.33 > v7(1)=17.63 (full undampened single-child pump). Test
+  `single_identity_volume_defeats_v8_dampening_open_gap`. lib 218→219; 0 new clippy.
+- **Why a PIN not a patch:** PCP-gate (2nd delicate moat tick this session, growing context) — an
+  additive open_gap regression test is low-risk; flow-layer surgery belongs in a fresh low-context window.
+- **NEXT BUILD (fresh context):** PER-IDENTITY flow-contribution normalization in `value_flow_with_own` —
+  the analog of `max_certifying_identities` one level down: cap / diminish a single identity's SUMMED
+  certifying flow into one parent (e.g. normalize each parent's child-flow by distinct certifying
+  identity, or apply diminishing returns past the first child per identity), then make the open_gap test
+  flip to closed. Label-free + structural (NOT the DeepFunding-label-bound structured-valueless closure).
+- pushed (master, WGlynn/noesis) — see git log tip.
+
 ## ▶ RESUME HERE (2026-06-17 (m) — BUILT: token-state persistence shipped; node lib 215→218; multi-hop A→B→C live)
 - **BUILT ✅ — the (l) decision, shipped + tested.** `Ledger` now has a SEPARATE `token_cells` value-UTXO
   set; `is_valid_in_ledger` resolves token inputs against it; `apply` retires consumed inputs from AND

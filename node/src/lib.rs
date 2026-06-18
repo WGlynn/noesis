@@ -1652,6 +1652,71 @@ pub mod value {
         }
 
         #[test]
+        fn single_identity_volume_defeats_v8_dampening_open_gap() {
+            // SHARPENS `structured_valueless_child_still_seeds_flow_open_gap`. v8's outcome gate
+            // DAMPENS one valueless child's certification of a parent, but the downstream-flow
+            // accumulation (`flow::value_flow_with_own`, the `s = Σ flow[k]` over a parent's
+            // children) SUMS every cross-identity child with NO per-identity cap. So a SINGLE
+            // vested attacker identity (≠ the root's) that posts N distinct novel-but-valueless
+            // children drives the root's flow gate toward saturation REGARDLESS of the per-child
+            // dampening — the gate factor is a constant the attacker buys off in N, not a brake.
+            //
+            // Distinct from the closed vectors: the v6 sybil ring is UNVESTED (seed 0); identical
+            // content is deduped by novelty; self-certification is excluded by
+            // `children_of_external`'s same-identity skip. The mutually-dissimilar payloads below
+            // each clear the similarity floor, so that floor does NOT bound the attack.
+            //
+            // CLOSE (next build): PER-IDENTITY flow-contribution normalization at the flow layer —
+            // the analog of `max_certifying_identities` one level down: a single identity's summed
+            // certifying flow into one parent must be capped / diminishing, not linearly summed.
+            // Pinned, not yet closed.
+            let w = trained_outcome_w();
+            // mutually-DISSIMILAR valueless prose: distinct words ⇒ each clears the similarity
+            // floor and is individually novel, yet none carries value — the worst case for the gate.
+            let payloads: [&[u8]; 8] = [
+                b"the cat sat quietly on the warm mat today",
+                b"rivers flow gently under the old stone bridge",
+                b"morning light fills the quiet empty kitchen slowly",
+                b"yellow kites drift above the distant green hill",
+                b"books rest unread along the dusty wooden shelf",
+                b"snow settles softly across the silent winter field",
+                b"clocks tick onward through the long grey afternoon",
+                b"birds gather near the fence before the evening rain",
+            ];
+            let root = cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta");
+            let st = standing_of(&[(1, FLOOR), (9, FLOOR)]); // root id 1 + ONE attacker id 9, both vested
+            let order = |n: usize| -> Vec<Cell> {
+                let mut o = vec![root.clone()];
+                for k in 0..n {
+                    o.push(cellc((k + 1) as u64, 9, (k + 1) as u64, Some(0), payloads[k]));
+                }
+                o
+            };
+            let v8 = |n: usize| {
+                value_v8(&order(n), &st, FLOOR, &w, THETA, ENTROPY_THETA, THETA_Q16, DAMP, ITERS, HALF)[0]
+            };
+            let v7 = |n: usize| value_v7(&order(n), &st, FLOOR, THETA, ENTROPY_THETA, DAMP, ITERS, HALF)[0];
+
+            // (1) volume monotonically amplifies the root even though every child is valueless +
+            //     dampened (measured ~1.44× from N=1 to N=8).
+            assert!(
+                v8(8) > 1.3 * v8(1),
+                "volume did not amplify the root — the vector may be bounded after all"
+            );
+            // (2) THE gap: 4 DAMPENED valueless children pump the root ABOVE what ONE UNDAMPENED
+            //     child reaches at v7 (the full pump v8 exists to prevent). Dampening defeated by N.
+            assert!(
+                v8(4) > v7(1),
+                "OPEN GAP: per-identity VOLUME defeats v8's per-child outcome dampening"
+            );
+            // (3) the gate is real, just insufficient: at equal N, v8 stays strictly below v7.
+            assert!(
+                v8(8) < v7(8),
+                "sanity: the outcome gate still dampens each child at equal N (constant factor)"
+            );
+        }
+
+        #[test]
         fn value_v8_pays_a_genuinely_useful_lineage() {
             // The other side of the gate: a child that EXTENDS the parent's lineage (real
             // provenance depth, the structure labels reward) keeps its seed, so the parent is
