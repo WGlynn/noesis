@@ -1,5 +1,5 @@
 {
-  "reconciled_code_hash": "16170bac87faa9f56c3b5082946a2154460e016314cbcbc56b70bccb7b241f19",
+  "reconciled_code_hash": "6307d867304bc0c1b1493b298f1abbe035b4c342673f1a1191a5dabedd65f671",
   "docs": [
     "CONTRIBUTING.md",
     "README.md",
@@ -27,7 +27,7 @@
   ],
   "code_file_hashes": {
     "node/src/lib.rs": "8b08b93e868097c03877fc794a07b3a0186d3bab8823e0af94ba3e88e06dc06c",
-    "node/src/runtime.rs": "c31c30cac02372c9cc426bddb71a2753e0339c1245f10a9f506f177481ac95b0",
+    "node/src/runtime.rs": "a0db2d86bb32a4ba70e7d3a4ad03bf1120944babd1a46c21c65d0b87c26e3254",
     "node/src/tokens.rs": "49ac7477c3f4f5d2daeef427cea0933de9db9c596281cae8876d7082c33b6065",
     "scripts/doc-coherence.py": "7535443fe5fb77a115f53a6dec449444fd2e9388bf2f7670424e5895a67247ac",
     "scripts/harvest-noesis.py": "4832de0173d9e4be37969838c45c5d06a318b04d6f8f33eae646a519f6a59343",

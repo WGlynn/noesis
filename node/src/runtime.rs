@@ -76,6 +76,12 @@ pub struct Ledger {
     pub pom: HashMap<Vec<u8>, u64>,
     /// height of the last finalized block.
     pub height: u64,
+    /// finalized TOKEN cells — the value UTXO set, kept SEPARATE from `cells` so value movement
+    /// never touches the novelty index or PoM attribution (both fold over `cells` only, so they
+    /// stay token-blind). Token-tx input existence resolves HERE; [`Node::apply`] retires consumed
+    /// inputs from and appends produced outputs to this set, enabling multi-hop token flow while
+    /// preserving cross-block single-use. Issuance authority cells are seeded into it.
+    pub token_cells: Vec<Cell>,
 }
 
 impl Ledger {
@@ -85,16 +91,20 @@ impl Ledger {
             index: NoveltyIndex::new(),
             pom: HashMap::new(),
             height: 0,
+            token_cells: Vec::new(),
         }
     }
 
     /// Compact, comparable digest of replica state for convergence checks: the finalized
-    /// cell-id sequence, the novelty-index root, and the sorted PoM attribution map.
-    pub fn state_digest(&self) -> (Vec<u64>, Hash, Vec<(Vec<u8>, u64)>) {
+    /// cell-id sequence, the novelty-index root, the sorted PoM attribution map, and the
+    /// finalized token-cell id sequence (deterministic apply order ⇒ replicas converge on
+    /// token state too, not just attribution).
+    pub fn state_digest(&self) -> (Vec<u64>, Hash, Vec<(Vec<u8>, u64)>, Vec<u64>) {
         let ids: Vec<u64> = self.cells.iter().map(|c| c.id).collect();
         let mut pom: Vec<(Vec<u8>, u64)> = self.pom.iter().map(|(k, v)| (k.clone(), *v)).collect();
         pom.sort();
-        (ids, self.index.root(), pom)
+        let token_ids: Vec<u64> = self.token_cells.iter().map(|c| c.id).collect();
+        (ids, self.index.root(), pom, token_ids)
     }
 }
 
@@ -158,7 +168,11 @@ impl TokenTx {
                 && c.type_script.args == self.args
                 && c.lock.args == self.args
         });
-        let minter: &[u8] = if issuer_controls_authority_input { &self.args } else { &[] };
+        let minter: &[u8] = if issuer_controls_authority_input {
+            &self.args
+        } else {
+            &[]
+        };
         match self.standard {
             TokenStandard::Fungible => tokens::fungible::mint_or_conserve(
                 &self.inputs,
@@ -198,9 +212,8 @@ impl TokenTx {
     /// header-`now` bindings. `lock` equality here stands in for the verified owner.
     pub fn is_valid_in_ledger(&self, live: &[Cell]) -> bool {
         let input_is_live = |inp: &Cell| {
-            live.iter().any(|c| {
-                c.id == inp.id && c.lock == inp.lock && c.type_script == inp.type_script
-            })
+            live.iter()
+                .any(|c| c.id == inp.id && c.lock == inp.lock && c.type_script == inp.type_script)
         };
         self.inputs.iter().all(input_is_live) && self.is_valid()
     }
@@ -229,7 +242,12 @@ impl Block {
         let order = canonical_order(&raw);
         let cells = order.iter().map(|&i| proposals[i].0.clone()).collect();
         let coords = order.iter().map(|&i| raw[i].clone()).collect();
-        Block { height, cells, coords, token_txs: Vec::new() }
+        Block {
+            height,
+            cells,
+            coords,
+            token_txs: Vec::new(),
+        }
     }
 
     /// Attach token movements to a proposed block (builder; empty by default). Each tx is
@@ -306,7 +324,7 @@ impl Node {
     fn token_txs_conserve_and_single_use(&self, b: &Block) -> bool {
         let mut consumed: HashSet<(u64, Script, Script)> = HashSet::new();
         for tx in &b.token_txs {
-            if !tx.is_valid_in_ledger(&self.ledger.cells) {
+            if !tx.is_valid_in_ledger(&self.ledger.token_cells) {
                 return false;
             }
             for inp in &tx.inputs {
@@ -330,17 +348,28 @@ impl Node {
     /// index rule), advance the height, and recompute PoM attribution over the full chain.
     /// Identical inputs ⇒ identical (cells, index.root(), pom) ⇒ replicas converge.
     pub fn apply(&mut self, b: &Block) {
-        // CROSS-BLOCK single-use: retire each consumed token input from the live set, so a later
-        // block's `is_valid_in_ledger` existence check fails for an already-spent cell — the same
-        // real authority/value cell cannot be respent across blocks (UTXO retirement). Identity is
-        // the same consensus-derived tuple the existence check keys on (`id + lock + type_script`),
-        // never producer-asserted. Retire BEFORE appending this block's new cells. (The crypto
-        // nullifier set is the deploy-coupled layer; this models the reference UTXO retirement.)
+        // TOKEN STATE TRANSITION (over the SEPARATE `token_cells` set, never `cells`):
+        //   (a) CROSS-BLOCK single-use — retire each consumed token input, so a later block's
+        //       `is_valid_in_ledger` existence check fails for an already-spent cell (the same real
+        //       authority/value cell cannot be respent across blocks — UTXO retirement); then
+        //   (b) PERSIST OUTPUTS — append each tx's produced outputs, so a recipient can spend them
+        //       in a LATER block (multi-hop A→B→C flow). Without (b) every output was unspendable.
+        // Identity is the consensus-derived tuple the existence check keys on (`id + lock +
+        // type_script`), never producer-asserted. Retire BEFORE appending so a within-block reuse of
+        // a just-produced output can't be conjured (validation already snapshots the pre-block set;
+        // within-block chaining is intentionally out of scope in v1). `cells`/index/`pom` are left
+        // untouched here ⇒ value movement does not perturb attribution. (The crypto nullifier set +
+        // on-VM UTXO-set retirement are the deploy-coupled layer; this is the reference model.)
         for tx in &b.token_txs {
             for inp in &tx.inputs {
                 self.ledger
-                    .cells
+                    .token_cells
                     .retain(|c| !(c.id == inp.id && c.lock == inp.lock && c.type_script == inp.type_script));
+            }
+        }
+        for tx in &b.token_txs {
+            for out in &tx.outputs {
+                self.ledger.token_cells.push(out.clone());
             }
         }
         for cell in &b.cells {
@@ -391,7 +420,11 @@ pub mod finality {
     /// Finality mix — PoW REMOVED (it secures production / ordering / sybil-cost, never finality).
     /// PoS:PoM = 30:60 renormalized so the set sums to 1, so the 2/3 bar is 2/3 OF THE FAST-FINAL
     /// SET (PoS+PoM), not of a mixed-confidence global total.
-    pub const FINALITY_MIX: Mix = Mix { pow: 0.0, pos: 1.0 / 3.0, pom: 2.0 / 3.0 };
+    pub const FINALITY_MIX: Mix = Mix {
+        pow: 0.0,
+        pos: 1.0 / 3.0,
+        pom: 2.0 / 3.0,
+    };
 
     /// Anti-concentration floor (T3 + T11): each fast-final DIMENSION must independently supply at
     /// least this fraction (BPS) of its OWN dimension total for a checkpoint to finalize. This forces
@@ -441,7 +474,7 @@ pub mod finality {
 
 #[cfg(test)]
 mod tests {
-    use super::finality::{finalizes_pos_pom, MIN_DIM_BPS, FINALITY_MIX};
+    use super::finality::{finalizes_pos_pom, FINALITY_MIX, MIN_DIM_BPS};
     use super::{Block, Constitution, Node, TokenStandard, TokenTx};
     use crate::commit_order::Committed;
     use crate::consensus::{Validator, TWO_THIRDS_BPS};
@@ -449,7 +482,14 @@ mod tests {
     use crate::{Cell, Script};
 
     fn v(id: u64, pow: f64, pos: f64, pom: f64) -> Validator {
-        Validator { id, pow, pos, pom, last_heartbeat: 0, staked_balance: 0.0 }
+        Validator {
+            id,
+            pow,
+            pos,
+            pom,
+            last_heartbeat: 0,
+            staked_balance: 0.0,
+        }
     }
 
     // ---- block-level token-conservation gate (gap #4) ----
@@ -457,8 +497,14 @@ mod tests {
     fn ft_cell(issuer: &[u8], owner: &[u8], amt: u128) -> Cell {
         Cell {
             id: 0,
-            lock: Script { code_hash: [0u8; 32], args: owner.to_vec() },
-            type_script: Script { code_hash: [20u8; 32], args: issuer.to_vec() },
+            lock: Script {
+                code_hash: [0u8; 32],
+                args: owner.to_vec(),
+            },
+            type_script: Script {
+                code_hash: [20u8; 32],
+                args: issuer.to_vec(),
+            },
             parent: None,
             timestamp: 0,
             data: fungible::encode(amt),
@@ -471,13 +517,28 @@ mod tests {
         let node = Node::new(0, vec![v(0, 0.0, 100.0, 100.0)], Constitution::default());
         let c = Cell {
             id: 1,
-            lock: Script { code_hash: [0u8; 32], args: b"al".to_vec() },
-            type_script: Script { code_hash: [1u8; 32], args: b"alice".to_vec() },
+            lock: Script {
+                code_hash: [0u8; 32],
+                args: b"al".to_vec(),
+            },
+            type_script: Script {
+                code_hash: [1u8; 32],
+                args: b"alice".to_vec(),
+            },
             parent: None,
             timestamp: 1,
             data: b"the quick brown fox jumps over".to_vec(),
         };
-        let block = Block::assemble(1, &[(c, Committed { height: 1, secret: [11u8; 32] })]);
+        let block = Block::assemble(
+            1,
+            &[(
+                c,
+                Committed {
+                    height: 1,
+                    secret: [11u8; 32],
+                },
+            )],
+        );
         (node, block)
     }
 
@@ -506,7 +567,7 @@ mod tests {
     fn block_with_conserving_transfer_validates() {
         let (mut node, block) = node_and_carrier_block();
         // the spent input must be a REAL live cell — a transfer cannot conserve from a phantom.
-        node.ledger.cells.push(ft_cell(b"USD", b"alice", 10));
+        node.ledger.token_cells.push(ft_cell(b"USD", b"alice", 10));
         // 10 -> 7 + 3: a pure split, conserves supply (no mint authority needed).
         let split = TokenTx {
             standard: TokenStandard::Fungible,
@@ -553,7 +614,7 @@ mod tests {
         let (mut node, block) = node_and_carrier_block();
         let code = [20u8; 32];
         // the authority cell the issuer spends must be a REAL live cell it controls.
-        node.ledger.cells.push(ft_cell(b"USD", b"USD", 0));
+        node.ledger.token_cells.push(ft_cell(b"USD", b"USD", 0));
         // the issuer USD spends an authority cell it controls (a USD-token cell it OWNS:
         // type_script.args == lock.args == "USD"), and mints 1000 to alice.
         let mint = TokenTx {
@@ -563,7 +624,10 @@ mod tests {
             inputs: vec![ft_cell(b"USD", b"USD", 0)],
             outputs: vec![ft_cell(b"USD", b"alice", 1000)],
         };
-        assert!(mint.is_valid(), "issuer spending its own authority cell cannot mint");
+        assert!(
+            mint.is_valid(),
+            "issuer spending its own authority cell cannot mint"
+        );
         assert!(node.validate(&block.with_token_txs(vec![mint])));
     }
 
@@ -593,7 +657,7 @@ mod tests {
         );
         // ... and the LEDGER-AWARE gate rejects it: no such cell was ever finalized.
         assert!(
-            !mint.is_valid_in_ledger(&node.ledger.cells),
+            !mint.is_valid_in_ledger(&node.ledger.token_cells),
             "fabricated authority input passed the ledger-existence check"
         );
         assert!(
@@ -602,7 +666,7 @@ mod tests {
         );
         // and the legitimate path is preserved: once the issuer REALLY controls a finalized
         // authority cell, the identical mint validates — existence was the whole difference.
-        node.ledger.cells.push(fabricated_authority);
+        node.ledger.token_cells.push(fabricated_authority);
         assert!(node.validate(&block.with_token_txs(vec![mint])));
     }
 
@@ -616,7 +680,7 @@ mod tests {
         let (mut node, block) = node_and_carrier_block();
         let code = [20u8; 32];
         // exactly ONE real authority cell exists.
-        node.ledger.cells.push(ft_cell(b"USD", b"USD", 0));
+        node.ledger.token_cells.push(ft_cell(b"USD", b"USD", 0));
         let mint_to = |to: &'static [u8]| TokenTx {
             standard: TokenStandard::Fungible,
             code_hash: code,
@@ -627,8 +691,8 @@ mod tests {
         let m1 = mint_to(b"alice");
         let m2 = mint_to(b"bob");
         // each tx ALONE is ledger-valid — the authority cell really exists ...
-        assert!(m1.is_valid_in_ledger(&node.ledger.cells));
-        assert!(m2.is_valid_in_ledger(&node.ledger.cells));
+        assert!(m1.is_valid_in_ledger(&node.ledger.token_cells));
+        assert!(m2.is_valid_in_ledger(&node.ledger.token_cells));
         // ... but spending that SAME authority identity twice in one block is a double-spend.
         assert!(
             !node.validate(&block.with_token_txs(vec![m1, m2])),
@@ -640,7 +704,7 @@ mod tests {
     fn spend_then_respend_across_blocks_is_rejected() {
         let (mut node, block1) = node_and_carrier_block();
         let code = [20u8; 32];
-        node.ledger.cells.push(ft_cell(b"USD", b"USD", 0));
+        node.ledger.token_cells.push(ft_cell(b"USD", b"USD", 0));
         let mint = || TokenTx {
             standard: TokenStandard::Fungible,
             code_hash: code,
@@ -650,20 +714,38 @@ mod tests {
         };
         // block 1 spends the authority cell — valid — then is applied, retiring it.
         let b1 = block1.with_token_txs(vec![mint()]);
-        assert!(node.validate(&b1), "first spend of a live authority cell must be valid");
+        assert!(
+            node.validate(&b1),
+            "first spend of a live authority cell must be valid"
+        );
         node.apply(&b1);
 
         // a height-2 carrier block re-spending the SAME authority cell: it was retired by apply,
         // so the existence check now fails — no respend across blocks.
         let c2 = Cell {
             id: 2,
-            lock: Script { code_hash: [0u8; 32], args: b"al".to_vec() },
-            type_script: Script { code_hash: [1u8; 32], args: b"alice".to_vec() },
+            lock: Script {
+                code_hash: [0u8; 32],
+                args: b"al".to_vec(),
+            },
+            type_script: Script {
+                code_hash: [1u8; 32],
+                args: b"alice".to_vec(),
+            },
             parent: None,
             timestamp: 2,
             data: b"a distinct second-block attribution payload".to_vec(),
         };
-        let carrier2 = Block::assemble(2, &[(c2, Committed { height: 2, secret: [22u8; 32] })]);
+        let carrier2 = Block::assemble(
+            2,
+            &[(
+                c2,
+                Committed {
+                    height: 2,
+                    secret: [22u8; 32],
+                },
+            )],
+        );
         let b2 = carrier2.with_token_txs(vec![mint()]);
         assert!(
             !node.validate(&b2),
@@ -678,8 +760,8 @@ mod tests {
         // cell) consumes two different identities — both must validate (no over-rejection).
         let (mut node, block) = node_and_carrier_block();
         let code = [20u8; 32];
-        node.ledger.cells.push(ft_cell(b"USD", b"USD", 0));
-        node.ledger.cells.push(ft_cell(b"EUR", b"alice", 10));
+        node.ledger.token_cells.push(ft_cell(b"USD", b"USD", 0));
+        node.ledger.token_cells.push(ft_cell(b"EUR", b"alice", 10));
         let usd_mint = TokenTx {
             standard: TokenStandard::Fungible,
             code_hash: code,
@@ -707,7 +789,7 @@ mod tests {
         // independent: neither masks the other.
         let (mut node, block) = node_and_carrier_block();
         let code = [20u8; 32];
-        node.ledger.cells.push(ft_cell(b"USD", b"USD", 0)); // the ONE real authority cell
+        node.ledger.token_cells.push(ft_cell(b"USD", b"USD", 0)); // the ONE real authority cell
         let real_spend = TokenTx {
             standard: TokenStandard::Fungible,
             code_hash: code,
@@ -733,6 +815,168 @@ mod tests {
             !node.validate(&block.with_token_txs(vec![real_spend.clone(), real_spend])),
             "a real authority cell was double-spent (single-use gate)"
         );
+    }
+
+    // ---- token-state persistence: outputs become spendable, enabling multi-hop flow ----
+    // Before this tick `apply` retired consumed inputs but NEVER persisted `tx.outputs`, so every
+    // output was a dead end — a recipient could not spend what it received. Outputs now land in the
+    // SEPARATE `token_cells` set; existence resolves there; `cells`/index/`pom` stay token-blind.
+
+    /// A non-empty carrier block at a given height (needed because `validate` rejects an empty
+    /// block); its single attribution cell is token-blind, so it never collides with token cells.
+    fn carrier_at(height: u64, id: u64, secret: u8, payload: &[u8]) -> Block {
+        let c = Cell {
+            id,
+            lock: Script {
+                code_hash: [0u8; 32],
+                args: b"al".to_vec(),
+            },
+            type_script: Script {
+                code_hash: [1u8; 32],
+                args: b"alice".to_vec(),
+            },
+            parent: None,
+            timestamp: height,
+            data: payload.to_vec(),
+        };
+        Block::assemble(
+            height,
+            &[(
+                c,
+                Committed {
+                    height,
+                    secret: [secret; 32],
+                },
+            )],
+        )
+    }
+
+    #[test]
+    fn multi_hop_token_flow_across_blocks() {
+        // A→B→C: a value cell owned by alice moves to bob, then bob's RECEIVED cell moves to carol
+        // in a later block. The second hop is only possible because `apply` persisted bob's output.
+        let node = &mut Node::new(0, vec![v(0, 0.0, 100.0, 100.0)], Constitution::default());
+        node.ledger.token_cells.push(ft_cell(b"USD", b"alice", 10)); // alice holds 10 USD
+        let xfer = |from: &'static [u8], to: &'static [u8]| TokenTx {
+            standard: TokenStandard::Fungible,
+            code_hash: [20u8; 32],
+            args: b"USD".to_vec(),
+            inputs: vec![ft_cell(b"USD", from, 10)],
+            outputs: vec![ft_cell(b"USD", to, 10)],
+        };
+
+        // hop 1: alice → bob.
+        let b1 = carrier_at(1, 1, 11, b"first hop attribution payload")
+            .with_token_txs(vec![xfer(b"alice", b"bob")]);
+        assert!(node.validate(&b1), "alice's live cell must spend");
+        node.apply(&b1);
+        let owners: Vec<Vec<u8>> = node
+            .ledger
+            .token_cells
+            .iter()
+            .map(|c| c.lock.args.clone())
+            .collect();
+        assert_eq!(
+            owners,
+            vec![b"bob".to_vec()],
+            "after hop 1 only bob holds the value (alice retired, bob persisted)"
+        );
+
+        // hop 2: bob → carol — spends the cell bob RECEIVED in block 1 (impossible before persistence).
+        let b2 = carrier_at(2, 2, 22, b"second hop attribution payload")
+            .with_token_txs(vec![xfer(b"bob", b"carol")]);
+        assert!(
+            node.validate(&b2),
+            "bob must be able to spend the output it received in an earlier block"
+        );
+        node.apply(&b2);
+        let owners: Vec<Vec<u8>> = node
+            .ledger
+            .token_cells
+            .iter()
+            .map(|c| c.lock.args.clone())
+            .collect();
+        assert_eq!(
+            owners,
+            vec![b"carol".to_vec()],
+            "after hop 2 only carol holds the value — full A→B→C flow"
+        );
+    }
+
+    #[test]
+    fn output_is_unspendable_until_its_producing_block_is_applied() {
+        // The exact bug the persistence change fixes: bob's output cannot be spent until the block
+        // that produces it is applied. Rejected pre-apply (it isn't in `token_cells`), accepted after.
+        let node = &mut Node::new(0, vec![v(0, 0.0, 100.0, 100.0)], Constitution::default());
+        node.ledger.token_cells.push(ft_cell(b"USD", b"alice", 10));
+        let alice_to_bob = TokenTx {
+            standard: TokenStandard::Fungible,
+            code_hash: [20u8; 32],
+            args: b"USD".to_vec(),
+            inputs: vec![ft_cell(b"USD", b"alice", 10)],
+            outputs: vec![ft_cell(b"USD", b"bob", 10)],
+        };
+        let bob_to_carol = TokenTx {
+            standard: TokenStandard::Fungible,
+            code_hash: [20u8; 32],
+            args: b"USD".to_vec(),
+            inputs: vec![ft_cell(b"USD", b"bob", 10)],
+            outputs: vec![ft_cell(b"USD", b"carol", 10)],
+        };
+        // bob's cell does not exist yet ⇒ spending it is rejected by the existence gate.
+        let premature =
+            carrier_at(1, 1, 11, b"premature spend payload").with_token_txs(vec![bob_to_carol.clone()]);
+        assert!(
+            !node.validate(&premature),
+            "spent an output that was never persisted"
+        );
+        // apply the block that PRODUCES bob's cell ...
+        let produce = carrier_at(1, 1, 11, b"produce bob payload").with_token_txs(vec![alice_to_bob]);
+        assert!(node.validate(&produce));
+        node.apply(&produce);
+        // ... and now the identical bob→carol spend validates at the next height.
+        let now_ok = carrier_at(2, 2, 22, b"now spendable payload").with_token_txs(vec![bob_to_carol]);
+        assert!(
+            node.validate(&now_ok),
+            "persisted output still unspendable — persistence did not take"
+        );
+    }
+
+    #[test]
+    fn token_movement_leaves_attribution_unchanged() {
+        // Token state is SEPARATE: moving value must not perturb the attribution fold (`cells`,
+        // novelty index, `pom`). Same carrier cell with vs without a token tx ⇒ identical attribution
+        // digest, different token digest. This is the whole reason `token_cells` is its own set.
+        let carrier = carrier_at(1, 1, 11, b"identical attribution payload across both runs");
+
+        // run A: carrier only, no token movement.
+        let mut a = Node::new(0, vec![v(0, 0.0, 100.0, 100.0)], Constitution::default());
+        a.apply(&carrier);
+
+        // run B: same carrier, but the block also carries a conserving transfer.
+        let mut b = Node::new(0, vec![v(0, 0.0, 100.0, 100.0)], Constitution::default());
+        b.ledger.token_cells.push(ft_cell(b"USD", b"alice", 10));
+        let xfer = TokenTx {
+            standard: TokenStandard::Fungible,
+            code_hash: [20u8; 32],
+            args: b"USD".to_vec(),
+            inputs: vec![ft_cell(b"USD", b"alice", 10)],
+            outputs: vec![ft_cell(b"USD", b"bob", 10)],
+        };
+        b.apply(&carrier.clone().with_token_txs(vec![xfer]));
+
+        let (a_ids, a_root, a_pom, a_tok) = a.ledger.state_digest();
+        let (b_ids, b_root, b_pom, b_tok) = b.ledger.state_digest();
+        assert_eq!(
+            (&a_ids, &a_root, &a_pom),
+            (&b_ids, &b_root, &b_pom),
+            "token movement perturbed the attribution fold"
+        );
+        assert_ne!(
+            a_tok, b_tok,
+            "token movement must show up in the token digest (it changed token state)"
+        );
+        assert!(a_tok.is_empty(), "the no-token run must hold no token cells");
     }
 
     #[test]
@@ -766,7 +1010,14 @@ mod tests {
         let pom = v(2, 0.0, 0.0, 100.0);
         let all = vec![pow_giant.clone(), pos.clone(), pom.clone()];
         // PoW giant alone: FINALITY_MIX zeroes pow ⇒ contributes nothing ⇒ cannot finalize.
-        assert!(!finalizes_pos_pom(&[pow_giant], &all, 1, 0, false, TWO_THIRDS_BPS));
+        assert!(!finalizes_pos_pom(
+            &[pow_giant],
+            &all,
+            1,
+            0,
+            false,
+            TWO_THIRDS_BPS
+        ));
         // the two fast-final dimensions together finalize, PoW irrelevant.
         assert!(finalizes_pos_pom(&[pos, pom], &all, 1, 0, false, TWO_THIRDS_BPS));
         // the mix really does exclude PoW.

@@ -4,6 +4,21 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## ▶ RESUME HERE (2026-06-17 (m) — BUILT: token-state persistence shipped; node lib 215→218; multi-hop A→B→C live)
+- **BUILT ✅ — the (l) decision, shipped + tested.** `Ledger` now has a SEPARATE `token_cells` value-UTXO
+  set; `is_valid_in_ledger` resolves token inputs against it; `apply` retires consumed inputs from AND
+  persists `tx.outputs` to it (the missing append); `cells`/index/`pom_scores` stay token-blind;
+  `state_digest` extended to a 4-tuple (token-cell ids) for token-state convergence. node lib **215→218**
+  (+3: `multi_hop_token_flow_across_blocks`, `output_is_unspendable_until_its_producing_block_is_applied`,
+  `token_movement_leaves_attribution_unchanged`); two_node/gaming/byzantine green; 0 new clippy (27 pre-existing).
+- **HONEST SCOPE:** reference (in-memory) token ledger. Within-block output chaining out of scope in v1
+  (validation snapshots the pre-block set). The on-VM port is now UNBLOCKED.
+- **NEXT BUILD:** ON-VM single-use enforcement per (k) — committed-UTXO-set membership (SMT proof of each
+  input's `(id+lock+type_script)` vs the live-UTXO-set root in a cell-dep) + rolling-root retirement
+  (spent input deleted in the output state-root transition, mirroring `index_rule::valid_root_transition`).
+  Deploy-coupled / sentinel-gated inert pre-deploy. Alternatively genesis/chain-spec (#1). Will-gated: T1 transport.
+- pushed (master, WGlynn/noesis) — see git log tip below.
+
 ## ▶ RESUME HERE (2026-06-17 (l) — DESIGN: token-state persistence DECIDED; (k) crate-question dissolved; node unchanged)
 - **DESIGN tick (no code; PCP-gate — fresh session @ ~250k after an unrelated heavy build hour).** Advances the
   (k)-pinned PREREQUISITE (#4-next token-state persistence) named→DECIDED.

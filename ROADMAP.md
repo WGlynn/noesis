@@ -4,6 +4,26 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-17 (m)** — BUILT ✅ — token-state persistence: the (l)-DECIDED `token_cells` separation,
+  shipped and tested. **What changed (reference layer, `node/src/runtime.rs`):** (1) `Ledger` gains a
+  SEPARATE `token_cells: Vec<Cell>` value-UTXO set; (2) `is_valid_in_ledger`'s existence check resolves
+  token inputs against `token_cells` (not the attribution `cells`); (3) `apply` now RETIRES consumed
+  inputs from + PERSISTS each `tx.outputs` to `token_cells` — the missing append that made every output
+  a dead end — leaving `cells`/novelty-index/`pom_scores` untouched (token-blind, so value flow cannot
+  manufacture PoM); (4) `state_digest` extends to a 4th element (token-cell id sequence) so replicas
+  converge on token state, not just attribution. **Tests (+3, node lib 215→218 green; two_node/gaming/
+  byzantine green; 0 new clippy, 27 pre-existing):** `multi_hop_token_flow_across_blocks` (A→B→C now
+  validates — bob spends across a later block the cell he received, previously IMPOSSIBLE);
+  `output_is_unspendable_until_its_producing_block_is_applied` (the bug pinned directly: bob→carol
+  rejected pre-apply, accepted post-apply); `token_movement_leaves_attribution_unchanged` (same carrier
+  with vs without a transfer ⇒ byte-identical attribution digest, divergent token digest — state
+  isolation proven). Existing token suite (existence / single-use / mint-authority) migrated onto
+  `token_cells` and still green: cross-block single-use now retires from the token set. **HONEST SCOPE:**
+  this is the REFERENCE (in-memory) token ledger. The on-VM type-script port — committed-UTXO-set
+  membership + rolling-root retirement per (k) — remains the deploy-coupled layer and is the next target,
+  now UNBLOCKED (it can retire from a set the outputs are finally written to). Within-block output
+  chaining (spend in the same block it's produced) intentionally out of scope in v1; validation snapshots
+  the pre-block set. **NEXT RSAW target:** on-VM single-use enforcement per (k); OR genesis/chain-spec (#1).
 - **2026-06-17 (l)** — DESIGN tick (no code; PCP-gate — a FRESH session at ~250k context after an
   unrelated heavy build hour; delicate state-transition surgery on the moat belongs in a low-context
   window, exactly what the gate guards). Advances the (k)-pinned PREREQUISITE — the full-tx token-state
