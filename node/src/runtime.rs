@@ -210,10 +210,23 @@ impl TokenTx {
     /// consumed cell so it cannot be spent twice are the deploy-coupled lock-sig + UTXO-retirement
     /// layers — the same "structure now, crypto-enforcement at deploy" boundary as the index-dep and
     /// header-`now` bindings. `lock` equality here stands in for the verified owner.
+    /// AMOUNT BINDING (closes the value-forgery hole a critical-qa pass found): the input must
+    /// match the finalized cell on `data` TOO, not just `(id, lock, type_script)`. `data` carries
+    /// the fungible amount / NFT id, and `is_valid`'s conservation trusts the PRODUCER-supplied
+    /// input amount. Without binding `data`, an attacker controlling ONE live cell of identity
+    /// `(id, lock, type_script)` could present an input with that identity but an INFLATED amount
+    /// and conserve the lie into a finalized block (spend 1000 while owning 6). Binding `data`
+    /// forces every consumed input to equal a real finalized cell byte-for-byte, so the amount can
+    /// no longer be forged. (Spending ANOTHER owner's real cell is the separate, still-open lock-sig
+    /// gap above — orthogonal to amount forgery.)
     pub fn is_valid_in_ledger(&self, live: &[Cell]) -> bool {
         let input_is_live = |inp: &Cell| {
-            live.iter()
-                .any(|c| c.id == inp.id && c.lock == inp.lock && c.type_script == inp.type_script)
+            live.iter().any(|c| {
+                c.id == inp.id
+                    && c.lock == inp.lock
+                    && c.type_script == inp.type_script
+                    && c.data == inp.data
+            })
         };
         self.inputs.iter().all(input_is_live) && self.is_valid()
     }
@@ -509,6 +522,43 @@ mod tests {
             timestamp: 0,
             data: fungible::encode(amt),
         }
+    }
+
+    #[test]
+    fn existence_binds_amount_no_value_forgery_from_an_inflated_input() {
+        // CLOSES a value-forgery hole a critical-qa pass found: `is_valid_in_ledger` once keyed
+        // existence on `(id, lock, type_script)` only, NOT `data`. `data` carries the fungible
+        // amount, and `is_valid`'s conservation trusts the producer-supplied input amount — so an
+        // attacker owning ONE small live cell could present an input with the same identity but an
+        // INFLATED amount and conserve the lie into a finalized block.
+        let (mut node, block) = node_and_carrier_block();
+        // alice REALLY owns just 6 USD (a finalized live token cell).
+        node.ledger.token_cells.push(ft_cell(b"USD", b"alice", 6));
+        // she presents an input with the SAME identity (id 0, lock alice, type USD) but a
+        // LIED-ABOUT amount of 1000, transferring 1000 to bob (1000->1000 conserves).
+        let inflate = TokenTx {
+            standard: TokenStandard::Fungible,
+            code_hash: [20u8; 32],
+            args: b"USD".to_vec(),
+            inputs: vec![ft_cell(b"USD", b"alice", 1000)],
+            outputs: vec![ft_cell(b"USD", b"bob", 1000)],
+        };
+        assert!(
+            !node.validate(&block.clone().with_token_txs(vec![inflate])),
+            "VALUE FORGERY: spent 1000 while owning 6 — existence must bind the amount (data)"
+        );
+        // and the HONEST spend of the real 6-cell still validates — binding data rejects only the lie.
+        let honest = TokenTx {
+            standard: TokenStandard::Fungible,
+            code_hash: [20u8; 32],
+            args: b"USD".to_vec(),
+            inputs: vec![ft_cell(b"USD", b"alice", 6)],
+            outputs: vec![ft_cell(b"USD", b"bob", 6)],
+        };
+        assert!(
+            node.validate(&block.with_token_txs(vec![honest])),
+            "binding data over-rejected: alice's real 6-cell spend must still validate"
+        );
     }
 
     /// A fresh node and a structurally-valid one-cell carrier block at height 1, so the only

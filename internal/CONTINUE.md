@@ -4,6 +4,19 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## ▶ RESUME HERE (2026-06-17 (o) — critical-qa CLOSED a value-forgery hole in the token layer; lib 219→220)
+- **BUILT ✅ — found + fixed via /critical-qa on (m).** `is_valid_in_ledger` bound input existence to
+  `(id, lock, type_script)` but NOT `data` (the amount), and conservation trusts the producer's input
+  amount ⇒ an attacker owning ONE live cell could spend an INFLATED amount (reproduced: owned 6, spent
+  1000). FIX = bind `data` too (one line). Regression `existence_binds_amount_no_value_forgery_from_an_inflated_input`
+  (forgery rejected ∧ honest spend still validates). lib 219→220; integration green; 0 new clippy.
+- **Pre-existing, not a (m) regression** — but (m) made value movement real so it mattered. Orthogonal
+  residual unchanged: spending ANOTHER owner's real cell = the deploy-coupled lock-sig gap (existence ≠ control).
+- **Open frontiers (next builds, fresh context):** (1) the (n) gaming vector — per-identity flow
+  normalization in `value_flow_with_own`; (2) lock-sig binding (existence→control); (3) on-VM single-use
+  per (k). Plus the standing method note: ∀ formatter-run ⇒ `git diff --stat` BEFORE commit.
+- pushed (master, WGlynn/noesis) — see git log tip.
+
 ## ▶ RESUME HERE (2026-06-17 (n) — RSAW: NEW v(S) gaming vector pinned — per-identity volume defeats v8 dampening; lib 218→219)
 - **BUILT (adversarial-gaming loop) — found + pinned a new vector, grounded + measured.** `value_v8`
   dampens ONE valueless child, but `flow::value_flow_with_own` sums a parent's children flow with NO

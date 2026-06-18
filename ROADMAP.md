@@ -4,6 +4,24 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-17 (o)** — BUILT ✅ — critical-qa pass on the (m) token-state change FOUND + CLOSED a
+  **value-forgery hole** (more serious than (n); pre-existing, not a (m) regression, but (m) made
+  value movement real so it now bites). **Finding (probed + reproduced, not memory):**
+  `is_valid_in_ledger` keyed input existence on `(id, lock, type_script)` only — NOT `data`. `data`
+  carries the fungible amount, and `is_valid`'s conservation trusts the PRODUCER-supplied input
+  amount. So an attacker controlling ONE live cell of a given identity could present an input with
+  that identity but an INFLATED amount and conserve the lie into a finalized block. Reproduced: alice
+  owning 6 USD validated a 1000→1000 transfer to bob (spent 1000 owning 6). **Root cause:** existence
+  proved the cell's identity exists but never bound its VALUE to the finalized cell. **Fix (one line,
+  low blast radius):** bind `data` too — `c.data == inp.data` — so every consumed input must equal a
+  real finalized cell byte-for-byte; the amount can no longer be forged. **Verified:** new regression
+  `existence_binds_amount_no_value_forgery_from_an_inflated_input` (forgery rejected ∧ alice's HONEST
+  6-spend still validates — no over-rejection); node lib **219→220**; two_node/gaming/byzantine green;
+  0 new clippy (27). **Orthogonal residual (unchanged):** spending ANOTHER owner's real cell is still
+  the deploy-coupled lock-sig gap (existence ≠ control) — data-binding closes amount forgery, not
+  unauthorized spend. **Lesson:** identity tuples that gate value MUST include the value field, or
+  conservation trusts a producer-chosen amount. (Method note: a stray whole-file `rustfmt` on the moat
+  file nearly leaked ~2000 unrelated lines this session — always `git diff --stat` after a formatter.)
 - **2026-06-17 (n)** — BUILT (adversarial-gaming loop, the moat) — found + PINNED a NEW `v(S)`
   gaming vector: **per-identity volume defeats v8's outcome dampening.** SHARPENS
   `structured_valueless_child_still_seeds_flow_open_gap`. **Grounded finding (read, then measured —
