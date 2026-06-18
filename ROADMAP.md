@@ -4,6 +4,17 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-18 (s)** — SPEC tick (no code; PCP-gate — fired during a high-context Lithos session, and
+  the (r) fix touches `value_flow_with_own`/`value_v6` = highest blast radius ⇒ surgery stays gated to
+  fresh low-context). Wrote `internal/DESIGN-multi-identity-split-acceptance.md`: the red→green target
+  for the (r) build. **Surfaced a real doc divergence:** ROADMAP (r) prescribes Opt A (hard cap via
+  `max_certifying_identities`) but CONTINUE (r) recommends Opt B (geometric μ^m) — **recommend B** for
+  consistency with (q)'s λ^r choice + honest-cert preservation (A can compose on top later). Pinned
+  fix-agnostic **acceptance criteria** (keystone: `v8(K8 distinct) ≤ single-id bound 18.11 ×(1+ε)` ⇒
+  split must NOT beat stacking) + a **6-row adversarial test matrix** (T2 = the split>stack inversion;
+  **T3 = the genuinely NEW cross-axis surface** — μ^m and λ^r could each bound their own axis yet still
+  pump on the diagonal; next adversarial candidate even after the fix). Suite unchanged **221/221**;
+  `value_flow_with_own`/`value_v6` untouched. Build = flip the open-gap test per crit. 2 + add T3–T6.
 - **2026-06-18 (r)** — 🔬 OPEN GAP NAMED — multi-identity volume split defeats the (q) per-identity
   damping. The (q) λ^r fix caps ONE identity's volume, but an attacker splitting the same volume
   across K DISTINCT VESTED identities posts one child per identity ⇒ every child is rank-0 in its
