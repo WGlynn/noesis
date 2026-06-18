@@ -4,6 +4,25 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-18 (q)** — BUILT ✅ — the (n) gaming vector (single-identity volume defeats v8 dampening)
+  is CLOSED. Implemented the (p) design: `flow::value_flow_with_own` now weights a parent's r-th
+  child (commit order) from a given certifying identity by λ^r (λ=1/φ), via a single in-order pass
+  over `kids` (ascending index = canonical commit order ⇒ deterministic, no HashMap-order
+  dependence). Distinct identities stay full-weight at rank 0 (honest diverse certification
+  untouched). Mirrored in the Q32.32 settlement port `value_flow_external_q32` (LAMBDA_Q32 =
+  round(2^32/φ) = 2654435769, the Fibonacci-hashing constant) so the drift-guard
+  `v7_q32_tracks_f64_v7_on_content_graphs` holds f64↔fixed within band. Flow layer is HOST-ONLY
+  (no shared noesis-core / on-VM mirror) so no ELF rebuild. **Honest-numbered result (probe in the
+  test):** v8 over N=1,2,4,8 children from ONE identity = 14.28 / 16.44 / 17.66 / 18.11 — SATURATES
+  (4→8 adds 2.5%) vs the old ~1.44×-and-climbing linear pump. **HONEST RESIDUAL:** saturation bounds
+  the attack, does not zero it — eight dampened children (18.11) still just exceed ONE undampened
+  child (v7(1)=17.63, +2.7%); acceptable because v6 priced-identity already standing-gates the
+  attacker and v8 dampens each child — the UNBOUNDED-in-N pump was the actual vuln. Open-gap test
+  renamed → `single_identity_volume_saturates_under_per_identity_damping`, assertions flipped to
+  saturation + bounded-near-single-undamped + not-over-damped + sanity. Full node suite **220/220
+  green** (v5–v8 honest cases INERT as predicted — distinct-id/single-child lineages give rank 0 =
+  full weight). param: λ=1/φ (geometric, preserves honest multi-build) per PONYTAIL over
+  first-commit-wins. NEXT open: lock-sig binding (existence→control) · on-VM single-use per (k).
 - **2026-06-17 (p)** — DESIGN tick (no code; PCP-gate — 3rd moat tick this session at ~415k context
   during an unrelated OPH-absorption marathon; `value_flow_with_own` is the highest-blast-radius moat
   fn (feeds v5–v8), so its surgery belongs in a fresh low-context window). DESIGNS the closure of the

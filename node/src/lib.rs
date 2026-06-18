@@ -1652,24 +1652,31 @@ pub mod value {
         }
 
         #[test]
-        fn single_identity_volume_defeats_v8_dampening_open_gap() {
-            // SHARPENS `structured_valueless_child_still_seeds_flow_open_gap`. v8's outcome gate
-            // DAMPENS one valueless child's certification of a parent, but the downstream-flow
-            // accumulation (`flow::value_flow_with_own`, the `s = Σ flow[k]` over a parent's
-            // children) SUMS every cross-identity child with NO per-identity cap. So a SINGLE
-            // vested attacker identity (≠ the root's) that posts N distinct novel-but-valueless
-            // children drives the root's flow gate toward saturation REGARDLESS of the per-child
-            // dampening — the gate factor is a constant the attacker buys off in N, not a brake.
+        fn single_identity_volume_saturates_under_per_identity_damping() {
+            // CLOSED (2026-06-18) — was `single_identity_volume_defeats_v8_dampening_open_gap`.
+            // Previously the downstream-flow accumulation (`flow::value_flow_with_own`) SUMMED
+            // every cross-identity child of a parent with NO per-identity cap, so a SINGLE vested
+            // attacker identity posting N distinct novel-but-valueless children amplified the
+            // root's flow gate LINEARLY in N (measured ~1.44× over N=1..8 and climbing) —
+            // per-child outcome dampening was a constant the attacker bought off with volume.
+            //
+            // FIX: per-identity diminishing-returns damping in `value_flow_with_own` — the r-th
+            // child (commit order) from a given certifying identity is weighted λ^r, λ=1/φ. One
+            // identity's certifying flow now SATURATES (geometric, bound flow/(1-λ)≈2.62×) instead
+            // of amplifying; distinct identities stay full-weight at rank 0 (honest diverse
+            // certification untouched — orthogonal to `max_certifying_identities`).
+            //
+            // HONEST RESIDUAL: saturation BOUNDS the attack, it does not zero it. Eight dampened
+            // children (v8(8)≈18.11) still just exceed ONE undampened child (v7(1)≈17.63) — a
+            // ~2.7% gain, not the old unbounded linear pump. That residual is acceptable because
+            // v6 priced-identity already requires the attacker identity to be vested/standing-
+            // gated, and v8 still dampens each child; removing the UNBOUNDED-in-N amplification
+            // was the actual vulnerability. (Numbers honest-numbered from the probe below.)
             //
             // Distinct from the closed vectors: the v6 sybil ring is UNVESTED (seed 0); identical
             // content is deduped by novelty; self-certification is excluded by
             // `children_of_external`'s same-identity skip. The mutually-dissimilar payloads below
             // each clear the similarity floor, so that floor does NOT bound the attack.
-            //
-            // CLOSE (next build): PER-IDENTITY flow-contribution normalization at the flow layer —
-            // the analog of `max_certifying_identities` one level down: a single identity's summed
-            // certifying flow into one parent must be capped / diminishing, not linearly summed.
-            // Pinned, not yet closed.
             let w = trained_outcome_w();
             // mutually-DISSIMILAR valueless prose: distinct words ⇒ each clears the similarity
             // floor and is individually novel, yet none carries value — the worst case for the gate.
@@ -1697,21 +1704,30 @@ pub mod value {
             };
             let v7 = |n: usize| value_v7(&order(n), &st, FLOOR, THETA, ENTROPY_THETA, DAMP, ITERS, HALF)[0];
 
-            // (1) volume monotonically amplifies the root even though every child is valueless +
-            //     dampened (measured ~1.44× from N=1 to N=8).
+            // Curve (honest-numbered 2026-06-18, λ=1/φ):
+            //   v8: N1=14.28 N2=16.44 N4=17.66 N8=18.11 | v7: N1=17.63 N8=20.12
+            let (a1, a4, a8) = (v8(1), v8(4), v8(8));
+            let (s1, s8) = (v7(1), v7(8));
+            // (1) SATURATION — the marginal gain collapses: doubling 4→8 children adds far less
+            //     than 1→4 did (diminishing returns, the geometric tail).
             assert!(
-                v8(8) > 1.3 * v8(1),
-                "volume did not amplify the root — the vector may be bounded after all"
+                (a8 - a4) < 0.2 * (a4 - a1),
+                "volume gain did not saturate: tail {:.4} not << head {:.4}",
+                a8 - a4,
+                a4 - a1
             );
-            // (2) THE gap: 4 DAMPENED valueless children pump the root ABOVE what ONE UNDAMPENED
-            //     child reaches at v7 (the full pump v8 exists to prevent). Dampening defeated by N.
+            // (2) BOUNDED — eight dampened children from ONE identity barely exceed a SINGLE
+            //     undampened child; per-identity volume no longer meaningfully amplifies.
             assert!(
-                v8(4) > v7(1),
-                "OPEN GAP: per-identity VOLUME defeats v8's per-child outcome dampening"
+                a8 < 1.05 * s1,
+                "single-identity volume still amplifies past one undampened child: v8(8)={:.4} vs v7(1)={:.4}",
+                a8, s1
             );
-            // (3) the gate is real, just insufficient: at equal N, v8 stays strictly below v7.
+            // (3) NOT over-damped — honest children still seed flow (the fix must not zero value).
+            assert!(a8 > a1, "damping zeroed the honest signal");
+            // (4) sanity — the per-child outcome gate still dampens at equal N.
             assert!(
-                v8(8) < v7(8),
+                a8 < s8,
                 "sanity: the outcome gate still dampens each child at equal N (constant factor)"
             );
         }
@@ -2139,11 +2155,35 @@ pub mod flow {
         } else {
             children_of(cells)
         };
+        // Per-identity diminishing-returns damping (closes the single-identity volume gap).
+        // Within a parent's children, the r-th child (commit order) from a given certifying
+        // identity is weighted LAMBDA^r, so ONE identity's summed certifying flow saturates
+        // (geometric, ≤ flow/(1-LAMBDA)) instead of amplifying linearly in N; DISTINCT
+        // identities stay full-weight at rank 0 (honest diverse certification untouched).
+        // Single in-order pass over `kids` (built in ascending index = canonical commit
+        // order) keeps the result deterministic ⇒ replicas converge.
+        const LAMBDA: f64 = 0.618_033_988_749_894_9; // 1/φ (FibonacciScaling progressive damping)
         for _ in 0..iters {
             let mut next = own.to_vec();
             for (pid, kids) in &children {
                 if let Some(&pi) = id_to_idx.get(pid) {
-                    let s: f64 = kids.iter().map(|&k| flow[k]).sum();
+                    let mut seen: Vec<(&Vec<u8>, u32)> = Vec::new();
+                    let mut s = 0.0;
+                    for &k in kids {
+                        let id = &cells[k].type_script.args;
+                        let rank = match seen.iter_mut().find(|(a, _)| *a == id) {
+                            Some(e) => {
+                                let r = e.1;
+                                e.1 += 1;
+                                r
+                            }
+                            None => {
+                                seen.push((id, 1));
+                                0
+                            }
+                        };
+                        s += LAMBDA.powi(rank as i32) * flow[k];
+                    }
                     next[pi] = own[pi] + d * s;
                 }
             }
@@ -6339,11 +6379,36 @@ pub mod settlement_fixed {
         let id_to_idx: HashMap<u64, usize> =
             cells.iter().enumerate().map(|(i, c)| (c.id, i)).collect();
         let children = flow::children_of_external(cells, &id_to_idx);
+        // Fixed-point mirror of the per-identity diminishing-returns damping in
+        // `flow::value_flow_with_own`: r-th child (commit order) from a certifying identity
+        // weighted λ^r, λ=1/φ. round(2^32/φ) is the Fibonacci-hashing constant; the f64 side
+        // uses the same 1/φ, and the drift-guard `v7_q32_tracks_f64_v7_*` holds them within band.
+        const LAMBDA_Q32: u128 = 2_654_435_769; // round(2^32 / φ) = (1/φ) at Q32.32
         for _ in 0..iters {
             let mut next = own.to_vec();
             for (pid, kids) in &children {
                 if let Some(&pi) = id_to_idx.get(pid) {
-                    let s: u128 = kids.iter().fold(0u128, |acc, &k| acc.saturating_add(fl[k]));
+                    let mut seen: Vec<(&Vec<u8>, u32)> = Vec::new();
+                    let mut s: u128 = 0;
+                    for &k in kids {
+                        let id = &cells[k].type_script.args;
+                        let rank = match seen.iter_mut().find(|(a, _)| *a == id) {
+                            Some(e) => {
+                                let r = e.1;
+                                e.1 += 1;
+                                r
+                            }
+                            None => {
+                                seen.push((id, 1));
+                                0
+                            }
+                        };
+                        let mut w: u128 = ONE; // λ^0 = 1.0 in Q32.32
+                        for _ in 0..rank {
+                            w = mul(w, LAMBDA_Q32);
+                        }
+                        s = s.saturating_add(mul(w, fl[k]));
+                    }
                     next[pi] = own[pi].saturating_add(mul(d_q32, s));
                 }
             }

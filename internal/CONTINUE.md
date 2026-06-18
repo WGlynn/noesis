@@ -12,6 +12,12 @@ Will: "invite Tom lindeman and Bernhard to noesis private repo so they can help 
   give them the lean-like-Bitcoin design constraint + the value-flow moat thread (the un-gameable v(S)).
 - Check acceptance: `gh api repos/WGlynn/noesis/invitations`.
 
+## ▶ RESUME HERE (2026-06-18 (q) — BUILT ✅: (n) gaming vector CLOSED; per-identity λ^r flow damping live both layers; 220/220)
+- Implemented the (p) design in `flow::value_flow_with_own` (f64) + `value_flow_external_q32` (Q32.32 mirror, LAMBDA_Q32=2654435769=round(2^32/φ)). r-th child of a parent from a given certifying identity weighted λ^r, λ=1/φ; single in-order pass ⇒ deterministic. Distinct identities full-weight @ rank 0 (honest cases INERT).
+- Honest result: v8 N=1/2/4/8 = 14.28/16.44/17.66/18.11 ⇒ SATURATES. RESIDUAL: bounds ¬ zeros (8 dampened ≈ 1 undampened +2.7%); acceptable (v6 already standing-gates seeds, v8 dampens each). drift-guard `v7_q32_tracks_f64_v7` holds.
+- Test `..._open_gap` → `single_identity_volume_saturates_under_per_identity_damping` (assertions flipped to saturation+bounded). Full suite 220/220. NOT yet committed/pushed at time of writing — see git status.
+- **NEXT open (deploy-independent):** lock-sig binding (existence→control) · on-VM single-use per (k). Then the learned-v(S)-on-real-labels mile (THE moat).
+
 ## ▶ RESUME HERE (2026-06-17 (p) — DESIGN: per-identity flow-normalization decided; closes the (n) gaming vector; node unchanged)
 - **DESIGN tick (no code; PCP-gate — 3rd moat tick this session @ ~415k context in an unrelated
   OPH-marathon; `value_flow_with_own` feeds v5–v8 = highest blast radius ⇒ build in fresh low-context).**
