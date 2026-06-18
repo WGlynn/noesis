@@ -4,6 +4,22 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-18 (r)** — 🔬 OPEN GAP NAMED — multi-identity volume split defeats the (q) per-identity
+  damping. The (q) λ^r fix caps ONE identity's volume, but an attacker splitting the same volume
+  across K DISTINCT VESTED identities posts one child per identity ⇒ every child is rank-0 in its
+  own group (λ^0=1, full weight) ⇒ damping INERT ⇒ amplifies ~linearly in K again, one level up.
+  **Reproduced (honest-numbered, test `multi_identity_split_volume_defeats_per_identity_damping_open_gap`):**
+  multi-identity v8 = K1 14.28 → K2 17.26 → K4 19.33 → K8 20.57 (still climbing, no saturation), and
+  K8=20.57 EXCEEDS the single-identity saturation bound (18.11) — splitting beats stacking.
+  **Root cause:** `value::max_certifying_identities(total_standing, floor)` is DEFINED (A3, line ~851)
+  but NOT WIRED INTO the value path — `value_v6` gates each seed by its OWN identity's standing and
+  never applies a per-parent distinct-certifier cap. So today the split is bounded only by COST
+  (K independently-earned soulbound identities ≥ floor; not poolable/buyable), not by structure.
+  **FIX (next, fresh low-context — production flow-path change):** thread `max_certifying_identities`
+  into the per-parent certifier set in `value_v6` (cap how many distinct identities can seed one
+  parent; the cap = total_standing/floor). 221/221 green incl. the new gap-pin. NOT a regression of
+  (q) — (q) closed single-identity; this is its natural sibling one level up. **NEXT open:** this fix,
+  then lock-sig binding (existence→control) · on-VM single-use per (k).
 - **2026-06-18 (q)** — BUILT ✅ — the (n) gaming vector (single-identity volume defeats v8 dampening)
   is CLOSED. Implemented the (p) design: `flow::value_flow_with_own` now weights a parent's r-th
   child (commit order) from a given certifying identity by λ^r (λ=1/φ), via a single in-order pass

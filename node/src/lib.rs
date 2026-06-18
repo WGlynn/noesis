@@ -1733,6 +1733,71 @@ pub mod value {
         }
 
         #[test]
+        fn multi_identity_split_volume_defeats_per_identity_damping_open_gap() {
+            // SIBLING of single_identity_volume_saturates_under_per_identity_damping, one level up.
+            // The λ^r per-identity damping caps ONE identity's volume (the r-th child of a given
+            // certifying identity decays λ^r). An attacker who SPLITS the same volume across K
+            // DISTINCT VESTED identities posts one child per identity, so EVERY child is rank-0 in
+            // its own group (λ^0 = 1, full weight) and the damping is INERT — flow amplifies ~linearly
+            // in K again. The single-identity vector is closed; the multi-identity split reopens it.
+            //
+            // What prices it today: ONLY v6's per-identity standing floor — each of the K identities
+            // must independently EARN standing ≥ floor (soulbound; not poolable/buyable/transferable
+            // per soulbound::valid_transition). The STRUCTURAL cap that WOULD bound K —
+            // `value::max_certifying_identities(total_standing, floor)` — is DEFINED (A3) but NOT
+            // WIRED INTO the value path: value_v6 gates each seed by its OWN identity's standing and
+            // never applies a per-parent distinct-certifier cap. So at the value layer the split is
+            // bounded by COST (K vested identities), not by structure.
+            //
+            // PINNED, not fixed here. The fix (thread max_certifying_identities into the per-parent
+            // certifier set in value_v6, capping how many distinct identities can seed one parent) is
+            // a production flow-path change for a fresh low-context session. Naming + evidencing the
+            // vector with a reproduction is this tick's increment (per pom-roadmap-advance: "if you
+            // find a gaming vector, that IS the increment").
+            let w = trained_outcome_w();
+            let payloads: [&[u8]; 8] = [
+                b"the cat sat quietly on the warm mat today",
+                b"rivers flow gently under the old stone bridge",
+                b"morning light fills the quiet empty kitchen slowly",
+                b"yellow kites drift above the distant green hill",
+                b"books rest unread along the dusty wooden shelf",
+                b"snow settles softly across the silent winter field",
+                b"clocks tick onward through the long grey afternoon",
+                b"birds gather near the fence before the evening rain",
+            ];
+            let root = cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta");
+            // root id 1 + 8 DISTINCT attacker identities (10..=17), ALL independently vested.
+            let mut sv = vec![(1u8, FLOOR)];
+            for k in 0..8u8 {
+                sv.push((10 + k, FLOOR));
+            }
+            let st = standing_of(&sv);
+            // K identities, ONE child each ⇒ every child is rank-0 in its identity group.
+            let split = |k: usize| -> Vec<super::super::Cell> {
+                let mut o = vec![root.clone()];
+                for j in 0..k {
+                    o.push(cellc((j + 1) as u64, 10 + j as u8, (j + 1) as u64, Some(0), payloads[j]));
+                }
+                o
+            };
+            let v8s = |k: usize| {
+                value_v8(&split(k), &st, FLOOR, &w, THETA, ENTROPY_THETA, THETA_Q16, DAMP, ITERS, HALF)[0]
+            };
+            println!(
+                "PROBE multi-identity v8: K1={:.4} K2={:.4} K4={:.4} K8={:.4} (single-identity v8(8) saturated at 18.11)",
+                v8s(1), v8s(2), v8s(4), v8s(8)
+            );
+            // THE GAP: splitting volume across distinct vested identities amplifies the root well past
+            // the single-identity saturation bound — the λ^r damping is inert because every child is
+            // rank-0. (Mirrors the ORIGINAL pre-fix single-identity assertion, reappearing one level up.)
+            assert!(
+                v8s(8) > 1.3 * v8s(1),
+                "OPEN GAP closed unexpectedly? multi-identity split no longer amplifies: K8={:.4} K1={:.4}",
+                v8s(8), v8s(1)
+            );
+        }
+
+        #[test]
         fn value_v8_pays_a_genuinely_useful_lineage() {
             // The other side of the gate: a child that EXTENDS the parent's lineage (real
             // provenance depth, the structure labels reward) keeps its seed, so the parent is
