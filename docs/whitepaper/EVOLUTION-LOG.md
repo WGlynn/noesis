@@ -12,7 +12,7 @@
 |---|---|---|---|
 | Draft 1.0 | 2026-06-19 | SHIPPED (`10402c4`) | First foundational scientific WP. 9pp PDF, Bitcoin cadence, equations + 4 figures (2 from real node data). For Will's dad + first external reads. |
 | Draft 1.1 | 2026-06-19 | SHIPPED (12pp) | All 3 increments in: (1) "Measurement as a living mechanism" (answers FB-001) ✓; (2) standalone "Related work and what is novel" §9 written from RI-001+RI-002 — (a) NOVEL, Bittensor precise, (b) NOVEL vs Deep Funding (two-axis differentiator), (d) NOVEL-as-consensus-franchise vs SourceCred/DeSoc, (e)+decentralized-training hedged honestly ✓; (3) convergence/forwards-compatibility section ✓. Desktop PDF refreshed. |
-| Draft 1.2 | — | QUEUED | THIRD research pass to clear (e) [HodgeRank-residual-as-certificate vs robust-ranking lit] + (a)-vs-decentralized-training [Gensyn/Prime Intellect/Nous/Ritual making output-value the consensus weight]. Until then §9 keeps the honest hedges. |
+| Draft 1.2 | 2026-06-19 | SHIPPED (14pp) | RI-003 (3rd pass) found real pre-emptions; §9 corrected defend-and-narrow: (e) cite DPoR (2019) for the Hodge-slashing construct, narrow to learned-model+endogenous-value pairing; (a) acknowledge Bittensor-Yuma + Fortytwo reward output-quality but via subjective peer-agreement (training family survives), differentiate on objective cooperative-game measurement as the finality object. +3 refs. Also: worked example, threat-model, notation, red-team hardening, airgap spine, synced abstract, label 1.1->1.2. |
 
 ---
 
