@@ -500,6 +500,20 @@ structural: the realized-flow gate that the learned model can only lower, the te
 the HodgeRank manipulation certificate, and the held-out measurement of Figure~\ref{fig:moat}. The
 remaining mile is real outcome-preference data at scale.
 
+\paragraph{Augmented mechanism design: the counterweight.} The concession is bounded, not open-ended,
+and the bound is the methodology. We do not replace the cooperative-game mechanism with a learned
+oracle, nor do we trust the oracle; we \emph{augment} the mechanism with invariants that hold by
+construction. The learned evaluator can only lower a seed, never mint one; value is gated on realized
+flow; supply is conserved; finality is an AND over independent dimensions. Each invariant is
+deterministic, so the blast radius of a wrong measurement is bounded \emph{a priori}: at worst the chain
+under-credits honest work, it never forges value from a gamed score. Within those invariants the
+living-measurement loop (retrain on outcomes, dispute, decay, residual self-diagnosis) is a
+deterministic path that converges toward the true measurement as the chain accumulates verified
+outcomes. The open problem is therefore the distance between \emph{invariant-bounded and converging} and
+\emph{closed-form-proven}, not between working and not working. This is augmented mechanism design:
+augment a sound mechanism with math-enforced invariants rather than betting the system on a component
+being perfect, so the honest concession and a credible deterministic path coexist.
+
 \paragraph{Self-reference.} A block can carry information about contributions and thereby influence the
 scoring of others. The value layer scores such a block for its own marginal contribution; the
 elicitation layer consumes its content as a judgment about referenced blocks. These must stay
@@ -508,7 +522,7 @@ eigenvector-style damping over the attribution graph, and the synergy game's dis
 self-referential coalitions.
 
 \paragraph{Demonstrated versus designed.} \emph{Demonstrated} in the open reference node (a Rust
-implementation with a no-std verification core shared with on-chain scripts, $280$ passing tests at
+implementation with a no-std verification core shared with on-chain scripts, $281$ passing tests at
 the time of writing): ownership and transfer, per-block signing, tamper-resistance, the synergy value
 over a coverage proxy with Myerson and Bradley--Terry and permutation sampling, temporal novelty,
 coordinated-volume saturation (Figure~\ref{fig:sat}), the bounded learned evaluator and its held-out
