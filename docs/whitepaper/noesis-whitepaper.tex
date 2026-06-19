@@ -69,8 +69,12 @@ value in proportion to it, is a category error: the work is arbitrary, and the v
 A genuine value chain would instead record contribution itself. Each unit of value created, measured
 by what it actually added, attributed to its creator, transferable, and load-bearing for consensus.
 The reason such a chain is rare is not ideology but difficulty. A possession chain never has to
-\emph{measure} value, because the market does; a value chain must. Measuring contribution objectively
-and un-gameably is the hard part, and it is the part this paper takes seriously.
+\emph{measure} value, because the market does; a value chain must. The reason this is hard has a name:
+the gap between what a chain can verify and what is true in the world, the \emph{blockchain--reality
+airgap}. Bitcoin sidesteps the airgap by outsourcing valuation to an external market; a value chain has
+to bridge it, and bridging it objectively and un-gameably is the part this paper takes seriously. The
+same airgap recurs at every scale of the design: between one mind and another (whom to trust), and
+between this chain and the chains it would merge (Sections~\ref{sec:value} and after).
 
 Proof of Mind is our answer. Its lineage is a single line of descent: proof-of-work, then
 proof-of-\emph{useful}-work (information density as work), then \textbf{proof of mind}, a proof of
@@ -308,7 +312,9 @@ axioms force the residual to zero), HodgeRank \emph{measures} whether that world
 where it breaks. This matters for security as well as honesty: a coordinated sybil or collusive ring
 injects detectable harmonic circulation, so a spike in harmonic energy is a manipulation alarm in the
 same computation that produces the value. The value layer therefore ships its own certificate of when
-the single number it reports can be trusted.
+the single number it reports can be trusted. A large residual is not merely reported: it routes the
+contested credit away from the scalar to a higher-cost path, a multi-dimensional split or a human jury,
+spent only where the judgments actually disagree.
 
 \subsection{The learned evaluator, bounded by construction}
 
@@ -493,7 +499,9 @@ An attacker must defeat all three.
 Storage is the scarce resource, and PoM is the right to occupy it: \textbf{one PoM equals one byte of
 on-chain state}. Issuance is earned, not bought, because novel verified contribution is the mint;
 state-rent is PoM decay, which both reclaims idle capacity and serves as the supply sink that bounds
-total live PoM. The mint (novel contribution) and the burn (decay) balance.
+total live PoM. The mint (novel contribution) and the burn (decay) balance. A floor protects a genuine
+contributor from being zeroed by a brief absence: decay reclaims idle capacity, it does not erase
+earned standing to nothing.
 
 The subtlety that keeps this from collapsing into proof-of-stake is a split between two cells. A
 participant's \textbf{standing} is \textcolor{sb}{soulbound}: it is the franchise (consensus weight and
@@ -537,6 +545,7 @@ Eclipse (shrink the finality denominator) & hybrid $\max(\text{effective},\,\tex
 Profitable fork (coalition deviates) & core / nucleolus stability constraint & demonstrated (solver) \\
 Spend another owner's cell & existence check $+$ lock-signature control & designed (digest built) \\
 Theft by forking the network & attribution \emph{is} the mechanism: stripping provenance is incoherent, keeping it credits the source & structural \\
+Off-chain sale of a standing key & soulbound blocks on-chain transfer; the residual is selling the identity key itself, bounded because the key inherits the identity's full slashable history (and personhood-binding) & designed (residual) \\
 \bottomrule
 \end{tabular}
 \end{center}
