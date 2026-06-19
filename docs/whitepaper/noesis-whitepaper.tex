@@ -516,6 +516,31 @@ mind; it teaches it.
 
 \section{Security and honest limitations}\label{sec:security}
 
+\subsection{Threat model}
+
+The mechanisms above compose into one defense surface. Each attack is matched to the structural property
+that defeats it and its status in the reference node.
+
+\begin{center}
+\footnotesize
+\begin{tabular}{@{}p{4.0cm}p{6.4cm}p{2.5cm}@{}}
+\toprule
+\textbf{Attack} & \textbf{What defeats it (structural)} & \textbf{Status} \\
+\midrule
+Sybil split (one mind, many accounts) & synergy game discounts redundant copies; PoM does not multiply & demonstrated ($1.06\times$ at $K{=}5$) \\
+Padding / re-post of coverage & temporal novelty: later copies earn $0$ novel coverage & demonstrated \\
+Coordinated-volume / diagonal pump & single joint geometric decay, bound $\varphi^{2}c$ (Fig.~\ref{fig:sat}) & demonstrated \\
+Gamed learned evaluator & bounded role: can only lower a seed, never mint ($v_8\equiv v_7$ under $+\infty$) & demonstrated \\
+Cyclic / collusive judgments & HodgeRank harmonic-energy spike is a manipulation alarm & designed \\
+Self-referential scoring & independent evaluators, eigenvector damping, synergy discount & designed \\
+Eclipse (shrink the finality denominator) & hybrid $\max(\text{effective},\,\text{quorum-floor})$ basis & demonstrated (self-audit) \\
+Profitable fork (coalition deviates) & core / nucleolus stability constraint & demonstrated (solver) \\
+Spend another owner's cell & existence check $+$ lock-signature control & designed (digest built) \\
+Theft by forking the network & attribution \emph{is} the mechanism: stripping provenance is incoherent, keeping it credits the source & structural \\
+\bottomrule
+\end{tabular}
+\end{center}
+
 \paragraph{The load-bearing bet.} A value chain must measure value un-gameably, the problem Bitcoin
 sidesteps by being mere possession. If the learned outcome evaluator is gameable, PoM degrades into a
 reputation system. This is the central open problem, and we treat it as such. The mitigations are
@@ -666,6 +691,31 @@ hard problem, un-gameable value measurement, and the architecture is built so th
 component charged with it can only ever deny value, never mint it, while a separate certificate reports
 when the value can be trusted at all. What remains is to feed that evaluator real outcomes at scale.
 The rest is assembled from known mathematics, and it runs.
+
+\section*{Notation}
+\small
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Symbol} & \textbf{Meaning} \\
+\midrule
+$b$ & a block: $\{\mathrm{id},\mathrm{parent},t,\mathrm{inputs},\mathrm{output},h\}$ \\
+$H(b\,\|\,r),\ r$ & commitment hash; reveal secret \\
+$v(S)$ & outcome value of a set $S$ of blocks (the central object) \\
+$\phi_i$ & Myerson value (synergy credit) of block / contributor $i$ \\
+$\nu(b)$ & temporal novelty of $b$ (coverage not claimed by an earlier block) \\
+$\sigma,\ s_i$ & logistic function; latent Bradley--Terry strength of $i$ \\
+$r_\theta$ & learned reward model (the production evaluator for $v$) \\
+$\mathrm{seed}_i,\ \omega(\ell_i),\ \ell_i$ & value-gate seed; learned outcome factor; provenance lineage of $i$ \\
+$\rho,\ \varphi$ & saturation decay $\rho=1/\varphi$; golden ratio $\varphi\approx1.618$ \\
+$\mathrm{PoM}(a)$ & Proof-of-Mind score of agent $a$ (sum of $\phi$ over its owned blocks) \\
+$W^{d}_{\text{for}},\,W^{d}_{\text{eff}},\,Q^{d}$ & for- / effective- / quorum-floor vote weight in dimension $d$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+\normalsize
+($\varphi$, bare, is the golden ratio in the saturation bound; $\phi_i$, subscripted, is the Myerson
+credit. They are distinct.)
 
 \section*{References}
 \small
