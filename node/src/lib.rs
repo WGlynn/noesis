@@ -1733,27 +1733,21 @@ pub mod value {
         }
 
         #[test]
-        fn multi_identity_split_volume_defeats_per_identity_damping_open_gap() {
+        fn multi_identity_split_volume_saturates_under_cross_identity_damping() {
             // SIBLING of single_identity_volume_saturates_under_per_identity_damping, one level up.
-            // The λ^r per-identity damping caps ONE identity's volume (the r-th child of a given
+            // The λ^r WITHIN-identity damping caps ONE identity's volume (the r-th child of a given
             // certifying identity decays λ^r). An attacker who SPLITS the same volume across K
-            // DISTINCT VESTED identities posts one child per identity, so EVERY child is rank-0 in
-            // its own group (λ^0 = 1, full weight) and the damping is INERT — flow amplifies ~linearly
-            // in K again. The single-identity vector is closed; the multi-identity split reopens it.
+            // DISTINCT VESTED identities posts one child per identity, so every child is rank-0 in
+            // its OWN group (λ^0 = 1) — within-identity damping is inert for the split. The
+            // CROSS-identity μ^m damping closes this: a parent's distinct certifying identities are
+            // sorted by grouped contribution desc and the m-th identity weighted μ^m (μ=1/φ). One
+            // identity stays full; additional identities decay, so splitting across K identities
+            // saturates exactly like stacking under one. The curve now mirrors the within-identity
+            // saturation one level up (K1≈14.28 … K8≈18.13 ≈ single-identity bound 18.11).
             //
-            // What prices it today: ONLY v6's per-identity standing floor — each of the K identities
-            // must independently EARN standing ≥ floor (soulbound; not poolable/buyable/transferable
-            // per soulbound::valid_transition). The STRUCTURAL cap that WOULD bound K —
-            // `value::max_certifying_identities(total_standing, floor)` — is DEFINED (A3) but NOT
-            // WIRED INTO the value path: value_v6 gates each seed by its OWN identity's standing and
-            // never applies a per-parent distinct-certifier cap. So at the value layer the split is
-            // bounded by COST (K vested identities), not by structure.
-            //
-            // PINNED, not fixed here. The fix (thread max_certifying_identities into the per-parent
-            // certifier set in value_v6, capping how many distinct identities can seed one parent) is
-            // a production flow-path change for a fresh low-context session. Naming + evidencing the
-            // vector with a reproduction is this tick's increment (per pom-roadmap-advance: "if you
-            // find a gaming vector, that IS the increment").
+            // Honest diverse certification (1-2 identities) is INERT: ranks m=0/1 ⇒ μ^0=1, μ^1≈0.62
+            // on the SMALLER contributor only ⇒ near-full. The attack is volume-via-many-identities,
+            // which this saturates; legitimately broad certification keeps its value.
             let w = trained_outcome_w();
             let payloads: [&[u8]; 8] = [
                 b"the cat sat quietly on the warm mat today",
@@ -1783,18 +1777,42 @@ pub mod value {
             let v8s = |k: usize| {
                 value_v8(&split(k), &st, FLOOR, &w, THETA, ENTROPY_THETA, THETA_Q16, DAMP, ITERS, HALF)[0]
             };
+            // Single-identity saturation bound (the cross-identity curve must not exceed it).
+            let single_v8_8 = {
+                let order = |n: usize| -> Vec<super::super::Cell> {
+                    let mut o = vec![root.clone()];
+                    for j in 0..n {
+                        o.push(cellc((j + 1) as u64, 99, (j + 1) as u64, Some(0), payloads[j]));
+                    }
+                    o
+                };
+                let st1 = standing_of(&[(1u8, FLOOR), (99u8, FLOOR)]);
+                value_v8(&order(8), &st1, FLOOR, &w, THETA, ENTROPY_THETA, THETA_Q16, DAMP, ITERS, HALF)[0]
+            };
+            let (k1, k2, k4, k8) = (v8s(1), v8s(2), v8s(4), v8s(8));
             println!(
-                "PROBE multi-identity v8: K1={:.4} K2={:.4} K4={:.4} K8={:.4} (single-identity v8(8) saturated at 18.11)",
-                v8s(1), v8s(2), v8s(4), v8s(8)
+                "PROBE multi-identity v8 (cross-identity μ^m damping): K1={k1:.4} K2={k2:.4} K4={k4:.4} K8={k8:.4} (single-identity v8(8) bound = {single_v8_8:.4})"
             );
-            // THE GAP: splitting volume across distinct vested identities amplifies the root well past
-            // the single-identity saturation bound — the λ^r damping is inert because every child is
-            // rank-0. (Mirrors the ORIGINAL pre-fix single-identity assertion, reappearing one level up.)
+            // (1) SATURATION — the marginal gain collapses: doubling K=4→8 adds far less than K=1→4.
             assert!(
-                v8s(8) > 1.3 * v8s(1),
-                "OPEN GAP closed unexpectedly? multi-identity split no longer amplifies: K8={:.4} K1={:.4}",
-                v8s(8), v8s(1)
+                (k8 - k4) < 0.2 * (k4 - k1),
+                "multi-identity split did not saturate: tail {:.4} not << head {:.4}",
+                k8 - k4,
+                k4 - k1
             );
+            // (2) BOUNDED — splitting across 8 distinct vested identities does NOT exceed the
+            //     single-identity saturation bound; the split buys the attacker nothing.
+            assert!(
+                k8 <= 1.02 * single_v8_8,
+                "multi-identity split exceeds the single-identity bound: K8={k8:.4} vs single={single_v8_8:.4}"
+            );
+            // (3) BOUNDED vs K=1 — K=8 barely exceeds K=1 (the geometric μ^m tail), not ~linear in K.
+            assert!(
+                k8 < 1.3 * k1,
+                "multi-identity split still amplifies: K8={k8:.4} K1={k1:.4}"
+            );
+            // (4) NOT over-damped — the first identity still seeds full value (the fix must not zero).
+            assert!(k1 > 0.0 && k8 > k1, "cross-identity damping zeroed honest signal");
         }
 
         #[test]
@@ -2220,34 +2238,47 @@ pub mod flow {
         } else {
             children_of(cells)
         };
-        // Per-identity diminishing-returns damping (closes the single-identity volume gap).
-        // Within a parent's children, the r-th child (commit order) from a given certifying
-        // identity is weighted LAMBDA^r, so ONE identity's summed certifying flow saturates
-        // (geometric, ≤ flow/(1-LAMBDA)) instead of amplifying linearly in N; DISTINCT
-        // identities stay full-weight at rank 0 (honest diverse certification untouched).
-        // Single in-order pass over `kids` (built in ascending index = canonical commit
-        // order) keeps the result deterministic ⇒ replicas converge.
-        const LAMBDA: f64 = 0.618_033_988_749_894_9; // 1/φ (FibonacciScaling progressive damping)
+        // Two-axis geometric diminishing-returns damping. Closes BOTH volume gaming vectors:
+        //   (1) WITHIN-identity (λ^r): the r-th child (commit order) from a given certifying
+        //       identity is weighted LAMBDA^r, so ONE identity's summed certifying flow
+        //       saturates (geometric, ≤ flow/(1-LAMBDA)) instead of amplifying linearly in N.
+        //   (2) CROSS-identity (μ^m): a parent's DISTINCT certifying identities are SORTED by
+        //       their grouped (within-identity-damped) contribution descending; the m-th
+        //       identity is weighted MU^m. One identity stays full (μ^0=1), additional
+        //       identities decay — so splitting volume across K vested identities saturates
+        //       just like stacking it under one (every child being rank-0 in its own group no
+        //       longer escapes damping). Honest diverse certification (1-2 identities) is
+        //       ~INERT: ranks 0/1 ⇒ weights 1, μ ⇒ near-full.
+        // Deterministic: canonical sort key = (grouped contribution desc, identity args asc as
+        // tiebreak) ⇒ on-VM replicas converge regardless of HashMap iteration order. Within an
+        // identity, `kids` is ascending index = canonical commit order.
+        const LAMBDA: f64 = 0.618_033_988_749_894_9; // 1/φ within-identity rank decay
+        const MU: f64 = 0.618_033_988_749_894_9; // 1/φ cross-identity rank decay (same constant)
         for _ in 0..iters {
             let mut next = own.to_vec();
             for (pid, kids) in &children {
                 if let Some(&pi) = id_to_idx.get(pid) {
-                    let mut seen: Vec<(&Vec<u8>, u32)> = Vec::new();
-                    let mut s = 0.0;
+                    // Group each identity's within-identity-damped (λ^r) contribution.
+                    let mut groups: Vec<(&Vec<u8>, f64, u32)> = Vec::new();
                     for &k in kids {
                         let id = &cells[k].type_script.args;
-                        let rank = match seen.iter_mut().find(|(a, _)| *a == id) {
+                        match groups.iter_mut().find(|(a, _, _)| *a == id) {
                             Some(e) => {
-                                let r = e.1;
-                                e.1 += 1;
-                                r
+                                e.1 += LAMBDA.powi(e.2 as i32) * flow[k];
+                                e.2 += 1;
                             }
-                            None => {
-                                seen.push((id, 1));
-                                0
-                            }
-                        };
-                        s += LAMBDA.powi(rank as i32) * flow[k];
+                            None => groups.push((id, flow[k], 1)),
+                        }
+                    }
+                    // Sort distinct identities by grouped contribution desc, args asc tiebreak.
+                    groups.sort_by(|a, b| {
+                        b.1.partial_cmp(&a.1)
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                            .then_with(|| a.0.cmp(b.0))
+                    });
+                    let mut s = 0.0;
+                    for (m, (_, contrib, _)) in groups.iter().enumerate() {
+                        s += MU.powi(m as i32) * contrib;
                     }
                     next[pi] = own[pi] + d * s;
                 }
@@ -6444,35 +6475,43 @@ pub mod settlement_fixed {
         let id_to_idx: HashMap<u64, usize> =
             cells.iter().enumerate().map(|(i, c)| (c.id, i)).collect();
         let children = flow::children_of_external(cells, &id_to_idx);
-        // Fixed-point mirror of the per-identity diminishing-returns damping in
-        // `flow::value_flow_with_own`: r-th child (commit order) from a certifying identity
-        // weighted λ^r, λ=1/φ. round(2^32/φ) is the Fibonacci-hashing constant; the f64 side
-        // uses the same 1/φ, and the drift-guard `v7_q32_tracks_f64_v7_*` holds them within band.
-        const LAMBDA_Q32: u128 = 2_654_435_769; // round(2^32 / φ) = (1/φ) at Q32.32
+        // Fixed-point mirror of the TWO-AXIS geometric damping in
+        // `flow::value_flow_with_own`: (1) within-identity, the r-th child (commit order) from a
+        // certifying identity weighted λ^r; (2) cross-identity, a parent's distinct identities
+        // SORTED by grouped contribution desc (args asc tiebreak) and the m-th weighted μ^m
+        // (μ=λ=1/φ). round(2^32/φ) is the Fibonacci-hashing constant; the f64 side uses the same
+        // 1/φ, and the drift-guard `v7_q32_tracks_f64_v7_*` holds them within band.
+        const LAMBDA_Q32: u128 = 2_654_435_769; // round(2^32 / φ) = (1/φ) at Q32.32, within-identity
+        const MU_Q32: u128 = 2_654_435_769; // same constant, cross-identity
         for _ in 0..iters {
             let mut next = own.to_vec();
             for (pid, kids) in &children {
                 if let Some(&pi) = id_to_idx.get(pid) {
-                    let mut seen: Vec<(&Vec<u8>, u32)> = Vec::new();
-                    let mut s: u128 = 0;
+                    // Group each identity's within-identity-damped (λ^r) contribution.
+                    let mut groups: Vec<(&Vec<u8>, u128, u32)> = Vec::new();
                     for &k in kids {
                         let id = &cells[k].type_script.args;
-                        let rank = match seen.iter_mut().find(|(a, _)| *a == id) {
+                        match groups.iter_mut().find(|(a, _, _)| *a == id) {
                             Some(e) => {
-                                let r = e.1;
-                                e.1 += 1;
-                                r
+                                let mut w: u128 = ONE;
+                                for _ in 0..e.2 {
+                                    w = mul(w, LAMBDA_Q32);
+                                }
+                                e.1 = e.1.saturating_add(mul(w, fl[k]));
+                                e.2 += 1;
                             }
-                            None => {
-                                seen.push((id, 1));
-                                0
-                            }
-                        };
-                        let mut w: u128 = ONE; // λ^0 = 1.0 in Q32.32
-                        for _ in 0..rank {
-                            w = mul(w, LAMBDA_Q32);
+                            None => groups.push((id, fl[k], 1)),
                         }
-                        s = s.saturating_add(mul(w, fl[k]));
+                    }
+                    // Sort distinct identities by grouped contribution desc, args asc tiebreak.
+                    groups.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(b.0)));
+                    let mut s: u128 = 0;
+                    for (m, (_, contrib, _)) in groups.iter().enumerate() {
+                        let mut w: u128 = ONE; // μ^0 = 1.0 in Q32.32
+                        for _ in 0..m {
+                            w = mul(w, MU_Q32);
+                        }
+                        s = s.saturating_add(mul(w, *contrib));
                     }
                     next[pi] = own[pi].saturating_add(mul(d_q32, s));
                 }
