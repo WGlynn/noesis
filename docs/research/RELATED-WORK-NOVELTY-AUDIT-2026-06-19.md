@@ -71,6 +71,16 @@ The corpus has ZERO verified sources on the families most likely to pre-empt us:
 Open question flagged as highest-risk: *does Deep Funding's pairwise-distilled judgment over a
 dependency graph subsume claim (b)?*
 
+## SECOND PASS (RI-002, 2026-06-19) — the flagged claims cleared adversarially
+
+Deep-research pass 2 (105 agents, 23 sources, 24/25 verified, 1 killed) targeted exactly the families pass 1 left uncleared.
+
+- **(b) NOVEL — confirmed against the most dangerous collision.** Deep Funding (Vitalik/EF) computes a distilled **scalar per-edge credit weight** (fraction of a dependent's credit assigned to a dependency), regressed by a model (Bradley-Terry/GBM/LLM) to match jury pairwise preferences — **no characteristic function, no coalition marginal, no connected-coalition restriction, no Shapley/Myerson**. It is an **off-chain funding-allocation oracle** (splits a fixed pot, e.g. $170k), **never a consensus/finality/stake object**. Differentiated on TWO independent axes (edge-weight-regression vs graph-restricted-Shapley synergy; funding-oracle vs consensus-object) so a single "isn't this Deep Funding?" objection can't collapse it. Data-Shapley = flat (non-graph) sibling, offline metric. Myerson (1977) = known primitive; novelty = its application AS the consensus object. All on-chain Shapley found (MEV-redistribution arXiv 2502.15420; PoS-reward) = post-hoc reward redistribution layered on existing consensus.
+- **(d) NOVEL as consensus-franchise; PARTIAL on the split PATTERN.** SourceCred (Cred non-transferable PageRank-earned / Grain transferable) + DeSoc soulbound tokens establish the non-transferable-reputation-vs-transferable-token split — but **neither makes non-transferable standing the CONSENSUS WEIGHT** with a separate transferable state-capacity token. SourceCred's "consensus" is social town halls; DeSoc is correlation-discounted DAO voting. Cite both as closest; differentiate on consensus-weight + state-capacity.
+- **(e) NOT adjudicated · (a)-vs-decentralized-training NOT adjudicated.** The pass-2 synthesis concentrated on (b)/(d); no verified findings on HodgeRank-residual-as-manipulation-certificate, reward-overoptimization (Gao), or Gensyn/Prime Intellect/Nous(Psyche/DisTrO)/Ritual/proof-of-inference making OUTPUT VALUE the consensus weight. **A THIRD pass is required** before the WP asserts (e) novel or claims (a) cleared against decentralized-training. The WP §9 hedges both honestly ("to our knowledge", "we do not claim an exhaustive survey").
+- **Caveat:** Deep Funding is an active 2024-26 program; a future round promoting its edge-weight oracle to an on-chain issuance/consensus role would narrow the (b) differentiator from two axes to one — re-check periodically.
+- **Pass-2 sources:** Vitalik X (1867886974058520820) · github deepfunding/dependency-graph · deepfunding.org · ethereum-magicians #24200 · Data-Shapley arXiv 1904.02868 · Myerson 1977 (Math.OR 2(3):225) · SourceCred FAQ + protocol.ai intro · DeSoc SSRN 4105763 · MEV-Shapley arXiv 2502.15420.
+
 ## Key sources (verified, primary unless noted)
 - BRSV Proof of Useful Work: eprint.iacr.org/2017/203 + 2018 follow-up eprint.iacr.org/2018/678, /2018/559
 - Ofelimos: link.springer.com/chapter/10.1007/978-3-031-15979-4_12 (+ IOHK blog)

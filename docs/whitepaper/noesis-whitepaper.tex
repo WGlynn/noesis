@@ -33,7 +33,7 @@
 itself an instance of the contribution economy this paper specifies: a human and a machine
 producing provenance-complete, attributable work.}\\
 \texttt{noesis}}
-\date{Draft 1.0 \quad June 2026 \\[2pt] \footnotesize\textcolor{bad}{Confidential pre-release. Not for redistribution.}}
+\date{Draft 1.1 \quad June 2026 \\[2pt] \footnotesize\textcolor{bad}{Confidential pre-release. Not for redistribution.}}
 
 \begin{document}
 \maketitle
@@ -568,6 +568,55 @@ so the same contribution arriving from two sources is credited once; and the imp
 airgap, so a foreign chain's attestation is bonded and disputed, never trusted, and re-measured by the
 same value function rather than imported at its source's claimed worth. The merge conserves; it does not
 import another chain's trust assumptions.
+
+\section{Related work and what is novel}
+
+Three families are adjacent, and the distinction in each case is the same: the consensus object is
+something other than an endogenously-measured contribution-value.
+
+\paragraph{Useful proof-of-work.} Primecoin, Permacoin, proof-of-replication (Filecoin), proof of
+space-time (Chia), and the theoretical line of Ball, Rosen, Sabin and Vasudevan make the \emph{work}
+useful, but value stays exogenous: security comes from puzzle hardness, dedicated space, or honest
+execution, while the work's worth is priced by an external market or fixed by an external
+problem-provider. The theoretical line is weaker than it appears (the usefulness claims of the 2017
+construction were retracted in 2018), and proof-of-learning schemes are provably not robust to spoofing.
+Decentralized-training and proof-of-inference systems prove honest execution or correct training, not
+output value; to our knowledge none makes measured output value the consensus or finality weight, though
+that family evolves quickly and we do not claim an exhaustive survey.
+
+\paragraph{Stake-weighted opinion (Bittensor).} The closest operating system, Bittensor's Yuma
+consensus, does attempt to score contribution: validators submit weight vectors over miners and the
+network takes a stake-weighted, clipped aggregate. But it is a \emph{subjective}-utility mechanism,
+validators are rewarded for agreeing with the stake-weighted majority rather than for measuring truth,
+and empirically reward is dominated by stake rather than by contribution quality. It aggregates
+purchased-stake-weighted opinion; it does not measure endogenous value, and its franchise is bought.
+
+\paragraph{Contribution attribution.} Ethereum's Deep Funding is the most superficially similar prior
+work, sharing the ``value as a graph'' framing and an AI-distilled credit signal. It is nonetheless
+distinct on two independent axes. It computes a distilled \emph{scalar edge-weight} (the fraction of a
+dependent's credit assigned to a dependency), regressed by a model to match jury pairwise preferences;
+it is not a cooperative-game value, has no characteristic function, no coalition marginal contribution,
+and no connected-coalition restriction. And it is an off-chain \emph{funding-allocation oracle} that
+splits a fixed pot, never a consensus, finality, or stake-weight object. Data-Shapley applies the flat
+(non-graph) Shapley value to training data as an offline metric; the Myerson value we use is the
+graph-restricted generalization (Myerson, 1977), a known primitive whose novelty here is its
+\emph{application as the consensus object}, not the primitive itself. Every on-chain use of the Shapley
+value we found redistributes revenue \emph{after} consensus rather than securing it.
+
+\paragraph{Non-transferable standing.} SourceCred separates non-transferable earned reputation (Cred,
+computed by PageRank) from a transferable token (Grain), and the Decentralized Society proposal
+introduces non-transferable soulbound tokens for reputation and credentials. The split pattern therefore
+has prior art. Neither, however, makes non-transferable earned standing the \emph{consensus weight} while
+keeping a separate \emph{transferable state-capacity} token: SourceCred's consensus is social, and the
+soulbound-token proposal addresses correlation-discounted DAO voting, not a consensus franchise.
+
+\paragraph{Net.} Endogenous value measurement as the consensus object (Section~\ref{sec:value}) is, to
+our knowledge, novel against this corpus; the Myerson-over-provenance-DAG credit rule and the soulbound
+standing / transferable capacity split are novel in their consensus application though each composes
+known primitives; and the use of the HodgeRank residual as a manipulation certificate is, as far as we
+are aware, not prior to this work, though we do not claim to have surveyed the robust-ranking literature
+exhaustively. We state these as positioned claims open to refutation, in the spirit of
+Section~\ref{sec:security}.
 
 \section{Conclusion}
 

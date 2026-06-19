@@ -11,7 +11,8 @@
 | Version | Date | State | Notes |
 |---|---|---|---|
 | Draft 1.0 | 2026-06-19 | SHIPPED (`10402c4`) | First foundational scientific WP. 9pp PDF, Bitcoin cadence, equations + 4 figures (2 from real node data). For Will's dad + first external reads. |
-| Draft 1.1 | — | QUEUED | (1) Add "Measurement as a living mechanism" (dynamic-solution answer to FB-001). (2) Rewrite §9 Related Work from the novelty audit (RI-001 → `research/RELATED-WORK-NOVELTY-AUDIT-2026-06-19.md`): claim (a) NOVEL, Bittensor stated precisely, (b)/(d)/(e) marked novel-within-corpus pending a 2nd pass. (3) Add a convergence/forwards-compatibility section from `docs/CONVERGENCE-REVERSE-FORK.md` (reverse-fork merge = the ecosystem-scale expression of claim (a)). |
+| Draft 1.1 | 2026-06-19 | SHIPPED (12pp) | All 3 increments in: (1) "Measurement as a living mechanism" (answers FB-001) ✓; (2) standalone "Related work and what is novel" §9 written from RI-001+RI-002 — (a) NOVEL, Bittensor precise, (b) NOVEL vs Deep Funding (two-axis differentiator), (d) NOVEL-as-consensus-franchise vs SourceCred/DeSoc, (e)+decentralized-training hedged honestly ✓; (3) convergence/forwards-compatibility section ✓. Desktop PDF refreshed. |
+| Draft 1.2 | — | QUEUED | THIRD research pass to clear (e) [HodgeRank-residual-as-certificate vs robust-ranking lit] + (a)-vs-decentralized-training [Gensyn/Prime Intellect/Nous/Ritual making output-value the consensus weight]. Until then §9 keeps the honest hedges. |
 
 ---
 
@@ -30,6 +31,14 @@ before Draft 1.1 asserts (b)/(d)/(e) novel.** Highest-risk open collision: does 
 pairwise-distilled judgment over a dependency graph subsume (b)?
 
 **Status:** report persisted; Draft 1.1 §9 rewrite + the 2nd-pass research are the open actions.
+
+### RI-002 — Second-pass novelty audit (cleared the flagged claims) — 2026-06-19
+Deep-research pass 2 (105 agents, 24/25 verified). Detail appended to
+`docs/research/RELATED-WORK-NOVELTY-AUDIT-2026-06-19.md` (SECOND PASS section). **(b) NOVEL** — Deep
+Funding decisively differentiated (scalar edge-weight funding oracle, not graph-restricted-Shapley
+consensus object); **(d) NOVEL as consensus-franchise** (SourceCred/DeSoc have the split pattern, not the
+consensus-weight). **(e) + (a)-vs-decentralized-training still OPEN** → Draft 1.2 third pass. §9 written
+with honest hedges on the open two. **Status:** Draft 1.1 §9 complete; third pass is the next research action.
 
 ---
 
