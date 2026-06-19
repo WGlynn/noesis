@@ -1861,41 +1861,44 @@ pub mod value {
         }
 
         #[test]
-        fn t3_hybrid_diagonal_pumps_past_single_identity_bound_open_gap() {
-            // ========================= NEW GAMING VECTOR (the T3 find) =========================
-            // VECTOR NAME: hybrid-split diagonal pump (cross-axis geometric-tail compounding).
+        fn t3_hybrid_diagonal_saturates_under_joint_decay() {
+            // ===================== T3 CLOSED: hybrid-split diagonal pump bounded =====================
+            // VECTOR (now closed): hybrid-split diagonal pump (cross-axis geometric-tail compounding).
             //
-            // The (q) within-identity λ^r damping bounds ONE identity's M children to the
-            // geometric tail flow·(1−λ^M)/(1−λ) ≤ flow/(1−λ) ≈ 2.618·flow. The (r) cross-identity
-            // μ^m damping bounds K identities' grouped contributions to Σ_m μ^m·group_m. EACH
-            // AXIS IS INDIVIDUALLY BOUNDED — the K=1 column tops out at the single-identity bound,
-            // the M=1 row reproduces the pure cross-identity curve. BUT the DIAGONAL is not: an
-            // attacker who runs K vested identities EACH posting M children gives every one of the
-            // K groups a FULL λ^r tail (≈2.618·flow for large M), then sums those K near-saturated
-            // groups under the μ^m tail. The two geometric tails MULTIPLY:
-            //     bound_diagonal → flow · [1/(1−λ)] · [1/(1−μ)] ≈ flow · 2.618 · 2.618 ≈ 6.85·flow
-            // versus the single-identity bound flow/(1−λ) ≈ 2.618·flow. The cross of the two
-            // independently-bounded axes pumps past the single-identity saturation bound.
+            // The PRIOR two-axis fix damped within-identity (λ^r) and cross-identity (μ^m) SEPARATELY.
+            // Each axis was individually bounded, but their CROSS was not: K vested identities EACH
+            // posting M children gave every group a full λ^r tail (≈2.618·flow), then those K
+            // near-saturated groups summed under the μ^m tail ⇒ the two tails MULTIPLIED:
+            //     bound_diagonal → flow·[1/(1−λ)]·[1/(1−μ)] ≈ 6.85·flow  vs  single-id 2.618·flow.
             //
-            // HONEST GRID (measured 2026-06-18, μ=λ=1/φ; v8(root), single-identity K1×M8 = 18.1073):
-            //   K\M     M=1       M=2       M=4
-            //   K=1   14.2821   16.4373   17.6582   ← within-identity axis, saturates ≤ 18.11
-            //   K=2   16.4373   18.1768   19.0835   ← K2×M2 already 18.18 > 18.11 (bound broken)
-            //   K=4   17.6623   19.0838   19.7499   ← K4×M4 = 19.75, ~9% over the single bound
-            // The pump is modest at the 8-identity standing-floor cost the attacker pays, but it is
-            // REAL and MONOTONE in both K and M — exactly the unbounded-product signature above.
+            // THE FIX (this build): replace the product-of-two-tails with a SINGLE JOINT geometric
+            // decay ρ^j (ρ=1/φ) over the GLOBAL flattened (contribution desc, identity args asc,
+            // child index asc) order of ALL external children of a parent. Stacking under one
+            // identity, splitting across K, and the hybrid K×M diagonal ALL land in the same
+            // flattened sequence ⇒ all draw from the SAME geometric budget Σ_j ρ^j ≤ 1/(1−ρ) ≈ 2.618.
+            // There is no independent second tail to multiply against, so the diagonal collapses back
+            // to (at most) the single-identity saturation bound. (See `value_flow_with_own`.)
             //
-            // This is THE next adversarial-loop surface the (s) spec flagged ("a fix that bounds
-            // each axis independently could still pump on the diagonal"). It does. Pinned RED here;
-            // fix design recorded in ROADMAP + CONTINUE. Tier: 🔬 OPEN.
+            // BEFORE → AFTER (measured, ρ=1/φ; v8(root); single-identity K1×M8 bound moved
+            // 18.1073 → 18.1339 because the flatten orders the single-identity column by flow too):
+            //   BEFORE (two-tail product, the pump):        AFTER (one joint tail, saturating):
+            //     K\M    M=1      M=2      M=4                  K\M    M=1      M=2      M=4
+            //     K=1  14.2821  16.4373  17.6582               K=1  14.2821  16.4373  17.6623
+            //     K=2  16.4373  18.1768  19.0835               K=2  16.4373  17.6623  18.1339
+            //     K=4  17.6623  19.0838  19.7499               K=4  17.6623  18.1339  18.1953
+            //   K2×M2 18.18→17.66, K4×M4 19.75→18.20 — the diagonal no longer exceeds the
+            //   single-identity bound by more than ε (K4×M4 = 18.1953 ≤ 1.02·18.1339); the +9%
+            //   pump is gone.
+            //
+            // This test now ASSERTS saturation across the whole K×M grid (the flipped open-gap pin).
             let w = trained_outcome_w();
             let root = cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta");
             let v8 = |k: usize, m: usize| {
                 value_v8(&t3_hybrid_order(&root, k, m), &t3_hybrid_standing(k),
                     FLOOR, &w, THETA, ENTROPY_THETA, THETA_Q16, DAMP, ITERS, HALF)[0]
             };
-            // single-identity saturation bound (K=1 axis at M=8): the diagonal must NOT exceed it,
-            // but it does — that is the gap.
+            // Single-identity saturation bound (K=1 axis at M=8): the diagonal must NOT exceed it
+            // by more than ε under the joint decay.
             let single_bound = {
                 let mut o = vec![root.clone()];
                 for j in 0..8u64 {
@@ -1904,25 +1907,31 @@ pub mod value {
                 let s = standing_of(&[(1u8, FLOOR), (99u8, FLOOR)]);
                 value_v8(&o, &s, FLOOR, &w, THETA, ENTROPY_THETA, THETA_Q16, DAMP, ITERS, HALF)[0]
             };
-            let (d22, d44) = (v8(2, 2), v8(4, 4));
-            println!(
-                "PROBE T3 hybrid diagonal: single_bound(K1M8)={single_bound:.4} K2M2={d22:.4} K4M4={d44:.4}"
-            );
-            // (A) THE GAP: the diagonal pumps past the single-identity saturation bound. Even the
-            //     smallest non-trivial cross (K2×M2) breaks it; the 4×4 cross breaks it materially.
-            assert!(
-                d22 > single_bound,
-                "expected the diagonal to pump (K2M2={d22:.4} > bound={single_bound:.4}) — if this \
-                 fails, the cross-axis fix landed and this open_gap should flip to saturates"
-            );
-            assert!(
-                d44 > single_bound * 1.05,
-                "expected a material 4x4 pump (K4M4={d44:.4} > 1.05·bound={:.4})",
-                single_bound * 1.05
-            );
-            // (B) the pump is MONOTONE up the diagonal (the geometric-product signature): more
-            //     identities AND more children each push it higher.
-            assert!(d44 > d22, "diagonal pump is monotone in the grid: K4M4 {d44:.4} > K2M2 {d22:.4}");
+            // Honest-number the full grid (printed for the adversarial log).
+            for k in [1usize, 2, 4] {
+                let row: Vec<String> = [1usize, 2, 4].iter().map(|&m| format!("{:.4}", v8(k, m))).collect();
+                println!("PROBE T3 grid K={k}: M=1 {} M=2 {} M=4 {}", row[0], row[1], row[2]);
+            }
+            println!("PROBE T3 single_bound(K1M8)={single_bound:.4}");
+            // ε bound: 2% over the single-identity saturation ceiling (same band as the T1/T2
+            // `multi_identity_split_volume_saturates` test). EVERY cell of the K×M diagonal grid
+            // must stay under it — no pump anywhere, not just on the main diagonal.
+            const EPS: f64 = 1.02;
+            for k in [1usize, 2, 4] {
+                for m in [1usize, 2, 4] {
+                    let v = v8(k, m);
+                    assert!(
+                        v <= EPS * single_bound,
+                        "T3 diagonal pump NOT closed: K{k}×M{m} = {v:.4} exceeds bound×1.02 = {:.4} \
+                         (single_bound = {single_bound:.4}) — the joint decay is not collapsing the \
+                         cross-axis product",
+                        EPS * single_bound
+                    );
+                }
+            }
+            // Honest signal preserved: the smallest honest case (one identity, one child) is rank 0
+            // ⇒ ρ^0 = 1 ⇒ full weight, and the root is still paid.
+            assert!(v8(1, 1) > 0.0, "joint decay zeroed the honest single-child signal");
         }
 
         #[test]
@@ -2414,47 +2423,39 @@ pub mod flow {
         } else {
             children_of(cells)
         };
-        // Two-axis geometric diminishing-returns damping. Closes BOTH volume gaming vectors:
-        //   (1) WITHIN-identity (λ^r): the r-th child (commit order) from a given certifying
-        //       identity is weighted LAMBDA^r, so ONE identity's summed certifying flow
-        //       saturates (geometric, ≤ flow/(1-LAMBDA)) instead of amplifying linearly in N.
-        //   (2) CROSS-identity (μ^m): a parent's DISTINCT certifying identities are SORTED by
-        //       their grouped (within-identity-damped) contribution descending; the m-th
-        //       identity is weighted MU^m. One identity stays full (μ^0=1), additional
-        //       identities decay — so splitting volume across K vested identities saturates
-        //       just like stacking it under one (every child being rank-0 in its own group no
-        //       longer escapes damping). Honest diverse certification (1-2 identities) is
-        //       ~INERT: ranks 0/1 ⇒ weights 1, μ ⇒ near-full.
-        // Deterministic: canonical sort key = (grouped contribution desc, identity args asc as
-        // tiebreak) ⇒ on-VM replicas converge regardless of HashMap iteration order. Within an
-        // identity, `kids` is ascending index = canonical commit order.
-        const LAMBDA: f64 = 0.618_033_988_749_894_9; // 1/φ within-identity rank decay
-        const MU: f64 = 0.618_033_988_749_894_9; // 1/φ cross-identity rank decay (same constant)
+        // SINGLE JOINT geometric diminishing-returns damping. Closes ALL the volume gaming
+        // vectors with ONE tail instead of a per-axis product:
+        //   For a parent, FLATTEN every external child into ONE canonical ordering and weight the
+        //   j-th by RHO^j. Stacking M children under one identity, splitting across K identities,
+        //   or the hybrid K×M diagonal ALL land in the SAME flattened sequence ⇒ all draw from the
+        //   SAME geometric budget Σ_j RHO^j ≤ 1/(1-RHO) ≈ 2.618. There is no second independent
+        //   tail to multiply against, so the cross-axis "hybrid diagonal pump" cannot exceed the
+        //   single-axis saturation bound (T3). One honest child is rank 0 (RHO^0 = 1, full weight);
+        //   1-2 honest distinct identities are ranks 0/1 ⇒ ~INERT. This SUPERSEDES the prior
+        //   two-axis (λ^r within-identity × μ^m cross-identity) product, which bounded each axis
+        //   alone yet let the diagonal pump to flow·[1/(1-λ)]·[1/(1-μ)] ≈ 6.85·flow.
+        // Deterministic: canonical flatten key = (contribution/flow desc, identity args asc,
+        // child index asc) ⇒ on-VM replicas converge regardless of HashMap iteration order. The
+        // child-index tiebreak makes the order total even when flow and args both tie.
+        const RHO: f64 = 0.618_033_988_749_894_9; // 1/φ joint rank decay
         for _ in 0..iters {
             let mut next = own.to_vec();
             for (pid, kids) in &children {
                 if let Some(&pi) = id_to_idx.get(pid) {
-                    // Group each identity's within-identity-damped (λ^r) contribution.
-                    let mut groups: Vec<(&Vec<u8>, f64, u32)> = Vec::new();
-                    for &k in kids {
-                        let id = &cells[k].type_script.args;
-                        match groups.iter_mut().find(|(a, _, _)| *a == id) {
-                            Some(e) => {
-                                e.1 += LAMBDA.powi(e.2 as i32) * flow[k];
-                                e.2 += 1;
-                            }
-                            None => groups.push((id, flow[k], 1)),
-                        }
-                    }
-                    // Sort distinct identities by grouped contribution desc, args asc tiebreak.
-                    groups.sort_by(|a, b| {
-                        b.1.partial_cmp(&a.1)
+                    // Flatten ALL external children into one canonical order, then apply one tail.
+                    let mut ranked: Vec<(f64, &Vec<u8>, usize)> = kids
+                        .iter()
+                        .map(|&k| (flow[k], &cells[k].type_script.args, k))
+                        .collect();
+                    ranked.sort_by(|a, b| {
+                        b.0.partial_cmp(&a.0)
                             .unwrap_or(std::cmp::Ordering::Equal)
-                            .then_with(|| a.0.cmp(b.0))
+                            .then_with(|| a.1.cmp(b.1))
+                            .then_with(|| a.2.cmp(&b.2))
                     });
                     let mut s = 0.0;
-                    for (m, (_, contrib, _)) in groups.iter().enumerate() {
-                        s += MU.powi(m as i32) * contrib;
+                    for (j, (contrib, _, _)) in ranked.iter().enumerate() {
+                        s += RHO.powi(j as i32) * contrib;
                     }
                     next[pi] = own[pi] + d * s;
                 }
@@ -6651,43 +6652,33 @@ pub mod settlement_fixed {
         let id_to_idx: HashMap<u64, usize> =
             cells.iter().enumerate().map(|(i, c)| (c.id, i)).collect();
         let children = flow::children_of_external(cells, &id_to_idx);
-        // Fixed-point mirror of the TWO-AXIS geometric damping in
-        // `flow::value_flow_with_own`: (1) within-identity, the r-th child (commit order) from a
-        // certifying identity weighted λ^r; (2) cross-identity, a parent's distinct identities
-        // SORTED by grouped contribution desc (args asc tiebreak) and the m-th weighted μ^m
-        // (μ=λ=1/φ). round(2^32/φ) is the Fibonacci-hashing constant; the f64 side uses the same
-        // 1/φ, and the drift-guard `v7_q32_tracks_f64_v7_*` holds them within band.
-        const LAMBDA_Q32: u128 = 2_654_435_769; // round(2^32 / φ) = (1/φ) at Q32.32, within-identity
-        const MU_Q32: u128 = 2_654_435_769; // same constant, cross-identity
+        // Fixed-point mirror of the SINGLE JOINT geometric damping in
+        // `flow::value_flow_with_own`: for a parent, FLATTEN every external child into one
+        // canonical order (contribution/flow desc, identity args asc, child index asc) and weight
+        // the j-th by ρ^j (ρ=1/φ). One tail, not a per-axis product ⇒ the hybrid K×M diagonal
+        // draws from the same geometric budget as a single axis (T3 closed). round(2^32/φ) is the
+        // Fibonacci-hashing constant; the f64 side uses the same 1/φ, and the drift-guard
+        // `v7_q32_tracks_f64_v7_*` / `t6_*` holds them within band.
+        const RHO_Q32: u128 = 2_654_435_769; // round(2^32 / φ) = (1/φ) at Q32.32, joint rank decay
         for _ in 0..iters {
             let mut next = own.to_vec();
             for (pid, kids) in &children {
                 if let Some(&pi) = id_to_idx.get(pid) {
-                    // Group each identity's within-identity-damped (λ^r) contribution.
-                    let mut groups: Vec<(&Vec<u8>, u128, u32)> = Vec::new();
-                    for &k in kids {
-                        let id = &cells[k].type_script.args;
-                        match groups.iter_mut().find(|(a, _, _)| *a == id) {
-                            Some(e) => {
-                                let mut w: u128 = ONE;
-                                for _ in 0..e.2 {
-                                    w = mul(w, LAMBDA_Q32);
-                                }
-                                e.1 = e.1.saturating_add(mul(w, fl[k]));
-                                e.2 += 1;
-                            }
-                            None => groups.push((id, fl[k], 1)),
-                        }
-                    }
-                    // Sort distinct identities by grouped contribution desc, args asc tiebreak.
-                    groups.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(b.0)));
+                    // Flatten ALL external children into one canonical order, then apply one tail.
+                    let mut ranked: Vec<(u128, &Vec<u8>, usize)> = kids
+                        .iter()
+                        .map(|&k| (fl[k], &cells[k].type_script.args, k))
+                        .collect();
+                    ranked.sort_by(|a, b| {
+                        b.0.cmp(&a.0)
+                            .then_with(|| a.1.cmp(b.1))
+                            .then_with(|| a.2.cmp(&b.2))
+                    });
                     let mut s: u128 = 0;
-                    for (m, (_, contrib, _)) in groups.iter().enumerate() {
-                        let mut w: u128 = ONE; // μ^0 = 1.0 in Q32.32
-                        for _ in 0..m {
-                            w = mul(w, MU_Q32);
-                        }
+                    let mut w: u128 = ONE; // ρ^0 = 1.0 in Q32.32, accumulated ×ρ per rank
+                    for (contrib, _, _) in ranked.iter() {
                         s = s.saturating_add(mul(w, *contrib));
+                        w = mul(w, RHO_Q32);
                     }
                     next[pi] = own[pi].saturating_add(mul(d_q32, s));
                 }

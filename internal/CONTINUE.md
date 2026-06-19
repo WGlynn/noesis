@@ -12,6 +12,19 @@ Will: "invite Tom lindeman and Bernhard to noesis private repo so they can help 
   give them the lean-like-Bitcoin design constraint + the value-flow moat thread (the un-gameable v(S)).
 - Check acceptance: `gh api repos/WGlynn/noesis/invitations`.
 
+## ▶ RESUME HERE (2026-06-19 (u) — BUILT ✅ T3 CLOSED: hybrid-split diagonal pump closed via single joint geometric decay; lib 225/225)
+- **What shipped:** the T3 hybrid-split diagonal pump is CLOSED. The (q)/(r) two-axis fix (λ^r within-identity × μ^m cross-identity) bounded each axis alone but the cross MULTIPLIED (≈6.85·flow). Replaced the product-of-two-tails with a **single JOINT geometric decay ρ^j (ρ=1/φ)** over the GLOBAL flattened canonical order of a parent's external children. One tail, not a product.
+- **Exact change (1 file, `node/src/lib.rs`, +101/−110):**
+  - `flow::value_flow_with_own` (f64, ~L2426): deleted the `groups` build + within-identity λ^r loop + cross-identity μ^m sort/loop. Now: flatten `kids` into `ranked: Vec<(flow, args, child_idx)>`, sort by (flow desc, args asc, child_idx asc), sum `Σ_j ρ^j · contrib`. `const RHO = 1/φ`.
+  - `settlement_fixed::value_flow_external_q32` (Q32.32 mirror, ~L6654): same flatten+single-tail; weight accumulated `w = mul(w, RHO_Q32)` per rank (RHO_Q32 = round(2^32/φ) = 2_654_435_769). Drift-guard (T6 + `v7_q32_tracks_f64_v7`) holds within 1e-6.
+  - Determinism: child-index final tiebreak ⇒ total order even when flow AND args tie ⇒ no HashMap-iteration leak (T5 ×32 bit-identical).
+- **HONEST GRID before→after** (v8(root), single-id K1×M8 bound 18.1073→18.1339): K2×M2 **18.18→17.66**, K4×M4 **19.75→18.20** (+0.34% over bound, ≤ ε=1.02). +9% pump gone; whole K×M grid (K,M∈{1,2,4}) ≤ bound×1.02.
+- **Test flipped:** `..._pumps_past_single_identity_bound_open_gap` → `t3_hybrid_diagonal_saturates_under_joint_decay` (asserts whole grid bounded + honest K1M1 still paid).
+- **Honest INERT:** T4/T5/T6 green; all honest v5–v8 green; v7_q32 drift-guard green. K=1 honest column ~unchanged (M4 17.6582→17.6623, 0.02% from flow-sorting the single-id column).
+- **BREAK-ON-PURPOSE:** ρ:=1.0 → diagonal reopens (K4M4=21.22 > 20.57×1.02), **T3 RED**; reverted, 225/225.
+- **clippy 0 NEW** (53→53 node warnings; 4 noesis-core errors pre-existing, untouched). **fmt:** my lines fmt-clean (no tree-wide run).
+- **NEXT frontier:** lock-sig binding (existence→control) · on-VM single-use per (k) · learned-v(S)-on-real-labels (THE moat).
+
 ## ▶ RESUME HERE (2026-06-18 (t) — BUILT the (s) 6-row matrix; T3 KEYSTONE FOUND A NEW VECTOR; lib 221→225)
 - **The (s) acceptance matrix is built and T3 found a real gap.** Added the 6-row adversarial matrix vs the (r) cross-identity μ^m fix. **T1/T2 reuse** the existing flipped gap test (`multi_identity_split_volume_saturates_under_cross_identity_damping`); **T3/T4/T5** new in the `value` test module (~line 1818+), **T6** in `settlement_fixed` (~line 6860+). Shared `HYBRID_PAYLOADS` (16 dissimilar valueless prose) in both modules; helpers `t3_hybrid_order`/`t3_hybrid_standing`. cargo test --lib **225/225**.
 - **🔬 T3 VERDICT: THE DIAGONAL PUMPS — new gaming vector `hybrid-split diagonal pump` (cross-axis geometric-tail compounding).** Each axis is bounded alone (λ^r within-identity, μ^m cross-identity) but their CROSS is not: K vested identities EACH posting M children give every K-group a full λ^r tail (≈2.618·flow), then those K near-saturated groups sum under the μ^m tail ⇒ the two tails MULTIPLY: bound_diagonal → flow·[1/(1−λ)]·[1/(1−μ)] ≈ 6.85·flow vs the single-identity bound 2.618·flow.

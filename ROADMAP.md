@@ -4,6 +4,42 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-19 (u)** — BUILT ✅ **T3 CLOSED** — the hybrid-split diagonal pump is closed by replacing
+  the product-of-two-tails with a **single joint geometric decay**. The (q)/(r) fix damped
+  within-identity (λ^r) and cross-identity (μ^m) on SEPARATE axes; each was bounded alone but their
+  CROSS multiplied (flow·[1/(1−λ)]·[1/(1−μ)] ≈ 6.85·flow). **Fix:** in `flow::value_flow_with_own`
+  (f64) and `settlement_fixed::value_flow_external_q32` (Q32.32 mirror), for each parent FLATTEN
+  every external child into ONE canonical order — key = (contribution/flow desc, identity args asc,
+  child index asc) — and apply ONE tail ρ^j (ρ=1/φ). Stacking under one identity, splitting across K,
+  and the hybrid K×M diagonal now all draw from the SAME geometric budget Σ_j ρ^j ≤ 1/(1−ρ) ≈ 2.618;
+  no second independent tail to multiply against. The two-tail grouping/sort machinery (the
+  `groups` build + per-axis nested loops) is DELETED on both layers (lean: −9 net lines).
+  - **HONEST GRID before→after** (v8(root), ρ=1/φ; single-identity K1×M8 bound moved 18.1073 → **18.1339**
+    because the single-identity column is now flow-sorted by the same flatten):
+    | | BEFORE K\M | M=1 | M=2 | M=4 | | AFTER K\M | M=1 | M=2 | M=4 |
+    |---|---|---|---|---|---|---|---|---|---|
+    | | K=1 | 14.2821 | 16.4373 | 17.6582 | | K=1 | 14.2821 | 16.4373 | 17.6623 |
+    | | K=2 | 16.4373 | **18.1768** | 19.0835 | | K=2 | 16.4373 | 17.6623 | 18.1339 |
+    | | K=4 | 17.6623 | 19.0838 | **19.7499** | | K=4 | 17.6623 | 18.1339 | **18.1953** |
+    K2×M2 **18.18 → 17.66** (back under bound), K4×M4 **19.75 → 18.20** (+0.34% over bound, within
+    ε=1.02). The +9% diagonal pump is gone; every cell of the K×M grid now stays ≤ single-id bound×1.02.
+  - **Test flipped:** `t3_hybrid_diagonal_pumps_past_single_identity_bound_open_gap` →
+    `t3_hybrid_diagonal_saturates_under_joint_decay` — asserts the WHOLE K×M grid (K,M ∈ {1,2,4})
+    stays ≤ bound×1.02, no pump anywhere, plus honest single-child (K1×M1) still paid.
+  - **Honest cases INERT:** T4 (distinct-parent diverse cert) green; T5 (determinism, ×32 bit-identical)
+    green; T6 (Q32 parity on T1+T3 graphs, 1e-6 band) green; `v7_q32_tracks_f64_v7` drift-guard green;
+    all honest v5–v8 green. K=1 honest column unchanged but for a 0.02% shift at M4 (17.6582→17.6623)
+    from flow-sorting the single-identity column — negligible, within-identity saturation still holds.
+  - **BREAK-ON-PURPOSE (anti-theater) confirmed:** ρ:=1.0 (inert decay) → diagonal reopens
+    (K4×M4 = 21.2184 > bound 20.5699×1.02) and **T3 went RED** with the exact "pump NOT closed"
+    message — the joint decay is load-bearing, the test detects the pump's PRESENCE. Reverted to
+    ρ=1/φ; **lib 225/225**.
+  - clippy: **0 NEW** (53 pre-existing node warnings on clean HEAD = 53 with the change; the 4
+    `noesis-core` `is_multiple_of`/`div_ceil` errors remain untouched). fmt: my added lines are
+    fmt-clean (formatted the Q32 sort closure to match); no tree-wide fmt run, no NEW drift.
+    `git diff --stat`: 1 file, +101/−110.
+  - **NEXT frontier:** lock-sig binding (existence→control) · on-VM single-use per (k) · the
+    learned-v(S)-on-real-labels mile (THE moat).
 - **2026-06-18 (t)** — BUILT + 🔬 NEW GAP NAMED — the (s) acceptance matrix is built, and its keystone
   T3 found a real vector. Added the 6-row adversarial matrix against the (r) cross-identity μ^m fix:
   **T1/T2** reuse the existing flipped gap test (`multi_identity_split_volume_saturates_under_cross_
