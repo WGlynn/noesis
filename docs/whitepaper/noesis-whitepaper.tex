@@ -339,6 +339,47 @@ runs unchanged when it lands.}
 \label{fig:moat}
 \end{figure}
 
+\section{Measurement as a living mechanism}
+
+The value function of Section~\ref{sec:value} is not a fixed formula, and it cannot be one. Any static
+value rule is Goodhart-bait: the moment it is published, it is gamed, because a fixed objective tells an
+adversary exactly what to optimize. The only un-gameable measure is one that adapts to the gaming.
+Measurement on this chain is therefore a closed loop, not a closed form, and its components, introduced
+separately above, are one adaptive system.
+
+\begin{enumerate}[leftmargin=1.4em,itemsep=2pt]
+\item \textbf{Realized, not predicted.} The learned model can only lower a seed it never raises one
+(Section~\ref{sec:value}). Value is gated on realized downstream flow, so the measure is anchored to
+what actually happened, not to a prediction an adversary can spoof.
+\item \textbf{It retrains on outcomes.} The chain is a clean, provenance-complete, value-weighted
+dataset (Section~\ref{sec:backwards}). The evaluator is fine-tuned on verified high-value contributions
+against caught failures, so the measure sharpens as the chain accumulates verified truth. Yesterday's
+attack becomes today's training signal.
+\item \textbf{Value is provisional, then adjudicated.} A payout is not final at emission. A challenge
+window lets a bonded challenger refute a value claim; a refuted claim is zeroed and the claimant
+slashed. Measurement is a dispute process with finality, not a one-shot score.
+\item \textbf{It cannot be banked.} Standing decays, so a high score earned once does not persist
+without continued contribution. The measure tracks live value, and a stale position is reclaimed.
+\item \textbf{It diagnoses its own breakdown.} The HodgeRank residual (Section~\ref{sec:value}) is a
+continuous detector: when the judgments stop fitting a single scalar, through genuine
+multidimensionality or through a coordinated manipulation injecting harmonic circulation, the residual
+energy rises and flags it. The system therefore knows \emph{when} to distrust its own number, rather
+than reporting a confident scalar over a structure that no longer supports one.
+\item \textbf{The dimensions of value can themselves evolve.} The value matrix is governance-mutable but
+verifier-gated: a new dimension is admitted only if it predicts realized downstream value, weights move
+within bounded ranges, and no real dimension can be zeroed. The measure is not frozen at genesis, and it
+cannot be captured into a private one.
+\end{enumerate}
+
+\noindent
+Put together, the loop is: measure, realize, dispute, retrain, decay, re-measure. A static rule loses to
+Goodhart on its first day; an adaptive measure with an un-gameable realized-value anchor, a dispute
+process for finality, and a residual that reports its own validity does not present a fixed target to
+optimize against. This is why Section~\ref{sec:security} calls value measurement the load-bearing open
+problem rather than a solved one. The claim is not a closed-form proof of un-gameability; it is a
+mechanism that treats un-gameability as a moving equilibrium it must continuously hold, and whose
+present strength is measured (Figure~\ref{fig:moat}) rather than asserted.
+
 \section{Proof of Mind}
 
 A participant's \textbf{PoM score} is its accumulated Myerson value over the verified, owned,
@@ -439,7 +480,7 @@ is that you can buy storage but not consensus. A transferable franchise would le
 consensus, which is proof-of-stake by another name; a soulbound franchise makes ``earned, not bought''
 and structural sybil-resistance real at once.
 
-\section{Backwards-enforcement of the model}
+\section{Backwards-enforcement of the model}\label{sec:backwards}
 
 The value chain is also a training signal. Each block is provenance-complete, owner-authenticated, and
 Myerson-valued: a clean, value-weighted dataset, exactly the object Data-Shapley attributes. With open
@@ -450,7 +491,7 @@ hallucination, forcing correction. Governance produces a training signal, which 
 which governance then verifies, and the loop compounds. The structure does not only constrain the
 mind; it teaches it.
 
-\section{Security and honest limitations}
+\section{Security and honest limitations}\label{sec:security}
 
 \paragraph{The load-bearing bet.} A value chain must measure value un-gameably, the problem Bitcoin
 sidesteps by being mere possession. If the learned outcome evaluator is gameable, PoM degrades into a
@@ -478,7 +519,7 @@ real outcome labels, the production two-level recursion, owner-signature control
 deterministic transaction digest the signature will cover is built and tested), the open-weight
 fine-tune loop, and the money/stability layer.
 
-\section{Fair launch and theft-resistance}
+\section{Fair launch and theft-resistance}\label{sec:fairlaunch}
 
 The creator's pre-launch contribution would otherwise be an unearned head start. It is neutralized by
 a \textbf{genesis-burn}: the chain stays continuous from genesis and pre-launch blocks remain
@@ -491,6 +532,42 @@ the system depends on is gone and the fork is incoherent; or it can preserve the
 case its edges trace back to this origin and running it credits the source. Copying the network
 honestly adds the copier to the same attribution graph, so there is no outside to fork to. Forking,
 which fragments value on a possession chain, here becomes contribution.
+
+\section{Forwards-compatibility: convergence, not competition}
+
+A possession chain fragments. Every new design competes to be the one chain, and value splits across the
+survivors. A value chain can do the opposite. Because contribution here is measured endogenously and
+conserved along provenance, a contribution from another chain can be imported as an attributed cell,
+re-scored by the same value function, and credited on one canonical graph without loss. The chain is not
+only backwards-compatible (continuous from genesis, prior blocks auditable); it is forwards-compatible,
+in that other useful-work chains can converge into it by a reverse fork. A normal fork diverges, splitting
+one chain's state into two; a reverse fork converges, merging many chains' contributions into one
+attribution graph.
+
+This reframes the open question that hangs over every useful-work chain. The question ``which one do we
+adopt'' presumes a competition for a single standard. The answer is all of them. The useful work of
+Primecoin, of a storage market, of a decentralized training run, is in each case a contribution with
+provenance; a chain that ingests foreign contributions agnostically, scores them by one value function,
+and credits them on one canonical graph does not have to win the adoption fight, it absorbs it. This is
+how a fractured ecosystem un-fractures: not by forcing a million chains to adopt one of them, which is
+impossible, but by giving them a substrate they converge into without anyone losing what they built. The
+cooperation is structural, a property of conserved contribution, not a treaty that can be defected from.
+
+The enabling property is precisely the endogenous measurement of Section~\ref{sec:value}. A possession
+chain cannot losslessly merge another chain because its value is exogenous: priced off-chain by a market,
+it has no on-chain quantity to carry across the merge. Bitcoin has no organ for valuing Primecoin's
+primes. A value chain has exactly that organ, and so convergence is the ecosystem-scale expression of the
+same property that makes the single chain novel. It also generalizes the theft-resistance of
+Section~\ref{sec:fairlaunch} from forks of this chain to all chains: importing a rival's contributions
+honestly adds them to the same attribution graph, so there is no outside to fork to, and forking, which
+fragments value elsewhere, here becomes contribution.
+
+This is a design direction, not a built feature, and it is honest about its hard parts. A chain-agnostic
+contribution adapter must map a foreign unit to a provenance-bearing cell; cross-chain novelty must hold,
+so the same contribution arriving from two sources is credited once; and the import boundary is an
+airgap, so a foreign chain's attestation is bonded and disputed, never trusted, and re-measured by the
+same value function rather than imported at its source's claimed worth. The merge conserves; it does not
+import another chain's trust assumptions.
 
 \section{Conclusion}
 

@@ -4,6 +4,21 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-19 (x)** — BUILT (pom-roadmap-advance fire): the **lock-sig step-2 inert shape** —
+  `TokenTx::spend_is_authorized(input, auth, tx_digest)` (`node/src/runtime.rs`), the deploy-independent
+  grain after the (w) `tx_digest` serializer. Sentinel-gated INERT: absent (empty) `auth` ⇒ authorized
+  (honest pre-deploy path, all flows unchanged), a PRESENTED non-empty `auth` ⇒ REJECTED (no verifier yet;
+  an unverifiable signature is not authorization, so the gate is LIVE not dead code). Explicit
+  `CONTROL_BINDING_ACTIVE=false` deploy flag (never an overloaded sentinel — QA-port-2 lesson); the deploy
+  branch `unreachable!`s so flipping the flag without wiring `verify_sig` FAILS LOUD, never silently
+  accepts a blob. Owner sourced from the FINALIZED cell's `lock.args` (consensus-derived, never
+  producer-asserted). +1 test (`spend_authorization_inert_pre_deploy_but_rejects_presented_unverifiable_auth`),
+  lib 229→230, suite 280→281, 0 new clippy (also `#[allow(dead_code)]`-annotated `digest` +
+  `spend_is_authorized` as deploy-scaffolding — honest fix to a dead_code warning the (w) commit's
+  test-build-only clippy check had missed). PCP-aligned: lands the verification SHAPE; the spend-path
+  WIRING (an `auth` per input threaded through `is_valid_in_ledger` — the (v) build contract's step 3) is
+  the next grain, reserved for fresh low-context. **NEXT:** wire it in; then on-VM single-use per (k);
+  then learned-v(S)-on-real-labels (THE moat).
 - **2026-06-19 (v)** — DESIGN tick (no code; PCP-gate — this fire batched with 5 other cron loops in a
   session already carrying large context, and the lock-sig change touches `is_valid_in_ledger` = the
   value/spend trust boundary = highest blast radius ⇒ Rust surgery deferred to fresh low-context per the

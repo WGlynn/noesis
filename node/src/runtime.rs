@@ -256,6 +256,7 @@ impl TokenTx {
     ///
     /// SINGLE-SOURCE DEBT: serializer + tx-domain hasher live here for now; move to `noesis-core` at
     /// the on-VM lock-sig port, when the type-script becomes the second consumer of this serializer.
+    #[allow(dead_code)] // deploy-scaffolding: exercised by tests; consumed by spend_is_authorized once the lock-sig verifier is wired.
     pub(crate) fn digest(&self) -> [u8; 32] {
         // The ledger's cell-identity key (single-sourced with `is_valid_in_ledger` above).
         fn ident_key(c: &Cell) -> (u64, &[u8; 32], &[u8], &[u8; 32], &[u8], &[u8]) {
@@ -312,6 +313,37 @@ impl TokenTx {
         let mut out = [0u8; 32];
         h.finalize(&mut out);
         out
+    }
+
+    /// Does the presenter of `input` prove CONTROL of it (hold the spending key), as opposed to merely
+    /// naming a real cell's identity? This is the existence→control closure: [`Self::is_valid_in_ledger`]
+    /// proves a consumed input EXISTS; this proves the spender may move it. `tx_digest` is the canonical
+    /// message a future owner-signature covers ([`Self::digest`]); `auth` is that signature, an opaque blob.
+    ///
+    /// DEPLOY-COUPLED, sentinel-gated INERT (`DESIGN-locksig-binding.md`). Control requires proof of a
+    /// SECRET (the owner key) that lives outside finalized state, so there is no pure-reference predicate —
+    /// only a cryptographic one, wired at deploy. Until then:
+    ///   - an ABSENT (empty) `auth` is the honest pre-deploy case and passes, so existing flows are
+    ///     unchanged (the inert path), and
+    ///   - a PRESENTED (non-empty) `auth` cannot be verified yet, so it is REJECTED — an unverifiable
+    ///     signature is not an authorization. This keeps the gate LIVE (not dead code, not a rubber stamp).
+    ///
+    /// At deploy, `CONTROL_BINDING_ACTIVE` flips and the body becomes
+    /// `verify_sig(owner = input.lock.args, msg = tx_digest, sig = auth)` — owner sourced from the
+    /// FINALIZED cell's `lock`, never producer-asserted ([P·dont-let-attacker-choose-critical-input]).
+    /// Wiring this into the spend path (an `auth` per input, threaded through `is_valid_in_ledger`) is the
+    /// NEXT grain, reserved for fresh low-context because it touches the spend-validation path.
+    #[allow(dead_code)] // deploy-scaffolding: exercised by tests; wired into is_valid_in_ledger at the next (spend-path) grain.
+    pub(crate) fn spend_is_authorized(input: &Cell, auth: &[u8], tx_digest: &[u8; 32]) -> bool {
+        // Explicit deploy flag — never an overloaded sentinel (the QA-port-2 lesson).
+        const CONTROL_BINDING_ACTIVE: bool = false;
+        if CONTROL_BINDING_ACTIVE {
+            // The verifier is not linked yet; flipping this flag without wiring `verify_sig` must FAIL
+            // LOUD rather than silently accept any blob as a signature.
+            let _ = (input, tx_digest); // deploy: verify_sig(input.lock.args, tx_digest, auth)
+            unreachable!("lock-sig verifier not wired — see DESIGN-locksig-binding.md step 3");
+        }
+        auth.is_empty()
     }
 }
 
@@ -716,6 +748,24 @@ mod tests {
             a.digest(),
             b.digest(),
             "length-prefixing is load-bearing: differing field splits must not collide"
+        );
+    }
+
+    #[test]
+    fn spend_authorization_inert_pre_deploy_but_rejects_presented_unverifiable_auth() {
+        // existence->control SHAPE (DESIGN-locksig-binding.md step 2), sentinel-gated inert.
+        let tx = sample_tx();
+        let d = tx.digest();
+        let input = &tx.inputs[0];
+        // absent (sentinel) auth = the honest pre-deploy case => authorized (inert; flows unchanged).
+        assert!(
+            TokenTx::spend_is_authorized(input, &[], &d),
+            "an absent (sentinel) auth is inert-authorized pre-deploy"
+        );
+        // a PRESENTED auth cannot be verified pre-deploy (no verifier) => NOT authorization (gate is live).
+        assert!(
+            !TokenTx::spend_is_authorized(input, &[1, 2, 3], &d),
+            "an unverifiable presented signature is not an authorization"
         );
     }
 
