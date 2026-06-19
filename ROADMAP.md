@@ -4,6 +4,25 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-19 (aa)** — BUILT (pom-roadmap-advance fire): **named + DEMONSTRATED an OPEN gaming vector —
+  collusion ring / mutual-citation — pinned RED-as-designed 🔬.** AdversarialLayeringSelfNamesNextLayer on
+  (z): (z) closed the orphan-root pump by showing a root earns 0 without EXTERNAL downstream flow. The
+  adversary at that land-moment: K colluders MANUFACTURE the external flow by cross-building novel children
+  on each other's roots (identity i posts on every j's root, i≠j) — each root then has (K−1) external
+  children, so the realized-flow gate that zeroed the orphan now PAYS each root. **MEASURED**
+  (`collusion_ring_mutual_citation_probe`, value::tests): orphan per-member = **0.00** (z); honest single
+  contributor = **16.44**; collusion ring per-member = **22.98 (K2) → 27.71 (K3) → 29.10 (K4)** — EXCEEDS an
+  honest single contributor AND rises with ring size. The structural v(S) proxy credits valueless-but-novel
+  cross-citation as genuine built-upon flow. **This is the load-bearing open problem made concrete.** TWO
+  closure paths, both currently un-landed: **(1) STRUCTURAL (pre-moat)** — a ring is a CYCLE, exactly the
+  collusive circulation the HodgeRank harmonic-energy residual (paper §"Certifying the value") is designed
+  to alarm on; wiring the harmonic-energy detector as a stake-slash gate is the next concrete structural
+  build (designed, not yet wired into the reference node) — **does NOT need the data moat**. **(2) MOAT** —
+  the learned-v(S)-on-real-labels evaluator scores the valueless content low, collapsing the manufactured
+  flow (data-blocked). Pin asserts the pump EXISTS; flips RED (prompting the saturation flip) when either
+  closure lands. lib 233, suite **284**, 0 new clippy (no warning cites the new test region). **NEXT
+  (highest-leverage, moat-independent): wire the HodgeRank harmonic-energy alarm against this ring** — the
+  first adversarial vector with a structural fix that does not wait on real-label data.
 - **2026-06-19 (z)** — BUILT (pom-roadmap-advance fire): **named + CLOSED a new gaming vector —
   orphan-root / multi-parent fan-out — via test, no new mechanism.** AdversarialLayeringSelfNamesNextLayer
   on the (u) joint-decay fix: every volume-damping axis built so far (within-identity λ^r (q),

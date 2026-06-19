@@ -1990,6 +1990,85 @@ pub mod value {
         }
 
         #[test]
+        fn collusion_ring_mutual_citation_probe() {
+            // VECTOR (the adversary at orphan-root (z)'s land-moment): collusion ring / mutual-citation.
+            // (z) showed a root earns 0 without EXTERNAL downstream flow. So K colluding identities can
+            // each MANUFACTURE that external flow by cross-building on each other's roots: identity i
+            // posts a novel child on every other identity j's root (i != j). Each root then has (K-1)
+            // external children, so the realized-flow gate that zeroed the orphan now PAYS each root.
+            // The question this probe MEASURES: does the existing damping (cross-identity mu^m, joint
+            // rho^j decay, the v8 outcome gate that dampens fake-lineage-of-noise) bound the ring, or
+            // does valueless-but-novel cross-citation pump total ring standing? The latter is exactly
+            // what the learned-v(S)-on-real-labels moat is meant to close (the load-bearing open problem).
+            let w = trained_outcome_w();
+            // Honest single-contributor baseline (from (z)): one root built upon by ONE external identity.
+            let honest = {
+                let mut o = vec![cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta")];
+                for j in 0..2u64 {
+                    o.push(cellc(j + 1, 2, j + 1, Some(0), HYBRID_PAYLOADS[j as usize]));
+                }
+                value_v8(&o, &standing_of(&[(1u8, FLOOR), (2u8, FLOOR)]), FLOOR, &w, THETA, ENTROPY_THETA, THETA_Q16, DAMP, ITERS, HALF)
+                    .iter()
+                    .sum::<f64>()
+            };
+            // K-identity collusion ring: identities 10..10+K, each posts a root, then a novel child on
+            // every OTHER ring member's root (manufactured mutual external flow). Total ring standing =
+            // sum of v8 over ALL ring cells (4 roots + 12 children at K=4 = 16 distinct payloads).
+            let ring_total = |k: usize| -> f64 {
+                let mut o: Vec<super::super::Cell> = Vec::new();
+                let mut sv: Vec<(u8, u64)> = Vec::new();
+                let (mut id, mut ts, mut p) = (0u64, 0u64, 0usize);
+                let mut root_id = vec![0u64; k];
+                for i in 0..k {
+                    let ident = (10 + i) as u8;
+                    sv.push((ident, FLOOR));
+                    root_id[i] = id;
+                    o.push(cellc(id, ident, ts, None, HYBRID_PAYLOADS[p % HYBRID_PAYLOADS.len()]));
+                    id += 1; ts += 1; p += 1;
+                }
+                for i in 0..k {
+                    let ident = (10 + i) as u8;
+                    for j in 0..k {
+                        if i == j { continue; }
+                        o.push(cellc(id, ident, ts, Some(root_id[j]), HYBRID_PAYLOADS[p % HYBRID_PAYLOADS.len()]));
+                        id += 1; ts += 1; p += 1;
+                    }
+                }
+                value_v8(&o, &standing_of(&sv), FLOOR, &w, THETA, ENTROPY_THETA, THETA_Q16, DAMP, ITERS, HALF)
+                    .iter()
+                    .sum()
+            };
+            let (r2, r3, r4) = (ring_total(2), ring_total(3), ring_total(4));
+            let per_member_k4 = r4 / 4.0;
+            println!(
+                "PROBE collusion ring: honest_single={honest:.4} | orphan-baseline=0.0000 (z) | ring K2={r2:.4} K3={r3:.4} K4={r4:.4} | per-member(K4)={per_member_k4:.4}"
+            );
+            // MEASURED 2026-06-19: honest_single=16.4373, orphan=0.0000 (z), ring per-member rises with K
+            // (K2 22.98 -> K3 27.71 -> K4 29.10), EXCEEDING an honest single contributor. VECTOR OPEN:
+            // collusion converts valueless-but-novel cross-citation into standing the structural v(S)
+            // proxy credits as genuine built-upon flow. TWO closure paths, both currently un-landed:
+            //   (1) STRUCTURAL (pre-moat): a ring is a CYCLE in the citation graph -> the HodgeRank
+            //       harmonic-energy residual (paper section "Certifying the value") is the manipulation
+            //       alarm for exactly this collusive circulation; wiring it as a stake-slash detector is
+            //       the next structural build (status: designed, not wired into the reference node).
+            //   (2) MOAT: the learned-v(S)-on-real-labels evaluator scores the valueless cross-citation
+            //       low, collapsing the manufactured flow (the load-bearing open problem, data-blocked).
+            // Pinned RED-as-designed: this asserts the pump EXISTS. FLIP to a saturation bound when
+            // either closure lands (the assert below will go RED and prompt the flip).
+            assert!(honest > 0.0, "honest baseline degenerate");
+            assert!(
+                per_member_k4 > honest,
+                "collusion ring no longer beats honest single (K4/member={per_member_k4:.4} vs honest={honest:.4}) \
+                 — a closure path (HodgeRank alarm or real-label moat) may have landed; re-evaluate this pin"
+            );
+            assert!(
+                per_member_k4 > r2 / 2.0,
+                "per-member value should RISE with ring size K (more cross-citations = more manufactured flow); \
+                 if it no longer does, the damping topology changed — re-evaluate"
+            );
+        }
+
+        #[test]
         fn t4_honest_diverse_certification_is_inert() {
             // T4 (crit. 4 — INERT). The cross-identity μ^m damping must NOT punish legitimately
             // broad certification: two HONEST distinct identities each building one real, value-

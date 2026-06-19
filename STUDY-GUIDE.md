@@ -2,13 +2,13 @@
 
 > Regenerated FROM the repo by `scripts/study-guide.py`, so it cannot lag the
 > code. Tick the boxes as you internalize each piece. Re-run to refresh.
-> Node test suite: **232 passing**.
+> Node test suite: **233 passing**.
 
 ## Read in this order
 
 1. [ ] **WHITEPAPER-FOR-DAD.md** — *A version with no math and no jargon. — Will, with JARVIS*
 2. [ ] **WHITEPAPER.md** — **Will Glynn, with JARVIS** · Draft v0.1 · 2026-06-11 · **PRIVATE — stealth, do not distribute**
-3. [ ] **ROADMAP.md** — - **2026-06-19 (z)** — BUILT (pom-roadmap-advance fire): **named + CLOSED a new gaming vector — orphan-root / multi-parent fan-out — via test, no new mechanism.** AdversarialLayeringSelfNamesNextLayer on the (u) joint-decay fix: every volum...
+3. [ ] **ROADMAP.md** — - **2026-06-19 (aa)** — BUILT (pom-roadmap-advance fire): **named + DEMONSTRATED an OPEN gaming vector — collusion ring / mutual-citation — pinned RED-as-designed 🔬.** AdversarialLayeringSelfNamesNextLayer on
 4. [ ] **BLOCK-ECONOMY-SPEC.md** — A unified system that turns JARVIS's own session history into a verifiable, owned, valued contribution economy — and, through that, a realistic basis for decentralized consensus and for backwards-enforcing the model layer from the governanc...
 5. [ ] **POM-CONSENSUS.md** — An agent's **PoM score** = its accumulated Myerson/Shapley credit across *verified, owned, provenance-complete* blocks (the block-economy value layer). It is a number that says: *this mind has provably contributed this much synergy-weighted...
 6. [ ] **DISPUTE-SLASHING.md** — value_v6 priced identity: an all-fresh sybil ring earns 0 because unvested identities pump no flow. The surviving attack: a contributor with EARNED standing builds a novel-garbage child on a fresh-key garbage parent. The certifier clears th...
