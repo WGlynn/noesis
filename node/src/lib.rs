@@ -175,6 +175,52 @@ pub fn shard_of(cell: &Cell, n: u64) -> u64 {
     cell.id % n
 }
 
+/// Mutual-citation circulation over the identity attribution graph — the first-order structural alarm
+/// for the collusion-ring / mutual-citation gaming vector (ROADMAP (aa), `collusion_ring_mutual_citation_probe`).
+///
+/// A block whose parent is owned by a DIFFERENT identity is a cross-identity attribution edge
+/// `builder -> cited`. A collusion ring cross-builds in BOTH directions between members, so every
+/// colluding pair carries flow each way; an honest provenance DAG (you build on prior work, it does
+/// not build back on you) carries flow one way only. Circulation is the bidirectional (2-cycle)
+/// component, `Σ over unordered pairs of min(flow[i->j], flow[j->i])`, which is provably 0 for any
+/// one-directional (acyclic mutual-citation) pattern and rises with ring participation.
+///
+/// HONEST SCOPE: this catches MUTUAL (2-cycle) collusion — the (aa) ring, where every pair cites both
+/// ways. A purely DIRECTED k-cycle (`1->2->3->1`, no back-edges) carries no bidirectional pair and
+/// evades this proxy; catching ALL cyclic topologies needs the full Helmholtz–Hodge harmonic component
+/// (the value-certificate, designed-not-built). This is the load-bearing KERNEL of that alarm, honestly
+/// below its completion, and it already converts the (aa) ring from undetected to detected.
+pub fn attribution_circulation(cells: &[Cell]) -> u64 {
+    // cell id -> owner identity (type_script.args carries the soulbound contributor)
+    let owner: HashMap<u64, &[u8]> =
+        cells.iter().map(|c| (c.id, c.type_script.args.as_slice())).collect();
+    // directed cross-identity edge counts: (builder, cited) -> count
+    let mut flow: HashMap<(Vec<u8>, Vec<u8>), u64> = HashMap::new();
+    for c in cells {
+        if let Some(pid) = c.parent {
+            if let Some(&cited) = owner.get(&pid) {
+                let builder = c.type_script.args.as_slice();
+                if builder != cited {
+                    *flow.entry((builder.to_vec(), cited.to_vec())).or_insert(0) += 1;
+                }
+            }
+        }
+    }
+    // sum the bidirectional component over each unordered identity pair exactly once
+    let mut circ = 0u64;
+    let mut processed: HashSet<(Vec<u8>, Vec<u8>)> = HashSet::new();
+    for (a, b) in flow.keys() {
+        let key = if a <= b { (a.clone(), b.clone()) } else { (b.clone(), a.clone()) };
+        if !processed.insert(key.clone()) {
+            continue;
+        }
+        let fab = *flow.get(&(key.0.clone(), key.1.clone())).unwrap_or(&0);
+        let fba = *flow.get(&(key.1.clone(), key.0.clone())).unwrap_or(&0);
+        circ += fab.min(fba);
+    }
+    circ
+}
+
 /// SOULBOUND in the cell/UTXO model.
 ///
 /// A cell is transferable by DEFAULT — nothing stops a spend from producing an output
@@ -2065,6 +2111,52 @@ pub mod value {
                 per_member_k4 > r2 / 2.0,
                 "per-member value should RISE with ring size K (more cross-citations = more manufactured flow); \
                  if it no longer does, the damping topology changed — re-evaluate"
+            );
+        }
+
+        #[test]
+        fn attribution_circulation_fires_on_collusion_ring_quiet_on_honest_dag() {
+            // The first-order structural alarm for the (aa) collusion ring: mutual cross-citation =
+            // circulation; an honest one-way provenance DAG = 0. This is the moat-INDEPENDENT closure
+            // kernel — it needs no real-label data, just the citation topology.
+            // HONEST one-way DAG: id1 roots, id2 builds on it, id3 builds on id2's block. No back-edges.
+            let honest = vec![
+                cellc(0, 1, 0, None, b"root work alpha"),
+                cellc(1, 2, 1, Some(0), b"builds on root beta"),
+                cellc(2, 3, 2, Some(1), b"builds further gamma"),
+            ];
+            assert_eq!(
+                crate::attribution_circulation(&honest),
+                0,
+                "an honest one-way provenance DAG must show ZERO mutual-citation circulation"
+            );
+            // COLLUSION ring K=3 (the (aa) topology): identities 7,8,9 each root + cross-build on the
+            // other two roots. Every unordered pair {7,8},{7,9},{8,9} carries flow BOTH ways ⇒ min=1
+            // each ⇒ circulation = C(3,2) = 3.
+            let ring = vec![
+                cellc(0, 7, 0, None, b"r7"),
+                cellc(1, 8, 1, None, b"r8"),
+                cellc(2, 9, 2, None, b"r9"),
+                cellc(3, 7, 3, Some(1), b"7 builds on 8"),
+                cellc(4, 7, 4, Some(2), b"7 builds on 9"),
+                cellc(5, 8, 5, Some(0), b"8 builds on 7"),
+                cellc(6, 8, 6, Some(2), b"8 builds on 9"),
+                cellc(7, 9, 7, Some(0), b"9 builds on 7"),
+                cellc(8, 9, 8, Some(1), b"9 builds on 8"),
+            ];
+            let circ = crate::attribution_circulation(&ring);
+            assert_eq!(circ, 3, "K=3 collusion ring must show circulation = C(3,2) = 3 (every pair mutual)");
+            assert!(
+                circ > crate::attribution_circulation(&honest),
+                "the ring must alarm strictly louder than an honest DAG"
+            );
+            // break-on-purpose anchor: drop ONE back-edge (9 no longer builds on 8) ⇒ pair {8,9} becomes
+            // one-way ⇒ circulation drops to 2. The detector tracks the mutual component, not mere edges.
+            let ring_minus_one = ring[..8].to_vec();
+            assert_eq!(
+                crate::attribution_circulation(&ring_minus_one),
+                2,
+                "removing one back-edge must lower circulation by exactly that mutual pair (3 -> 2)"
             );
         }
 

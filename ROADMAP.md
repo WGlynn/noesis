@@ -4,6 +4,23 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-19 (bb)** — BUILT (pom-roadmap-advance fire): **the (aa) collusion ring is now DETECTED —
+  shipped the moat-independent first-order alarm `attribution_circulation` (node/src/lib.rs).** Executes
+  the (aa) entry's named next step. A block whose parent is owned by a DIFFERENT identity is a
+  cross-identity attribution edge `builder→cited`; the collusion ring cross-builds BOTH ways, an honest
+  provenance DAG only one way. Circulation = `Σ_{unordered pairs} min(flow[i→j], flow[j→i])` = the
+  bidirectional (2-cycle) component, provably 0 for any one-directional pattern. **TESTED**
+  (`attribution_circulation_fires_on_collusion_ring_quiet_on_honest_dag`): honest one-way DAG = **0**;
+  the (aa) K=3 ring = **3** = C(3,2) (every pair mutual); break-on-purpose: drop one back-edge → **2**
+  (tracks the mutual component, not mere edge count). lib 234, suite **285**, 0 new clippy. **This needs
+  NO real-label data** — it converts the (aa) ring from undetected → detected on topology alone.
+  **HONEST SCOPE / residual 🔬:** catches MUTUAL (2-cycle) collusion only; a purely DIRECTED k-cycle
+  (`1→2→3→1`, no back-edges) carries no bidirectional pair and evades it — that needs the full
+  Helmholtz–Hodge harmonic component (the value-certificate, still designed-not-built). This is the
+  load-bearing KERNEL of that alarm. **NEXT:** (1) wire `attribution_circulation` into the dispute/slash
+  gate so detection → economic penalty; (2) upgrade to the full Hodge harmonic residual to catch directed
+  k-cycles; then the (aa) pin flips to a saturation bound. Also still open: lock-sig DEPLOY half · on-VM
+  single-use (k) · learned-v(S) moat.
 - **2026-06-19 (aa)** — BUILT (pom-roadmap-advance fire): **named + DEMONSTRATED an OPEN gaming vector —
   collusion ring / mutual-citation — pinned RED-as-designed 🔬.** AdversarialLayeringSelfNamesNextLayer on
   (z): (z) closed the orphan-root pump by showing a root earns 0 without EXTERNAL downstream flow. The
