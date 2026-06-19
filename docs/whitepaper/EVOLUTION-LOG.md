@@ -11,7 +11,25 @@
 | Version | Date | State | Notes |
 |---|---|---|---|
 | Draft 1.0 | 2026-06-19 | SHIPPED (`10402c4`) | First foundational scientific WP. 9pp PDF, Bitcoin cadence, equations + 4 figures (2 from real node data). For Will's dad + first external reads. |
-| Draft 1.1 | — | QUEUED | Add "Measurement as a living mechanism" (the dynamic-solution answer to FB-001). Fold in deep-research findings on the useful-PoW lineage (Related Work hardening + Bittensor delta). |
+| Draft 1.1 | — | QUEUED | (1) Add "Measurement as a living mechanism" (dynamic-solution answer to FB-001). (2) Rewrite §9 Related Work from the novelty audit (RI-001 → `research/RELATED-WORK-NOVELTY-AUDIT-2026-06-19.md`): claim (a) NOVEL, Bittensor stated precisely, (b)/(d)/(e) marked novel-within-corpus pending a 2nd pass. (3) Add a convergence/forwards-compatibility section from `docs/CONVERGENCE-REVERSE-FORK.md` (reverse-fork merge = the ecosystem-scale expression of claim (a)). |
+
+---
+
+## Research inputs
+
+### RI-001 — Novelty audit vs the useful-PoW / contribution-consensus lineage — 2026-06-19
+Adversarial deep-research (105 agents, 23 sources, 25 claims 3-vote-verified). Full report:
+`docs/research/RELATED-WORK-NOVELTY-AUDIT-2026-06-19.md`. Headline: claim (a) endogenous value as the
+consensus object is **NOVEL** vs the whole corpus; **Bittensor** is the one dangerous competitor and
+must be stated precisely (Yuma *attempts* contribution-scoring but is subjective stake-weighted opinion,
+stake-dominated reward r≈0.5–0.95 — NOT "no attempt"). **Honest gap that gates the WP:** (b) Myerson-on-DAG,
+(d) soulbound-standing, (e) v(S)+HodgeRank are novel *within the surveyed corpus* but were NOT cleared
+against their natural families (EF Deep Funding, Data-Shapley, Myerson, SBT lit, HodgeRank lit,
+decentralized-training: Gensyn/Prime Intellect). **A second research pass on those families is required
+before Draft 1.1 asserts (b)/(d)/(e) novel.** Highest-risk open collision: does Deep Funding's
+pairwise-distilled judgment over a dependency graph subsume (b)?
+
+**Status:** report persisted; Draft 1.1 §9 rewrite + the 2nd-pass research are the open actions.
 
 ---
 
