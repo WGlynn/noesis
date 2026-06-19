@@ -600,10 +600,12 @@ eigenvector-style damping over the attribution graph, and the synergy game's dis
 self-referential coalitions.
 
 \paragraph{Demonstrated versus designed.} \emph{Demonstrated} in the open reference node (a Rust
-implementation with a no-std verification core shared with on-chain scripts, $282$ passing tests at
+implementation with a no-std verification core shared with on-chain scripts, $285$ passing tests at
 the time of writing): ownership and transfer, per-block signing, tamper-resistance, the synergy value
 over a coverage proxy with Myerson and Bradley--Terry and permutation sampling, temporal novelty,
-coordinated-volume saturation (Figure~\ref{fig:sat}), the bounded learned evaluator and its held-out
+coordinated-volume saturation (Figure~\ref{fig:sat}), the orphan-root fan-out bounded by realized-flow
+gating, the mutual-citation collusion ring detected on topology by the attribution-circulation alarm
+(its value-credit closure still rides the harmonic-residual upgrade and the learned $v(S)$), the bounded learned evaluator and its held-out
 measurement (Figure~\ref{fig:moat}), the dispute and slashing path, PoM-weighted finalization with the
 hybrid basis, the core/nucleolus stability solver, and the on-chain recomputation of the ordering and
 finalization rules inside the virtual machine. \emph{Designed, not yet built}: the learned $v(S)$ on
@@ -719,6 +721,36 @@ already proposes a Hodge-subspace filter that slashes flows in the harmonic and 
 narrower contribution pairs the residual with a learned value-model and the endogenous value object,
 which that proposal lacks. We state these as positioned claims open to refutation, in the spirit of
 Section~\ref{sec:security}.
+
+\section{The economic frame: cooperative capitalism, made consensus-native}
+
+The mechanisms above have a single economic reading. Across a decade, decentralized systems tried
+libertarian permissionlessness (which produced extractable value and front-running), regulated
+clearinghouses (which produced exclusion), commons-based production (which produced mining and validator
+cartels), and token governance (which produced capture). Each correctly rejected its predecessor and
+reproduced extraction by a new route. The common error was to locate cooperation in a \emph{norm}, a
+\emph{regulator}, or a \emph{vote}, all of them defectable, rather than in the mechanism itself. The
+alternative is to make cooperation the individually-rational strategy by construction: mutualize the
+layer on which participants are alike, compete on the layer where they differ, and design the boundary
+between them deliberately instead of letting it blur. The risk layer is where we are most alike; the
+value layer is where we are most different; conflating the two is the mistake every prior philosophy
+made.
+
+Noesis draws that boundary at the level of consensus. The layer where participants are alike is the
+\emph{franchise}: the soulbound standing that confers consensus weight and the right to mint state,
+earned by verified contribution and unsellable. The layer where they differ is the \emph{transferable
+state-capacity}, a liquid commodity priced by a market. ``You can buy storage; you cannot buy
+consensus'' is the cooperative/competitive split made structural, the soulbound cell carrying the
+cooperative franchise no participant may corner, the transferable byte carrying the competition the
+market is free to run. The synergy value function, the null effect on redundant sybil contribution, and
+the attribution-\emph{is}-the-mechanism theft-resistance are the same philosophy enforced one level
+down: cooperation profitable to keep and unprofitable to defect from, because the math says so and the
+chain checks the math. The decisive difference is the substrate. That economic frame, applied on a
+\emph{possession} chain, can only redistribute value an external market has already priced; on a
+\emph{value} chain the worth is endogenous and consensus-securing. If a cooperative design fails to
+produce non-extractive outcomes, the honest suspicion is that the problem is the substrate, not the
+philosophy. Noesis is the substrate built to answer that: cooperative capitalism moved from a property
+of an application to a property of consensus itself.
 
 \section{Conclusion}
 
