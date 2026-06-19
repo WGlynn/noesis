@@ -230,6 +230,89 @@ impl TokenTx {
         };
         self.inputs.iter().all(input_is_live) && self.is_valid()
     }
+
+    /// Canonical, injective digest of this value-movement — the deterministic bytes a future
+    /// lock-signature will cover (`internal/DESIGN-locksig-binding.md`). It is the deploy-independent
+    /// prerequisite of the existence→control mile: it earns its place TODAY on two properties, before
+    /// any signature exists.
+    ///
+    /// 1. REPLICA DETERMINISM — every honest node computes the same 32 bytes for the same logical
+    ///    movement regardless of `inputs`/`outputs` array order. The signed content is the LOGICAL
+    ///    movement, not its presentation; we canonicalize order so a re-presented tx is the same tx.
+    /// 2. AUTHORIZATION SURFACE — it commits to exactly what [`Self::is_valid_in_ledger`] +
+    ///    [`Self::is_valid`] check, so a signature over it authorizes precisely the movement the
+    ///    validator will accept (no more, no less).
+    ///
+    /// CELL IDENTITY = `(id, lock, type_script, data)` — the SAME tuple `is_valid_in_ledger` keys
+    /// existence on (lines above). `parent`/`timestamp` are DELIBERATELY excluded, not overlooked:
+    /// the ledger treats two cells equal under that tuple as the same live cell, so the digest must
+    /// not distinguish them either — committing to `parent`/`timestamp` would diverge the SIGNED
+    /// identity from the VALIDATED identity (token cells carry `parent: None`/`timestamp: 0` anyway).
+    ///
+    /// INJECTIVITY — every variable-length field is length-prefixed via `put` so there is no
+    /// field-boundary ambiguity (`args=[1],data=[2,3]` can never serialize like `args=[1,2],data=[3]`);
+    /// fixed-32 hashes are emitted raw. The hasher's personalization is domain-separated from the smt
+    /// node hasher so a tx digest can never collide with a novelty-index node hash.
+    ///
+    /// SINGLE-SOURCE DEBT: serializer + tx-domain hasher live here for now; move to `noesis-core` at
+    /// the on-VM lock-sig port, when the type-script becomes the second consumer of this serializer.
+    pub(crate) fn digest(&self) -> [u8; 32] {
+        // The ledger's cell-identity key (single-sourced with `is_valid_in_ledger` above).
+        fn ident_key(c: &Cell) -> (u64, &[u8; 32], &[u8], &[u8; 32], &[u8], &[u8]) {
+            (
+                c.id,
+                &c.lock.code_hash,
+                &c.lock.args,
+                &c.type_script.code_hash,
+                &c.type_script.args,
+                &c.data,
+            )
+        }
+        // Canonicalize order on clones of the references — never mutate the tx.
+        let mut inputs: Vec<&Cell> = self.inputs.iter().collect();
+        let mut outputs: Vec<&Cell> = self.outputs.iter().collect();
+        inputs.sort_by(|a, b| ident_key(a).cmp(&ident_key(b)));
+        outputs.sort_by(|a, b| ident_key(a).cmp(&ident_key(b)));
+
+        // Injective length-prefix framing for variable-length fields.
+        fn put(buf: &mut Vec<u8>, bytes: &[u8]) {
+            buf.extend_from_slice(&(bytes.len() as u64).to_le_bytes());
+            buf.extend_from_slice(bytes);
+        }
+        // Serialize a cell by its ledger identity tuple (see CELL IDENTITY above).
+        fn serialize_cell(buf: &mut Vec<u8>, c: &Cell) {
+            buf.extend_from_slice(&c.id.to_le_bytes());
+            buf.extend_from_slice(&c.lock.code_hash);
+            put(buf, &c.lock.args);
+            buf.extend_from_slice(&c.type_script.code_hash);
+            put(buf, &c.type_script.args);
+            put(buf, &c.data);
+        }
+
+        let mut buf: Vec<u8> = Vec::new();
+        buf.extend_from_slice(b"noesis-tx-v1"); // domain tag in the preimage as well as the personalization
+        buf.push(self.standard as u8);
+        buf.extend_from_slice(&self.code_hash);
+        put(&mut buf, &self.args);
+        buf.extend_from_slice(&(inputs.len() as u64).to_le_bytes());
+        for c in &inputs {
+            serialize_cell(&mut buf, c);
+        }
+        buf.extend_from_slice(&(outputs.len() as u64).to_le_bytes());
+        for c in &outputs {
+            serialize_cell(&mut buf, c);
+        }
+
+        // tx-domain blake2b — personalization DISTINCT from the smt hasher (`noesis-smt-v1`) so a tx
+        // digest can never alias a novelty-index node hash. 16-byte personal (12 tag + 4 pad).
+        let mut h = blake2b_ref::Blake2bBuilder::new(32)
+            .personal(b"noesis-tx-v1\0\0\0\0")
+            .build();
+        h.update(&buf);
+        let mut out = [0u8; 32];
+        h.finalize(&mut out);
+        out
+    }
 }
 
 // ============ Block — a commit-reveal batch in canonical order ============
@@ -522,6 +605,118 @@ mod tests {
             timestamp: 0,
             data: fungible::encode(amt),
         }
+    }
+
+    // ---- canonical tx-digest serializer (deploy-independent grain of the lock-sig mile) ----
+
+    /// A token tx with UNSORTED inputs/outputs (ids 3,1 and 2,4) and distinct content, so the
+    /// presentation-invariance and value-sensitivity properties are non-vacuous.
+    fn sample_tx() -> TokenTx {
+        let cell = |id: u64, owner: &[u8], data: Vec<u8>| Cell {
+            id,
+            lock: Script {
+                code_hash: [0u8; 32],
+                args: owner.to_vec(),
+            },
+            type_script: Script {
+                code_hash: [20u8; 32],
+                args: vec![7],
+            },
+            parent: None,
+            timestamp: 0,
+            data,
+        };
+        TokenTx {
+            standard: TokenStandard::Fungible,
+            code_hash: [20u8; 32],
+            args: vec![7],
+            inputs: vec![cell(3, b"alice", vec![1, 2]), cell(1, b"bob", vec![3])],
+            outputs: vec![cell(2, b"carol", vec![4]), cell(4, b"dave", vec![5, 6])],
+        }
+    }
+
+    #[test]
+    fn tx_digest_is_deterministic() {
+        let tx = sample_tx();
+        let d = tx.digest();
+        for _ in 0..16 {
+            assert_eq!(tx.digest(), d, "same tx must hash bit-identically every time");
+        }
+        assert_eq!(tx.clone().digest(), d, "a clone hashes identically");
+    }
+
+    #[test]
+    fn tx_digest_is_invariant_to_input_output_presentation() {
+        let tx = sample_tx();
+        let mut shuffled = tx.clone();
+        shuffled.inputs.reverse();
+        shuffled.outputs.reverse();
+        assert_eq!(
+            tx.digest(),
+            shuffled.digest(),
+            "canonical sort => presentation order of inputs/outputs does not change the digest"
+        );
+    }
+
+    #[test]
+    fn tx_digest_changes_iff_value_changes() {
+        let base = sample_tx();
+        let d = base.digest();
+        assert_eq!(base.clone().digest(), d, "a no-op clone must not change the digest");
+        // each load-bearing field, flipped one at a time, must move the digest:
+        let mut t = base.clone();
+        t.inputs[0].data = vec![9, 9, 9];
+        assert_ne!(t.digest(), d, "an input's data is signed");
+        let mut t = base.clone();
+        t.inputs[0].lock.args = vec![42];
+        assert_ne!(t.digest(), d, "an input's owner (lock.args) is signed");
+        let mut t = base.clone();
+        t.outputs[0].data = vec![1];
+        assert_ne!(t.digest(), d, "an output's data is signed");
+        let mut t = base.clone();
+        t.args = vec![100];
+        assert_ne!(t.digest(), d, "the tx issuer (args) is signed");
+        let mut t = base.clone();
+        t.standard = TokenStandard::Nft;
+        assert_ne!(t.digest(), d, "the token standard is signed");
+        let mut t = base.clone();
+        t.inputs[0].id = 999;
+        assert_ne!(t.digest(), d, "an input's id is signed");
+    }
+
+    #[test]
+    fn tx_digest_no_field_boundary_collision() {
+        // type_script.args and data are ADJACENT in serialize_cell. Without length-prefixing,
+        // (ts_args=[1], data=[2,3]) and (ts_args=[1,2], data=[3]) both serialize to the run
+        // [1,2,3] and collide. Length prefixes make them distinct — this proves `put` is
+        // load-bearing (break-on-purpose: stripping the prefix reds THIS test).
+        let mk = |ts_args: Vec<u8>, data: Vec<u8>| TokenTx {
+            standard: TokenStandard::Fungible,
+            code_hash: [5u8; 32],
+            args: vec![9],
+            inputs: vec![],
+            outputs: vec![Cell {
+                id: 1,
+                lock: Script {
+                    code_hash: [0u8; 32],
+                    args: vec![],
+                },
+                type_script: Script {
+                    code_hash: [5u8; 32],
+                    args: ts_args,
+                },
+                parent: None,
+                timestamp: 0,
+                data,
+            }],
+        };
+        let a = mk(vec![1], vec![2, 3]);
+        let b = mk(vec![1, 2], vec![3]);
+        assert_ne!(
+            a.digest(),
+            b.digest(),
+            "length-prefixing is load-bearing: differing field splits must not collide"
+        );
     }
 
     #[test]
