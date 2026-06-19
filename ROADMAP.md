@@ -4,6 +4,53 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-19 (v)** — DESIGN tick (no code; PCP-gate — this fire batched with 5 other cron loops in a
+  session already carrying large context, and the lock-sig change touches `is_valid_in_ledger` = the
+  value/spend trust boundary = highest blast radius ⇒ Rust surgery deferred to fresh low-context per the
+  (h)/(j)/(q) discipline). Advances the #1 named frontier — **lock-sig binding (existence→control)** —
+  from *deploy-coupled-named* → **reference-layer DECIDED**, the same move (h) made for EXISTENCE before
+  deploy crypto. **Grounded state:** (h)'s `TokenTx::is_valid_in_ledger` proves each consumed input
+  EXISTS as a finalized cell (identity = id+lock+type_script); (j) proves SINGLE-USE (retire-on-apply).
+  The orthogonal residual named in (o)/(g) is still OPEN: existence ≠ CONTROL — nothing checks the
+  spender is authorized by the input's owner, so spending ANOTHER owner's real finalized cell still
+  validates. **Decision — model CONTROL at the reference layer now, crypto-swap at deploy** (the
+  established "structure now, crypto at deploy" boundary, same class as index-dep / header-`now` /
+  existence): extend the ledger-aware gate so each consumed input additionally requires a CONTROL proof —
+  the spending tx carries a signature `sig` over the tx's canonical digest, and
+  `verify(owner_pubkey, digest, sig)` holds where **owner_pubkey is the consensus-derived `lock.args` of
+  the EXISTING finalized cell** (sourced from the existence check, NEVER producer-supplied) ⇒ an attacker
+  cannot substitute their own key (dont-let-attacker-choose-critical-input class). At the reference layer
+  use a real-but-simple signature scheme (ed25519-dalek IF already in-tree, else a modeled keypair) so the
+  structure is TESTABLE now; the on-VM lock script (Lamport/Schnorr per quantum-proficiency) is the
+  drop-in at deploy. Closes existence→control as STRUCTURE: existence (real cell) ∧ control (owner
+  authorized) ∧ single-use (no double-spend) = the spend trifecta, all consensus-keyed. **Build contract
+  (fresh low-context):** (1) add `sig` to the spend/tx; (2) `control_authorizes_spend(input, tx_digest)`
+  keyed on `input.lock.args`; (3) wire into `is_valid_in_ledger` AFTER existence; (4) tests — valid
+  owner-sig accepts; wrong-key sig REJECTED (closes the (o) orthogonal residual: can't spend another's
+  cell); sig over a different digest rejected (no replay); existence ∧ control ∧ single-use compose (no
+  gate masks another). LEAN (PONYTAIL/YAGNI, lean-like-Bitcoin per Will 2026-06-13): reuse an in-tree sig
+  crate + the existing identity tuple; introduce NO new identity/nullifier type. node unchanged (design
+  tick — no count bump). **NEXT after build:** on-VM single-use per (k); then the
+  learned-v(S)-on-real-labels mile (THE moat).
+- **2026-06-19 (v)** — DESIGN tick (no code; PCP-gate — lock-sig touches the spend-validation path =
+  high blast radius, and (u) already shipped a moat BUILD today ⇒ Rust deferred to fresh low-context).
+  Advances the #1 named frontier **lock-sig binding (existence→control)** from *named/deploy-coupled*
+  → **DECIDED + reference-scaffold contract** (`internal/DESIGN-locksig-binding.md`). **Honest core:**
+  control is the FIRST frontier item that is genuinely CRYPTO-IRREDUCIBLE — existence was
+  reference-checkable (finalized state can't be fabricated) but control needs proof of a SECRET (owner
+  key) outside finalized state; a pure-reference `spender==owner` is vacuous (producer sets it). That
+  is WHY (g)/(h)/(o) correctly punted it — a category fact, not laziness. **DECISION:** scaffold the
+  STRUCTURE inert now (opaque `auth` blob per input — NOT a producer bool, [P·dont-let-attacker-choose-
+  critical-input] — + one sentinel-gated-inert `spend_is_authorized` call-site in `is_valid_in_ledger`,
+  same pattern as index-dep/header-`now`), so deploy is a drop-in (`verify_sig(owner=lock.args,
+  msg=tx_digest, sig=auth)`), not a spend-path refactor. **EXTRACTED a deploy-INDEPENDENT grain:** the
+  canonical deterministic `tx_digest` serializer (pure consensus-state, no crypto dep, needed by BOTH
+  sig-verify AND replica determinism, reuses the (u) flatten/sort discipline) — so the mile is no
+  longer fully blocked; its digest prerequisite is buildable now. Crypto suite deferred but constrained
+  PQ-capable per [P·quantum-proficiency] (Lamport floor; `auth` opaque ⇒ suite-agnostic). Build
+  contract + anti-theater (deploy: always-true verify_sig ⇒ control regression must RED) pinned in the
+  note. node unchanged (design tick). NEXT buildable: the `tx_digest` grain (fresh low-context); then
+  on-VM single-use per (k); then learned-v(S)-on-real-labels (THE moat).
 - **2026-06-19 (u)** — BUILT ✅ **T3 CLOSED** — the hybrid-split diagonal pump is closed by replacing
   the product-of-two-tails with a **single joint geometric decay**. The (q)/(r) fix damped
   within-identity (λ^r) and cross-identity (μ^m) on SEPARATE axes; each was bounded alone but their
