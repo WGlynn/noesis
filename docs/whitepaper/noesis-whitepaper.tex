@@ -52,11 +52,13 @@ proof of wasted energy. We give the architecture (provenance-complete blocks, Bi
 ownership, a synergy value aggregated by the Myerson value over a provenance graph, elicited by a
 learned reward model and estimated by permutation sampling), the consensus rule (PoM-weighted, with a
 participation-aware finalization basis and a coalitional stability constraint), and the mapping from
-Theory of Mind to Proof of Mind that makes a decentralized network of minds tractable. We are explicit
-about the one hard problem a value chain cannot sidestep, trustworthy and un-gameable value
-\emph{measurement}, and we treat it as the load-bearing open problem rather than a solved one. The
-mechanisms reported here are implemented and tested in an open reference node; we mark throughout what
-is demonstrated and what is designed.
+Theory of Mind to Proof of Mind that makes a decentralized network of minds tractable. Because value is measured on-chain and conserved along provenance, the chain is also
+forwards-compatible: rival useful-work chains can converge into one attribution graph rather than
+compete for adoption. We are explicit about the one hard problem a value chain cannot sidestep,
+measuring real value across the blockchain--reality airgap with no external market to price it; we treat
+it as the load-bearing open problem, bounded by augmented mechanism design rather than claimed solved.
+The mechanisms reported here are implemented and tested in an open reference node; we mark throughout
+what is demonstrated and what is designed.
 \end{abstract}
 
 \section{Introduction: the value chain Bitcoin is mistaken for}
@@ -550,8 +552,10 @@ Off-chain sale of a standing key & soulbound blocks on-chain transfer; the resid
 \end{tabular}
 \end{center}
 
-\paragraph{The load-bearing bet.} A value chain must measure value un-gameably, the problem Bitcoin
-sidesteps by being mere possession. If the learned outcome evaluator is gameable, PoM degrades into a
+\paragraph{The load-bearing bet.} A value chain must measure value un-gameably across the
+blockchain--reality airgap (Section~\ref{sec:value}), the gap between what the chain can verify and what
+is true in the world. This is the problem Bitcoin sidesteps by being mere possession, letting an
+external market bridge the airgap for it. If the learned outcome evaluator is gameable, PoM degrades into a
 reputation system. This is the central open problem, and we treat it as such. The mitigations are
 structural: the realized-flow gate that the learned model can only lower, the temporal-novelty rule,
 the HodgeRank manipulation certificate, and the held-out measurement of Figure~\ref{fig:moat}. The
