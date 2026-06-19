@@ -1,0 +1,64 @@
+# Whitepaper Evolution Log — Proof of Mind
+
+> The foundational whitepaper (`noesis-whitepaper.tex`) is a LIVING document. This log is its
+> version-evolution loop: every reader reaction is captured verbatim, the signal is extracted, and
+> it becomes a dated action item that drives the next version. `complete = ready-for-critique`
+> ([[complete-as-ready-for-critique]]); reactions are the methodology working, not failing.
+> Loop discipline: [[code-text-inspiration-loop]] · [[recursive-trp-rsi-on-docs]]. PRIVATE.
+
+## Versions
+
+| Version | Date | State | Notes |
+|---|---|---|---|
+| Draft 1.0 | 2026-06-19 | SHIPPED (`10402c4`) | First foundational scientific WP. 9pp PDF, Bitcoin cadence, equations + 4 figures (2 from real node data). For Will's dad + first external reads. |
+| Draft 1.1 | — | QUEUED | Add "Measurement as a living mechanism" (the dynamic-solution answer to FB-001). Fold in deep-research findings on the useful-PoW lineage (Related Work hardening + Bittensor delta). |
+
+---
+
+## Feedback entries
+
+### FB-001 — CKBased.bit (CKB community) — 2026-06-19 ~09:43 CT
+**Context:** First external read of Draft 1.0, shared by Will. Reader is a CKB-native (`.bit` name) — squarely the target audience.
+
+**Reaction (verbatim, reconstructed from the live paste):**
+- At the abstract line *"...we treat it as the load-bearing open problem rather than a solved one."* →
+  *"you cheeky cunt 😂"*
+- *"[you leav]e out the most interesting part"*
+- *"[b]est approach I guess, not really something you can solve with a static solution"*
+
+**Signal extracted:**
+1. **The honest framing landed and worked as designed.** The "open problem, not solved" line pulled a
+   sophisticated reader straight to the crux. This validates the honest demonstrated-vs-designed
+   register (§9) and `complete = ready-for-critique` — the abstract did its job by being honest about
+   the hard part.
+2. **Gap (the actionable hit): the paper UNDER-TELLS the dynamic answer.** Draft 1.0 bounds the
+   value-measurement discussion to prove it is *safe* (learned `v(S)` can only deny value never mint;
+   HodgeRank residual; held-out chart) but does not expound the *solution* to un-gameable measurement.
+   We showed the cage is sound; we did not show the living mechanism inside it. That mechanism is "the
+   most interesting part" the reader noticed was missing.
+3. **Convergent insight — the reader articulated our own thesis.** *"Not something you can solve with a
+   static solution"* IS the design rationale: a static value rule is Goodhart-bait (any published fixed
+   formula is gamed on publication); the only un-gameable measure is one that *adapts to the gaming*.
+   Our actual answer is a control loop, not a function — learned `v(S)` retrained on realized outcomes
+   (backwards-enforcement §8) + dynamic dispute/slashing adjudication + decay (no banking a stale score)
+   + HodgeRank residual as a live break-detector + a verifier-gated, governance-mutable value-dimension
+   matrix. The reader intuited the adaptive answer from its *absence*.
+
+**Verdict:** Not a flaw found — a door to the sequel opened. Strong signal (reader engaged at depth and
+converged on our design rationale unprompted).
+
+**Action items → Draft 1.1:**
+- [ ] New section **"Measurement as a living mechanism"**: state the dynamic/control-loop answer
+      explicitly (retraining loop · dynamic dispute · decay · HodgeRank break-detector · mutable-but-
+      verifier-gated value matrix). Frame the Goodhart argument: static rule ⇒ gamed; adaptive measure
+      ⇒ the only un-gameable kind.
+- [ ] Cross-reference the running deep-research dive (useful-PoW / proof-of-contribution lineage) — how
+      Bittensor (Yuma) and the PoUW family handle, or fail to handle, the same dynamic-measurement
+      problem. Sharpens both this section and Related Work (§9).
+
+**Relationship action (Will-gated, Will delivers per [[jarvis-prep-not-delivery-for-partner-chat]]):**
+prep reply talking points — lead with "you found the door to the sequel: it's a control loop, here's
+the shape"; pull CKBased.bit in as a recurring critic. A CKB-native reader engaging this deeply is
+worth keeping close.
+
+**Status:** OPEN → queued for Draft 1.1.
