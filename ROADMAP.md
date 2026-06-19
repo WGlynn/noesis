@@ -26,9 +26,13 @@
   but NOT WIRED INTO the value path — `value_v6` gates each seed by its OWN identity's standing and
   never applies a per-parent distinct-certifier cap. So today the split is bounded only by COST
   (K independently-earned soulbound identities ≥ floor; not poolable/buyable), not by structure.
-  **FIX (next, fresh low-context — production flow-path change):** thread `max_certifying_identities`
-  into the per-parent certifier set in `value_v6` (cap how many distinct identities can seed one
-  parent; the cap = total_standing/floor). 221/221 green incl. the new gap-pin. NOT a regression of
+  **FIX (next, fresh low-context — production flow-path change):** this line describes **Opt A**
+  (hard cap) — thread `max_certifying_identities` into the per-parent certifier set in `value_v6`
+  (cap distinct identities/parent at total_standing/floor). ⚠ But the build target + the **Opt A vs
+  Opt B (geometric μ^m)** decision now live in `internal/DESIGN-multi-identity-split-acceptance.md`,
+  which **recommends Opt B** (consistency with (q)'s λ^r + honest-cert preservation). Build to that
+  spec's acceptance criteria + 6-row matrix, not this line alone. 221/221 green incl. the new gap-pin.
+  NOT a regression of
   (q) — (q) closed single-identity; this is its natural sibling one level up. **NEXT open:** this fix,
   then lock-sig binding (existence→control) · on-VM single-use per (k).
 - **2026-06-18 (q)** — BUILT ✅ — the (n) gaming vector (single-identity volume defeats v8 dampening)
