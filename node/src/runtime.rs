@@ -144,6 +144,13 @@ pub struct TokenTx {
     pub args: Vec<u8>,
     pub inputs: Vec<Cell>,
     pub outputs: Vec<Cell>,
+    /// Per-input authorization, positionally aligned with `inputs`: `auths[i]` is the spend proof for
+    /// `inputs[i]`. At deploy each is a signature over [`Self::digest`] by that input's owner key
+    /// (`lock.args`); pre-deploy it is the empty sentinel. Carried ON the tx (not a validate-time
+    /// param) because the signature is committed content every validator must re-check identically.
+    /// A SHORT/EMPTY `auths` treats the missing entries as the empty sentinel ⇒ inert (existing flows
+    /// unchanged). See [`Self::spend_is_authorized`].
+    pub auths: Vec<Vec<u8>>,
 }
 
 impl TokenTx {
@@ -228,7 +235,18 @@ impl TokenTx {
                     && c.data == inp.data
             })
         };
-        self.inputs.iter().all(input_is_live) && self.is_valid()
+        if !self.inputs.iter().all(input_is_live) || !self.is_valid() {
+            return false;
+        }
+        // EXISTENCE→CONTROL: each consumed input must be authorized by its owner, not merely exist.
+        // Sentinel-gated INERT pre-deploy (empty `auth` ⇒ authorized), so honest empty-auth flows are
+        // unchanged; a PRESENTED non-empty `auth` is unverifiable today and rejected, keeping the gate
+        // live (not dead code). The message is the canonical [`Self::digest`], computed once.
+        let tx_digest = self.digest();
+        self.inputs.iter().enumerate().all(|(i, input)| {
+            let auth = self.auths.get(i).map(Vec::as_slice).unwrap_or(&[]);
+            Self::spend_is_authorized(input, auth, &tx_digest)
+        })
     }
 
     /// Canonical, injective digest of this value-movement — the deterministic bytes a future
@@ -256,7 +274,6 @@ impl TokenTx {
     ///
     /// SINGLE-SOURCE DEBT: serializer + tx-domain hasher live here for now; move to `noesis-core` at
     /// the on-VM lock-sig port, when the type-script becomes the second consumer of this serializer.
-    #[allow(dead_code)] // deploy-scaffolding: exercised by tests; consumed by spend_is_authorized once the lock-sig verifier is wired.
     pub(crate) fn digest(&self) -> [u8; 32] {
         // The ledger's cell-identity key (single-sourced with `is_valid_in_ledger` above).
         fn ident_key(c: &Cell) -> (u64, &[u8; 32], &[u8], &[u8; 32], &[u8], &[u8]) {
@@ -331,9 +348,8 @@ impl TokenTx {
     /// At deploy, `CONTROL_BINDING_ACTIVE` flips and the body becomes
     /// `verify_sig(owner = input.lock.args, msg = tx_digest, sig = auth)` — owner sourced from the
     /// FINALIZED cell's `lock`, never producer-asserted ([P·dont-let-attacker-choose-critical-input]).
-    /// Wiring this into the spend path (an `auth` per input, threaded through `is_valid_in_ledger`) is the
-    /// NEXT grain, reserved for fresh low-context because it touches the spend-validation path.
-    #[allow(dead_code)] // deploy-scaffolding: exercised by tests; wired into is_valid_in_ledger at the next (spend-path) grain.
+    /// WIRED into [`Self::is_valid_in_ledger`]: called once per consumed input with that input's
+    /// positional `auth`. Pre-deploy the sentinel path keeps every honest (empty-auth) flow green.
     pub(crate) fn spend_is_authorized(input: &Cell, auth: &[u8], tx_digest: &[u8; 32]) -> bool {
         // Explicit deploy flag — never an overloaded sentinel (the QA-port-2 lesson).
         const CONTROL_BINDING_ACTIVE: bool = false;
@@ -660,6 +676,7 @@ mod tests {
         };
         TokenTx {
             standard: TokenStandard::Fungible,
+            auths: vec![],
             code_hash: [20u8; 32],
             args: vec![7],
             inputs: vec![cell(3, b"alice", vec![1, 2]), cell(1, b"bob", vec![3])],
@@ -724,6 +741,7 @@ mod tests {
         // load-bearing (break-on-purpose: stripping the prefix reds THIS test).
         let mk = |ts_args: Vec<u8>, data: Vec<u8>| TokenTx {
             standard: TokenStandard::Fungible,
+            auths: vec![],
             code_hash: [5u8; 32],
             args: vec![9],
             inputs: vec![],
@@ -783,6 +801,7 @@ mod tests {
         // LIED-ABOUT amount of 1000, transferring 1000 to bob (1000->1000 conserves).
         let inflate = TokenTx {
             standard: TokenStandard::Fungible,
+            auths: vec![],
             code_hash: [20u8; 32],
             args: b"USD".to_vec(),
             inputs: vec![ft_cell(b"USD", b"alice", 1000)],
@@ -795,6 +814,7 @@ mod tests {
         // and the HONEST spend of the real 6-cell still validates — binding data rejects only the lie.
         let honest = TokenTx {
             standard: TokenStandard::Fungible,
+            auths: vec![],
             code_hash: [20u8; 32],
             args: b"USD".to_vec(),
             inputs: vec![ft_cell(b"USD", b"alice", 6)],
@@ -803,6 +823,34 @@ mod tests {
         assert!(
             node.validate(&block.with_token_txs(vec![honest])),
             "binding data over-rejected: alice's real 6-cell spend must still validate"
+        );
+    }
+
+    #[test]
+    fn ledger_spend_path_consults_authorization_gate() {
+        // The existence->control gate is WIRED into `is_valid_in_ledger` (DESIGN-locksig-binding.md
+        // step 3), not merely unit-tested in isolation: an honest spend with an EMPTY (sentinel) auth
+        // is inert-authorized and validates; the SAME spend carrying a PRESENTED, unverifiable auth is
+        // rejected pre-deploy. This pins the call-site LIVE through the real block-validation path.
+        let (mut node, block) = node_and_carrier_block();
+        node.ledger.token_cells.push(ft_cell(b"USD", b"alice", 6));
+        let mk = |auths: Vec<Vec<u8>>| TokenTx {
+            standard: TokenStandard::Fungible,
+            auths,
+            code_hash: [20u8; 32],
+            args: b"USD".to_vec(),
+            inputs: vec![ft_cell(b"USD", b"alice", 6)],
+            outputs: vec![ft_cell(b"USD", b"bob", 6)],
+        };
+        // sentinel (empty auths) => inert-authorized => the honest spend validates (flows unchanged).
+        assert!(
+            node.validate(&block.clone().with_token_txs(vec![mk(vec![])])),
+            "sentinel-auth spend must validate: the inert path leaves existing flows unchanged"
+        );
+        // a presented-but-unverifiable auth on the real input => rejected THROUGH the wired path.
+        assert!(
+            !node.validate(&block.with_token_txs(vec![mk(vec![vec![9, 9, 9]])])),
+            "WIRED gate: a presented unverifiable signature must be rejected by is_valid_in_ledger"
         );
     }
 
@@ -845,6 +893,7 @@ mod tests {
         // alice (NOT the issuer "USD") tries to inflate supply 10 -> 11 from a cell she owns.
         let inflate = TokenTx {
             standard: TokenStandard::Fungible,
+            auths: vec![],
             code_hash: [20u8; 32],
             args: b"USD".to_vec(),
             inputs: vec![ft_cell(b"USD", b"alice", 10)],
@@ -866,6 +915,7 @@ mod tests {
         // 10 -> 7 + 3: a pure split, conserves supply (no mint authority needed).
         let split = TokenTx {
             standard: TokenStandard::Fungible,
+            auths: vec![],
             code_hash: [20u8; 32],
             args: b"USD".to_vec(),
             inputs: vec![ft_cell(b"USD", b"alice", 10)],
@@ -884,6 +934,7 @@ mod tests {
         // mallory mints 1000 USD from nothing, controlling no USD authority cell.
         let forge = TokenTx {
             standard: TokenStandard::Fungible,
+            auths: vec![],
             code_hash: code,
             args: b"USD".to_vec(),
             inputs: vec![],
@@ -914,6 +965,7 @@ mod tests {
         // type_script.args == lock.args == "USD"), and mints 1000 to alice.
         let mint = TokenTx {
             standard: TokenStandard::Fungible,
+            auths: vec![],
             code_hash: code,
             args: b"USD".to_vec(),
             inputs: vec![ft_cell(b"USD", b"USD", 0)],
@@ -940,6 +992,7 @@ mod tests {
         let fabricated_authority = ft_cell(b"USD", b"USD", 0);
         let mint = TokenTx {
             standard: TokenStandard::Fungible,
+            auths: vec![],
             code_hash: code,
             args: b"USD".to_vec(),
             inputs: vec![fabricated_authority.clone()],
@@ -978,6 +1031,7 @@ mod tests {
         node.ledger.token_cells.push(ft_cell(b"USD", b"USD", 0));
         let mint_to = |to: &'static [u8]| TokenTx {
             standard: TokenStandard::Fungible,
+            auths: vec![],
             code_hash: code,
             args: b"USD".to_vec(),
             inputs: vec![ft_cell(b"USD", b"USD", 0)],
@@ -1002,6 +1056,7 @@ mod tests {
         node.ledger.token_cells.push(ft_cell(b"USD", b"USD", 0));
         let mint = || TokenTx {
             standard: TokenStandard::Fungible,
+            auths: vec![],
             code_hash: code,
             args: b"USD".to_vec(),
             inputs: vec![ft_cell(b"USD", b"USD", 0)],
@@ -1059,6 +1114,7 @@ mod tests {
         node.ledger.token_cells.push(ft_cell(b"EUR", b"alice", 10));
         let usd_mint = TokenTx {
             standard: TokenStandard::Fungible,
+            auths: vec![],
             code_hash: code,
             args: b"USD".to_vec(),
             inputs: vec![ft_cell(b"USD", b"USD", 0)],
@@ -1066,6 +1122,7 @@ mod tests {
         };
         let eur_xfer = TokenTx {
             standard: TokenStandard::Fungible,
+            auths: vec![],
             code_hash: code,
             args: b"EUR".to_vec(),
             inputs: vec![ft_cell(b"EUR", b"alice", 10)],
@@ -1087,6 +1144,7 @@ mod tests {
         node.ledger.token_cells.push(ft_cell(b"USD", b"USD", 0)); // the ONE real authority cell
         let real_spend = TokenTx {
             standard: TokenStandard::Fungible,
+            auths: vec![],
             code_hash: code,
             args: b"USD".to_vec(),
             inputs: vec![ft_cell(b"USD", b"USD", 0)],
@@ -1095,6 +1153,7 @@ mod tests {
         // a fabricated EUR authority cell that was never finalized into the ledger.
         let fabricated = TokenTx {
             standard: TokenStandard::Fungible,
+            auths: vec![],
             code_hash: code,
             args: b"EUR".to_vec(),
             inputs: vec![ft_cell(b"EUR", b"EUR", 0)],
@@ -1154,6 +1213,7 @@ mod tests {
         node.ledger.token_cells.push(ft_cell(b"USD", b"alice", 10)); // alice holds 10 USD
         let xfer = |from: &'static [u8], to: &'static [u8]| TokenTx {
             standard: TokenStandard::Fungible,
+            auths: vec![],
             code_hash: [20u8; 32],
             args: b"USD".to_vec(),
             inputs: vec![ft_cell(b"USD", from, 10)],
@@ -1206,6 +1266,7 @@ mod tests {
         node.ledger.token_cells.push(ft_cell(b"USD", b"alice", 10));
         let alice_to_bob = TokenTx {
             standard: TokenStandard::Fungible,
+            auths: vec![],
             code_hash: [20u8; 32],
             args: b"USD".to_vec(),
             inputs: vec![ft_cell(b"USD", b"alice", 10)],
@@ -1213,6 +1274,7 @@ mod tests {
         };
         let bob_to_carol = TokenTx {
             standard: TokenStandard::Fungible,
+            auths: vec![],
             code_hash: [20u8; 32],
             args: b"USD".to_vec(),
             inputs: vec![ft_cell(b"USD", b"bob", 10)],
@@ -1253,6 +1315,7 @@ mod tests {
         b.ledger.token_cells.push(ft_cell(b"USD", b"alice", 10));
         let xfer = TokenTx {
             standard: TokenStandard::Fungible,
+            auths: vec![],
             code_hash: [20u8; 32],
             args: b"USD".to_vec(),
             inputs: vec![ft_cell(b"USD", b"alice", 10)],

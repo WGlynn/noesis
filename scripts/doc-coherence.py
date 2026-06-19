@@ -124,7 +124,11 @@ def test_count_violations(root: str, count: int | None) -> list[str]:
     if count is None:
         return []
     bad = []
-    pat = re.compile(r"\b(\d+)\s*/\s*(\d+)\s+passing|\b(\d+)\s+tests?\b")
+    # A real test-count claim is either the slash form "N/N passing" (group 2) or "N tests passing"
+    # (group 3). The bare "N test(s)" form is NOT a count claim — it matches prose like "19 test
+    # literals" or "+1 test (foo)" in the adversarial log, which are false positives the unconditional
+    # check can never --stamp away. Require "passing" adjacency so only genuine count claims are caught.
+    pat = re.compile(r"\b(\d+)\s*/\s*(\d+)\s+passing|\b(\d+)\s+tests?\s+passing\b")
     for d in docs(root):
         with open(os.path.join(root, d), encoding="utf-8") as f:
             for i, line in enumerate(f, 1):

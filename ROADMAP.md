@@ -4,6 +4,44 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-19 (z)** — BUILT (pom-roadmap-advance fire): **named + CLOSED a new gaming vector —
+  orphan-root / multi-parent fan-out — via test, no new mechanism.** AdversarialLayeringSelfNamesNextLayer
+  on the (u) joint-decay fix: every volume-damping axis built so far (within-identity λ^r (q),
+  cross-identity μ^m (r), the joint ρ^j decay (u)) operates on a PARENT'S CHILDREN. Disconnected ROOTS
+  (`parent=None`) sit under none of them — so an attacker who posts K distinct novel roots instead of K
+  children of one root escapes every per-parent cap. **The defense is the realized-downstream-flow gate**
+  (paper §"Measurement as a living mechanism" pt 1, "realized not predicted"): a root nobody builds on
+  has no realized flow ⇒ seeds 0. **MEASURED** (`orphan_roots_are_realized_flow_gated_no_fan_out_pump`,
+  `node/src/lib.rs` value::tests): a genuinely built-upon root (4 EXTERNAL-identity children) = **17.6623**;
+  K orphan roots by one vested identity, no children = **0.0000 for ALL K∈{1,2,4,8}**. K×0 = 0 ⇒ the pump
+  is closed at the SOURCE — you cannot manufacture standing from disconnected roots, only by being built
+  upon. **Anti-theater is intrinsic:** the same harness pays 17.66 for a built root and 0 for orphans, so
+  the zero is the gate working, not a broken setup (no separate break-on-purpose mutation needed — the
+  positive reference IS the control). lib 282→283, **0 new clippy** (no warnings cite the new test region).
+  Honest scope: closes the orphan-as-FREE-standing pump; an orphan that genuinely IS built upon earns
+  legitimately (that is the intended behavior, not the attack). **NEXT:** lock-sig DEPLOY half (`verify_sig`,
+  deploy-coupled) · on-VM single-use (k) · learned-v(S)-on-real-labels (THE moat).
+- **2026-06-19 (y)** — BUILT (pom-roadmap-advance fire): **lock-sig step-3 — the gate is WIRED into the
+  spend path, sentinel-inert.** Closes the (v) build-contract's step 3: added `auths: Vec<Vec<u8>>` to
+  `TokenTx` (one field, per-input, positionally aligned with `inputs`; carried ON the tx because the
+  signature is committed content every validator re-checks — not a validate-time param). `is_valid_in_ledger`
+  now checks existence + `is_valid` first, then computes `self.digest()` once and calls
+  `spend_is_authorized(input, auths[i] or &[] if short, &tx_digest)` per input. SHORT/EMPTY `auths` ⇒ every
+  input gets the empty sentinel ⇒ inert ⇒ **all honest flows unchanged**; a PRESENTED non-empty `auth` ⇒
+  rejected (unverifiable pre-deploy) ⇒ gate LIVE not dead code. Dropped both `#[allow(dead_code)]` on
+  `digest`+`spend_is_authorized` (now consumed by the live path). +1 regression
+  `ledger_spend_path_consults_authorization_gate` proving the gate fires THROUGH `node.validate` (not just
+  the isolated unit test): sentinel-auth honest spend validates; same spend with a presented `[9,9,9]` auth
+  rejected. **break-on-purpose:** rubber-stamp the inert path (`true`) ⇒ regression RED; revert ⇒ green —
+  not theater. lib 230→231, suite 281→282, **0 new clippy** (hits at runtime.rs 37/38/102/279 pre-existing,
+  outside changed regions). 19 test literals got `auths: vec![]` via a one-pass script (insert after each
+  `standard:` line — free field-order, no brace-matching). **Paper synced (Code↔Text):** threat-model row
+  "spend another owner's cell" `designed (digest built)`→`designed (call-site wired, inert)`; test count
+  281→282; PDF 14pp clean. **STATUS:** existence ✅ + single-use ✅ + control **call-site wired-inert** (the
+  `verify_sig` body is the only deploy-coupled 🟡 remaining). **NEXT = DEPLOY half:** flip
+  `CONTROL_BINDING_ACTIVE`, body → `verify_sig(owner=input.lock.args, msg=tx_digest, sig=auth)`, link a
+  sig-suite (ed25519 fast-path + PQ; `auth` is suite-agnostic opaque bytes); anti-theater: always-true
+  `verify_sig` ⇒ control regression RED. Then on-VM single-use (k) · learned-v(S)-on-real-labels (THE moat).
 - **2026-06-19 (x)** — BUILT (pom-roadmap-advance fire): the **lock-sig step-2 inert shape** —
   `TokenTx::spend_is_authorized(input, auth, tx_digest)` (`node/src/runtime.rs`), the deploy-independent
   grain after the (w) `tx_digest` serializer. Sentinel-gated INERT: absent (empty) `auth` ⇒ authorized

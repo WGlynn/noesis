@@ -57,8 +57,10 @@ forwards-compatible: rival useful-work chains can converge into one attribution 
 compete for adoption. We are explicit about the one hard problem a value chain cannot sidestep,
 measuring real value across the blockchain--reality airgap with no external market to price it; we treat
 it as the load-bearing open problem, bounded by augmented mechanism design rather than claimed solved.
-The mechanisms reported here are implemented and tested in an open reference node; we mark throughout
-what is demonstrated and what is designed.
+Put simply: the chain pays you only for verified, non-duplicate contribution, measures how much your
+work actually mattered by how everything else builds on it, and lets that earned standing --- not
+bought stake --- secure the network. The mechanisms reported here are implemented and tested in an
+open reference node; we mark throughout what is demonstrated and what is designed.
 \end{abstract}
 
 \section{Introduction: the value chain Bitcoin is mistaken for}
@@ -170,7 +172,9 @@ function $r_\theta(x)$ of block features, the same objective
 \end{equation}
 is exactly the loss used to train a reinforcement-learning-from-human-feedback reward model. The
 distilled judgment model and the reward model are the same object, and that object is the production
-evaluator for $v$.
+evaluator for $v$. In plain terms: from many ``$A$ contributed more than $B$'' judgments we fit a
+single ``how much it added'' score per block, the same way a chess rating or an RLHF reward model is
+learned from pairwise wins.
 
 \subsection{The additivity trap}
 
@@ -201,7 +205,9 @@ graph $G$ create value:
 \qquad
 v^{G}(S) = \!\!\sum_{T \in S/G}\!\! v(T),
 \end{equation}
-where $S/G$ are the connected components of $S$ in $G$. Value flows along provenance edges, not over
+where $S/G$ are the connected components of $S$ in $G$. In plain terms: a block's credit is its
+average added value taken over every order in which the blocks could have been assembled, counting
+only the groupings actually wired together by provenance. Value flows along provenance edges, not over
 arbitrary sets; plain Shapley is the special case of a complete graph. Exact computation is
 exponential, so we estimate $\phi_i$ by Monte-Carlo permutation sampling (Data-Shapley), which is
 Shapley specialized to data valuation. In a working prototype over real blocks, replacing the additive
@@ -218,6 +224,7 @@ claimed by all earlier-committed blocks,
 \begin{equation}
 \nu(b) \;=\; \Big|\ \mathrm{cov}(b)\ \setminus\!\!\bigcup_{c\,:\,t_c < t_b}\!\! \mathrm{cov}(c)\ \Big|.
 \end{equation}
+In plain terms: you are paid only for what you add that no earlier block already covered.
 First-to-reveal earns the novelty; later padding or sybil copies earn zero. (This is the second reason
 the commit order of Section~\ref{sec:blocks} is load-bearing: it supplies the canonical order that makes
 the rule strategyproof.) In the reference implementation a sybil ring of five identical-content
@@ -235,7 +242,9 @@ parent's aggregated contribution is
 F \;=\; \sum_{j\ge 0} \rho^{\,j}\, c_{(j)}
 \;\le\; \frac{c_{\max}}{1-\rho} \;=\; \varphi^{2}\,c_{\max} \;\approx\; 2.618\,c_{\max},
 \end{equation}
-a convergent series: coordinated volume \emph{saturates} rather than amplifies. An earlier design that
+a convergent series: coordinated volume \emph{saturates} rather than amplifies. In plain terms: each
+extra post counts for geometrically less, so flooding the system hits a fixed ceiling instead of
+compounding — the total can never run away no matter how many copies are posted. An earlier design that
 damped two axes separately (within an identity and across identities) left their product unbounded, a
 ``diagonal'' pump in which $K$ coordinated identities each posting $M$ children compounded both tails.
 Folding both into one joint decay over the flattened global order closes it. Figure~\ref{fig:sat}
@@ -307,7 +316,9 @@ Y \;=\; \underbrace{\mathrm{grad}\,s}_{\text{global ranking}}\ \oplus\
 \underbrace{\ker \Delta_1}_{\text{harmonic (global cycles)}}\ \oplus\
 \underbrace{\mathrm{curl}^{*}}_{\text{local cycles}} .
 \end{equation}
-The residual energy is not an error bar; it is a \emph{certificate}. A large curl component says
+Plainly: the same computation that ranks the blocks also measures how self-consistent the underlying
+judgments were and points at exactly where they contradict themselves. The residual energy is not an
+error bar; it is a \emph{certificate}. A large curl component says
 fine-scale ordering is unreliable; a large harmonic component says the judgments cycle through holes
 in the graph. Where the Shapley/Myerson construction \emph{assumes} a consistent scalar world (its
 axioms force the residual to zero), HodgeRank \emph{measures} whether that world holds, and localizes
@@ -329,7 +340,9 @@ realized gate
 \end{equation}
 the product of floored novelty $\bar\nu_i$, a realized-flow gate $g(f_i)$, and the learned outcome
 $\omega$ scored on the block's provenance lineage $\ell_i$. Because the factors are multiplicative and
-bounded in $[0,1]$, each can only \emph{lower} the seed; none can mint. The learned model is confined
+bounded in $[0,1]$, each can only \emph{lower} the seed; none can mint. In plain terms: the value
+passes through a chain of dials each set between $0$ and $1$, so every factor (including the learned
+one) can only turn the payout \emph{down}, never conjure it up. The learned model is confined
 to two roles that have no minting power: it may offer an honest contributor an early liquidity
 \emph{advance} against expected vesting (its own capital at risk, repaid from realized value and
 slashed on shortfall), and it may enter a dispute as \emph{evidence} the jurors weigh. A corrupt model
@@ -419,6 +432,8 @@ provenance-complete blocks it holds,
 \mathrm{PoM}(a) \;=\; \sum_{b\,\in\,\mathcal{B}(a)} \phi_b ,
 \qquad \mathcal{B}(a) = \{\text{verified, owned, provenance-complete blocks of } a\}.
 \end{equation}
+In plain terms: your standing is just the summed, verified value of the work you own — nothing you can
+buy, only contribution that survived checking.
 Three properties are inherited from the construction. It is \textbf{verifiable}: every contributing
 block is signed and provenance-complete, so anyone can recompute the score from public data. It is
 \textbf{sybil-resistant structurally}: PoM requires owned blocks whose value was synergy-judged, and
@@ -471,7 +486,9 @@ denominator and finalize a minority. The stable choice is the hybrid
 \text{finalize} \iff \forall d:\quad W^{d}_{\text{for}} \;\ge\; \tfrac{2}{3}\,\max\!\big(W^{d}_{\text{eff}},\, Q^{d}\big),
 \end{equation}
 which pins the denominator at a quorum floor $Q^d$, a fraction of base weight, so neither failure
-occurs. The composition over the dimensions $d$ is AND-gated, not a substitutable weighted sum: a
+occurs. In plain terms: a block is final once a two-thirds supermajority backs it, measured against
+whichever is larger, who is actually voting or a fixed floor, so an attacker can neither stall the
+chain by sitting out nor finalize a minority by shrinking the pool. The composition over the dimensions $d$ is AND-gated, not a substitutable weighted sum: a
 single dimension below the supermajority cannot finalize alone. This is verified against tested
 reference models, including a self-audit that demonstrates the eclipse on a bare effective basis and
 its closure under the quorum floor.
@@ -545,7 +562,7 @@ Cyclic / collusive judgments & HodgeRank harmonic-energy spike is a manipulation
 Self-referential scoring & independent evaluators, eigenvector damping, synergy discount & designed \\
 Eclipse (shrink the finality denominator) & hybrid $\max(\text{effective},\,\text{quorum-floor})$ basis & demonstrated (self-audit) \\
 Profitable fork (coalition deviates) & core / nucleolus stability constraint & demonstrated (solver) \\
-Spend another owner's cell & existence check $+$ lock-signature control & designed (digest built) \\
+Spend another owner's cell & existence check $+$ lock-signature control & designed (call-site wired, inert) \\
 Theft by forking the network & attribution \emph{is} the mechanism: stripping provenance is incoherent, keeping it credits the source & structural \\
 Off-chain sale of a standing key & soulbound blocks on-chain transfer; the residual is selling the identity key itself, bounded because the key inherits the identity's full slashable history (and personhood-binding) & designed (residual) \\
 \bottomrule
@@ -583,7 +600,7 @@ eigenvector-style damping over the attribution graph, and the synergy game's dis
 self-referential coalitions.
 
 \paragraph{Demonstrated versus designed.} \emph{Demonstrated} in the open reference node (a Rust
-implementation with a no-std verification core shared with on-chain scripts, $281$ passing tests at
+implementation with a no-std verification core shared with on-chain scripts, $282$ passing tests at
 the time of writing): ownership and transfer, per-block signing, tamper-resistance, the synergy value
 over a coverage proxy with Myerson and Bradley--Terry and permutation sampling, temporal novelty,
 coordinated-volume saturation (Figure~\ref{fig:sat}), the bounded learned evaluator and its held-out
@@ -591,7 +608,8 @@ measurement (Figure~\ref{fig:moat}), the dispute and slashing path, PoM-weighted
 hybrid basis, the core/nucleolus stability solver, and the on-chain recomputation of the ordering and
 finalization rules inside the virtual machine. \emph{Designed, not yet built}: the learned $v(S)$ on
 real outcome labels, the production two-level recursion, owner-signature control of spends (the
-deterministic transaction digest the signature will cover is built and tested), the open-weight
+deterministic transaction digest is built and tested, and the per-input authorization gate is wired
+into ledger validation, inert until the signature verifier is linked at deploy), the open-weight
 fine-tune loop, and the money/stability layer.
 
 \section{Fair launch and theft-resistance}\label{sec:fairlaunch}

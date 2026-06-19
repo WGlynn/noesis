@@ -1935,6 +1935,61 @@ pub mod value {
         }
 
         #[test]
+        fn orphan_roots_are_realized_flow_gated_no_fan_out_pump() {
+            // VECTOR (newly named — the sibling the joint-decay (u) fix does NOT cover): orphan-root /
+            // multi-parent fan-out. Every volume-damping axis so far — within-identity λ^r (q),
+            // cross-identity μ^m (r), the joint ρ^j decay (u) — operates on a PARENT'S CHILDREN.
+            // Disconnected ROOTS (parent=None) sit under none of them. An attacker who posts K distinct
+            // novel roots instead of K children of one root escapes every per-parent cap. The claimed
+            // structural defense is the realized-DOWNSTREAM-flow gate: a root nobody builds on has no
+            // realized flow, so value is paid for being BUILT UPON, not for merely existing. This test
+            // measures whether that gate actually bounds the fan-out (vs. a linear-in-K pump).
+            let w = trained_outcome_w();
+            // REFERENCE — a root genuinely built upon (real EXTERNAL downstream flow): root identity 1,
+            // 4 children of a DISTINCT identity 2 building on it. (Same-identity children are self-flow
+            // and excluded — you do not earn value by building on your own work — so external is the
+            // honest baseline for "this root mattered to others".)
+            let built = {
+                let mut o = vec![cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta")];
+                for j in 0..4u64 {
+                    o.push(cellc(j + 1, 2, j + 1, Some(0), HYBRID_PAYLOADS[j as usize]));
+                }
+                value_v8(&o, &standing_of(&[(1u8, FLOOR), (2u8, FLOOR)]), FLOOR, &w, THETA, ENTROPY_THETA, THETA_Q16, DAMP, ITERS, HALF)[0]
+            };
+            // ATTACK — K orphan roots by one vested attacker identity (7), distinct novel payloads,
+            // NO children (nobody builds on them). Total attacker standing = sum over the K roots.
+            let orphan_total = |k: usize| -> f64 {
+                let o: Vec<super::super::Cell> =
+                    (0..k).map(|j| cellc(j as u64, 7, j as u64, None, HYBRID_PAYLOADS[j])).collect();
+                value_v8(&o, &standing_of(&[(7u8, FLOOR)]), FLOOR, &w, THETA, ENTROPY_THETA, THETA_Q16, DAMP, ITERS, HALF)
+                    .iter()
+                    .sum()
+            };
+            let (o1, o2, o4, o8) = (orphan_total(1), orphan_total(2), orphan_total(4), orphan_total(8));
+            println!(
+                "PROBE orphan fan-out: built(root+4 external children)={built:.4} | orphan_total K1={o1:.4} K2={o2:.4} K4={o4:.4} K8={o8:.4}"
+            );
+            // MEASURED 2026-06-19: built(root+4 external children)=17.6623, orphan_total=0.0000 for
+            // ALL K∈{1,2,4,8} ⇒ vector CLOSED by realized-flow gating (no new mechanism needed). The
+            // same harness paying 17.66 for a built-upon root and 0 for orphans is the anti-theater:
+            // the zero is the gate working, not a broken setup.
+            // (1) realized-flow gate PAYS the genuinely-built-upon root: external downstream > 0.
+            assert!(built > 0.0, "realized-flow gate zeroed a genuinely built-upon root");
+            // (2) FAN-OUT EARNS NOTHING — a root nobody builds on has no realized downstream flow, so
+            //     each orphan seeds 0; K of them still sum to ~0. The pump is closed at the source: you
+            //     cannot manufacture standing from disconnected roots, only by being built upon.
+            assert!(
+                o8 <= 0.02 * built,
+                "orphan fan-out PUMPS: 8 orphan roots = {o8:.4} is not negligible vs one built root {built:.4}"
+            );
+            // (3) NO LINEAR GROWTH in K — the fan-out is flat (bounded), not ~linear in the root count.
+            assert!(
+                o8 <= o1 + 0.02 * built,
+                "orphan fan-out grows with K: K8={o8:.4} K1={o1:.4} — not realized-flow-bounded"
+            );
+        }
+
+        #[test]
         fn t4_honest_diverse_certification_is_inert() {
             // T4 (crit. 4 — INERT). The cross-identity μ^m damping must NOT punish legitimately
             // broad certification: two HONEST distinct identities each building one real, value-
