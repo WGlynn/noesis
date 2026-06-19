@@ -4,6 +4,56 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-18 (t)** — BUILT + 🔬 NEW GAP NAMED — the (s) acceptance matrix is built, and its keystone
+  T3 found a real vector. Added the 6-row adversarial matrix against the (r) cross-identity μ^m fix:
+  **T1/T2** reuse the existing flipped gap test (`multi_identity_split_volume_saturates_under_cross_
+  identity_damping` — K split saturates, K8 ≤ single-id bound); **T3/T4/T5** new in the `value` test
+  module, **T6** in the `settlement_fixed` module. Suite **221 → 225** (T3, T4, T5, T6 added; T1/T2
+  reused). cargo test --lib 225/225.
+  - **T3 VERDICT: the diagonal PUMPS — new gaming vector `hybrid-split diagonal pump` (cross-axis
+    geometric-tail compounding).** Each axis is individually bounded (λ^r caps within-identity, μ^m
+    caps cross-identity) but the CROSS is not: K vested identities EACH posting M children give every
+    one of the K groups a full λ^r geometric tail (≈2.618·flow), then those K near-saturated groups
+    are summed under the μ^m tail — the two tails MULTIPLY: bound_diagonal → flow·[1/(1−λ)]·[1/(1−μ)]
+    ≈ 6.85·flow vs the single-identity bound flow/(1−λ) ≈ 2.618·flow.
+    **HONEST GRID** (measured, μ=λ=1/φ; v8(root); single-identity K1×M8 bound = **18.1073**):
+    | K\M | M=1 | M=2 | M=4 |
+    |---|---|---|---|
+    | K=1 | 14.2821 | 16.4373 | 17.6582 |
+    | K=2 | 16.4373 | **18.1768** | 19.0835 |
+    | K=4 | 17.6623 | 19.0838 | **19.7499** |
+    K2×M2 = 18.18 already breaks the 18.11 bound; K4×M4 = 19.75 ≈ +9%. Modest at the 8-identity
+    standing-floor cost the attacker pays, but REAL and MONOTONE in both K and M (the unbounded-product
+    signature). Pinned RED-as-expected by `t3_hybrid_diagonal_pumps_past_single_identity_bound_open_gap`
+    (asserts the pump EXISTS + is monotone). **Tier: 🔬 OPEN.**
+  - **FIX DESIGN (next, fresh low-context — production flow-path change, highest blast radius):** the
+    pump is the PRODUCT of two independent per-axis tails. Closing it requires a JOINT bound, not two
+    separate ones. Candidate: damp the cross-identity μ^m by each identity's WITHIN-identity rank-depth
+    so a deeply-stacked identity (large M) does not also receive a near-full μ weight — i.e. fold the
+    λ^r group magnitude back into the μ ordering so the cross-axis weight DECAYS faster when groups are
+    themselves saturated. Equivalently: apply a SINGLE geometric decay over the GLOBAL flattened
+    (identity, child-rank) order rather than per-axis (one tail, not a product). Either collapses the
+    6.85·flow product back toward the 2.618·flow single-axis bound. T3 is fix-agnostic: it asserts the
+    pump today; when the joint-bound fix lands, flip T3 to `..._saturates` (assert K4×M4 ≤ bound×(1+ε)).
+  - **T4 (honest INERT)** ✅ — 2 honest identities on DISTINCT real parents: both roots paid, μ^0=1 each,
+    cross-identity damping never engages. **T5 (determinism)** ✅ — re-evaluated T1(K8) + T3(K4×M4) ×32;
+    bit-identical every run (no HashMap-iteration leak; canonical sort holds). HONEST SCOPE: T5 tests
+    RUN-TO-RUN/replica determinism on FIXED input, NOT full input-shuffle invariance — commit order
+    (vector position) is a real value input (temporal_novelty + λ^r rank), so shuffling legitimately
+    changes the value (measured 17.66→17.75 under a child reversal); the property the fix guarantees is
+    no nondeterministic seeding, which is what T5 pins. **T6 (Q32 parity)** ✅ — f64 value_v7 ↔
+    value_v7_q32 on the T1 split (K=1,2,4,8) AND T3 hybrid (K×M) graphs within the documented 1e-6 band
+    (parity checked at the FLOW layer where the two-axis damping lives; v8's outcome gate is f64-only,
+    no fixed-point port).
+  - **BREAK-ON-PURPOSE (anti-theater) confirmed:** (1) μ:=1.0 (inert) → the cross-identity SATURATION
+    test went RED AND T6 went RED (the μ damping is load-bearing for both saturation and f64↔fixed
+    parity on multi-identity graphs); (2) μ:=0.05 (over-strong) → the pump vanished (K2×M2=16.63 < 18.11)
+    and **T3 went RED** — proving T3 genuinely detects the diagonal pump's PRESENCE, not theater. Both
+    reverted to μ=1/φ; 225/225 restored.
+  - clippy: 0 NEW (the 4 pre-existing `noesis-core` `is_multiple_of`/`div_ceil` errors on clean HEAD
+    remain; my added lines clippy-clean). fmt: my added lines follow the SAME compact-call convention as
+    the surrounding committed tests (which carry the repo's known pre-existing rustfmt drift) — no tree-
+    wide fmt run, no NEW divergence.
 - **2026-06-18 (s)** — SPEC tick (no code; PCP-gate — fired during a high-context Lithos session, and
   the (r) fix touches `value_flow_with_own`/`value_v6` = highest blast radius ⇒ surgery stays gated to
   fresh low-context). Wrote `internal/DESIGN-multi-identity-split-acceptance.md`: the red→green target

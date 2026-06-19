@@ -1815,6 +1815,182 @@ pub mod value {
             assert!(k1 > 0.0 && k8 > k1, "cross-identity damping zeroed honest signal");
         }
 
+        // 16 mutually-dissimilar valueless payloads (distinct vocabularies) for the T3
+        // hybrid grid: K identities × M children needs up to 4×4 = 16 children, each
+        // individually novel and clearing the similarity floor (worst case for the gate).
+        const HYBRID_PAYLOADS: [&[u8]; 16] = [
+            b"the cat sat quietly on the warm mat today",
+            b"rivers flow gently under the old stone bridge",
+            b"morning light fills the quiet empty kitchen slowly",
+            b"yellow kites drift above the distant green hill",
+            b"books rest unread along the dusty wooden shelf",
+            b"snow settles softly across the silent winter field",
+            b"clocks tick onward through the long grey afternoon",
+            b"birds gather near the fence before the evening rain",
+            b"copper wires hum behind the locked basement panel",
+            b"sailors mend torn nets beside the harbor wall",
+            b"violet orchids bloom inside the humid glass dome",
+            b"trucks rumble past the shuttered roadside diner",
+            b"lanterns sway along the crooked mountain trail",
+            b"engineers sketch turbines on the wide blue board",
+            b"foxes circle the orchard under a thin crescent moon",
+            b"pottery dries in rows along the sunlit adobe ledge",
+        ];
+
+        // ---- T3 keystone helpers: the hybrid K-identities × M-children grid -------------
+        // Build the root + K certifying identities (args 10..10+K), each posting M distinct
+        // valueless children on the single root. Returns the order; identities all vested.
+        fn t3_hybrid_order(root: &super::super::Cell, k: usize, m: usize) -> Vec<super::super::Cell> {
+            let mut o = vec![root.clone()];
+            let (mut id, mut p) = (1u64, 0usize);
+            for ki in 0..k {
+                for _ in 0..m {
+                    o.push(cellc(id, 10 + ki as u8, id, Some(0), HYBRID_PAYLOADS[p]));
+                    id += 1;
+                    p += 1;
+                }
+            }
+            o
+        }
+        fn t3_hybrid_standing(k: usize) -> std::collections::HashMap<Vec<u8>, u64> {
+            let mut sv = vec![(1u8, FLOOR)];
+            for ki in 0..k {
+                sv.push((10 + ki as u8, FLOOR));
+            }
+            standing_of(&sv)
+        }
+
+        #[test]
+        fn t3_hybrid_diagonal_pumps_past_single_identity_bound_open_gap() {
+            // ========================= NEW GAMING VECTOR (the T3 find) =========================
+            // VECTOR NAME: hybrid-split diagonal pump (cross-axis geometric-tail compounding).
+            //
+            // The (q) within-identity λ^r damping bounds ONE identity's M children to the
+            // geometric tail flow·(1−λ^M)/(1−λ) ≤ flow/(1−λ) ≈ 2.618·flow. The (r) cross-identity
+            // μ^m damping bounds K identities' grouped contributions to Σ_m μ^m·group_m. EACH
+            // AXIS IS INDIVIDUALLY BOUNDED — the K=1 column tops out at the single-identity bound,
+            // the M=1 row reproduces the pure cross-identity curve. BUT the DIAGONAL is not: an
+            // attacker who runs K vested identities EACH posting M children gives every one of the
+            // K groups a FULL λ^r tail (≈2.618·flow for large M), then sums those K near-saturated
+            // groups under the μ^m tail. The two geometric tails MULTIPLY:
+            //     bound_diagonal → flow · [1/(1−λ)] · [1/(1−μ)] ≈ flow · 2.618 · 2.618 ≈ 6.85·flow
+            // versus the single-identity bound flow/(1−λ) ≈ 2.618·flow. The cross of the two
+            // independently-bounded axes pumps past the single-identity saturation bound.
+            //
+            // HONEST GRID (measured 2026-06-18, μ=λ=1/φ; v8(root), single-identity K1×M8 = 18.1073):
+            //   K\M     M=1       M=2       M=4
+            //   K=1   14.2821   16.4373   17.6582   ← within-identity axis, saturates ≤ 18.11
+            //   K=2   16.4373   18.1768   19.0835   ← K2×M2 already 18.18 > 18.11 (bound broken)
+            //   K=4   17.6623   19.0838   19.7499   ← K4×M4 = 19.75, ~9% over the single bound
+            // The pump is modest at the 8-identity standing-floor cost the attacker pays, but it is
+            // REAL and MONOTONE in both K and M — exactly the unbounded-product signature above.
+            //
+            // This is THE next adversarial-loop surface the (s) spec flagged ("a fix that bounds
+            // each axis independently could still pump on the diagonal"). It does. Pinned RED here;
+            // fix design recorded in ROADMAP + CONTINUE. Tier: 🔬 OPEN.
+            let w = trained_outcome_w();
+            let root = cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta");
+            let v8 = |k: usize, m: usize| {
+                value_v8(&t3_hybrid_order(&root, k, m), &t3_hybrid_standing(k),
+                    FLOOR, &w, THETA, ENTROPY_THETA, THETA_Q16, DAMP, ITERS, HALF)[0]
+            };
+            // single-identity saturation bound (K=1 axis at M=8): the diagonal must NOT exceed it,
+            // but it does — that is the gap.
+            let single_bound = {
+                let mut o = vec![root.clone()];
+                for j in 0..8u64 {
+                    o.push(cellc(j + 1, 99, j + 1, Some(0), HYBRID_PAYLOADS[j as usize]));
+                }
+                let s = standing_of(&[(1u8, FLOOR), (99u8, FLOOR)]);
+                value_v8(&o, &s, FLOOR, &w, THETA, ENTROPY_THETA, THETA_Q16, DAMP, ITERS, HALF)[0]
+            };
+            let (d22, d44) = (v8(2, 2), v8(4, 4));
+            println!(
+                "PROBE T3 hybrid diagonal: single_bound(K1M8)={single_bound:.4} K2M2={d22:.4} K4M4={d44:.4}"
+            );
+            // (A) THE GAP: the diagonal pumps past the single-identity saturation bound. Even the
+            //     smallest non-trivial cross (K2×M2) breaks it; the 4×4 cross breaks it materially.
+            assert!(
+                d22 > single_bound,
+                "expected the diagonal to pump (K2M2={d22:.4} > bound={single_bound:.4}) — if this \
+                 fails, the cross-axis fix landed and this open_gap should flip to saturates"
+            );
+            assert!(
+                d44 > single_bound * 1.05,
+                "expected a material 4x4 pump (K4M4={d44:.4} > 1.05·bound={:.4})",
+                single_bound * 1.05
+            );
+            // (B) the pump is MONOTONE up the diagonal (the geometric-product signature): more
+            //     identities AND more children each push it higher.
+            assert!(d44 > d22, "diagonal pump is monotone in the grid: K4M4 {d44:.4} > K2M2 {d22:.4}");
+        }
+
+        #[test]
+        fn t4_honest_diverse_certification_is_inert() {
+            // T4 (crit. 4 — INERT). The cross-identity μ^m damping must NOT punish legitimately
+            // broad certification: two HONEST distinct identities each building one real, value-
+            // carrying child on a DISTINCT real parent. Different parents ⇒ each parent has a
+            // SINGLE certifying identity at rank m=0 ⇒ μ^0=1 ⇒ full weight. The fix is inert; the
+            // honest roots are paid the same as they would be with no cross-identity layer at all.
+            let w = trained_outcome_w();
+            // Two separate honest lineages, distinct parents, distinct honest identities.
+            let order = vec![
+                cellc(0, 1, 0, None, b"first-honest-root-alpha-bravo-charlie"),
+                cellc(1, 2, 1, Some(0), b"genuine-child-builds-on-first-root-delta"),
+                cellc(2, 3, 2, None, b"second-honest-root-echo-foxtrot-golf"),
+                cellc(3, 4, 3, Some(2), b"genuine-child-builds-on-second-root-hotel"),
+            ];
+            let st = standing_of(&[(1, FLOOR), (2, FLOOR), (3, FLOOR), (4, FLOOR)]);
+            let v8 = value_v8(&order, &st, FLOOR, &w, THETA, ENTROPY_THETA, THETA_Q16, DAMP, ITERS, HALF);
+            // Both honest roots are paid: real downstream use certifies them, single-identity
+            // per parent ⇒ μ^0=1, the cross-identity damping never engages.
+            assert!(v8[0] > 0.0, "first honest root paid — diverse certification not over-punished");
+            assert!(v8[2] > 0.0, "second honest root paid — distinct-parent certification inert");
+        }
+
+        #[test]
+        fn t5_cross_identity_sort_is_deterministic_no_hashmap_leak() {
+            // T5 (crit. 5 — DETERMINISM). The cross-identity layer must converge across replicas:
+            // its identity ordering is a CANONICAL sort (grouped contribution desc, identity args
+            // asc tiebreak), and the per-parent flow accumulation must NOT leak HashMap iteration
+            // order. The honest property here is RUN-TO-RUN / replica determinism on a FIXED input,
+            // NOT full input-shuffle invariance — commit order (vector position) is itself a real
+            // value input (temporal_novelty ranks earlier commits over later near-novel ones, and
+            // the within-identity λ^r rank is commit order), so permuting the input legitimately
+            // changes the value. What MUST hold is that the same input always yields the same v8
+            // regardless of HashMap seeding (`std::collections::HashMap` randomizes its hasher
+            // per-instance, so a leak of children-map or groups-build order would surface as
+            // run-to-run drift). Evaluate the T1 split AND the T3 hybrid graphs repeatedly and
+            // assert bit-identical results every time.
+            let w = trained_outcome_w();
+            let root = cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta");
+            // T1 split: K=8 distinct identities, one child each.
+            let mut t1 = vec![root.clone()];
+            for j in 0..8u64 {
+                t1.push(cellc(j + 1, 10 + j as u8, j + 1, Some(0), HYBRID_PAYLOADS[j as usize]));
+            }
+            let st1 = t3_hybrid_standing(8);
+            // T3 hybrid: K=4 identities × M=4 children (the diagonal-pump graph, max grouping).
+            let t3 = t3_hybrid_order(&root, 4, 4);
+            let st3 = t3_hybrid_standing(4);
+            let eval = |order: &[super::super::Cell], st: &std::collections::HashMap<Vec<u8>, u64>| {
+                value_v8(order, st, FLOOR, &w, THETA, ENTROPY_THETA, THETA_Q16, DAMP, ITERS, HALF)
+            };
+            let base1 = eval(&t1, &st1);
+            let base3 = eval(&t3, &st3);
+            // Re-evaluate many times: each call builds fresh HashMaps with fresh random seeds.
+            for _ in 0..32 {
+                let r1 = eval(&t1, &st1);
+                let r3 = eval(&t3, &st3);
+                for (a, b) in base1.iter().zip(&r1) {
+                    assert_eq!(a.to_bits(), b.to_bits(), "T1 split: HashMap-order leak — non-deterministic v8");
+                }
+                for (a, b) in base3.iter().zip(&r3) {
+                    assert_eq!(a.to_bits(), b.to_bits(), "T3 hybrid: HashMap-order leak — non-deterministic v8");
+                }
+            }
+        }
+
         #[test]
         fn value_v8_pays_a_genuinely_useful_lineage() {
             // The other side of the gate: a child that EXTENDS the parent's lineage (real
@@ -6683,6 +6859,87 @@ pub mod settlement_fixed {
             let x = value_v7_q32(&order, &standing, FLOOR, SIM, ENT, D, ITERS, HALF);
             assert!(x.iter().all(|&v| v < u128::MAX / 2), "finite under deep amplification");
             assert!(x[0] > 0, "root is paid through the whole chain");
+        }
+
+        // 16 mutually-dissimilar valueless payloads — duplicated here (separate test module,
+        // its own helpers) so T6 can rebuild the T1/T3 graphs the f64 matrix uses.
+        const HYBRID_PAYLOADS: [&[u8]; 16] = [
+            b"the cat sat quietly on the warm mat today",
+            b"rivers flow gently under the old stone bridge",
+            b"morning light fills the quiet empty kitchen slowly",
+            b"yellow kites drift above the distant green hill",
+            b"books rest unread along the dusty wooden shelf",
+            b"snow settles softly across the silent winter field",
+            b"clocks tick onward through the long grey afternoon",
+            b"birds gather near the fence before the evening rain",
+            b"copper wires hum behind the locked basement panel",
+            b"sailors mend torn nets beside the harbor wall",
+            b"violet orchids bloom inside the humid glass dome",
+            b"trucks rumble past the shuttered roadside diner",
+            b"lanterns sway along the crooked mountain trail",
+            b"engineers sketch turbines on the wide blue board",
+            b"foxes circle the orchard under a thin crescent moon",
+            b"pottery dries in rows along the sunlit adobe ledge",
+        ];
+
+        #[test]
+        fn t6_q32_tracks_f64_on_t1_t3_multi_identity_graphs() {
+            // T6 (crit. 6 — Q32.32 MIRROR). The two-axis (λ^r within-identity, μ^m cross-identity)
+            // geometric damping lives in the FLOW layer, mirrored in `value_flow_external_q32`
+            // (MU_Q32 = LAMBDA_Q32 = round(2^32/φ)). The settlement port must track the f64
+            // prototype on the SAME adversarial graphs the f64 matrix asserts — the T1 split (K
+            // distinct identities × 1 child) and the T3 hybrid diagonal (K × M). v8's outcome gate
+            // is an f64-only host stage with no fixed-point port, so parity is checked at the layer
+            // the damping actually lives: value_v7_q32 (which calls value_flow_external_q32) vs the
+            // f64 value::value_v7. Same documented 1e-6 relative band as v7_q32_tracks_f64_v7_*.
+            type Graph = (String, Vec<Cell>, HashMap<Vec<u8>, u64>);
+            let root = cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta");
+            // T1: K distinct vested identities, one child each on the root, K = 1,2,4,8.
+            let t1 = |k: usize| -> (Vec<Cell>, HashMap<Vec<u8>, u64>) {
+                let mut o = vec![root.clone()];
+                let mut sv = vec![(1u8, FLOOR)];
+                for (j, payload) in HYBRID_PAYLOADS.iter().enumerate().take(k) {
+                    o.push(cellc((j + 1) as u64, 10 + j as u8, (j + 1) as u64, Some(0), payload));
+                    sv.push((10 + j as u8, FLOOR));
+                }
+                (o, st(&sv))
+            };
+            // T3: K identities × M children each on the root (the diagonal pump graph).
+            let t3 = |k: usize, m: usize| -> (Vec<Cell>, HashMap<Vec<u8>, u64>) {
+                let mut o = vec![root.clone()];
+                let mut sv = vec![(1u8, FLOOR)];
+                let (mut id, mut p) = (1u64, 0usize);
+                for ki in 0..k {
+                    sv.push((10 + ki as u8, FLOOR));
+                    for _ in 0..m {
+                        o.push(cellc(id, 10 + ki as u8, id, Some(0), HYBRID_PAYLOADS[p]));
+                        id += 1;
+                        p += 1;
+                    }
+                }
+                (o, st(&sv))
+            };
+            let mut graphs: Vec<Graph> = Vec::new();
+            for k in [1usize, 2, 4, 8] {
+                let (o, s) = t1(k);
+                graphs.push((format!("T1 K={k}"), o, s));
+            }
+            for (k, m) in [(2usize, 2usize), (4, 2), (2, 4), (4, 4)] {
+                let (o, s) = t3(k, m);
+                graphs.push((format!("T3 K={k} M={m}"), o, s));
+            }
+            for (label, order, standing) in &graphs {
+                let f = value::value_v7(order, standing, FLOOR, 0.8, 0.95, 0.85, ITERS, 8.0);
+                let x = value_v7_q32(order, standing, FLOOR, SIM, ENT, D, ITERS, HALF);
+                for (i, (a, b)) in f.iter().zip(&x).enumerate() {
+                    let bf = as_f64(*b);
+                    assert!(
+                        (a - bf).abs() <= 1e-6 * a.abs().max(1.0),
+                        "{label} cell {i}: f64 {a} vs q32 {bf} — drift band broken on the \
+                         two-axis damping settlement mirror"
+                    );
+                }
+            }
         }
     }
 }
