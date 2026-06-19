@@ -107,7 +107,7 @@ state-capacity (a tradable commodity). You can buy storage; you cannot buy conse
 \label{fig:pipeline}
 \end{figure}
 
-\section{Blocks and provenance}
+\section{Blocks and provenance}\label{sec:blocks}
 
 A block is the unit a participant produces,
 $b = \{\,\mathrm{id},\ \mathrm{parent},\ t,\ \mathrm{inputs},\ \mathrm{output},\ h\,\}$.
@@ -212,11 +212,11 @@ claimed by all earlier-committed blocks,
 \begin{equation}
 \nu(b) \;=\; \Big|\ \mathrm{cov}(b)\ \setminus\!\!\bigcup_{c\,:\,t_c < t_b}\!\! \mathrm{cov}(c)\ \Big|.
 \end{equation}
-First-to-reveal earns the novelty; later padding or sybil copies earn zero. This is why commit--reveal
-is load-bearing for \emph{value}, not only authorship: it provides the canonical order that makes the
-rule strategyproof. In the reference implementation a sybil ring of five identical-content identities
-banks the coverage of at most one block ($1.06\times$, not $5\times$), and a cross-block re-post earns
-zero.
+First-to-reveal earns the novelty; later padding or sybil copies earn zero. (This is the second reason
+the commit order of Section~\ref{sec:blocks} is load-bearing: it supplies the canonical order that makes
+the rule strategyproof.) In the reference implementation a sybil ring of five identical-content
+identities banks the coverage of at most one block ($1.06\times$, not $5\times$), and a cross-block
+re-post earns zero.
 
 \subsection{Saturation under coordinated volume}
 
@@ -264,6 +264,26 @@ over the global canonical order (green), the entire $K{\times}M$ grid is bounded
 within $2\%$. Honest single contributions are paid unchanged.}
 \label{fig:sat}
 \end{figure}
+
+\subsection{A worked example}
+
+A small example ties the pieces together. Take a result $A$ with coverage $\{1,2,3\}$ committed first, a
+block $B$ built on $A$ with coverage $\{3,4\}$ committed second, and a near-duplicate $D$ of $B$
+committed third. Temporal novelty credits coverage only against everything committed earlier:
+$\nu(A)=|\{1,2,3\}|=3$, $\nu(B)=|\{4\}|=1$ (shingle $3$ was already claimed by $A$), and $\nu(D)=0$
+(its coverage is wholly claimed). Padding and sybil copies earn nothing, concretely.
+
+For credit, let the outcome value of a connected set be its covered shingles,
+$v(S)=\big|\bigcup_{i\in S}\mathrm{cov}(i)\big|$, so $v(\{A\})=3$, $v(\{B\})=2$, and
+$v(\{A,B\})=|\{1,2,3,4\}|=4$. The Myerson value over the edge $A\!-\!B$ is
+$\phi_A=\tfrac12(3-0)+\tfrac12(4-2)=2.5$ and $\phi_B=\tfrac12(2-0)+\tfrac12(4-3)=1.5$, summing to
+$v(\{A,B\})=4$. A proportional split by standalone value would instead give $A=2.4$, $B=1.6$: the
+synergy rule shifts $0.1$ of credit \emph{to} the pivotal $A$ (which owns the shared shingle $3$) and
+away from the partly-redundant $B$. The cooperative machinery is doing work, not ceremony.
+
+Finally, suppose an attacker floods $A$ with $N$ low-value children each contributing $c$. The geometric
+decay above bounds the parent's aggregated flow at $\sum_{j\ge0}\rho^{\,j} c=\varphi^{2} c\approx
+2.618\,c$ for \emph{any} $N$: volume cannot pump the gate.
 
 \subsection{Certifying the value: the HodgeRank residual}
 
@@ -334,7 +354,7 @@ accuracy $\ge 0.9$, while the coverage proxy is blind to lineage and ties at cha
 \caption{The moat, measured not asserted. On coalitions never seen in training, the learned $v(S)$
 distinguishes connected, synergistic contribution from the same content as disconnected orphans
 ($\ge 0.9$), while the coverage proxy the per-block rule can see is blind to lineage and ranks at
-chance ($0.5$, red line). The remaining mile is real outcome-preference data; the measurement harness
+chance ($0.5$). The remaining mile is real outcome-preference data; the measurement harness
 runs unchanged when it lands.}
 \label{fig:moat}
 \end{figure}
@@ -378,7 +398,10 @@ process for finality, and a residual that reports its own validity does not pres
 optimize against. This is why Section~\ref{sec:security} calls value measurement the load-bearing open
 problem rather than a solved one. The claim is not a closed-form proof of un-gameability; it is a
 mechanism that treats un-gameability as a moving equilibrium it must continuously hold, and whose
-present strength is measured (Figure~\ref{fig:moat}) rather than asserted.
+present strength is measured (Figure~\ref{fig:moat}) rather than asserted. A static rule, exact on
+paper but gameable in practice, is wrong in the only sense that matters; an adaptive measure that is
+approximately right and provably converging is the better object. It is better to be approximately
+right than absolutely wrong.
 
 \section{Proof of Mind}
 
@@ -572,9 +595,9 @@ chain cannot losslessly merge another chain because its value is exogenous: pric
 it has no on-chain quantity to carry across the merge. Bitcoin has no organ for valuing Primecoin's
 primes. A value chain has exactly that organ, and so convergence is the ecosystem-scale expression of the
 same property that makes the single chain novel. It also generalizes the theft-resistance of
-Section~\ref{sec:fairlaunch} from forks of this chain to all chains: importing a rival's contributions
-honestly adds them to the same attribution graph, so there is no outside to fork to, and forking, which
-fragments value elsewhere, here becomes contribution.
+Section~\ref{sec:fairlaunch}: where that argument left a fork no outside to escape \emph{to}, this
+leaves a rival chain no outside to converge \emph{from}, since its contributions either join this graph
+or strip the provenance that gave them worth.
 
 This is a design direction, not a built feature, and it is honest about its hard parts. A chain-agnostic
 contribution adapter must map a foreign unit to a provenance-bearing cell; cross-chain novelty must hold,
