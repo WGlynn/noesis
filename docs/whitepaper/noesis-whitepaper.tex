@@ -655,16 +655,22 @@ useful, but value stays exogenous: security comes from puzzle hardness, dedicate
 execution, while the work's worth is priced by an external market or fixed by an external
 problem-provider. The theoretical line is weaker than it appears (the usefulness claims of the 2017
 construction were retracted in 2018), and proof-of-learning schemes are provably not robust to spoofing.
-Decentralized-training and proof-of-inference systems prove honest execution or correct training, not
-output value; to our knowledge none makes measured output value the consensus or finality weight, though
-that family evolves quickly and we do not claim an exhaustive survey.
+Decentralized-training systems (Gensyn, Prime Intellect, Nous) make verified compute or
+training-integrity the consensus object, not output value. Decentralized-inference networks come
+closer, and we treat them next.
 
-\paragraph{Stake-weighted opinion (Bittensor).} The closest operating system, Bittensor's Yuma
-consensus, does attempt to score contribution: validators submit weight vectors over miners and the
-network takes a stake-weighted, clipped aggregate. But it is a \emph{subjective}-utility mechanism,
-validators are rewarded for agreeing with the stake-weighted majority rather than for measuring truth,
-and empirically reward is dominated by stake rather than by contribution quality. It aggregates
-purchased-stake-weighted opinion; it does not measure endogenous value, and its franchise is bought.
+\paragraph{Output quality by peer agreement (Bittensor, Fortytwo).} The closest operating systems do
+make output quality the reward object, and they are the strongest prior art. Bittensor's Yuma consensus
+takes a stake-weighted, clipped aggregate of validators' quality scores; Fortytwo aggregates
+pseudo-random pairwise comparisons among nodes with a Bradley--Terry model, the highest-quality response
+winning consensus and reputation tracking how often a node's outputs win. The differentiator is
+\emph{how} the quality is obtained. Both rest on \emph{subjective peer or validator agreement}: Yuma
+rewards agreeing with the stake-weighted majority, and empirically reward is dominated by purchased
+stake rather than by quality; Fortytwo's score is a peer ranking, not a value the protocol computes.
+Neither uses a cooperative-game synergy value over a provenance graph, neither binds the score to a
+learned value-model with a residual trust-certificate, and in Fortytwo reputation weights consensus
+without being the finality object itself. Noesis measures value objectively, by construction, and makes
+that measurement the finality object directly.
 
 \paragraph{Contribution attribution.} Ethereum's Deep Funding is the most superficially similar prior
 work, sharing the ``value as a graph'' framing and an AI-distilled credit signal. It is nonetheless
@@ -685,12 +691,15 @@ has prior art. Neither, however, makes non-transferable earned standing the \emp
 keeping a separate \emph{transferable state-capacity} token: SourceCred's consensus is social, and the
 soulbound-token proposal addresses correlation-discounted DAO voting, not a consensus franchise.
 
-\paragraph{Net.} Endogenous value measurement as the consensus object (Section~\ref{sec:value}) is, to
-our knowledge, novel against this corpus; the Myerson-over-provenance-DAG credit rule and the soulbound
-standing / transferable capacity split are novel in their consensus application though each composes
-known primitives; and the use of the HodgeRank residual as a manipulation certificate is, as far as we
-are aware, not prior to this work, though we do not claim to have surveyed the robust-ranking literature
-exhaustively. We state these as positioned claims open to refutation, in the spirit of
+\paragraph{Net.} \emph{Objective} value measurement as the consensus object, a cooperative-game value
+over a provenance graph made the finality weight directly (Section~\ref{sec:value}), is the novel core:
+the adjacent systems above reward output quality by subjective peer agreement, not by an objective
+measure. The Myerson-over-provenance-DAG credit rule and the soulbound-standing / transferable-capacity
+split are novel in their consensus application, though each composes known primitives. The HodgeRank
+residual as a stake-slashing manipulation alarm is \emph{not} new: Delegated Proof of Reputation (2019)
+already proposes a Hodge-subspace filter that slashes flows in the harmonic and curl subspaces; our
+narrower contribution pairs the residual with a learned value-model and the endogenous value object,
+which that proposal lacks. We state these as positioned claims open to refutation, in the spirit of
 Section~\ref{sec:security}.
 
 \section{Conclusion}
@@ -743,6 +752,9 @@ credit. They are distinct.)
 \item L. Gao, J. Schulman, J. Hilton. \emph{Scaling Laws for Reward Model Overoptimization}. 2023.
 \item Nervos CKB. \emph{The Common Knowledge Base: a cell-model, state-rent blockchain}. 2019.
 \item Ethereum Foundation. \emph{Deep Funding: distilled pairwise judgment over a dependency graph}. 2024.
+\item Bittensor / Opentensor. \emph{Yuma Consensus}. 2021.
+\item \emph{Fortytwo}. arXiv:2510.24801, 2025.
+\item \emph{Delegated Proof of Reputation: a novel blockchain consensus}. arXiv:1912.04065, 2019.
 \end{enumerate}
 
 \end{document}
