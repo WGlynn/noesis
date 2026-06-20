@@ -25,6 +25,16 @@
    proven economic calibration. Re-tune only on real data. Per [P·augmented-mechanism-design-paper].
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-20 (ff)** — BUILT (pom-roadmap-advance fire): mixed-attack composition hardening of (ee).
+  A real adversary mixes attack types to confuse a single detector. Test
+  `collusion_residual_composes_mixed_directed_and_mutual_attacks`: an identity in BOTH a directed cycle
+  (7→8→9→7) AND a mutual pair (7↔10) is attributed the **SUM** — id7 = **3.0** (2.0 directed Hodge
+  residual + 1.0 mutual circulation), not just one component; the net-zero mutual pair does NOT perturb
+  the cycle residual (Hodge orthogonality: gradient/balanced ⟂ harmonic/cyclic) nor leak onto cycle-only
+  members (id8, id9 = **2.0**), and the mutual-only member (id10) = **1.0**. Confirms the (ee) unified
+  attribution is robust to combined topologies. lib 234→**235**, 0 new clippy. Additive (PCP-safe at
+  high context). NEXT unchanged: wire detection→slash (delicate, fresh) · finalizes_pos_pom (T3) ·
+  learned-v(S) moat.
 - **2026-06-20 (ee)** — BUILT (pom-roadmap-advance fire): the (dd)-decided per-identity collusion
   attribution **`collusion_residual_by_identity`** — the WHO+HOW-MUCH bridge from detection → slash.
   Self-contained (reuses `solve_psd_cg`; leaves the proven `attribution_cycle_energy` UNTOUCHED — a

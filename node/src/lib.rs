@@ -2500,6 +2500,37 @@ pub mod value {
         }
 
         #[test]
+        fn collusion_residual_composes_mixed_directed_and_mutual_attacks() {
+            // Adversarial composition: a real attacker mixes attack types to confuse a single detector.
+            // An identity in BOTH a directed cycle AND a mutual pair must be attributed the SUM of both
+            // components (directed Hodge residual + mutual circulation), not just one — and the mutual
+            // pair (net flow 0) must not perturb the directed cycle's residual (Hodge orthogonality:
+            // gradient/balanced edges and harmonic/cyclic edges are independent).
+            const EPS: f64 = 1e-6;
+            // identity 7 is in the directed 3-cycle 7->8->9->7 AND a mutual pair 7<->10.
+            let mixed = vec![
+                cellc(0, 7, 0, None, b"r7"),
+                cellc(1, 8, 1, None, b"r8"),
+                cellc(2, 9, 2, None, b"r9"),
+                cellc(3, 10, 3, None, b"r10"),
+                cellc(4, 7, 4, Some(1), b"7 cites 8 (cycle)"),
+                cellc(5, 8, 5, Some(2), b"8 cites 9 (cycle)"),
+                cellc(6, 9, 6, Some(0), b"9 cites 7 (cycle)"),
+                cellc(7, 7, 7, Some(3), b"7 builds on 10 (mutual)"),
+                cellc(8, 10, 8, Some(0), b"10 builds on 7 (mutual)"),
+            ];
+            let r = crate::collusion_residual_by_identity(&mixed);
+            // 7: directed cycle (2 edges, |r|=1 each = 2.0) + mutual with 10 (min(1,1)=1.0) = 3.0
+            assert!((r.get(&vec![7u8]).copied().unwrap_or(0.0) - 3.0).abs() < EPS,
+                "id7 (directed+mutual) must be attributed the SUM = 3.0 (2.0 directed + 1.0 mutual)");
+            // 8, 9: directed cycle only = 2.0 (mutual pair did not leak onto them, did not perturb cycle)
+            assert!((r.get(&vec![8u8]).copied().unwrap_or(0.0) - 2.0).abs() < EPS, "id8 directed-only = 2.0");
+            assert!((r.get(&vec![9u8]).copied().unwrap_or(0.0) - 2.0).abs() < EPS, "id9 directed-only = 2.0");
+            // 10: mutual only = 1.0 (the net-zero pair contributes only its circulation component)
+            assert!((r.get(&vec![10u8]).copied().unwrap_or(0.0) - 1.0).abs() < EPS, "id10 mutual-only = 1.0");
+        }
+
+        #[test]
         fn t4_honest_diverse_certification_is_inert() {
             // T4 (crit. 4 — INERT). The cross-identity μ^m damping must NOT punish legitimately
             // broad certification: two HONEST distinct identities each building one real, value-
