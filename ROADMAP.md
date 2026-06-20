@@ -3,6 +3,27 @@
 > Stealth. Release when matured. Phases are dependency-ordered; the load-bearing
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
+## Consensus + money-layer decisions — LOCKED 2026-06-20 (Will-ruled)
+1. **PoW #5 (does energy vote?)** — **No to the token, yes to mining-for-liveness.** The JUL
+   energy-*money* holder has ZERO consensus weight ("energy circulates, does not vote"). The
+   `pow=0.10` consensus weight belongs to the *act of mining* = the liveness-floor producer, and is
+   **OUT of finality** (production/fork-choice only). Keeps 3-power rock-paper-scissors for *who
+   produces* while value/finality is PoM+PoS. Depends on #3.
+2. **log₂ → linear** — **DONE this session.** Live weight path was already linear; the dead
+   `log_weight` + `realizable_log_share*` analysis helpers + 3 `audit_a2` tests REMOVED (replaced by
+   one structural test: anti-plutocracy is the mix caps, no dim ≥ 2/3). lib 235→233. **Follow-up
+   (VibeSwap, out of noesis scope):** `NakamotoConsensusInfinity.sol` still log₂-scales PoW+PoM —
+   the one live remaining site; flagged for a separate VibeSwap tick (PoM→linear, PoW→proportional).
+3. **`finalizes_pos_pom` wiring (T3)** — **RULED the finality rule; BUILD in fresh context.** PoW's
+   probabilistic lag is a finality-safety vector ⇒ finality = PoS+PoM + anti-concentration floor
+   (`finalizes_pos_pom`, built+tested but stranded — live `finalizes` still calls `finalizes_hybrid`
+   with pow in the sum). Not a one-line swap: the on-VM finalization mirror + the 233-test core are
+   built on `finalizes_hybrid`, so wiring must preserve reference↔on-VM parity. Makes #1 true.
+4. **Ergon decay geometry** — **Keep Ergon's calibrated constants** (≈2.3yr anchor half-life, 120d PI,
+   5% band, lag 10). SubstrateGeometryMatch is mechanism-shape (Ergon already IS power-law energy
+   economics); φ belongs to *our* designed dampings (value-layer λ=1/φ), not as an override of a
+   proven economic calibration. Re-tune only on real data. Per [P·augmented-mechanism-design-paper].
+
 ## Adversarial-loop log (RSAW — newest first)
 - **2026-06-20 (dd)** — DESIGN tick (no code; PCP-gate — (cc) already shipped a moat BUILD this
   session, and the next step is slash-PATH surgery = the dispute-settlement trust boundary = highest

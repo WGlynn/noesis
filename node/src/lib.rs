@@ -3258,35 +3258,14 @@ pub mod consensus {
         weight_against > total - threshold
     }
 
-    /// A2 — log-scaling. NCI applies log₂ scaling to the PoW and PoM dimensions
-    /// (`Mind_weight = log₂(1 + mind_score) · SCALE`) to prevent plutocracy: concentrating a
-    /// dimension yields DIMINISHING weight. PoS is linear (capital is at-risk now, not a score).
-    pub fn log_weight(raw: f64) -> f64 {
-        (1.0 + raw.max(0.0)).log2()
-    }
-
-    /// Realizable share of a log-scaled dimension for an actor holding `actor_raw` against a field
-    /// of `field_raw` total raw. Because of log-scaling, concentration is SUBLINEAR — even
-    /// `actor_raw ≫ field_raw` approaches 1 only logarithmically, so a single actor saturating PoM
-    /// realizes strictly LESS than the linear mix ceiling (0.60). This strengthens, not weakens,
-    /// the "no single dimension finalizes alone" property (L12 / `single_dimension_can_finalize`
-    /// is the worst-case linear bound; log-scaling sits below it).
-    pub fn realizable_log_share(actor_raw: f64, field_raw: f64) -> f64 {
-        let (a, f) = (log_weight(actor_raw), log_weight(field_raw));
-        if a + f <= 0.0 { 0.0 } else { a / (a + f) }
-    }
-
-    /// A2 (cross-node) — realizable share against a FIELD of many honest nodes, not one aggregate.
-    /// Each node contributes `log_weight(raw_i)` independently, so the actor's share is
-    /// `log(actor) / (log(actor) + Σ log(honest_i))`. By the concavity of log, many small nodes
-    /// sum to MORE log-weight than a single node of the same total raw, so a fragmented (more
-    /// decentralized) honest field dilutes the attacker further: fragmentation favors honesty.
-    pub fn realizable_log_share_field(actor_raw: f64, honest_field: &[f64]) -> f64 {
-        let a = log_weight(actor_raw);
-        let h: f64 = honest_field.iter().map(|&r| log_weight(r)).sum();
-        if a + h <= 0.0 { 0.0 } else { a / (a + h) }
-    }
-
+    // A2 anti-plutocracy is enforced STRUCTURALLY (Will 2026-06-20): the live weight path
+    // (`base_weight` / `effective_weight`) is LINEAR in all three dimensions, and no single
+    // dimension reaches 2/3 of the mix (PoW 0.10 / PoS 0.30 / PoM 0.60 — see
+    // `single_dimension_can_finalize`), so capture needs a cross-dimension coalition regardless of
+    // scaling. The former log₂ `log_weight` / `realizable_log_share*` analysis helpers were removed:
+    // they were never in the live weight path, and log₂ on PoM also suppressed a genuine
+    // contribution's own value — the exact thing the chain must reward. PoM/PoW stay linear;
+    // PoW's proportional (Ergon) form lives in the money layer, not the consensus weight.
     #[cfg(test)]
     mod tests {
         use super::*;
@@ -3484,35 +3463,13 @@ pub mod consensus {
         }
 
         #[test]
-        fn audit_a2_log_scaling_is_sublinear() {
-            // doubling raw PoM does NOT double the log-weight (diminishing returns / anti-plutocracy).
-            let (w1, w2) = (log_weight(1000.0), log_weight(2000.0));
-            assert!(w2 < 2.0 * w1, "log-scaling: doubling raw far less than doubles weight");
-            assert!(w2 > w1, "but still monotone increasing");
-        }
-
-        #[test]
-        fn audit_a2_concentrated_pom_realizes_less_than_the_linear_ceiling() {
-            // An actor with 10x the field's raw PoM realizes far less than the LINEAR reading: a
-            // linear share would be 10/11 ~ 0.91; log-scaling caps it well below, and below 0.60.
-            let linear = 10.0 / 11.0;
-            let logd = realizable_log_share(10_000.0, 1_000.0);
-            assert!(logd < linear, "log-scaled concentration share < linear share ({logd} < {linear})");
-            assert!(logd < 0.6, "even 10x raw PoM stays below the naive 60% read under log-scaling");
-        }
-
-        #[test]
-        fn audit_a2_fragmented_field_dilutes_the_attacker_more() {
-            // Same total honest raw, spread across many nodes vs one aggregate. By concavity of
-            // log, many small nodes sum to MORE log-weight than one big node, so the attacker's
-            // realizable share is LOWER against a fragmented field. Decentralization favors honesty.
-            let actor = 10_000.0;
-            let aggregate = realizable_log_share_field(actor, &[10_000.0]); // honest = one node
-            let fragmented = realizable_log_share_field(actor, &[1_000.0; 10]); // ten nodes, same total
-            assert!(
-                fragmented < aggregate,
-                "a fragmented honest field dilutes the attacker more ({fragmented} < {aggregate})"
-            );
+        fn audit_a2_anti_plutocracy_is_structural_not_log_scaled() {
+            // A2 enforced STRUCTURALLY, not by log₂ (the log_weight/realizable_log_share helpers
+            // were removed 2026-06-20). The live weight is LINEAR; capture-resistance comes from the
+            // mix caps: no single dimension reaches the 2/3 bar, so none finalizes alone.
+            assert!(!single_dimension_can_finalize(NCI.pow, TWO_THIRDS_BPS), "PoW 0.10 < 2/3");
+            assert!(!single_dimension_can_finalize(NCI.pos, TWO_THIRDS_BPS), "PoS 0.30 < 2/3");
+            assert!(!single_dimension_can_finalize(NCI.pom, TWO_THIRDS_BPS), "PoM 0.60 < 2/3");
         }
 
         // ===================== ADVERSARIAL SELF-AUDIT (RSAW) =====================

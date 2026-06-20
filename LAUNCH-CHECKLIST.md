@@ -51,9 +51,13 @@
 ### Consensus productionization
 - [ ] 🟡 stability LP / iterated-LP solver at scale (core/nucleolus reference exists).
 - [ ] 🟡 on-chain slashing accounting + dispute window.
-- [ ] ⚖ **(Will)** the 3 open consensus rulings — log₂ cleanup (live path already linear),
-  `finalizes_pos_pom` wiring (T3 PoW-out-of-finality, currently stranded), and the `pow=0.10` vote
-  question (#5; TSS framing suggests: JUL doesn't vote, the `pow` dimension is the liveness floor).
+- [x] ⚖ **consensus rulings LOCKED 2026-06-20** (see ROADMAP "Consensus + money-layer decisions"):
+  #5 ruled (JUL no-vote; `pow`=liveness-floor, out of finality); log₂ cleanup **DONE** (noesis live
+  path linear, dead helpers removed); Ergon decay = keep calibrated constants.
+- [ ] 🟡 `finalizes_pos_pom` wiring (T3) — ruled the finality rule; BUILD in fresh context (preserve
+  reference↔on-VM parity; the 233-test core + on-VM mirror are on `finalizes_hybrid`).
+- [ ] 🔴 **(VibeSwap follow-up, out of noesis scope)** `NakamotoConsensusInfinity.sol` still log₂-scales
+  PoW+PoM — the one live remaining log₂ site; PoM→linear, PoW→proportional in a separate VibeSwap tick.
 
 ### Phase 4 — v2 (do NOT block launch)
 - [ ] 🔴 training-signal export (value-weighted dataset from high-PoM blocks).

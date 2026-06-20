@@ -1,7 +1,8 @@
 {
-  "reconciled_code_hash": "d5789951819df6f9abb7c3a0dfd1ace3b9822a4151e3ecdff0af5d0cf5d468e9",
+  "reconciled_code_hash": "2b6f690225fccc45cd1c766cba8f8cacd7ba9c393e06762fdbcb839138a34f01",
   "docs": [
     "CONTRIBUTING.md",
+    "LAUNCH-CHECKLIST.md",
     "README.md",
     "ROADMAP.md",
     "SECURITY.md",
@@ -32,7 +33,7 @@
     "node/README.md"
   ],
   "code_file_hashes": {
-    "node/src/lib.rs": "4a80376d0e591576c4fd93201e22ce5b8015a5eaabbcb6fbf208bff0cbe01448",
+    "node/src/lib.rs": "d9505db8583b2c369150863de8a536514b3ba8322dca8a98fb3a79600c1318a0",
     "node/src/runtime.rs": "6241bf6332549c02bd4a4dec46f8dddc5a28a2dc8f883b661dbff596ab161b95",
     "node/src/tokens.rs": "6846eb97c3b87fca1d16d5c0221b1f98006246e33d374eeed4407a89a3132d8f",
     "scripts/doc-coherence.py": "488c823b0cddd7d01b70d0316bbbd9d7128a8827e816f5aaa300ab7f6be4f1bf",

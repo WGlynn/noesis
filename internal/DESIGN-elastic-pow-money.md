@@ -164,8 +164,9 @@ removes the design risk this note originally priced in.
 **Resolves earlier open-Q #5 (`pow=0.10` vote vs "energy does not vote"):** JUL (energy-money) is a
 TOKEN / medium of exchange — *"energy circulates, does not vote."* The TSS stabilizes the TOKEN. The
 consensus `pow=0.10` weight is a SEPARATE role — the liveness-floor producer. So energy-money has no
-consensus vote; the `pow` dimension is the floor. (Still Will's final ruling, but the TSS framing makes
-the separation clean.)
+consensus vote; the `pow` dimension is the floor. **RULED 2026-06-20 (Will):** no to the token, yes to
+mining-for-liveness — and `pow` is OUT of finality (production/fork-choice only; depends on wiring
+`finalizes_pos_pom`). See ROADMAP "Consensus + money-layer decisions — LOCKED 2026-06-20".
 
 **Net launch effect:** the money layer drops from *"unbuilt subsystem / open design"* to *"REINTERPRET-port
 of a theorem-backed, already-implemented system + carry 3 known audit fixes + 1 AMD firewall invariant."*
