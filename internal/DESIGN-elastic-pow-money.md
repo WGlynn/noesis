@@ -114,3 +114,59 @@ damping tick; (5) D4 finality reconciliation if in scope. node unchanged this ti
   the ergon.moe text + general knowledge — the source `prop-reward.pdf` is binary and did not parse.
   Confirm against a rendered copy before locking constants.
 - This is a SPEC tick. No code, no test, no count change.
+
+---
+
+## UPDATE 2026-06-20 — this is a PORT of the Trinomial Stability System (Will's theorem), NOT a from-scratch design
+
+Will: *"Ergon gives the exact math; we harness it with augmented mechanism design — and we have a
+trinomial stability theorem for this."* The framing above (open design problem) is corrected: the
+money layer is a **DIRECT-PORT + REINTERPRET** ([[substrate-port-pattern]]) of the existing,
+theorem-backed **Trinomial Stability System (TSS)** — Will's theorem (VibeSwap `CONTRIBUTION_GRAPH`
+credits "will | theory | Trinomial Stability Theorem"), specified in
+`vibeswap/docs/concepts/monetary/ECONOMITRA_V1.2.md §8.3` and implemented as `Joule.sol`.
+
+**The TSS = three stability mechanisms at three timescales, one token (JUL / Joule):**
+1. **PoW proportional anchor (long-term)** — SHA-256, proportional reward (Ergon / Trzeszczkowski):
+   higher difficulty ⇒ proportionally higher reward ⇒ value anchored to electricity-cost-per-hash.
+   **This is the Ergon "exact math" — mechanism #1 of 3.**
+2. **Elastic rebase (short-term)** — price deviation > 5% from target ⇒ global scalar rebase on ALL
+   balances simultaneously (no dilution — every balance scales together); lag factor 10 (corrects 10%
+   of the deviation per cycle).
+3. **PI controller (medium-term damping)** — target price floats on electricity cost + CPI;
+   120-day half-life integrator (standard control theory, Ogata 2010).
+
+**Why it's a theorem, not three knobs:** §8.3 — *"a simple rebase can oscillate; stability requires
+damping at multiple timescales."* Ergon's proportional reward ALONE oscillates (its own charts show the
+price/hash oscillation — the `damping` vs `no_damping` curves the binary PDF exposed). The TSS result is
+that the three feedback loops at SEPARATED frequencies are jointly stable where any one alone is not. So
+**"harness Ergon with AMD" is exact: Ergon = the anchor (mechanism #1); the TSS augmentation
+(rebase + PI) = the AMD damping layer.** The stability is Will's theorem, not an open question — which
+removes the design risk this note originally priced in.
+
+**Port plan (REINTERPRET Solidity → CKB cell model):**
+- Source of truth: `Joule.sol` + `ECONOMITRA_V1.2 §8.3`. Port the three mechanisms into the JUL money
+  cell (Rust / CKB-VM), not the EVM.
+- **Carry the known fixes — VibeSwap audit MED-6 (`vibeswap/docs/audits/2026-05-12_aa2-audit-claim-vs-enforcer.md`):**
+  `Joule.sol`'s `_updatePIController` had no per-tick clamp + an owner-set single oracle + no
+  `MAX_REBASE_SCALAR` ceiling. Port WITH the fixes: hard-cap per-rebase scalar delta (~100 bps), cap PI
+  integrator output, and **multi-oracle median** (not owner-set).
+- **AMD augmentation specific to noesis (the genuinely-ours layer):**
+  - **Firewall invariant** (P-001-class, NOT governance-tunable): minting JUL touches no PoM, no
+    standing — energy-money cannot manufacture consensus weight.
+  - **Oracle = bonded verified-compute, not owner-set** ([[verified-compute-bonded-dispute]]): the
+    electricity/CPI target is a bonded input with a dispute window + slash, dissolving MED-6's
+    oracle-trust at the substrate level. This is the AMD upgrade over the Solidity implementation.
+- **Open knob (SubstrateGeometryMatch):** keep the TSS/Ergon constants (≈2.3yr anchor half-life, 120d PI,
+  5% band, lag 10) as-is, or re-derive the decay/band geometry to φ. One calibration choice; the
+  mechanism is fixed.
+
+**Resolves earlier open-Q #5 (`pow=0.10` vote vs "energy does not vote"):** JUL (energy-money) is a
+TOKEN / medium of exchange — *"energy circulates, does not vote."* The TSS stabilizes the TOKEN. The
+consensus `pow=0.10` weight is a SEPARATE role — the liveness-floor producer. So energy-money has no
+consensus vote; the `pow` dimension is the floor. (Still Will's final ruling, but the TSS framing makes
+the separation clean.)
+
+**Net launch effect:** the money layer drops from *"unbuilt subsystem / open design"* to *"REINTERPRET-port
+of a theorem-backed, already-implemented system + carry 3 known audit fixes + 1 AMD firewall invariant."*
+De-risked; plausibly in-scope for launch rather than v1.1.
