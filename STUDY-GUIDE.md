@@ -44,6 +44,7 @@
 - [ ] NOESIS-ONEPAGER.md — **Proof of Mind: a value chain for verified contribution.**
 - [ ] ON-VM-FINALIZATION.md — `finalizes_hybrid(voters_for, all, mix, now, horizon, decay_pos, threshold_bps, quorum_floor_bps)`: - `weight_for = Σ effective_weight(v)` over voters_for - `eff_total  = Σ effective_weight(v)` over all; `base_total = Σ base_weight(v)`
 - [ ] PAPERS.md — Pick your depth. Each accessible doc is also available as PDF, TXT, and HTML in [`dist/`](dist/).
+- [ ] PRIOR-ART-contribution-dag.md — Noesis is not the first to model contribution as a graph and flow value along it. The honest move is to locate exactly where the lineage ends and the new work begins. Four prior-art clusters:
 - [ ] README.md — **A Proof-of-Mind value chain.** Blocks are owned, value flows along the graph of what builds on what, and the right to finalize is earned by demonstrated contribution rather than bought with capital — the chain that prices *minds*, not has...
 - [ ] RELEASE-PLAN-VIBESWAP-ON-NOESIS.md — ---
 - [ ] RESEARCH-NETWORK-CONSENSUS.md — **Recommendation: build on `rust-libp2p`, LEAN profile** — QUIC + GossipSub v1.2 + Identify + a **custom Bitcoin-style addr-gossip discovery** (replicate CKB RFC0012 as a `NetworkBehaviour`) INSTEAD of enabling the Kademlia DHT. Gets modern...
