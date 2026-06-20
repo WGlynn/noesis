@@ -33,7 +33,7 @@
 itself an instance of the contribution economy this paper specifies: a human and a machine
 producing provenance-complete, attributable work.}\\
 \texttt{noesis}}
-\date{Version 2.6 \quad June 2026}
+\date{Version 2.8 \quad June 2026}
 
 \begin{document}
 \maketitle
@@ -48,8 +48,8 @@ right design for a chain about possession. This paper supplies the next missing 
 in contribution: the chain itself becomes that market, pricing each contribution by the realized
 downstream work that builds on it, and makes that price the object consensus is about, not who holds the
 coin but how much each participant actually contributed. The claim
-is larger than a better proof of work, because measuring contribution endogenously unlocks two things a
-possession chain cannot reach.
+is larger than a better proof of work, because measuring contribution on the chain itself unlocks two
+things a possession chain cannot reach.
 
 \smallskip\noindent
 The first is \textbf{cooperative economics by construction}. For a decade, decentralized systems
@@ -184,10 +184,24 @@ contributors, and PoM sums a contributor's shares across all blocks.
 The chain is the market that contribution never had. A possession chain leaves value to an external
 market that prices its coin; this chain prices contribution \emph{itself}, by the realized downstream
 flow a block generates along its provenance. The central object is that price: a value function $v(S)$
-over sets of blocks, of which the score, the stake, and the consensus weight are all functionals. A
+over sets of blocks, and the score, the stake, and the consensus weight are all computed from it. A
 market does not compute a true value from outside; it reveals one through what later work builds on, and
 that is what $v$ does. The naive choices of $v$ are trivial or gameable; this section gives one that is
 neither, and the rest of the paper is what it takes for that price to clear honestly.
+
+\paragraph{One rule generates the rest.} On a market that pays for contribution, the only thing worth
+paying for is \emph{novel realized downstream flow along provenance}: value a block adds, that no
+earlier block already added, that later work actually builds on, credited back along the edges that
+produced it. The mechanisms in this section are not four defenses bolted on against four attacks; they
+are four faces of that one rule. Temporal novelty is its \emph{no earlier block already added it}
+clause: you cannot be paid twice for the same coverage. Saturation is its \emph{realized} clause: a
+finite outcome can be built on only finitely, so aggregated flow is bounded and volume cannot pump it
+(the particular decay used to allocate that bounded flow is a design choice, the one knob the rule does
+not fix). The HodgeRank residual is its \emph{along provenance} clause made checkable: a collusive ring
+is circulation, not downstream flow, and the same computation that prices the work detects the
+difference in one pass. The bounded learned gate keeps the estimator faithful to the rule: the model may
+only estimate realized flow, never mint it. Read the subsections that follow as consequences of that one
+sentence, not as a list of separate parts.
 
 \subsection{Elicitation: from pairwise judgment to cardinal value}
 
@@ -527,8 +541,8 @@ its closure under the quorum floor.
 PoM-weighted agreement must be defection-proof; no coalition of validators should profit by deviating.
 We impose a coalitional stability constraint over the PoM-weighted game: require the allocation to lie
 in the \textbf{core} when it is non-empty (no sub-coalition does better by forking), and fall back to
-the \textbf{nucleolus} when the core is empty (the unique allocation that lexicographically minimizes
-the worst coalition's incentive to defect). This is added precisely because consensus requires it;
+the \textbf{nucleolus} when the core is empty (the unique split that leaves the
+most-tempted coalition with the least reason to defect). This is added precisely because consensus requires it;
 pure attribution does not need a stability concept.
 
 \subsection{Three powers}
@@ -831,6 +845,46 @@ chain checks the math. The decisive difference is the substrate. That economic f
 produce non-extractive outcomes, the honest suspicion is that the problem is the substrate, not the
 philosophy. Noesis is the substrate built to answer that: cooperative capitalism moved from a property
 of an application to a property of consensus itself.
+
+\subsection{The Glynn equilibrium}
+
+The economic claim can be stated as an equilibrium concept. Consider the contribution game: each
+participant chooses what to contribute and whether to pad, sybil, or collude, and is paid by the market
+rule of Section~\ref{sec:value}, novel realized downstream flow along provenance, priced by an adaptive
+measure that retrains on outcomes. Call a strategy profile a \emph{Glynn equilibrium} if it is (i) a
+Nash equilibrium, no profitable unilateral deviation; (ii) coalition-proof, no coalition profits by
+deviating jointly, because a ring produces circulation rather than external downstream flow and so earns
+nothing; and (iii) stable under an adaptive adversary, remaining an equilibrium as the adversary learns,
+because the measure retrains to close any exploit that realized losses reveal. Properties (i) and (ii)
+are the established refinements (strong and coalition-proof Nash); (iii) is the contribution, and it is
+the formal statement of the living measure above: a fixed rule is gamed on publication, so only a measure
+that co-adapts with the adversary can hold an equilibrium against one. The honest status is a
+\emph{conjecture}, not a theorem. Properties (i) and (ii) are demonstrated structurally in the reference
+node (temporal novelty, saturation, and the circulation detector of Section~\ref{sec:value}); (iii)
+turns on the convergence of the retraining loop, which is the load-bearing open problem and connects to
+the performative-prediction literature rather than a result we claim closed. We name it to make it a
+target for refutation, in the spirit of our security discussion. It is the equilibrium honest
+contribution settles into when defection is not punished but simply unprofitable.
+
+\section{How honesty propagates upward}
+
+A base layer that makes honesty the profitable move does not keep that property to itself; anything
+built on top of it inherits it. On an ordinary chain every application has to re-fight the same battles
+on its own, front-running, price manipulation, value siphoned off in the middle, because the chain
+underneath does not pay for honesty. Each app patches the leak locally, and most of them lose. On a
+chain where the way to earn is to add real value that others build on, an application does not have to
+bolt honesty on as a feature. It is already the default underneath.
+
+Take decentralized finance. Here, providing real liquidity or quoting an honest price is a contribution
+that earns, because someone downstream builds on it. Manipulating a market is the opposite: it moves
+value in a circle without adding anything anyone builds on, so it earns nothing and is slashed when
+challenged. ``Honest DeFi'' stops being a promise an application has to make and becomes the path of
+least resistance the chain already rewards. The same holds for any shared activity: because you are paid
+in proportion to what others genuinely build on your work, the smart move at every layer is to make your
+work worth building on. Cooperation is not requested; it is simply the highest-paying strategy, and it
+compounds, since each honest layer makes honesty cheaper for the layer above it. This is the Glynn
+equilibrium seen one level up: a whole ecosystem in which the dishonest move is just the one that does
+not pay.
 
 \section{Conclusion}
 
