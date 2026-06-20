@@ -33,36 +33,53 @@
 itself an instance of the contribution economy this paper specifies: a human and a machine
 producing provenance-complete, attributable work.}\\
 \texttt{noesis}}
-\date{Version 1.5 \quad June 2026}
+\date{Version 2.2 \quad June 2026}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
 \noindent
-You optimize for what you measure, and a blockchain measures the wrong thing. It records cheaply who
-holds the coin, and secures that record by burning energy on work decoupled from any output. The one
-quantity it never measures is the one that matters: the value each participant actually contributed.
-Value has no true price independent of the agents who trade, so measuring it takes a mechanism to
-elicit contribution honestly, an organ Bitcoin lacks, which is why it exports valuation to an external
-market it never observes and the gap fills with extraction. This paper specifies the missing organ: a
-chain on which value is \emph{created} as units of contribution, \emph{measured endogenously} by a
-cooperative-game value function over real outcomes, \emph{owned and transferred} like unspent
-transaction outputs, and used to \emph{secure consensus}, by \emph{Proof of Mind} (PoM): a proof of
-verified, synergy-weighted mental contribution in place of a proof of wasted energy. We give the
-architecture (provenance-complete blocks, Bitcoin-shaped ownership, a synergy value aggregated by the
-Myerson value over a provenance graph, elicited by a learned reward model and estimated by permutation
-sampling), the consensus rule (PoM-weighted, with a participation-aware finalization basis and a
-coalitional stability constraint), and the mapping from Theory of Mind to Proof of Mind that makes a
-decentralized network of minds tractable. Because value is measured on-chain and conserved along
-provenance, the chain is also forwards-compatible: rival useful-work chains can converge into one
-attribution graph rather than compete for adoption. We are explicit about the one hard problem a value
-chain cannot sidestep, measuring real value across the blockchain-reality airgap with no external
-market to price it; we treat it as the load-bearing open problem, bounded by augmented mechanism
-design rather than claimed solved. The chain pays you only for verified, non-duplicate contribution,
-measures how much your work mattered by how everything else builds on it, and lets that earned
-standing, not bought stake, secure the network. The mechanisms reported here are implemented and
-tested in an open reference node; we mark throughout what is demonstrated and what is designed.
+Bitcoin rewards exactly one thing: burning electricity. Not good work. Not useful work. Just
+electricity. Whoever burns the most, wins. It never asks whether you created anything worth having.
+This paper specifies a chain that does, and the claim is larger than a better proof of work: measuring
+contribution on-chain unlocks two things no possession chain like Bitcoin can reach.
+
+\smallskip\noindent
+The first is \textbf{cooperative economics by construction}. For a decade, decentralized systems
+located cooperation in a norm, a regulator, or a vote, each of them defectable, and each reproduced
+extraction by a new route. Here cooperation is moved into consensus itself: the layer where
+participants are alike is mutualized as a soulbound standing that secures the chain and cannot be
+bought, and the layer where they differ is a transferable, tradable state-capacity. You can buy
+storage; you cannot buy consensus. Cooperation becomes the individually rational strategy because the
+mechanism conserves value when you cooperate and fragments it when you do not, not because anyone
+promised to play fair.
+
+\smallskip\noindent
+The second is \textbf{convergence instead of competition}. Because value is measured on-chain and
+conserved along provenance, a contribution from any other chain can be imported, re-scored by the same
+value function, and credited on one canonical graph without loss. A possession chain cannot do this;
+its value is priced off-chain, so there is nothing to carry across a merge, and Bitcoin has no organ
+for valuing another chain's work. A value chain has exactly that organ. So rival useful-work chains
+need not be beaten; they converge in by reverse fork, and the standards war over which chain wins
+dissolves into all of them, on one attribution graph. To every other chain, the offer stops being
+\emph{come compete} and becomes \emph{come join us}.
+
+\smallskip\noindent
+The mechanism underneath both is \emph{Proof of Mind} (PoM): value \emph{created} as units of
+contribution, \emph{measured} by a cooperative-game value (the Myerson value over a provenance graph),
+\emph{owned and transferred} like a UTXO, and used to \emph{secure consensus}, in place of a proof of
+wasted energy. The one hard problem is measuring what a contribution is really worth when no market
+prices it. Any fixed formula is gamed the moment it is public, so the answer is not a fixed formula but
+augmented mechanism design: lock a few rules that can never be broken, and let the measure adapt and
+grow faster than anyone can game it. That room to grow is what makes the measure un-gameable, and it is
+the heart of the system.
+
+\smallskip\noindent
+These are claims with a structural argument behind them, offered open to refutation, not asserted. We
+mark throughout what is demonstrated and what is designed: the core mechanisms run and are tested in an
+open reference node; the cross-chain merge is a stated architecture, not yet a built feature; and
+feeding the value-model real outcomes at scale is the work that remains.
 \end{abstract}
 
 \section{Introduction: the value chain Bitcoin is mistaken for}
@@ -698,6 +715,7 @@ and credits them on one canonical graph does not have to win the adoption fight,
 how a fractured ecosystem un-fractures: not by forcing a million chains to adopt one of them, which is
 impossible, but by giving them a substrate they converge into without anyone losing what they built. The
 cooperation is structural, a property of conserved contribution, not a treaty that can be defected from.
+To every other chain, the offer is no longer \emph{come compete}; it is \emph{come join us}.
 
 The enabling property is precisely the endogenous measurement of Section~\ref{sec:value}. A possession
 chain cannot losslessly merge another chain because its value is exogenous: priced off-chain by a market,
