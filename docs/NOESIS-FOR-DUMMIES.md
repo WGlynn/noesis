@@ -6,11 +6,11 @@
 
 ## The one-sentence version
 
-Bitcoin pays people for **wasting electricity**. Noesis pays people for **actually contributing something useful with their mind** — and proves it, so nobody can fake it, copy it, or buy their way in.
+Bitcoin makes people **spend electricity** to take part — and that cost is what keeps spam and fake accounts out. Noesis keeps them out a better way: by only paying for **genuine useful contribution.** Same protection, but the thing you put in is real work — and you can't fake it, copy it, or buy your way in.
 
 ## First, what Bitcoin really did (and didn't do)
 
-Most people think Bitcoin works like this: *you do valuable work, you earn coins for it.* It doesn't. Miners run computers racing to solve a meaningless puzzle — burning enormous amounts of power — and whoever wins gets the coins. The "work" produces nothing. It's like paying people to dig holes and fill them back in, and crowning the fastest digger.
+Most people think Bitcoin works like this: *you do valuable work, you earn coins for it.* That's not quite it. Miners spend electricity racing to solve a hard puzzle, and whoever wins gets the coins. Here's the part people miss: that electricity isn't pointless — **the cost is the point.** Making participation expensive is exactly what keeps spammers and fake accounts out when there's no one in charge to police them. It's a clever, real solution. What it *isn't* is useful work in its own right — the puzzle itself doesn't produce anything extra, and what a coin is worth gets decided somewhere else, by the market. (Noesis actually keeps proof-of-work for the one job it's genuinely best at: turning energy into stable, spendable money. More on that near the end — it's a strength, not a flaw.)
 
 But Bitcoin *did* do something genuinely new: it created a **market that couldn't exist before** — owning money that no government or bank controls. Nobody had a way to do that. Bitcoin built the missing piece, and a whole market appeared.
 
@@ -51,10 +51,12 @@ The obvious worry: *"won't people just spam fake contributions to farm points?"*
 - **Ganging up to praise each other earns nothing.** A ring of friends citing each other in a circle produces no *real* outside work building on them — and the system can tell the difference between a real chain of building and a circle of back-scratching.
 - **Your reputation can't be bought.** You can buy *storage space*, but you can't buy *influence*. That stops it from becoming "whoever has the most money wins" — which is what almost every other crypto system quietly becomes. **You can buy storage; you cannot buy consensus.**
 
+That's the quiet trick: Bitcoin uses *electricity* to make cheating expensive; Noesis builds the same protection into *how it measures value*, so spam and fakes simply score zero — no burning required.
+
 ```mermaid
 flowchart TD
   subgraph BTC["Bitcoin"]
-    B1["Burn electricity on<br/>a meaningless puzzle"] --> B2["Fastest gets paid<br/>(the work produces nothing)"]
+    B1["Spend electricity to take part<br/>(the cost keeps spam/fakes out)"] --> B2["Fastest gets paid<br/>(value is set by an outside market)"]
   end
   subgraph NOE["Noesis"]
     N1["Contribute something real"] --> N2["Proven and priced by what builds on it<br/>copy = zero · spam = zero · ring = zero · can't buy influence"]
@@ -68,6 +70,10 @@ When the base layer pays people to be honest and useful, **everything built on t
 ## It doesn't fight other projects — it invites them
 
 Most crypto projects compete to be "the one chain everybody uses." Noesis doesn't have to win that fight. Because it can take useful work from *any* other chain, re-price it fairly, and credit it on one shared record, the older projects aren't rivals to beat — they're the prototypes this was learned from. **The message to every other chain isn't "come compete." It's "come join us."**
+
+## Proof of work has a real home here
+
+None of this means proof-of-work is useless — just the opposite. Bitcoiners are right that it's essential and not "waste," and Noesis keeps it for the one job it does better than anything: turning real energy into sound money. Noesis's money side is a proof-of-work coin (proportional, in the style of *Ergon*) designed to stay roughly stable and be *spent* rather than hoarded. So the whole picture is simple: **proof-of-work makes the money; proof-of-mind earns the standing; stakeholders keep their say.** Each does only what it's best at. If you love proof-of-work, there's a real, honored place for it here — this isn't a rival to it, it's where it finally fits.
 
 ## When it launches, Will gives up his head start
 

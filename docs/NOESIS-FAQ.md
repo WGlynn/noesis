@@ -25,7 +25,7 @@ Your standing (voting weight) is **soulbound** — earned by contribution and im
 Bitcoin/Ethereum secure *ordering* and leave value to an outside market. Bittensor and similar reward *output quality*, but by subjective peer/validator agreement (and reward tends to follow purchased stake). Deep Funding scores a dependency graph but as an off-chain funding split, not consensus. Noesis is the one that makes an *objectively measured contribution value* the thing consensus itself is about. (The full whitepaper has the detailed comparison.)
 
 **Is there a token? How does the money work?**
-Tokenomics aren't finalized and this FAQ won't pretend otherwise. What *is* settled: standing is earned, not premined or sold; the builder's private head-start is burned to zero at launch (verifiable on-chain) so everyone starts even; and one unit of standing equals one byte of storage you can occupy.
+Tokenomics aren't finalized and this FAQ won't pretend otherwise. What *is* settled: standing is earned, not premined or sold; the builder's private head-start is burned to zero at launch (verifiable on-chain) so everyone starts even; and one unit of standing equals one byte of storage you can occupy. Separately, a proof-of-work **money layer** is planned — a *proportional*, Ergon-style "energy money" priced by real energy and designed to stay roughly stable, so it works as spendable money rather than a speculation (designed, not built). Note this is the opposite of standing on purpose: standing is scarce and can't be bought; the energy money is elastic and meant to circulate.
 
 **Is this built, or just an idea?**
 Both, honestly. There's a working open reference node (in Rust) with hundreds of passing tests covering ownership, the pricing rule, novelty, the anti-spam and anti-ring defenses, dispute-and-slash, and contribution-weighted finality. What's *designed but not yet built*: the learned value-model trained on real-world outcomes, cross-chain merging, and the deploy-time cryptography. We mark built-vs-designed throughout the paper.
@@ -40,7 +40,7 @@ No — it absorbs them. Because value is measured on-chain and carried along pro
 A base layer that pays for honesty is inherited by everything built on it. On Noesis, honest finance (real liquidity, honest prices) is what earns, and manipulation — value moving in a circle — earns nothing. Honesty becomes the highest-paying move at every layer, instead of something each app has to promise and police on its own.
 
 **Why "Proof of Mind"?**
-Bitcoin's proof-of-work proves you spent energy. Proof of Mind proves you contributed verified, valuable thought. The unit of work is a block of thought; the proof is that the thought added measurable value.
+Bitcoin's proof-of-work proves you spent energy — a cost that keeps spammers and fake identities out. Proof of Mind keeps them out the same way, with a twist: the "cost" to take part is producing genuine, verified contribution. The unit of work is a block of thought; the proof is that the thought added measurable value.
 
 **Who's behind it?**
 Will Glynn, with an AI research collaborator (JARVIS). The collaboration is itself an example of the contribution economy the project describes: a human and a machine producing attributable, provenance-complete work.

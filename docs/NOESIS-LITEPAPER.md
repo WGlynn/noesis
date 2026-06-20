@@ -12,7 +12,7 @@ Bitcoin built the missing piece that let a market for **trustless ownership** ex
 
 ## The problem
 
-Everyone believes Bitcoin rewards valuable work. It doesn't. It rewards burning electricity — whoever burns the most, wins — and it never asks whether anyone created anything worth having. That was the right design for what Bitcoin is: a chain about *who owns what*, with the coin's value set by an outside market.
+Everyone believes Bitcoin rewards valuable work. Really it rewards *spending* electricity — and that cost is doing a real job: it keeps spam and fake identities out of a network with no one in charge. What it doesn't do is ask whether anyone created anything *worth* having; the work's value is set elsewhere, by an outside market. That was the right design for what Bitcoin is: a chain about *who owns what*.
 
 But it leaves the most important quantity unmeasured: **how much each participant actually contributed.** No chain has measured that, and not for lack of trying. A possession chain never has to — the market prices its coin for it. A value chain has to do the measuring itself, and that is genuinely hard.
 
@@ -21,6 +21,10 @@ But it leaves the most important quantity unmeasured: **how much each participan
 **The chain becomes the market it was missing.** Instead of asking a committee or a fixed formula "what is this contribution worth," Noesis lets the market reveal it the way every market reveals value — through **what later work actually builds on.** Your contribution's price is the real, downstream work that flows back along the trail of who-built-on-whom. Useful work gets built on and earns; dead-end work doesn't.
 
 That one quantity — **novel realized downstream contribution along provenance** — is the whole engine. Everything else follows from it.
+
+## Why earlier "useful" chains didn't crack this
+
+Projects that tried to put proof-of-work to real use — finding primes, folding proteins, storing files — made the *work* useful, but useful to someone *outside* the chain. The chain itself still couldn't read that work to price or secure itself, so it fell back on a hard puzzle or an outside market for its value. Their usefulness was **exogenous** — it lived outside the system. Noesis's usefulness is **endogenous**: the contribution's value *is* the chain's own currency, the thing it runs on. Useful proof-of-work made the work matter to the world; Proof of Mind makes it matter to the system.
 
 ## How it works (plainly)
 
@@ -50,7 +54,9 @@ And it propagates upward: anything built on a base layer that pays for honesty i
 
 ## Consensus, briefly
 
-Validators are weighted by **Proof of Mind** — earned contribution, not money or hardware. Mining and staking still exist, but only as a **liveness floor**: they keep blocks flowing when nobody's contributing, and they earn no standing and can't touch value-history. Cognition leads; compute and capital just keep the lights on.
+Validators are weighted by **Proof of Mind** — earned contribution, not money or hardware. Mining and staking still exist as a **liveness floor**: they keep blocks flowing when nobody's contributing, and they earn no standing and can't touch value-history. Cognition leads.
+
+And proof-of-work isn't wasted here — far from it. It runs a separate **energy money**: a *proportional*, Ergon-style coin priced by real energy, designed to stay roughly stable and be *spent*, not hoarded. That's the one thing proof-of-work does best — act as an energy oracle, turning electricity into sound money. So the three layers are economic opposites that fit: **PoM** is scarce, inelastic, unbuyable standing that decides consensus; the **energy money** is elastic and made to circulate; **stake** is the stakeholders' voice. Each does only its own job. Using proof-of-work isn't a weakness — it's part of why the whole thing holds together.
 
 ## Honest status
 

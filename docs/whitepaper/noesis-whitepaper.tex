@@ -33,7 +33,7 @@
 itself an instance of the contribution economy this paper specifies: a human and a machine
 producing provenance-complete, attributable work.}\\
 \texttt{noesis}}
-\date{Version 3.0 \quad June 2026}
+\date{Version 3.2 \quad June 2026}
 
 \begin{document}
 \maketitle
@@ -481,7 +481,9 @@ Three properties are inherited from the construction. It is \textbf{verifiable}:
 block is signed and provenance-complete, so anyone can recompute the score from public data. It is
 \textbf{sybil-resistant structurally}: PoM requires owned blocks whose value was synergy-judged, and
 splitting one mind across many accounts does not multiply PoM because the synergy game discounts
-redundant copies; a thousand empty nodes score zero. And it is \textbf{earned, not bought}: the stake
+redundant copies; a thousand empty nodes score zero. Proof-of-work buys this same sybil and spam
+resistance with a cost \emph{external} to the chain (expended energy); PoM derives it \emph{endogenously}
+from the value rule itself, so spamming and splitting earn nothing without any energy price to pay. And it is \textbf{earned, not bought}: the stake
 is accumulated proof of contribution, and slashing revokes PoM for refuted blocks, caught
 hallucinations, and failed attestations.
 
@@ -565,6 +567,34 @@ non-dominated cycle: with two, one power is the strict best response and capture
 the relation is non-transitive (rock--paper--scissors) and none dominates; four or more adds complexity
 without adding non-domination. Liveness can fall back to whichever power is awake, but seizing the chain
 means defeating all three at once, and the value layer answers to cognition above all.
+
+\paragraph{The compute layer is honest money, not waste.} The floor's compute is a proof-of-work
+\emph{money layer}, kept deliberately. Proof-of-work's energy cost is not a flaw peculiar to Bitcoin: it
+is the unavoidable price of issuing money with no privileged issuer, and every proposed alternative pays
+the same cost in a less visible form, an argument made forcefully by Sztorc (2022), under which locked
+stake, bought votes, and ground histories are all \emph{obscured} proof-of-work. A chain that uses
+proof-of-work in its own consensus, as this one does, cannot coherently call it waste. What Noesis adds
+is usefulness by construction. The money layer is a \emph{proportional} proof-of-work currency in the
+manner of Ergon: issuance scales with the work committed, so the coin is demand-elastic and targets
+stable purchasing power rather than appreciation. A coin not expected to rise in value is one meant to be
+\emph{spent}, and the proportional arms race makes this self-enforcing: miners must keep selling to cover
+ongoing power and hardware costs, so hoarding a non-appreciating coin is bad business and the coin
+circulates as a true medium of exchange. Its work then buys two things at once, Sybil-resistant security
+and a stable unit of account, and its usefulness speaks for itself without bolting a foreign task
+(primes, protein folds) onto the hash. Proportional proof-of-work is also the right home for both work
+and price stability: its economics make the conditions for an \emph{energy money}, a coin anchored to
+the real cost of energy and therefore stable and spendable. This is what proof-of-work does best: it is
+an \emph{energy oracle}, pricing real-world energy into money. Using proof-of-work here is therefore not
+a concession but a strength, each tool placed where it fits, cognition (PoM) securing value and energy
+pricing money. This layer is \emph{designed, not yet built}; the reference
+stub's current issuance curve is a placeholder to be replaced with the proportional rule.
+
+The two layers are economic opposites by design, and that is why they fit. PoM is a \emph{scarce,
+inelastic} standing that cannot be bought and carries the majority of consensus weight: earned value
+decides who governs. The energy money is \emph{elastic} and meant to be spent: priced work is what
+circulates. Cognition governs and does not inflate; energy circulates and does not vote; capital is the stake of the
+stakeholders and their voice, the conventional role unchanged. Each does only what it is best at, and the
+whole holds because none is asked to do another's job.
 
 \section{Cryptoeconomics: one PoM, one byte}
 
@@ -777,7 +807,13 @@ about is something other than a contribution's value measured on the chain itsel
 space-time (Chia), and the theoretical line of Ball, Rosen, Sabin and Vasudevan make the \emph{work}
 useful, but value stays exogenous: security comes from puzzle hardness, dedicated space, or honest
 execution, while the work's worth is priced by an external market or fixed by an external
-problem-provider. The theoretical line is weaker than it appears (the usefulness claims of the 2017
+problem-provider. That exogenous utility is exactly why these fall short as \emph{value} chains: a
+prime, a protein fold, or a stored file is useful to someone \emph{outside} the chain, never to the
+chain itself, so the chain still cannot read its own work to value or secure itself, and falls back on
+puzzle-hardness or an outside price. Proof of Mind inverts this. Its value is \emph{endogenous}, the
+chain's own consensus object, so a contribution is genuinely useful \emph{to the chain}: the chain
+measures it, prices it, and secures itself with it. Useful proof-of-work made the work mean something to
+the world; Proof of Mind makes it mean something to the system. The theoretical line is weaker than it appears (the usefulness claims of the 2017
 construction were retracted in 2018), and proof-of-learning schemes are provably not robust to spoofing.
 Decentralized-training systems (Gensyn, Prime Intellect, Nous) make verified compute or
 training-integrity the consensus object, not output value. Decentralized-inference networks come
@@ -949,6 +985,8 @@ credit. They are distinct.)
 \item Bittensor / Opentensor. \emph{Yuma Consensus}. 2021.
 \item \emph{Fortytwo}. arXiv:2510.24801, 2025.
 \item \emph{Delegated Proof of Reputation: a novel blockchain consensus}. arXiv:1912.04065, 2019.
+\item P. Sztorc. \emph{Nothing is Cheaper than Proof of Work}. 2022.
+\item \emph{Ergon: a proof-of-work medium of exchange with proportional, demand-elastic issuance}. 2020.
 \end{enumerate}
 
 \end{document}

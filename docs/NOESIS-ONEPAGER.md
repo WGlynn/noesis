@@ -4,7 +4,7 @@
 
 ---
 
-**The line.** Bitcoin pays you for burning electricity. Noesis pays you for contributing something useful with your mind — and proves it, so it can't be faked, copied, or bought.
+**The line.** Bitcoin makes you spend electricity to take part — that cost keeps spam and fakes out. Noesis gets the same protection from genuine contribution instead, and pays you for it — provably, so it can't be faked, copied, or bought.
 
 **Why it's new.** Bitcoin built the missing piece that let a market for *trustless ownership* exist. Noesis builds the missing piece that lets a market for *contribution* exist. Same kind of leap, one market over.
 
@@ -21,7 +21,7 @@
 1. **Cooperation by construction** — cheating isn't punished, it just doesn't pay. The honest move is the highest-paying one, at every layer.
 2. **Convergence, not competition** — useful work from any other chain can be imported and re-priced on one shared graph. To every other chain: *not "come compete" — "come join us."*
 
-**Consensus.** Weighted by earned contribution, not money or hardware. Mining/staking only keep the lights on (a liveness floor); they earn no standing.
+**Consensus.** Weighted by earned contribution, not money or hardware. Mining/staking are a liveness floor (keep blocks flowing); they earn no standing. Proof-of-work isn't wasted — it also runs a separate **energy money**: a proportional, Ergon-style coin priced by real energy, made to stay stable and be spent. PoM (scarce, unbuyable) decides; the energy money (elastic) circulates. Each tool does only its job — using PoW is a strength, not a weakness.
 
 **Fair launch.** The builder's private head-start is burned to zero at launch, verifiable on-chain. Everyone starts even.
 
