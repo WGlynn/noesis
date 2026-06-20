@@ -33,7 +33,7 @@
 itself an instance of the contribution economy this paper specifies: a human and a machine
 producing provenance-complete, attributable work.}\\
 \texttt{noesis}}
-\date{Version 2.8 \quad June 2026}
+\date{Version 2.9 \quad June 2026}
 
 \begin{document}
 \maketitle
@@ -545,16 +545,26 @@ the \textbf{nucleolus} when the core is empty (the unique split that leaves the
 most-tempted coalition with the least reason to defect). This is added precisely because consensus requires it;
 pure attribution does not need a stability concept.
 
-\subsection{Three powers}
+\subsection{Three powers: cognition leads, compute and capital keep it live}
 
-Consensus is not a single weighted vote. It is the agreement of three independent powers,
-\textbf{cognition} (PoM), \textbf{capital} (state-stake), and \textbf{compute} (proof-of-work, carried
-by a separate money layer), composed by conjunction. Three is the minimum for a non-dominated cyclic
-equilibrium: with two powers one is the strict best response and captures the other; with three the
-relation is non-transitive (rock--paper--scissors) and capture-resistant; four or more adds complexity
-without more non-domination. Because the composition is an AND of independent layers rather than a
-weighted sum, a large share in one dimension is a reward weight, not a vote that can finalize alone.
-An attacker must defeat all three.
+Consensus draws on three independent powers, \textbf{cognition} (PoM), \textbf{capital} (state-stake),
+and \textbf{compute} (proof-of-work, on a separate money layer), and they do two different jobs.
+Cognition is the \emph{franchise}: PoM is earned by verified contribution, cannot be bought, and is what
+confers standing and leads the finalization of value. Compute and capital are the \emph{liveness floor}:
+contribution is bursty, but block production cannot be, so when no minds are contributing, miners and
+stakers still produce and order blocks and the chain does not halt for want of new thought.
+
+The division is strict, and it is what keeps the headline true. The floor may advance the chain and
+order pending transfers, but it earns no PoM, mints no standing, and cannot rewrite attribution or
+value-history. You can keep the lights on with compute or capital; you still cannot buy consensus weight
+with either. PoM leads and re-asserts as soon as contributors return; the floor is a fallback producer,
+never a value authority.
+
+Holding the powers separate is also what makes the chain capture-resistant. Three is the minimum for a
+non-dominated cycle: with two, one power is the strict best response and captures the other; with three
+the relation is non-transitive (rock--paper--scissors) and none dominates; four or more adds complexity
+without adding non-domination. Liveness can fall back to whichever power is awake, but seizing the chain
+means defeating all three at once, and the value layer answers to cognition above all.
 
 \section{Cryptoeconomics: one PoM, one byte}
 
