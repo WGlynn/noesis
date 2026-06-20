@@ -33,7 +33,7 @@
 itself an instance of the contribution economy this paper specifies: a human and a machine
 producing provenance-complete, attributable work.}\\
 \texttt{noesis}}
-\date{Version 2.5 \quad June 2026}
+\date{Version 2.6 \quad June 2026}
 
 \begin{document}
 \maketitle
@@ -45,8 +45,9 @@ a market that had no medium to exist in before: the market for trustless ownersh
 cryptoeconomics does. It supplies the medium a market was missing, and the market becomes possible.
 Bitcoin supplied the medium for possession and left the coin's value to an external market, which is the
 right design for a chain about possession. This paper supplies the next missing medium, for the market
-in contribution: it measures the value of a contribution on-chain and makes that measurement the object
-consensus is about, not who holds the coin but how much each participant actually contributed. The claim
+in contribution: the chain itself becomes that market, pricing each contribution by the realized
+downstream work that builds on it, and makes that price the object consensus is about, not who holds the
+coin but how much each participant actually contributed. The claim
 is larger than a better proof of work, because measuring contribution endogenously unlocks two things a
 possession chain cannot reach.
 
@@ -180,9 +181,13 @@ contributors, and PoM sums a contributor's shares across all blocks.
 \section{Endogenous value: an honest, synergy-aware price}
 \label{sec:value}
 
-The central object is a value function $v(S)$ over sets of blocks. Everything else, the score, the
-stake, the consensus weight, is a functional of $v$. The obvious choices of $v$ are either trivial or
-gameable; this section gives a $v$ that is neither.
+The chain is the market that contribution never had. A possession chain leaves value to an external
+market that prices its coin; this chain prices contribution \emph{itself}, by the realized downstream
+flow a block generates along its provenance. The central object is that price: a value function $v(S)$
+over sets of blocks, of which the score, the stake, and the consensus weight are all functionals. A
+market does not compute a true value from outside; it reveals one through what later work builds on, and
+that is what $v$ does. The naive choices of $v$ are trivial or gameable; this section gives one that is
+neither, and the rest of the paper is what it takes for that price to clear honestly.
 
 \subsection{Elicitation: from pairwise judgment to cardinal value}
 
@@ -829,7 +834,7 @@ of an application to a property of consensus itself.
 
 \section{Conclusion}
 
-We have specified a chain on which value is created as contribution, measured endogenously by a
+We have specified a chain on which value is created as contribution, priced endogenously by a
 synergy-aware cooperative value over a provenance graph, owned and transferred like a UTXO, and used to
 secure consensus through Proof of Mind. The design replaces the inferences that make decentralized
 trust intractable, ``is this a mind worth trusting,'' with proofs anyone can recompute, and it gives
