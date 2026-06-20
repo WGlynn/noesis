@@ -1,5 +1,5 @@
-% Noesis — Proof of Mind: A Value Chain for Verified Mental Contribution
-% Foundational whitepaper. Draft 1.0, June 2026. CONFIDENTIAL pre-release.
+% Noesis - Proof of Mind: A Value Chain for Verified Mental Contribution
+% Foundational whitepaper. Open source, no patent: the moat is structural, not secret.
 \documentclass[11pt]{article}
 
 \usepackage[a4paper,margin=0.8in]{geometry}
@@ -19,8 +19,8 @@
 \titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{0.6em}{}
 
 % palette
-\definecolor{sb}{HTML}{1D4ED8}   % soulbound / standing — blue
-\definecolor{tr}{HTML}{059669}   % transferable — green
+\definecolor{sb}{HTML}{1D4ED8}   % soulbound / standing, blue
+\definecolor{tr}{HTML}{059669}   % transferable, green
 \definecolor{bad}{HTML}{DC2626}  % red
 \definecolor{ink}{HTML}{111827}
 
@@ -33,7 +33,7 @@
 itself an instance of the contribution economy this paper specifies: a human and a machine
 producing provenance-complete, attributable work.}\\
 \texttt{noesis}}
-\date{Version 3.2 \quad June 2026}
+\date{Version 3.3 \quad June 2026}
 
 \begin{document}
 \maketitle
@@ -285,9 +285,9 @@ parent's aggregated contribution is
 F \;=\; \sum_{j\ge 0} \rho^{\,j}\, c_{(j)}
 \;\le\; \frac{c_{\max}}{1-\rho} \;=\; \varphi^{2}\,c_{\max} \;\approx\; 2.618\,c_{\max},
 \end{equation}
-a convergent series: coordinated volume \emph{saturates} rather than amplifies. In plain terms: each
+a convergent series: coordinated volume \emph{saturates} rather than amplifies. In plain terms, each
 extra post counts for geometrically less, so flooding the system hits a fixed ceiling instead of
-compounding — the total can never run away no matter how many copies are posted. An earlier design that
+compounding, and the total can never run away no matter how many copies are posted. An earlier design that
 damped two axes separately (within an identity and across identities) left their product unbounded, a
 ``diagonal'' pump in which $K$ coordinated identities each posting $M$ children compounded both tails.
 Folding both into one joint decay over the flattened global order closes it. Figure~\ref{fig:sat}
@@ -382,10 +382,9 @@ system is the realized gate
 \qquad \bar\nu_i,\ g(f_i),\ \omega(\ell_i)\in[0,1],
 \end{equation}
 the product of floored novelty $\bar\nu_i$, a realized-flow gate $g(f_i)$, and the learned outcome
-$\omega$ scored on the block's provenance lineage $\ell_i$. Because the factors are multiplicative and
-bounded in $[0,1]$, each can only \emph{lower} the seed; none can mint. In plain terms: the value
-passes through a chain of dials each set between $0$ and $1$, so every factor (including the learned
-one) can only turn the payout \emph{down}, never conjure it up. The learned model is confined
+$\omega$ scored on the block's provenance lineage $\ell_i$. The factors are multiplicative and bounded in
+$[0,1]$, a chain of dials each set between $0$ and $1$, so every one of them (the learned factor
+included) can only turn the payout \emph{down}, never conjure it up. The learned model is confined
 to two roles that have no minting power: it may offer an honest contributor an early liquidity
 \emph{advance} against expected vesting (its own capital at risk, repaid from realized value and
 slashed on shortfall), and it may enter a dispute as \emph{evidence} the jurors weigh. A corrupt model
@@ -460,12 +459,11 @@ Put together, the loop is: measure, realize, dispute, retrain, decay, re-measure
 Goodhart on its first day; an adaptive measure with an un-gameable realized-value anchor, a dispute
 process for finality, and a residual that reports its own validity does not present a fixed target to
 optimize against. This is why Section~\ref{sec:security} calls value measurement the load-bearing open
-problem rather than a solved one. The claim is not a closed-form proof of un-gameability; it is a
-mechanism that treats un-gameability as a moving equilibrium it must continuously hold, and whose
-present strength is measured (Figure~\ref{fig:moat}) rather than asserted. A static rule, exact on
-paper but gameable in practice, is wrong in the only sense that matters; an adaptive measure that is
-approximately right and provably converging is the better object. It is better to be approximately
-right than absolutely wrong.
+problem rather than a solved one: the claim is not a closed-form proof of un-gameability but a mechanism
+that holds un-gameability as a moving equilibrium, and whose present strength is measured
+(Figure~\ref{fig:moat}) rather than asserted. A static rule, exact on paper but gameable in practice, is
+wrong in the only sense that matters; an adaptive measure that is approximately right and provably
+converging is the better object. It is better to be approximately right than absolutely wrong.
 
 \section{Proof of Mind}
 
@@ -475,7 +473,7 @@ provenance-complete blocks it holds,
 \mathrm{PoM}(a) \;=\; \sum_{b\,\in\,\mathcal{B}(a)} \phi_b ,
 \qquad \mathcal{B}(a) = \{\text{verified, owned, provenance-complete blocks of } a\}.
 \end{equation}
-In plain terms: your standing is just the summed, verified value of the work you own — nothing you can
+In plain terms, your standing is just the summed, verified value of the work you own, nothing you can
 buy, only contribution that survived checking.
 Three properties are inherited from the construction. It is \textbf{verifiable}: every contributing
 block is signed and provenance-complete, so anyone can recompute the score from public data. It is
@@ -562,6 +560,13 @@ value-history. You can keep the lights on with compute or capital; you still can
 with either. PoM leads and re-asserts as soon as contributors return; the floor is a fallback producer,
 never a value authority.
 
+What ``compute votes'' means is narrow. The energy money the miner earns carries \emph{zero} consensus
+weight: holding the coin buys no say. The small weight attached to proof-of-work belongs to the \emph{act
+of mining}, the liveness-floor producer that orders blocks, and it is kept \emph{out of finality}
+entirely. A miner's probabilistic lag is a finality-safety hazard, so finalizing a block is the job of
+capital and cognition (PoS and PoM) under an anti-concentration floor, never of the hash. Energy
+circulates; it does not vote on value.
+
 Holding the powers separate is also what makes the chain capture-resistant. Three is the minimum for a
 non-dominated cycle: with two, one power is the strict best response and captures the other; with three
 the relation is non-transitive (rock--paper--scissors) and none dominates; four or more adds complexity
@@ -574,20 +579,26 @@ is the unavoidable price of issuing money with no privileged issuer, and every p
 the same cost in a less visible form, an argument made forcefully by Sztorc (2022), under which locked
 stake, bought votes, and ground histories are all \emph{obscured} proof-of-work. A chain that uses
 proof-of-work in its own consensus, as this one does, cannot coherently call it waste. What Noesis adds
-is usefulness by construction. The money layer is a \emph{proportional} proof-of-work currency in the
-manner of Ergon: issuance scales with the work committed, so the coin is demand-elastic and targets
-stable purchasing power rather than appreciation. A coin not expected to rise in value is one meant to be
-\emph{spent}, and the proportional arms race makes this self-enforcing: miners must keep selling to cover
-ongoing power and hardware costs, so hoarding a non-appreciating coin is bad business and the coin
-circulates as a true medium of exchange. Its work then buys two things at once, Sybil-resistant security
-and a stable unit of account, and its usefulness speaks for itself without bolting a foreign task
-(primes, protein folds) onto the hash. Proportional proof-of-work is also the right home for both work
-and price stability: its economics make the conditions for an \emph{energy money}, a coin anchored to
-the real cost of energy and therefore stable and spendable. This is what proof-of-work does best: it is
-an \emph{energy oracle}, pricing real-world energy into money. Using proof-of-work here is therefore not
-a concession but a strength, each tool placed where it fits, cognition (PoM) securing value and energy
-pricing money. This layer is \emph{designed, not yet built}; the reference
-stub's current issuance curve is a placeholder to be replaced with the proportional rule.
+is usefulness by construction. The money layer is a proportional proof-of-work currency in the manner of
+Ergon: issuance scales with the work committed, so the coin is demand-elastic and anchored to the
+marginal cost of energy rather than to appreciation. A coin not expected to rise in value is one meant to
+be \emph{spent}, and the proportional arms race makes this self-enforcing: miners must keep selling to
+cover ongoing power and hardware costs, so hoarding a non-appreciating coin is bad business and the coin
+circulates as a true medium of exchange. This is what proof-of-work does best, an \emph{energy oracle}
+pricing real-world energy into money, without bolting a foreign task (primes, protein folds) onto the
+hash. Using proof-of-work here is therefore not a concession but a strength: cognition (PoM) secures
+value, energy prices money, and each tool sits where it fits.
+
+Ergon alone, however, oscillates. The proportional reward couples price to hashrate, and a single
+feedback loop overshoots, so a proportional coin left to itself swings rather than settles. The money
+layer is therefore not Ergon as-is but a port of the \emph{Trinomial Stability System}: three stabilizing
+mechanisms acting at three separated timescales on one energy-money token. The proportional proof-of-work
+reward is the long-term anchor, pegging value to energy cost. An elastic rebase corrects short-term
+price deviation. A PI controller damps the medium term. The result that makes this a system and not three
+knobs is that the three loops at separated frequencies are jointly stable where the proportional reward
+alone is not: the rebase and the controller are the damping that turns Ergon's oscillation into a stable,
+spendable unit of account. This layer is \emph{designed, not yet built}; the reference stub's current
+issuance curve is a placeholder to be replaced with the proportional rule and its two damping loops.
 
 The two layers are economic opposites by design, and that is why they fit. PoM is a \emph{scarce,
 inelastic} standing that cannot be bought and carries the majority of consensus weight: earned value
@@ -641,7 +652,7 @@ Sybil split (one mind, many accounts) & synergy game discounts redundant copies;
 Padding / re-post of coverage & temporal novelty: later copies earn $0$ novel coverage & demonstrated \\
 Coordinated-volume / diagonal pump & single joint geometric decay, bound $\varphi^{2}c$ (Fig.~\ref{fig:sat}) & demonstrated \\
 Gamed learned evaluator & bounded role: can only lower a seed, never mint ($v_8\equiv v_7$ under $+\infty$) & demonstrated \\
-Cyclic / collusive judgments & HodgeRank harmonic-energy spike is a manipulation alarm & designed \\
+Cyclic / collusive judgments & Helmholtz--Hodge harmonic-energy alarm, with per-identity attribution feeding a slash & demonstrated (slash-wiring deferred) \\
 Self-referential scoring & independent evaluators, eigenvector damping, synergy discount & designed \\
 Eclipse (shrink the finality denominator) & hybrid $\max(\text{effective},\,\text{quorum-floor})$ basis & demonstrated (self-audit) \\
 Profitable fork (coalition deviates) & core / nucleolus stability constraint & demonstrated (solver) \\
@@ -683,16 +694,18 @@ eigenvector-style damping over the attribution graph, and the synergy game's dis
 self-referential coalitions.
 
 \paragraph{Demonstrated versus designed.} \emph{Demonstrated} in the open reference node (a Rust
-implementation with a no-std verification core shared with on-chain scripts, $285$ passing tests at
+implementation with a no-std verification core shared with on-chain scripts, $286$ passing tests at
 the time of writing): ownership and transfer, per-block signing, tamper-resistance, the synergy value
 over a coverage proxy with Myerson and Bradley--Terry and permutation sampling, temporal novelty,
 coordinated-volume saturation (Figure~\ref{fig:sat}), the orphan-root fan-out bounded by realized-flow
-gating, the mutual-citation collusion ring detected on topology by the attribution-circulation alarm
-(its value-credit closure still rides the harmonic-residual upgrade and the learned $v(S)$), the bounded learned evaluator and its held-out
-measurement (Figure~\ref{fig:moat}), the dispute and slashing path, PoM-weighted finalization with the
-hybrid basis, the core/nucleolus stability solver, and the on-chain recomputation of the ordering and
-finalization rules inside the virtual machine. \emph{Designed, not yet built}: the learned $v(S)$ on
-real outcome labels, the production two-level recursion, owner-signature control of spends (the
+gating, collusion detection on topology (the mutual-citation circulation alarm and its complement, the
+Helmholtz--Hodge harmonic-energy alarm that catches directed rings, with per-identity attribution that
+names the ring members and spares an honest contributor who builds on them once), the bounded learned
+evaluator and its held-out measurement (Figure~\ref{fig:moat}), the dispute and slashing path,
+PoM-weighted finalization with the hybrid basis, the core/nucleolus stability solver, and the on-chain
+recomputation of the ordering and finalization rules inside the virtual machine. \emph{Designed, not yet
+built}: the learned $v(S)$ on real outcome labels, the wiring of the collusion attribution into the
+dispute slash path, the production two-level recursion, owner-signature control of spends (the
 deterministic transaction digest is built and tested, and the per-input authorization gate is wired
 into ledger validation, inert until the signature verifier is linked at deploy), the open-weight
 fine-tune loop, and the money/stability layer.
@@ -702,8 +715,8 @@ fine-tune loop, and the money/stability layer.
 A value chain is provenance-complete by necessity. Proof of Mind is verifiable precisely because anyone
 can recompute a score from public, signed, attributed blocks; that recomputability is the opposite of
 privacy. So Noesis cannot offer the secrecy of a possession chain that records only balances, it must
-expose enough for value to be checked. The honest question is not whether everything can be hidden ---
-it cannot --- but what minimum must be public for trustless verification, and how the rest is protected.
+expose enough for value to be checked. The honest question is not whether everything can be hidden (it
+cannot) but what minimum must be public for trustless verification, and how the rest is protected.
 The design separates three layers.
 
 \paragraph{Identity is pseudonymous, not anonymous.} Blocks lock to public keys, not legal identities,
@@ -723,7 +736,7 @@ transition without exposing its witness.
 \paragraph{The hard case: value measurement requires observation.} The learned evaluator $v(S)$ is the
 exception. Scoring a contribution's outcome-value requires \emph{processing} its content, a privacy
 analog of the blockchain--reality airgap (Section~\ref{sec:security}): measuring value requires
-observing the thing measured. The logical resolution is \emph{compute-to-data} --- bring the evaluator's
+observing the thing measured. The logical resolution is \emph{compute-to-data}, bring the evaluator's
 model to the content, never the content to the evaluator. The contribution stays in the contributor's
 environment; on the cell model the content cell is \emph{referenced} read-only by the evaluating
 transaction and never consumed, so at the protocol level the data cannot leave the owner's control, and
@@ -733,7 +746,7 @@ run on the committed content, removing any trust in whoever ran it; calibrated \
 noise on the score bounds what the number itself can leak, since a crafted probe could otherwise
 reconstruct content through repeated scoring; and fully homomorphic encryption, where it becomes
 practical, is the frontier in which even the evaluating environment computes on ciphertext. Compute-to-data
-is the deployable sweet spot --- strong privacy without the overhead of FHE or multi-party computation;
+is the deployable sweet spot, strong privacy without the overhead of FHE or multi-party computation;
 ZK-execution and differential privacy close the two gaps it leaves (honest execution, output leakage).
 We mark this \emph{designed, not built}: the reference node measures over public content, and the
 strategyproof skeleton (floored novelty, the realized-flow gate, the bounded learned factor) is unchanged
@@ -782,14 +795,12 @@ impossible, but by giving them a substrate they converge into without anyone los
 cooperation is structural, a property of conserved contribution, not a treaty that can be defected from.
 To every other chain, the offer is no longer \emph{come compete}; it is \emph{come join us}.
 
-The enabling property is precisely the endogenous measurement of Section~\ref{sec:value}. A possession
-chain cannot losslessly merge another chain because its value is exogenous: priced off-chain by a market,
-it has no on-chain quantity to carry across the merge. Bitcoin has no organ for valuing Primecoin's
-primes. A value chain has exactly that organ, and so convergence is the ecosystem-scale expression of the
-same property that makes the single chain novel. It also generalizes the theft-resistance of
-Section~\ref{sec:fairlaunch}: where that argument left a fork no outside to escape \emph{to}, this
-leaves a rival chain no outside to converge \emph{from}, since its contributions either join this graph
-or strip the provenance that gave them worth.
+The enabling property is the endogenous measurement of Section~\ref{sec:value}: a possession chain has
+no on-chain quantity to carry another chain's value across a merge, a value chain does, so convergence is
+the ecosystem-scale expression of the same property that makes the single chain novel. It generalizes the
+theft-resistance of Section~\ref{sec:fairlaunch}: where that argument left a fork no outside to escape
+\emph{to}, this leaves a rival chain no outside to converge \emph{from}, since its contributions either
+join this graph or strip the provenance that gave them worth.
 
 This is a design direction, not a built feature, and it is honest about its hard parts. A chain-agnostic
 contribution adapter must map a foreign unit to a provenance-bearing cell; cross-chain novelty must hold,
@@ -869,23 +880,20 @@ permissionless markets (which produced extractable value and front-running), reg
 (which produced exclusion), commons-based production (which produced mining and validator cartels), and
 token governance (which produced capture). Each fixed the last one's flaw and then leaked value through
 a new hole. The shared mistake was to put cooperation in a \emph{norm}, a \emph{regulator}, or a
-\emph{vote}, all of which can be broken, instead of in the mechanism itself. The
-alternative is to make cooperation the individually-rational strategy by construction: mutualize the
-layer on which participants are alike, compete on the layer where they differ, and design the boundary
-between them deliberately instead of letting it blur. The risk layer is where we are most alike; the
-value layer is where we are most different; conflating the two is the mistake every prior philosophy
+\emph{vote}, all of which can be broken, instead of in the mechanism itself. The alternative is to
+mutualize the layer on which participants are alike and compete on the layer where they differ, and to
+draw that boundary deliberately instead of letting it blur. The risk layer is where we are most alike;
+the value layer is where we are most different; conflating the two is the mistake every prior philosophy
 made.
 
-Noesis draws that boundary at the level of consensus. The layer where participants are alike is the
-\emph{franchise}: the soulbound standing that confers consensus weight and the right to mint state,
-earned by verified contribution and unsellable. The layer where they differ is the \emph{transferable
-state-capacity}, a liquid commodity priced by a market. ``You can buy storage; you cannot buy
-consensus'' is the cooperative/competitive split made structural, the soulbound cell carrying the
-cooperative franchise no participant may corner, the transferable byte carrying the competition the
-market is free to run. The synergy value function, the null effect on redundant sybil contribution, and
-the attribution-\emph{is}-the-mechanism theft-resistance are the same philosophy enforced one level
-down: cooperation profitable to keep and unprofitable to defect from, because the math says so and the
-chain checks the math. The decisive difference is the substrate. That economic frame, applied on a
+Noesis draws that boundary at the level of consensus. ``You can buy storage; you cannot buy consensus''
+(Section~\ref{sec:value}, Section~\ref{sec:fairlaunch}) is that cooperative/competitive split made
+structural: the soulbound franchise is the layer where participants are alike and no one may corner it,
+the transferable byte is the layer where they compete. The synergy value function, the null effect on
+redundant sybil contribution, and the attribution-\emph{is}-the-mechanism theft-resistance are the same
+philosophy enforced one level down: cooperation profitable to keep and unprofitable to defect from,
+because the math says so and the chain checks the math. The decisive difference is the substrate. That
+economic frame, applied on a
 \emph{possession} chain, can only redistribute value an external market has already priced; on a
 \emph{value} chain the worth is endogenous and consensus-securing. If a cooperative design fails to
 produce non-extractive outcomes, the honest suspicion is that the problem is the substrate, not the
