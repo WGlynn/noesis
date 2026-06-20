@@ -33,7 +33,7 @@
 itself an instance of the contribution economy this paper specifies: a human and a machine
 producing provenance-complete, attributable work.}\\
 \texttt{noesis}}
-\date{Version 2.9 \quad June 2026}
+\date{Version 3.0 \quad June 2026}
 
 \begin{document}
 \maketitle
@@ -223,8 +223,8 @@ object, and that object is the production evaluator for $v$.
 
 \subsection{The additivity trap}
 
-A natural first attempt sets a block's value to its share of pairwise wins. We built this, and it fails
-instructively. If the coalition value is additive, $v(S)=\sum_{i\in S} v(\{i\})$, then the Shapley
+A natural first attempt sets a block's value to its share of pairwise wins. We built it, and it failed
+in a useful way. If the coalition value is additive, $v(S)=\sum_{i\in S} v(\{i\})$, then the Shapley
 value collapses to the standalone value, $\phi_i = v(\{i\})$, and the normalized allocation is just the
 proportional (Copeland) win-share.
 \begin{claim}
@@ -232,10 +232,10 @@ For an additive game the entire $2^{|N|}$-coalition Shapley computation returns 
 one-line normalization. The cooperative machinery does no work.
 \end{claim}
 \noindent
-Pairwise comparison yields a \emph{ranking}, which is additive by construction, so Shapley over it is
-ceremonial. Value measurement is meaningful only when $v(S)$ has \textbf{synergy}: a coalition's worth
-differs from the sum of its members' standalone worth, through complementarity, redundancy, or
-pivotality.
+Pairwise comparison gives a \emph{ranking}, which is additive by construction, so running Shapley over
+it does nothing. Measuring value matters only when $v(S)$ has \textbf{synergy}: a group is worth more,
+or less, than its members added up alone, because parts complete each other, repeat each other, or turn
+out to be pivotal.
 
 \subsection{Synergy and the Myerson value}
 
@@ -250,15 +250,15 @@ graph $G$ create value:
 \qquad
 v^{G}(S) = \!\!\sum_{T \in S/G}\!\! v(T),
 \end{equation}
-where $S/G$ are the connected components of $S$ in $G$. So a block's credit is its average added value
-over every order in which the blocks could have been assembled, counting only the groupings actually
-wired together by provenance. Value flows along provenance edges, not over arbitrary sets; plain
-Shapley is the special case of a complete graph. Exact computation is exponential, so we estimate
-$\phi_i$ by Monte-Carlo permutation sampling (Data-Shapley), Shapley specialized to data valuation. In
-a working prototype over real blocks, replacing the additive game with a submodular coverage
-outcome-value made the Myerson values diverge materially from the proportional baseline, mean absolute
-difference $\lVert \phi - \text{Copeland}\rVert_1 \approx 0.26$: the cooperative value became
-load-bearing, rewarding pivotal blocks and discounting redundant ones.
+where $S/G$ are the connected pieces of $S$ in $G$. So a block's credit is its average added value over
+every order the blocks could have been put together in, counting only the groups that provenance
+actually wired together. Value flows along provenance edges, not over arbitrary sets; plain Shapley is
+just the special case where everything connects to everything. Computing it exactly is exponential, so
+we estimate $\phi_i$ by random-order sampling (Data-Shapley). In a working prototype over real blocks,
+switching from the additive game to a coverage-based outcome value moved the Myerson credits well away
+from the proportional baseline, by a mean absolute difference $\lVert \phi - \text{Copeland}\rVert_1
+\approx 0.26$: the cooperative value started doing real work, rewarding pivotal blocks and discounting
+redundant ones.
 
 \subsection{Strategyproofness: temporal novelty}
 
@@ -345,15 +345,15 @@ decay above bounds the parent's aggregated flow at $\sum_{j\ge0}\rho^{\,j} c=\va
 
 \subsection{Certifying the value: the HodgeRank residual}
 
-Pairwise judgments need not be transitive; intransitivity is inherent (Condorcet), not merely noise.
-A scalar value function is the right object only when the judgments are close to a gradient flow. We
-make this checkable. Encoding comparisons as a skew-symmetric edge flow $Y$ on the comparison graph
-and solving the weighted least-squares problem
+Pairwise judgments need not line up consistently; the contradictions are built in (Condorcet), not just
+noise. A single value number is the right object only when the judgments nearly agree. We make that
+checkable. Writing the comparisons as a flow $Y$ on the comparison graph and solving the weighted
+least-squares problem
 \begin{equation}
 \min_{s}\ \sum_{i,j} w_{ij}\,\big(s_i - s_j - Y_{ij}\big)^2
 \end{equation}
-yields a scalar ranking $s$ (a graph-Laplacian solve, generalizing Borda). The Helmholtz--Hodge
-decomposition splits the flow orthogonally,
+yields a single ranking $s$ (a Laplacian solve, a generalization of Borda counting). The Helmholtz--Hodge
+decomposition then splits that flow into three independent parts,
 \begin{equation}
 Y \;=\; \underbrace{\mathrm{grad}\,s}_{\text{global ranking}}\ \oplus\
 \underbrace{\ker \Delta_1}_{\text{harmonic (global cycles)}}\ \oplus\
@@ -375,8 +375,8 @@ spent only where the judgments actually disagree.
 \subsection{The learned evaluator, bounded by construction}
 
 The production $v(S)$ is a learned reward model, and learned models drift and can be probed. We do not
-ask it to be un-gameable. We deny it the authority to be dangerous. The strategyproof skeleton is the
-realized gate
+ask it to be un-gameable. We deny it the authority to be dangerous. The part that actually protects the
+system is the realized gate
 \begin{equation}
 \mathrm{seed}_i \;=\; \bar\nu_i \cdot g(f_i)\cdot \omega(\ell_i),
 \qquad \bar\nu_i,\ g(f_i),\ \omega(\ell_i)\in[0,1],
@@ -770,8 +770,8 @@ import another chain's trust assumptions.
 
 \section{Related work and what is novel}
 
-Three families are adjacent, and the distinction in each case is the same: the consensus object is
-something other than an endogenously-measured contribution-value.
+Three families of work are close to ours, and in each the difference is the same: what consensus is
+about is something other than a contribution's value measured on the chain itself.
 
 \paragraph{Useful proof-of-work.} Primecoin, Permacoin, proof-of-replication (Filecoin), proof of
 space-time (Chia), and the theoretical line of Ball, Rosen, Sabin and Vasudevan make the \emph{work}
@@ -828,12 +828,12 @@ Section~\ref{sec:security}.
 
 \section{The economic frame: cooperative capitalism, made consensus-native}
 
-The mechanisms above have a single economic reading. Across a decade, decentralized systems tried
-libertarian permissionlessness (which produced extractable value and front-running), regulated
-clearinghouses (which produced exclusion), commons-based production (which produced mining and validator
-cartels), and token governance (which produced capture). Each correctly rejected its predecessor and
-reproduced extraction by a new route. The common error was to locate cooperation in a \emph{norm}, a
-\emph{regulator}, or a \emph{vote}, all of them defectable, rather than in the mechanism itself. The
+The mechanisms above have a single economic reading. Over a decade, decentralized systems tried open
+permissionless markets (which produced extractable value and front-running), regulated clearinghouses
+(which produced exclusion), commons-based production (which produced mining and validator cartels), and
+token governance (which produced capture). Each fixed the last one's flaw and then leaked value through
+a new hole. The shared mistake was to put cooperation in a \emph{norm}, a \emph{regulator}, or a
+\emph{vote}, all of which can be broken, instead of in the mechanism itself. The
 alternative is to make cooperation the individually-rational strategy by construction: mutualize the
 layer on which participants are alike, compete on the layer where they differ, and design the boundary
 between them deliberately instead of letting it blur. The risk layer is where we are most alike; the
