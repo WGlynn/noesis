@@ -22,6 +22,8 @@ Will: "invite Tom lindeman and Bernhard to noesis private repo so they can help 
 - **Plain-down pass (v3.0):** de-jargoned the densest third (additivity/Myerson/HodgeRank/economic-frame/related-work). ~12–15%, NOT the full 20%.
 - **Satoshi-voice/viral (v1.5–v2.x):** no Bitcoin diss; cryptoeconomics = mint the missing medium; anchors "you can buy storage, you cannot buy consensus" + "come compete → come join us".
 
+**ALSO (2026-06-20 morning, full-auto — accessible paper tier):** shipped **For-Dummies / Litepaper / One-pager / FAQ** + `PAPERS.md` reading-map off v3.0 (`docs/NOESIS-*.md`), each rendered to **PDF + TXT + HTML** in `docs/dist/` (pandoc + md-to-pdf skill; mermaid stripped from the for-dummies exports). Pushed `5d70443`. Built Desktop folder **`noesis papers/`** (4 papers at top level; all 23 whitepaper-version PDFs moved into `whitepaper versions/`; Desktop decluttered). **Yellowpaper dropped** per Will (no rigorous spec needed now). Deferred overnight crons still pending (all recurring, will catch next tick): substrate-sync (defers on own-session background-task false-positive — logged in `~/.claude/cron-prompts/_primitives-pending.md`), pom-roadmap-advance, telemetry-rotate, archive-reindex, afk-corpus-reweight, story-mode-self-improve, anthropic-campaign-watcher.
+
 **🔝 NEXT SESSION (fresh head):**
 1. **Formalize the Glynn equilibrium** — definition + conditional existence (or keep labeled conjecture), cite performative-prediction / coalition-proof-NE / ESS, run `/critical-qa`. **Lock the name with Will first.**
 2. **Finish the 20% plain-down** — the 4 untouched dense sections: Privacy, Security/threat-model, Consensus finalization, the living-mechanism 6-item list.
