@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang xml:lang>
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>NOESIS-FAQ</title>
+  <style>
+
+html {
+color: #1a1a1a;
+background-color: #fdfdfd;
+}
+body {
+margin: 0 auto;
+max-width: 36em;
+padding-left: 50px;
+padding-right: 50px;
+padding-top: 50px;
+padding-bottom: 50px;
+hyphens: auto;
+overflow-wrap: break-word;
+text-rendering: optimizeLegibility;
+font-kerning: normal;
+}
+@media (max-width: 600px) {
+body {
+font-size: 0.9em;
+padding: 12px;
+}
+h1 {
+font-size: 1.8em;
+}
+}
+@media print {
+html {
+background-color: white;
+}
+body {
+background-color: transparent;
+color: black;
+font-size: 12pt;
+}
+p, h2, h3 {
+orphans: 3;
+widows: 3;
+}
+h2, h3, h4 {
+page-break-after: avoid;
+}
+}
+p {
+margin: 1em 0;
+}
+a {
+color: #1a1a1a;
+}
+a:visited {
+color: #1a1a1a;
+}
+img {
+max-width: 100%;
+}
+svg {
+height: auto;
+max-width: 100%;
+}
+h1, h2, h3, h4, h5, h6 {
+margin-top: 1.4em;
+}
+h5, h6 {
+font-size: 1em;
+font-style: italic;
+}
+h6 {
+font-weight: normal;
+}
+ol, ul {
+padding-left: 1.7em;
+margin-top: 1em;
+}
+li > ol, li > ul {
+margin-top: 0;
+}
+blockquote {
+margin: 1em 0 1em 1.7em;
+padding-left: 1em;
+border-left: 2px solid #e6e6e6;
+color: #606060;
+}
+code {
+font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+font-size: 85%;
+margin: 0;
+hyphens: manual;
+}
+pre {
+margin: 1em 0;
+overflow: auto;
+}
+pre code {
+padding: 0;
+overflow: visible;
+overflow-wrap: normal;
+}
+.sourceCode {
+background-color: transparent;
+overflow: visible;
+}
+hr {
+border: none;
+border-top: 1px solid #1a1a1a;
+height: 1px;
+margin: 1em 0;
+}
+table {
+margin: 1em 0;
+border-collapse: collapse;
+width: 100%;
+overflow-x: auto;
+display: block;
+font-variant-numeric: lining-nums tabular-nums;
+}
+table caption {
+margin-bottom: 0.75em;
+}
+tbody {
+margin-top: 0.5em;
+border-top: 1px solid #1a1a1a;
+border-bottom: 1px solid #1a1a1a;
+}
+th {
+border-top: 1px solid #1a1a1a;
+padding: 0.25em 0.5em 0.25em 0.5em;
+}
+td {
+padding: 0.125em 0.5em 0.25em 0.5em;
+}
+header {
+margin-bottom: 4em;
+text-align: center;
+}
+#TOC li {
+list-style: none;
+}
+#TOC ul {
+padding-left: 1.3em;
+}
+#TOC > ul {
+padding-left: 0;
+}
+#TOC a:not(:hover) {
+text-decoration: none;
+}
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+</style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">NOESIS-FAQ</h1>
+</header>
+<h1 id="noesis-faq">Noesis FAQ</h1>
+<p><em>Plain, honest answers to the questions people actually ask. Where
+something isn’t built or isn’t solved, this says so.</em></p>
+<hr />
+<p><strong>Is this just another crypto coin?</strong> No. Most coins
+record <em>who owns what</em> and let an outside market price the coin.
+Noesis records <em>who contributed what value</em> and prices it on the
+chain itself. The point isn’t a token to trade — it’s a way to measure
+and reward useful contribution that no chain has had before.</p>
+<p><strong>How is a contribution’s value actually measured?</strong> By
+what later work builds on it. The chain watches the trail of
+who-built-on-whom and pays you for the real, downstream contribution
+your work generated — split fairly among everyone who genuinely helped.
+Useful work gets built on and earns; dead-end or copied work doesn’t.
+It’s a market revealing value, not a committee or a fixed formula
+assigning it.</p>
+<p><strong>Can’t people just farm points — spam, fake accounts, friends
+upvoting each other?</strong> That’s the central design problem, and one
+rule handles all of it: <em>you’re only paid for genuinely new work that
+others actually build on.</em> - Copies and re-posts earn zero (only new
+contribution counts). - Spamming variations hits a hard ceiling — volume
+can’t pump your score. - A ring of accounts citing each other is just
+value moving in a circle; it produces no <em>real</em> outside work
+building on it, and the chain detects the circulation. - Splitting
+yourself across 100 accounts doesn’t multiply anything — 100 copies of
+one idea is still one idea’s worth. These are demonstrated in our tests.
+The harder, <em>unsolved</em> version — judging subtle real-world
+quality un-gameably at scale — is the open problem (see below).</p>
+<p><strong>What stops rich people from taking over, like in
+proof-of-stake?</strong> Your standing (voting weight) is
+<strong>soulbound</strong> — earned by contribution and impossible to
+sell or buy. You can buy <em>storage</em> on the chain, but you can’t
+buy <em>influence</em>. “You can buy storage; you cannot buy consensus.”
+That single split is what keeps it from collapsing into “whoever has the
+most money wins.”</p>
+<p><strong>How is this different from Bitcoin, Ethereum, Bittensor, or
+Deep Funding?</strong> Bitcoin/Ethereum secure <em>ordering</em> and
+leave value to an outside market. Bittensor and similar reward
+<em>output quality</em>, but by subjective peer/validator agreement (and
+reward tends to follow purchased stake). Deep Funding scores a
+dependency graph but as an off-chain funding split, not consensus.
+Noesis is the one that makes an <em>objectively measured contribution
+value</em> the thing consensus itself is about. (The full whitepaper has
+the detailed comparison.)</p>
+<p><strong>Is there a token? How does the money work?</strong>
+Tokenomics aren’t finalized and this FAQ won’t pretend otherwise. What
+<em>is</em> settled: standing is earned, not premined or sold; the
+builder’s private head-start is burned to zero at launch (verifiable
+on-chain) so everyone starts even; and one unit of standing equals one
+byte of storage you can occupy.</p>
+<p><strong>Is this built, or just an idea?</strong> Both, honestly.
+There’s a working open reference node (in Rust) with hundreds of passing
+tests covering ownership, the pricing rule, novelty, the anti-spam and
+anti-ring defenses, dispute-and-slash, and contribution-weighted
+finality. What’s <em>designed but not yet built</em>: the learned
+value-model trained on real-world outcomes, cross-chain merging, and the
+deploy-time cryptography. We mark built-vs-designed throughout the
+paper.</p>
+<p><strong>What’s the one hard part you haven’t solved?</strong>
+Measuring the real-world value of a contribution un-gameably, when
+there’s no outside market to price it. Bitcoin dodges this by being
+about mere ownership. A value chain can’t dodge it. Our answer is
+<em>not</em> a fixed formula — any published formula gets gamed
+immediately — but a measure that keeps learning and adapting faster than
+attackers can game it, anchored so it can only ever
+<em>under</em>-credit honest work, never forge value. We treat this as
+the load-bearing open problem, not a solved one.</p>
+<p><strong>Does it compete with other chains?</strong> No — it absorbs
+them. Because value is measured on-chain and carried along provenance,
+useful work from any other chain can be imported and re-priced on one
+shared graph without loss. Other projects aren’t rivals to beat; they’re
+the prototypes this was learned from. The offer to every other chain
+isn’t “come compete,” it’s “come join us.”</p>
+<p><strong>Why does this matter beyond one app?</strong> A base layer
+that pays for honesty is inherited by everything built on it. On Noesis,
+honest finance (real liquidity, honest prices) is what earns, and
+manipulation — value moving in a circle — earns nothing. Honesty becomes
+the highest-paying move at every layer, instead of something each app
+has to promise and police on its own.</p>
+<p><strong>Why “Proof of Mind”?</strong> Bitcoin’s proof-of-work proves
+you spent energy. Proof of Mind proves you contributed verified,
+valuable thought. The unit of work is a block of thought; the proof is
+that the thought added measurable value.</p>
+<p><strong>Who’s behind it?</strong> Will Glynn, with an AI research
+collaborator (JARVIS). The collaboration is itself an example of the
+contribution economy the project describes: a human and a machine
+producing attributable, provenance-complete work.</p>
+<hr />
+<p><em>Start here: <a href="NOESIS-FOR-DUMMIES.html">Noesis for normal
+people</a> · <a href="NOESIS-LITEPAPER.html">litepaper</a> · <a href="NOESIS-ONEPAGER.html">one page</a>.</em></p>
+</body>
+</html>

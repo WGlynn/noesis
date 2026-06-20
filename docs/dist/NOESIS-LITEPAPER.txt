@@ -1,0 +1,124 @@
+Noesis Litepaper
+
+Proof of Mind: a value chain for verified contribution
+
+The short version of the full whitepaper — the whole idea, none of the
+heavy math. For builders, partners, and anyone deciding whether to look
+closer.
+
+------------------------------------------------------------------------
+
+The idea in one line
+
+Bitcoin built the missing piece that let a market for trustless
+ownership exist. Noesis builds the missing piece that lets a market for
+contribution exist: a chain where useful thinking is measured, owned,
+traded, and used to secure the network — instead of wasted energy.
+
+The problem
+
+Everyone believes Bitcoin rewards valuable work. It doesn’t. It rewards
+burning electricity — whoever burns the most, wins — and it never asks
+whether anyone created anything worth having. That was the right design
+for what Bitcoin is: a chain about who owns what, with the coin’s value
+set by an outside market.
+
+But it leaves the most important quantity unmeasured: how much each
+participant actually contributed. No chain has measured that, and not
+for lack of trying. A possession chain never has to — the market prices
+its coin for it. A value chain has to do the measuring itself, and that
+is genuinely hard.
+
+The core move
+
+The chain becomes the market it was missing. Instead of asking a
+committee or a fixed formula “what is this contribution worth,” Noesis
+lets the market reveal it the way every market reveals value — through
+what later work actually builds on. Your contribution’s price is the
+real, downstream work that flows back along the trail of
+who-built-on-whom. Useful work gets built on and earns; dead-end work
+doesn’t.
+
+That one quantity — novel realized downstream contribution along
+provenance — is the whole engine. Everything else follows from it.
+
+How it works (plainly)
+
+1.  You contribute a block — an idea, a fix, a piece of work — with its
+    inputs recorded, so how you got there is provable.
+2.  You lock it before revealing it (commit-reveal), so nobody can steal
+    or front-run your authorship.
+3.  It’s priced by the realized downstream flow it generates, split
+    fairly among everyone who genuinely contributed (a cooperative-game
+    rule called the Myerson value — fair credit along the lines of who
+    built on whom).
+4.  That price becomes two things: a soulbound standing (your
+    Proof-of-Mind score — reputation and voting weight you earn and
+    cannot sell), and a transferable state-capacity (storage you can
+    trade like a commodity).
+
+  You can buy storage; you cannot buy consensus.
+
+Why you can’t game it
+
+It’s all one rule — pay only for novel realized downstream contribution
+— wearing four faces:
+
+- Novelty — you can’t be paid twice for the same coverage. Copies and
+  re-posts earn zero.
+- Saturation — a finite outcome can only be built on so much, so
+  flooding the system with variations hits a hard ceiling. Volume can’t
+  pump your score.
+- No fake rings — a collusion ring is just value moving in a circle; it
+  produces no external downstream flow, and the same math that prices
+  the work detects the circulation.
+- A bounded judge — the learned model that helps estimate value can only
+  ever lower a score, never invent one. At worst it under-credits honest
+  work; it can never forge value.
+
+The two big claims
+
+1. It makes cooperation the rational move — by construction. For a
+decade, decentralized systems put cooperation in a norm, a regulator, or
+a vote — all of which can be broken — and every one leaked value through
+a new hole. Noesis puts cooperation into consensus itself: the layer
+where everyone is alike (the unsellable franchise) is shared; the layer
+where they differ (tradable storage) is a market. Cheating isn’t
+punished — it just doesn’t pay.
+
+2. It absorbs the ecosystem instead of competing with it. Because value
+is measured on-chain and conserved along provenance, useful work from
+any other chain can be imported, re-priced by the same rule, and
+credited on one shared graph without loss. A possession chain can’t do
+this — it has no on-chain measure of value to carry across. So rival
+chains don’t have to be beaten; they converge in. To every other chain,
+the offer stops being come compete and becomes come join us.
+
+And it propagates upward: anything built on a base layer that pays for
+honesty inherits it. Honest DeFi stops being a promise an app makes and
+becomes the path of least resistance the chain already rewards.
+
+Consensus, briefly
+
+Validators are weighted by Proof of Mind — earned contribution, not
+money or hardware. Mining and staking still exist, but only as a
+liveness floor: they keep blocks flowing when nobody’s contributing, and
+they earn no standing and can’t touch value-history. Cognition leads;
+compute and capital just keep the lights on.
+
+Honest status
+
+We mark what’s built versus what’s designed. Built and tested in an open
+reference node: ownership, commit-reveal, the synergy pricing, novelty,
+the anti-flood and anti-ring defenses, the bounded judge,
+dispute-and-slash, and Proof-of-Mind-weighted finality. The one hard,
+unsolved piece: teaching the value-measure to judge real-world
+contribution un-gameably at scale. We treat it as the load-bearing open
+problem, not a solved one. The plan isn’t a fixed formula — those get
+gamed the day they’re published — but a measure that keeps learning and
+adapting faster than anyone can game it.
+
+------------------------------------------------------------------------
+
+Easier: Noesis for normal people. Deeper: the full whitepaper (with the
+math and the measured results).

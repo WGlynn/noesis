@@ -1,0 +1,49 @@
+# Noesis FAQ
+
+*Plain, honest answers to the questions people actually ask. Where something isn't built or isn't solved, this says so.*
+
+---
+
+**Is this just another crypto coin?**
+No. Most coins record *who owns what* and let an outside market price the coin. Noesis records *who contributed what value* and prices it on the chain itself. The point isn't a token to trade — it's a way to measure and reward useful contribution that no chain has had before.
+
+**How is a contribution's value actually measured?**
+By what later work builds on it. The chain watches the trail of who-built-on-whom and pays you for the real, downstream contribution your work generated — split fairly among everyone who genuinely helped. Useful work gets built on and earns; dead-end or copied work doesn't. It's a market revealing value, not a committee or a fixed formula assigning it.
+
+**Can't people just farm points — spam, fake accounts, friends upvoting each other?**
+That's the central design problem, and one rule handles all of it: *you're only paid for genuinely new work that others actually build on.*
+- Copies and re-posts earn zero (only new contribution counts).
+- Spamming variations hits a hard ceiling — volume can't pump your score.
+- A ring of accounts citing each other is just value moving in a circle; it produces no *real* outside work building on it, and the chain detects the circulation.
+- Splitting yourself across 100 accounts doesn't multiply anything — 100 copies of one idea is still one idea's worth.
+These are demonstrated in our tests. The harder, *unsolved* version — judging subtle real-world quality un-gameably at scale — is the open problem (see below).
+
+**What stops rich people from taking over, like in proof-of-stake?**
+Your standing (voting weight) is **soulbound** — earned by contribution and impossible to sell or buy. You can buy *storage* on the chain, but you can't buy *influence*. "You can buy storage; you cannot buy consensus." That single split is what keeps it from collapsing into "whoever has the most money wins."
+
+**How is this different from Bitcoin, Ethereum, Bittensor, or Deep Funding?**
+Bitcoin/Ethereum secure *ordering* and leave value to an outside market. Bittensor and similar reward *output quality*, but by subjective peer/validator agreement (and reward tends to follow purchased stake). Deep Funding scores a dependency graph but as an off-chain funding split, not consensus. Noesis is the one that makes an *objectively measured contribution value* the thing consensus itself is about. (The full whitepaper has the detailed comparison.)
+
+**Is there a token? How does the money work?**
+Tokenomics aren't finalized and this FAQ won't pretend otherwise. What *is* settled: standing is earned, not premined or sold; the builder's private head-start is burned to zero at launch (verifiable on-chain) so everyone starts even; and one unit of standing equals one byte of storage you can occupy.
+
+**Is this built, or just an idea?**
+Both, honestly. There's a working open reference node (in Rust) with hundreds of passing tests covering ownership, the pricing rule, novelty, the anti-spam and anti-ring defenses, dispute-and-slash, and contribution-weighted finality. What's *designed but not yet built*: the learned value-model trained on real-world outcomes, cross-chain merging, and the deploy-time cryptography. We mark built-vs-designed throughout the paper.
+
+**What's the one hard part you haven't solved?**
+Measuring the real-world value of a contribution un-gameably, when there's no outside market to price it. Bitcoin dodges this by being about mere ownership. A value chain can't dodge it. Our answer is *not* a fixed formula — any published formula gets gamed immediately — but a measure that keeps learning and adapting faster than attackers can game it, anchored so it can only ever *under*-credit honest work, never forge value. We treat this as the load-bearing open problem, not a solved one.
+
+**Does it compete with other chains?**
+No — it absorbs them. Because value is measured on-chain and carried along provenance, useful work from any other chain can be imported and re-priced on one shared graph without loss. Other projects aren't rivals to beat; they're the prototypes this was learned from. The offer to every other chain isn't "come compete," it's "come join us."
+
+**Why does this matter beyond one app?**
+A base layer that pays for honesty is inherited by everything built on it. On Noesis, honest finance (real liquidity, honest prices) is what earns, and manipulation — value moving in a circle — earns nothing. Honesty becomes the highest-paying move at every layer, instead of something each app has to promise and police on its own.
+
+**Why "Proof of Mind"?**
+Bitcoin's proof-of-work proves you spent energy. Proof of Mind proves you contributed verified, valuable thought. The unit of work is a block of thought; the proof is that the thought added measurable value.
+
+**Who's behind it?**
+Will Glynn, with an AI research collaborator (JARVIS). The collaboration is itself an example of the contribution economy the project describes: a human and a machine producing attributable, provenance-complete work.
+
+---
+*Start here: [Noesis for normal people](NOESIS-FOR-DUMMIES.md) · [litepaper](NOESIS-LITEPAPER.md) · [one page](NOESIS-ONEPAGER.md).*

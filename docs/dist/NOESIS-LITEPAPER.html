@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang xml:lang>
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>NOESIS-LITEPAPER</title>
+  <style>
+
+html {
+color: #1a1a1a;
+background-color: #fdfdfd;
+}
+body {
+margin: 0 auto;
+max-width: 36em;
+padding-left: 50px;
+padding-right: 50px;
+padding-top: 50px;
+padding-bottom: 50px;
+hyphens: auto;
+overflow-wrap: break-word;
+text-rendering: optimizeLegibility;
+font-kerning: normal;
+}
+@media (max-width: 600px) {
+body {
+font-size: 0.9em;
+padding: 12px;
+}
+h1 {
+font-size: 1.8em;
+}
+}
+@media print {
+html {
+background-color: white;
+}
+body {
+background-color: transparent;
+color: black;
+font-size: 12pt;
+}
+p, h2, h3 {
+orphans: 3;
+widows: 3;
+}
+h2, h3, h4 {
+page-break-after: avoid;
+}
+}
+p {
+margin: 1em 0;
+}
+a {
+color: #1a1a1a;
+}
+a:visited {
+color: #1a1a1a;
+}
+img {
+max-width: 100%;
+}
+svg {
+height: auto;
+max-width: 100%;
+}
+h1, h2, h3, h4, h5, h6 {
+margin-top: 1.4em;
+}
+h5, h6 {
+font-size: 1em;
+font-style: italic;
+}
+h6 {
+font-weight: normal;
+}
+ol, ul {
+padding-left: 1.7em;
+margin-top: 1em;
+}
+li > ol, li > ul {
+margin-top: 0;
+}
+blockquote {
+margin: 1em 0 1em 1.7em;
+padding-left: 1em;
+border-left: 2px solid #e6e6e6;
+color: #606060;
+}
+code {
+font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+font-size: 85%;
+margin: 0;
+hyphens: manual;
+}
+pre {
+margin: 1em 0;
+overflow: auto;
+}
+pre code {
+padding: 0;
+overflow: visible;
+overflow-wrap: normal;
+}
+.sourceCode {
+background-color: transparent;
+overflow: visible;
+}
+hr {
+border: none;
+border-top: 1px solid #1a1a1a;
+height: 1px;
+margin: 1em 0;
+}
+table {
+margin: 1em 0;
+border-collapse: collapse;
+width: 100%;
+overflow-x: auto;
+display: block;
+font-variant-numeric: lining-nums tabular-nums;
+}
+table caption {
+margin-bottom: 0.75em;
+}
+tbody {
+margin-top: 0.5em;
+border-top: 1px solid #1a1a1a;
+border-bottom: 1px solid #1a1a1a;
+}
+th {
+border-top: 1px solid #1a1a1a;
+padding: 0.25em 0.5em 0.25em 0.5em;
+}
+td {
+padding: 0.125em 0.5em 0.25em 0.5em;
+}
+header {
+margin-bottom: 4em;
+text-align: center;
+}
+#TOC li {
+list-style: none;
+}
+#TOC ul {
+padding-left: 1.3em;
+}
+#TOC > ul {
+padding-left: 0;
+}
+#TOC a:not(:hover) {
+text-decoration: none;
+}
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+</style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">NOESIS-LITEPAPER</h1>
+</header>
+<h1 id="noesis-litepaper">Noesis Litepaper</h1>
+<h3 id="proof-of-mind-a-value-chain-for-verified-contribution">Proof of
+Mind: a value chain for verified contribution</h3>
+<p><em>The short version of the full whitepaper — the whole idea, none
+of the heavy math. For builders, partners, and anyone deciding whether
+to look closer.</em></p>
+<hr />
+<h2 id="the-idea-in-one-line">The idea in one line</h2>
+<p>Bitcoin built the missing piece that let a market for
+<strong>trustless ownership</strong> exist. Noesis builds the missing
+piece that lets a market for <strong>contribution</strong> exist: a
+chain where useful thinking is measured, owned, traded, and used to
+secure the network — instead of wasted energy.</p>
+<h2 id="the-problem">The problem</h2>
+<p>Everyone believes Bitcoin rewards valuable work. It doesn’t. It
+rewards burning electricity — whoever burns the most, wins — and it
+never asks whether anyone created anything worth having. That was the
+right design for what Bitcoin is: a chain about <em>who owns what</em>,
+with the coin’s value set by an outside market.</p>
+<p>But it leaves the most important quantity unmeasured: <strong>how
+much each participant actually contributed.</strong> No chain has
+measured that, and not for lack of trying. A possession chain never has
+to — the market prices its coin for it. A value chain has to do the
+measuring itself, and that is genuinely hard.</p>
+<h2 id="the-core-move">The core move</h2>
+<p><strong>The chain becomes the market it was missing.</strong> Instead
+of asking a committee or a fixed formula “what is this contribution
+worth,” Noesis lets the market reveal it the way every market reveals
+value — through <strong>what later work actually builds on.</strong>
+Your contribution’s price is the real, downstream work that flows back
+along the trail of who-built-on-whom. Useful work gets built on and
+earns; dead-end work doesn’t.</p>
+<p>That one quantity — <strong>novel realized downstream contribution
+along provenance</strong> — is the whole engine. Everything else follows
+from it.</p>
+<h2 id="how-it-works-plainly">How it works (plainly)</h2>
+<ol type="1">
+<li><strong>You contribute a block</strong> — an idea, a fix, a piece of
+work — with its inputs recorded, so <em>how</em> you got there is
+provable.</li>
+<li><strong>You lock it before revealing it</strong> (commit-reveal), so
+nobody can steal or front-run your authorship.</li>
+<li><strong>It’s priced</strong> by the realized downstream flow it
+generates, split fairly among everyone who genuinely contributed (a
+cooperative-game rule called the Myerson value — fair credit along the
+lines of who built on whom).</li>
+<li><strong>That price becomes two things:</strong> a <strong>soulbound
+standing</strong> (your Proof-of-Mind score — reputation and voting
+weight you earn and <em>cannot sell</em>), and a <strong>transferable
+state-capacity</strong> (storage you can trade like a commodity).</li>
+</ol>
+<blockquote>
+<p><strong>You can buy storage; you cannot buy consensus.</strong></p>
+</blockquote>
+<h2 id="why-you-cant-game-it">Why you can’t game it</h2>
+<p>It’s all one rule — <em>pay only for novel realized downstream
+contribution</em> — wearing four faces:</p>
+<ul>
+<li><strong>Novelty</strong> — you can’t be paid twice for the same
+coverage. Copies and re-posts earn zero.</li>
+<li><strong>Saturation</strong> — a finite outcome can only be built on
+so much, so flooding the system with variations hits a hard ceiling.
+Volume can’t pump your score.</li>
+<li><strong>No fake rings</strong> — a collusion ring is just value
+moving in a circle; it produces no <em>external</em> downstream flow,
+and the same math that prices the work detects the circulation.</li>
+<li><strong>A bounded judge</strong> — the learned model that helps
+estimate value can only ever <em>lower</em> a score, never invent one.
+At worst it under-credits honest work; it can never forge value.</li>
+</ul>
+<h2 id="the-two-big-claims">The two big claims</h2>
+<p><strong>1. It makes cooperation the rational move — by
+construction.</strong> For a decade, decentralized systems put
+cooperation in a norm, a regulator, or a vote — all of which can be
+broken — and every one leaked value through a new hole. Noesis puts
+cooperation into consensus itself: the layer where everyone is alike
+(the unsellable franchise) is shared; the layer where they differ
+(tradable storage) is a market. Cheating isn’t punished — it just
+doesn’t pay.</p>
+<p><strong>2. It absorbs the ecosystem instead of competing with
+it.</strong> Because value is measured on-chain and conserved along
+provenance, useful work from <em>any</em> other chain can be imported,
+re-priced by the same rule, and credited on one shared graph without
+loss. A possession chain can’t do this — it has no on-chain measure of
+value to carry across. So rival chains don’t have to be beaten; they
+converge in. <strong>To every other chain, the offer stops being
+<em>come compete</em> and becomes <em>come join us</em>.</strong></p>
+<p>And it propagates upward: anything built on a base layer that pays
+for honesty inherits it. Honest DeFi stops being a promise an app makes
+and becomes the path of least resistance the chain already rewards.</p>
+<h2 id="consensus-briefly">Consensus, briefly</h2>
+<p>Validators are weighted by <strong>Proof of Mind</strong> — earned
+contribution, not money or hardware. Mining and staking still exist, but
+only as a <strong>liveness floor</strong>: they keep blocks flowing when
+nobody’s contributing, and they earn no standing and can’t touch
+value-history. Cognition leads; compute and capital just keep the lights
+on.</p>
+<h2 id="honest-status">Honest status</h2>
+<p>We mark what’s built versus what’s designed. <strong>Built and
+tested</strong> in an open reference node: ownership, commit-reveal, the
+synergy pricing, novelty, the anti-flood and anti-ring defenses, the
+bounded judge, dispute-and-slash, and Proof-of-Mind-weighted finality.
+<strong>The one hard, unsolved piece:</strong> teaching the
+value-measure to judge real-world contribution un-gameably at scale. We
+treat it as the load-bearing open problem, not a solved one. The plan
+isn’t a fixed formula — those get gamed the day they’re published — but
+a measure that keeps learning and adapting faster than anyone can game
+it.</p>
+<hr />
+<p><em>Easier: <a href="NOESIS-FOR-DUMMIES.html">Noesis for normal
+people</a>. Deeper: the full whitepaper (with the math and the measured
+results).</em></p>
+</body>
+</html>
