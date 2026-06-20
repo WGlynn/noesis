@@ -25,6 +25,26 @@
    proven economic calibration. Re-tune only on real data. Per [P·augmented-mechanism-design-paper].
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-20 (gg)** — BUILT (pom-roadmap-advance fire): **detection → economic slash WIRED** — the
+  (dd) step-3 the last four ticks named NEXT. `dispute::collusion_slash(cells, manufactured_value) ->
+  Settlement` (node/src/lib.rs, after `apply_slashes`): consumes the (ee) `collusion_residual_by_identity`
+  share map, bounds it with the SAME `bounded_shares` the refutation path uses (`Σ slashes ≤
+  manufactured_value` — restitution never exceeds harm), emits a `Settlement` whose slashed standing is
+  **burned** (a topological alarm has no challenger to bounty, unlike `resolve_refuted`; keeps
+  mint↔sink balanced). Consensus-keyed identity (`type_script.args` from finalized cells, never
+  producer-asserted). Deterministic (canonical identity-sort before bounding). **TESTED** (+2): directed
+  3-cycle → each member burned its 2.0 share, Σ=6.0 when bound slack; bound=3.0 → Σ scaled to exactly
+  3.0 (bound binds); honest DAG → ∅ slashes; end-to-end through `apply_slashes` → ring members 7/8/9
+  lose standing while the honest leaf-builder (id1) stays at 100 (spare-honest-minds). Anti-theater: the
+  honest=∅ vs ring=nonempty contrast IS the control (degenerate all-zero impl fails the ring leg) +
+  break-on-purpose anchor (defeated detector ⇒ ∅ ⇒ ring asserts RED). lib 235→**237**, 0 new clippy
+  (verified no doc-nit in the new region). **PURELY ADDITIVE** — does NOT touch the proven
+  `resolve_refuted`/`_guarded` paths (PCP: lowest blast radius for the slash-path frontier). **HONEST
+  SCOPE / residual 🔬:** standalone settlement; composition with the refutation path is via caller-level
+  `apply_slashes` (saturating, so cross-path can't drive standing below 0). A UNIFIED bound capping an
+  identity's TOTAL cross-path slash at its attributable harm is the next step (touches `resolve_refuted`
+  = higher blast radius, deferred per PCP). **NEXT:** unified cross-path slash bound · `finalizes_pos_pom`
+  (T3 wiring, preserve reference↔on-VM parity) · lock-sig DEPLOY half · learned-v(S) moat.
 - **2026-06-20 (ff)** — BUILT (pom-roadmap-advance fire): mixed-attack composition hardening of (ee).
   A real adversary mixes attack types to confuse a single detector. Test
   `collusion_residual_composes_mixed_directed_and_mutual_attacks`: an identity in BOTH a directed cycle

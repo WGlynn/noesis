@@ -4151,6 +4151,60 @@ pub mod dispute {
         }
     }
 
+    /// Topological-collusion slash: the detection -> economic-penalty bridge for a
+    /// collusion ring (ROADMAP (dd) step-3). The detectors of Section~value return
+    /// SCALARS ("a cycle exists"); [`super::collusion_residual_by_identity`] turns
+    /// those into a per-identity causal share (directed Hodge residual + mutual
+    /// circulation). This converts that share map into a [`Settlement`] the slash
+    /// path consumes, with three load-bearing properties:
+    ///
+    /// 1. **Bounded by the harm** — `Σ slashes ≤ manufactured_value` via the same
+    ///    [`bounded_shares`] used on the refutation path (restitution never exceeds
+    ///    the value the ring manufactured; the bound is the caller's measure of that
+    ///    harm, e.g. the unvested flow the cyclic citations seeded).
+    /// 2. **Consensus-keyed identity** — the share map keys on each cell's
+    ///    `type_script.args`, derived from finalized cells, never producer-asserted
+    ///    ([P.dont-let-attacker-choose-critical-input]).
+    /// 3. **Honest minds spared** — an identity with zero collusion share (an honest
+    ///    leaf-builder, a one-way DAG) is never slashed; the discrimination is the
+    ///    residual's, proven in `collusion_residual_by_identity`'s test.
+    ///
+    /// The slashed standing is **burned** (no payout target: a topological alarm has
+    /// no challenger to bounty, unlike `resolve_refuted`), keeping mint<->sink
+    /// balanced (COHERENCE-LAWS). Deterministic: shares are emitted in canonical
+    /// identity order before bounding, so replicas converge.
+    ///
+    /// HONEST SCOPE / composition: this is a STANDALONE, purely-additive settlement
+    /// — it does not modify `resolve_refuted`/`resolve_refuted_guarded`. It slashes
+    /// the STRUCTURAL harm (cyclic provenance); the refutation path slashes a
+    /// REFUTED endorsement — orthogonal harms. Composition at the caller is via
+    /// `apply_slashes` (saturating, so an identity caught by both can never be driven
+    /// below zero); a unified bound that caps an identity's TOTAL cross-path slash at
+    /// its attributable harm is the next step, deferred (it touches the refutation
+    /// path = higher blast radius).
+    pub fn collusion_slash(cells: &[Cell], manufactured_value: f64) -> Settlement {
+        let mut shares: Vec<(Vec<u8>, f64)> =
+            super::collusion_residual_by_identity(cells).into_iter().collect();
+        shares.sort_by(|a, b| a.0.cmp(&b.0)); // canonical identity order -> deterministic
+        let bounded = bounded_shares(&shares, manufactured_value);
+        let mut slashes = Vec::new();
+        let mut total = 0.0;
+        for (who, share) in &bounded {
+            if *share <= 0.0 {
+                continue;
+            }
+            slashes.push((who.clone(), *share));
+            total += *share;
+        }
+        Settlement {
+            canceled: 0.0,
+            slashes,
+            challenger_payout: 0.0,
+            author_compensation: 0.0,
+            burned: total,
+        }
+    }
+
     // ============ §7 — escalation court + juror accountability ============
     // The judge-cartel structural counter (design doc §7). Round 1 is PoM-only (cheap);
     // its veto is NOT final: an appeal escalates to the AND-composed full-mix tribunal
@@ -4433,6 +4487,84 @@ pub mod dispute {
             assert_eq!(vested_total(&entries, 7, 109, &P), 0.0, "inside W: still unvested");
             assert_eq!(unvested_total(&entries, 7, 109, &P), 12.0);
             assert_eq!(vested_total(&entries, 7, 110, &P), 12.0, "at E+W: vested");
+        }
+
+        #[test]
+        fn collusion_slash_burns_ring_standing_bounded_spares_honest() {
+            // ROADMAP (dd) step-3: the detection->slash bridge. A directed collusion
+            // ring is converted to a bounded Settlement that burns the ring members'
+            // standing; an honest DAG yields no slash; the bound holds. The honest=empty
+            // vs ring=nonempty contrast in one harness is the anti-theater control (the
+            // positive IS the control — a degenerate all-zero impl fails the ring leg).
+            const EPS: f64 = 1e-6;
+            let (k7, k8, k9) = (vec![7u8], vec![8u8], vec![9u8]);
+
+            // Directed 3-cycle 7->8->9->7 (no back-edges): each member residual share 2.0,
+            // raw total 6.0 (matches collusion_residual_by_identity's proven numerics).
+            let ring = vec![
+                cellc(0, 7, 0, None, b"r7"),
+                cellc(1, 8, 1, None, b"r8"),
+                cellc(2, 9, 2, None, b"r9"),
+                cellc(3, 7, 3, Some(1), b"7 cites 8"),
+                cellc(4, 8, 4, Some(2), b"8 cites 9"),
+                cellc(5, 9, 5, Some(0), b"9 cites 7"),
+            ];
+
+            // (a) bound >= raw total: every share lands intact, sum = 6.0, all burned.
+            let s = collusion_slash(&ring, 6.0);
+            let total: f64 = s.slashes.iter().map(|(_, a)| a).sum();
+            assert!((total - 6.0).abs() < EPS, "Σ slashes = raw total when bound is slack (got {total})");
+            assert!((s.burned - total).abs() < EPS, "slashed standing is burned (mint<->sink balance)");
+            assert_eq!(s.challenger_payout, 0.0, "topological alarm has no challenger to bounty");
+            assert_eq!(s.canceled, 0.0, "no target cell is canceled — this is a ring, not a refutation");
+            for k in [&k7, &k8, &k9] {
+                let amt = s.slashes.iter().find(|(w, _)| w == k).map(|(_, a)| *a).unwrap_or(0.0);
+                assert!((amt - 2.0).abs() < EPS, "ring member {k:?} slashed its share 2.0 (got {amt})");
+            }
+
+            // (b) bound < raw total: Σ is scaled DOWN to the manufactured value (restitution
+            // never exceeds the harm) — the load-bearing bound.
+            let capped = collusion_slash(&ring, 3.0);
+            let capped_total: f64 = capped.slashes.iter().map(|(_, a)| a).sum();
+            assert!(capped_total <= 3.0 + EPS, "Σ slashes ≤ manufactured_value (got {capped_total})");
+            assert!((capped_total - 3.0).abs() < EPS, "bound binds: Σ scaled exactly to the harm");
+
+            // (c) honest one-way DAG: NO slash fires (honest minds spared).
+            let honest = vec![
+                cellc(0, 1, 0, None, b"root work alpha"),
+                cellc(1, 2, 1, Some(0), b"builds on root beta"),
+                cellc(2, 3, 2, Some(1), b"builds further gamma"),
+            ];
+            let hs = collusion_slash(&honest, 6.0);
+            assert!(hs.slashes.is_empty(), "an honest DAG must produce zero collusion slashes");
+            assert_eq!(hs.burned, 0.0, "nothing burned when nothing colluded");
+        }
+
+        #[test]
+        fn collusion_slash_applies_to_standing_and_spares_the_honest_builder() {
+            // End-to-end through apply_slashes: a mixed graph (directed ring + one honest
+            // contributor building once on the ring's root). The ring members lose standing;
+            // the honest builder's standing is untouched — the spare-honest-minds property
+            // that lets the slash target the ring without collateral damage.
+            let ring_plus_honest = vec![
+                cellc(0, 7, 0, None, b"r7"),
+                cellc(1, 8, 1, None, b"r8"),
+                cellc(2, 9, 2, None, b"r9"),
+                cellc(3, 7, 3, Some(1), b"7 cites 8"),
+                cellc(4, 8, 4, Some(2), b"8 cites 9"),
+                cellc(5, 9, 5, Some(0), b"9 cites 7"),
+                cellc(6, 1, 6, Some(0), b"honest 1 builds on 7 root once"),
+            ];
+            let mut standing = standing_of(&[(1, 100), (7, 100), (8, 100), (9, 100)]);
+            let s = collusion_slash(&ring_plus_honest, 100.0);
+            apply_slashes(&mut standing, &s.slashes);
+            assert_eq!(standing[&vec![1u8]], 100, "honest builder's standing untouched");
+            assert!(standing[&vec![7u8]] < 100, "ring member 7 lost standing");
+            assert!(standing[&vec![8u8]] < 100, "ring member 8 lost standing");
+            assert!(standing[&vec![9u8]] < 100, "ring member 9 lost standing");
+            // break-on-purpose anchor: were collusion_residual_by_identity to return ∅ (the
+            // detector defeated), s.slashes would be empty and all four would stay at 100 —
+            // the ring assertions would go RED. The slash bites only because detection does.
         }
 
         #[test]
