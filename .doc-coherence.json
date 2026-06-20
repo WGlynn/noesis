@@ -1,5 +1,5 @@
 {
-  "reconciled_code_hash": "53580d06df508ec66f791c17e3d5968b82f33d9e3d3255ea44f416f32ea98e55",
+  "reconciled_code_hash": "d5789951819df6f9abb7c3a0dfd1ace3b9822a4151e3ecdff0af5d0cf5d468e9",
   "docs": [
     "CONTRIBUTING.md",
     "README.md",
@@ -16,8 +16,13 @@
     "docs/CRYPTOECONOMICS.md",
     "docs/DISPUTE-SLASHING.md",
     "docs/INDEX-DEP-CODEHASH-BINDING.md",
+    "docs/NOESIS-FAQ.md",
+    "docs/NOESIS-FOR-DUMMIES.md",
+    "docs/NOESIS-LITEPAPER.md",
+    "docs/NOESIS-ONEPAGER.md",
     "docs/ON-VM-FINALIZATION.md",
     "docs/OUTCOME-EVALUATOR.md",
+    "docs/PAPERS.md",
     "docs/POM-CONSENSUS.md",
     "docs/SECURITY-AUDIT-attacker-choosable-inputs.md",
     "docs/T7-CROSS-CELL-SIMILARITY.md",
@@ -27,7 +32,7 @@
     "node/README.md"
   ],
   "code_file_hashes": {
-    "node/src/lib.rs": "6c34b02e42cffcad0281176500926f3ee22c5e087e9c49f199e60be56789a404",
+    "node/src/lib.rs": "4a80376d0e591576c4fd93201e22ce5b8015a5eaabbcb6fbf208bff0cbe01448",
     "node/src/runtime.rs": "6241bf6332549c02bd4a4dec46f8dddc5a28a2dc8f883b661dbff596ab161b95",
     "node/src/tokens.rs": "6846eb97c3b87fca1d16d5c0221b1f98006246e33d374eeed4407a89a3132d8f",
     "scripts/doc-coherence.py": "488c823b0cddd7d01b70d0316bbbd9d7128a8827e816f5aaa300ab7f6be4f1bf",

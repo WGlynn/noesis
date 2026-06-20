@@ -4,6 +4,35 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-20 (cc)** — BUILT (pom-roadmap-advance fire): **the DIRECTED-k-cycle blind spot named in
+  (aa)/(bb) is now DETECTED — shipped the Helmholtz–Hodge harmonic-energy alarm
+  `attribution_cycle_energy` (node/src/lib.rs), the precise COMPLEMENT of (bb)'s `attribution_circulation`.**
+  (bb)'s circulation `Σ min(flow[i→j], flow[j→i])` only fires on MUTUAL (balanced 2-cycle) collusion; a
+  purely DIRECTED ring (`7 cites 8`, `8 cites 9`, `9 cites 7`, NO back-edges) carries `min=0` on every pair
+  and EVADES it — the exact hole (bb) flagged ("needs the full Helmholtz–Hodge harmonic component"). A
+  directed cycle is a divergence-free flow (citations in = out at every identity) that is NOT a gradient:
+  no honest node-potential `s` (a global "builds-upon" ranking) can satisfy `s_i − s_j = net(i,j)` around a
+  loop. The combinatorial Hodge decomposition splits the net edge-flow `Y` into GRADIENT (`grad s`, fit by
+  the weighted least-squares `L s = b` on the identity-graph Laplacian, solved with a dependency-free
+  conjugate-gradient `solve_psd_cg`) + a divergence-free RESIDUAL spanning the cycle space; the residual
+  energy `‖Y − grad s‖² = ‖Y‖² − b·s` is **provably 0 iff acyclic-consistent** and **= the cycle length k**
+  for a clean directed k-cycle, of ANY length (catches chordless homology a triangle-curl proxy misses).
+  **TESTED** (`attribution_cycle_energy_catches_directed_ring_that_circulation_misses`): honest one-way DAG
+  = **0**; directed 3-cycle = **3** while `attribution_circulation` on the SAME input = **0** (the gap, made
+  explicit); directed chordless 4-cycle = **4** (any-length proof); and the COMPLEMENTARITY killer — the
+  (aa) MUTUAL ring is **circulation 3 / harmonic ~0**, the directed ring is **circulation 0 / harmonic 3** —
+  disjoint regimes, neither alarm redundant, the pair covers both. **Moat-INDEPENDENT** (pure citation
+  topology, no real-label data). **break-on-purpose:** drop the `b·s` gradient projection → honest DAG
+  reports `‖Y‖²=2` not 0 → test RED → the Hodge projection is load-bearing, not theater; reverted.
+  lib 234→**235**, suite 285→**286**, 0 new clippy (located warnings all outside the changed regions),
+  integration green (byzantine 5 / gaming 2 / two_node 3 / ckb_vm_* all pass). **HONEST SCOPE / residual
+  🔬:** this catches NET-circulating cycles; the BALANCED mutual ring is still circulation's job (the two
+  compose). Both are first-order TOPOLOGY alarms — they detect cyclic STRUCTURE, not yet ECONOMIC penalty.
+  **NEXT (highest-leverage, moat-independent):** wire BOTH `attribution_circulation` + `attribution_cycle_energy`
+  into the dispute/slash gate so detection → stake-slash (the (bb) NEXT item (1), now with full cyclic
+  coverage to gate on); then weighted-by-comparison-count harmonic for graded penalties; then the
+  learned-v(S) moat collapses any residual valueless-but-acyclic flow. Also still open: lock-sig DEPLOY half ·
+  on-VM single-use (k) · learned-v(S) moat.
 - **2026-06-19 (bb)** — BUILT (pom-roadmap-advance fire): **the (aa) collusion ring is now DETECTED —
   shipped the moat-independent first-order alarm `attribution_circulation` (node/src/lib.rs).** Executes
   the (aa) entry's named next step. A block whose parent is owned by a DIFFERENT identity is a

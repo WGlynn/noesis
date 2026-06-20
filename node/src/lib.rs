@@ -221,6 +221,119 @@ pub fn attribution_circulation(cells: &[Cell]) -> u64 {
     circ
 }
 
+/// Helmholtz–Hodge HARMONIC energy of the NET cross-identity attribution flow — the structural alarm
+/// for DIRECTED collusion cycles, the precise complement of [`attribution_circulation`].
+///
+/// [`attribution_circulation`] sums `min(flow[i->j], flow[j->i])` and so only fires on MUTUAL (balanced
+/// 2-cycle) collusion, where the NET flow `flow[i->j] - flow[j->i]` cancels. A purely DIRECTED ring
+/// (`7 cites 8`, `8 cites 9`, `9 cites 7`, NO back-edges — ROADMAP (aa)/(bb) residual) carries `min = 0`
+/// on every pair and evades it entirely, yet is exactly as collusive: a citation cycle no honest
+/// provenance order can produce.
+///
+/// A directed cycle is the signature of a flow with ZERO divergence (citations in = citations out at
+/// every node) that is NOT a gradient: no node-potential `s` (an honest global "builds-upon" ranking)
+/// can satisfy `s_i - s_j = net(i,j)` around a cycle, because the differences must sum to 0 around the
+/// loop while the net flows sum to the cycle length. The combinatorial Helmholtz–Hodge decomposition
+/// splits the net edge-flow `Y` into a GRADIENT part (the honest acyclic ranking, `grad s` fit by
+/// weighted least squares `L s = b` on the identity graph Laplacian `L`, divergence `b`) plus a
+/// divergence-free RESIDUAL `Y - grad s` spanning the graph's cycle space. The residual energy
+/// `||Y - grad s||^2 = ||Y||^2 - b·s` is provably 0 iff `Y` is acyclic-consistent, and equals the cycle
+/// length `k` for a clean directed `k`-cycle — of ANY length, so it catches chordless harmonic loops
+/// a triangle-curl proxy would miss. Moat-INDEPENDENT: pure citation topology, no real-label data.
+///
+/// Together the two alarms cover both regimes disjointly: circulation catches the balanced mutual ring
+/// (net = 0), this catches the directed ring (net circulates). Neither alone is sufficient; the pair is.
+pub fn attribution_cycle_energy(cells: &[Cell]) -> f64 {
+    // distinct soulbound identities -> dense index (sorted ⇒ deterministic across replicas)
+    let mut ids: Vec<&[u8]> = cells.iter().map(|c| c.type_script.args.as_slice()).collect();
+    ids.sort_unstable();
+    ids.dedup();
+    let n = ids.len();
+    if n == 0 {
+        return 0.0;
+    }
+    let idx: HashMap<&[u8], usize> = ids.iter().enumerate().map(|(i, &a)| (a, i)).collect();
+    let owner: HashMap<u64, &[u8]> =
+        cells.iter().map(|c| (c.id, c.type_script.args.as_slice())).collect();
+    // directed cross-identity citation counts: (builder_idx, cited_idx) -> count
+    let mut flow: HashMap<(usize, usize), i64> = HashMap::new();
+    for c in cells {
+        if let Some(pid) = c.parent {
+            if let Some(&cited) = owner.get(&pid) {
+                let builder = c.type_script.args.as_slice();
+                if builder != cited {
+                    *flow.entry((idx[builder], idx[cited])).or_insert(0) += 1;
+                }
+            }
+        }
+    }
+    // assemble the graph Laplacian L and divergence b over each unordered pair's NET flow, in a
+    // deterministic pair order so f64 accumulation is replica-identical.
+    let mut pairs: Vec<(usize, usize)> =
+        flow.keys().map(|&(a, b)| if a < b { (a, b) } else { (b, a) }).collect();
+    pairs.sort_unstable();
+    pairs.dedup();
+    let mut l = vec![vec![0.0f64; n]; n];
+    let mut b = vec![0.0f64; n];
+    let mut norm_sq = 0.0f64;
+    for (i, j) in pairs {
+        let fij = *flow.get(&(i, j)).unwrap_or(&0);
+        let fji = *flow.get(&(j, i)).unwrap_or(&0);
+        let y = (fij - fji) as f64; // net flow oriented i->j
+        if y == 0.0 {
+            continue; // balanced pair: no NET flow (circulation's regime, not this one)
+        }
+        l[i][i] += 1.0;
+        l[j][j] += 1.0;
+        l[i][j] -= 1.0;
+        l[j][i] -= 1.0;
+        b[i] += y;
+        b[j] -= y;
+        norm_sq += y * y;
+    }
+    // L s = b is singular-but-consistent (b ⟂ the per-component constant null space); CG from x=0
+    // converges to a range-space solution, and b·s is gauge-invariant, so the energy is well-defined
+    // even when the identity graph is disconnected — no per-component gauge-pin code needed.
+    let s = solve_psd_cg(&l, &b);
+    let proj: f64 = b.iter().zip(&s).map(|(bi, si)| bi * si).sum();
+    (norm_sq - proj).max(0.0)
+}
+
+/// Conjugate-gradient solve of a symmetric positive-SEMIdefinite system `L x = b` with `b` in the range
+/// of `L` (the Hodge divergence is always range-consistent). Starts at `x = 0` so iterates stay in the
+/// range space; converges in ≤ rank(L) steps in exact arithmetic. Lean dense reference solver — no
+/// linear-algebra dependency, sized for the bounded per-window identity set the cycle alarm runs on.
+fn solve_psd_cg(l: &[Vec<f64>], b: &[f64]) -> Vec<f64> {
+    let n = b.len();
+    let mut x = vec![0.0f64; n];
+    let mut r = b.to_vec(); // residual b - L x, with x = 0
+    let mut p = r.clone();
+    let mut rs_old: f64 = r.iter().map(|v| v * v).sum();
+    for _ in 0..(n * 4 + 50) {
+        if rs_old < 1e-20 {
+            break;
+        }
+        let ap: Vec<f64> =
+            l.iter().map(|row| row.iter().zip(&p).map(|(a, x)| a * x).sum()).collect();
+        let denom: f64 = p.iter().zip(&ap).map(|(pi, ai)| pi * ai).sum();
+        if denom.abs() < 1e-20 {
+            break;
+        }
+        let alpha = rs_old / denom;
+        for i in 0..n {
+            x[i] += alpha * p[i];
+            r[i] -= alpha * ap[i];
+        }
+        let rs_new: f64 = r.iter().map(|v| v * v).sum();
+        let beta = rs_new / rs_old;
+        for i in 0..n {
+            p[i] = r[i] + beta * p[i];
+        }
+        rs_old = rs_new;
+    }
+    x
+}
+
 /// SOULBOUND in the cell/UTXO model.
 ///
 /// A cell is transferable by DEFAULT — nothing stops a spend from producing an output
@@ -2157,6 +2270,84 @@ pub mod value {
                 crate::attribution_circulation(&ring_minus_one),
                 2,
                 "removing one back-edge must lower circulation by exactly that mutual pair (3 -> 2)"
+            );
+        }
+
+        #[test]
+        fn attribution_cycle_energy_catches_directed_ring_that_circulation_misses() {
+            // The named (aa)/(bb) residual: a purely DIRECTED collusion cycle (no back-edges) carries
+            // min(flow_ij, flow_ji) = 0 on every pair, so attribution_circulation is BLIND to it. The
+            // Helmholtz–Hodge harmonic energy of the NET flow catches it. The two alarms are complements.
+            const EPS: f64 = 1e-6;
+
+            // HONEST one-way DAG (no cycle): pure gradient ⇒ ZERO harmonic energy (no false positive).
+            let honest = vec![
+                cellc(0, 1, 0, None, b"root work alpha"),
+                cellc(1, 2, 1, Some(0), b"builds on root beta"),
+                cellc(2, 3, 2, Some(1), b"builds further gamma"),
+            ];
+            assert!(
+                crate::attribution_cycle_energy(&honest) < EPS,
+                "an acyclic honest provenance DAG must have ~0 harmonic cycle energy (it is a pure gradient)"
+            );
+
+            // DIRECTED 3-cycle: id7 cites id8's root, id8 cites id9's root, id9 cites id7's root. ONE
+            // direction only — 7->8->9->7. No pair is mutual.
+            let directed = vec![
+                cellc(0, 7, 0, None, b"r7"),
+                cellc(1, 8, 1, None, b"r8"),
+                cellc(2, 9, 2, None, b"r9"),
+                cellc(3, 7, 3, Some(1), b"7 cites 8"),
+                cellc(4, 8, 4, Some(2), b"8 cites 9"),
+                cellc(5, 9, 5, Some(0), b"9 cites 7"),
+            ];
+            // (1) circulation is BLIND (this is the gap being closed):
+            assert_eq!(
+                crate::attribution_circulation(&directed),
+                0,
+                "circulation MUST miss a purely directed ring (no mutual pair) — that is the open hole"
+            );
+            // (2) harmonic energy DETECTS it, = cycle length 3 (the whole net flow is divergence-free):
+            let e_dir = crate::attribution_cycle_energy(&directed);
+            assert!(
+                (e_dir - 3.0).abs() < EPS,
+                "a clean directed 3-cycle must have harmonic energy = 3 (got {e_dir})"
+            );
+
+            // ANY length: a chordless directed 4-cycle ⇒ energy 4 (homology a triangle-curl proxy misses).
+            let directed4 = vec![
+                cellc(0, 1, 0, None, b"a"),
+                cellc(1, 2, 1, None, b"b"),
+                cellc(2, 3, 2, None, b"c"),
+                cellc(3, 4, 3, None, b"d"),
+                cellc(4, 1, 4, Some(1), b"1 cites 2"),
+                cellc(5, 2, 5, Some(2), b"2 cites 3"),
+                cellc(6, 3, 6, Some(3), b"3 cites 4"),
+                cellc(7, 4, 7, Some(0), b"4 cites 1"),
+            ];
+            let e_dir4 = crate::attribution_cycle_energy(&directed4);
+            assert!(
+                (e_dir4 - 4.0).abs() < EPS,
+                "a directed 4-cycle must have harmonic energy = 4, proving any-length detection (got {e_dir4})"
+            );
+
+            // COMPLEMENTARITY (the killer composition): the (aa) MUTUAL ring is loud on circulation but
+            // ~SILENT on harmonic energy (net flow cancels) — disjoint regimes, neither alarm redundant.
+            let mutual = vec![
+                cellc(0, 7, 0, None, b"r7"),
+                cellc(1, 8, 1, None, b"r8"),
+                cellc(2, 9, 2, None, b"r9"),
+                cellc(3, 7, 3, Some(1), b"7 builds on 8"),
+                cellc(4, 7, 4, Some(2), b"7 builds on 9"),
+                cellc(5, 8, 5, Some(0), b"8 builds on 7"),
+                cellc(6, 8, 6, Some(2), b"8 builds on 9"),
+                cellc(7, 9, 7, Some(0), b"9 builds on 7"),
+                cellc(8, 9, 8, Some(1), b"9 builds on 8"),
+            ];
+            assert_eq!(crate::attribution_circulation(&mutual), 3, "mutual ring: circulation loud (=3)");
+            assert!(
+                crate::attribution_cycle_energy(&mutual) < EPS,
+                "mutual ring: harmonic energy ~0 (balanced net) — circulation's regime, not this one"
             );
         }
 
