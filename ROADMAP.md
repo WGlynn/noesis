@@ -25,6 +25,23 @@
    proven economic calibration. Re-tune only on real data. Per [P·augmented-mechanism-design-paper].
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-20 (hh)** — BUILT (pom-roadmap-advance fire): **the (gg) slash is griefing-resistant — it
+  cannot be weaponized to frame an honest identity.** RSAW on the new mechanism: a slash gate is itself
+  an attack surface (can an adversary slash an honest victim?). To slash V the attacker must push V's
+  `collusion_residual_by_identity` share > 0; but shares are built from `builder→cited` edges where
+  builder = the cell's AUTHOR (`type_script.args`). An attacker can author cells that CITE V (inbound V
+  edges, attacker-controlled), but a directed cycle OR a mutual pair THROUGH V needs a V-AUTHORED
+  outbound edge — which only V creates. Inbound-only edges are a pure GRADIENT (Hodge-absorbed ⇒ residual
+  0), so an honest V who never builds on the ring stays at share 0 and is never slashed, however heavily
+  the ring cites V. **TESTED** (`collusion_slash_cannot_be_weaponized_to_frame_an_honest_identity`): a
+  directed ring 7→8→9→7 where all three ALSO cite V's root → V's share ~0 (< ε) while 7/8/9 each carry
+  share > 0; end-to-end through `apply_slashes`, V's standing stays 100 while the ring is slashed.
+  Framing is structurally impossible at the attribution layer. lib 237→**238**, 0 new clippy. PURELY
+  ADDITIVE (a pin test; no production change). **HONEST SCOPE:** holds GIVEN authorship is bound (an
+  attacker cannot author a cell claiming to be V) — that is the lock-sig/existence layer; a forged
+  V-authored outbound edge pre-deploy is the orthogonal gap already tracked there, not a hole here.
+  **NEXT:** unified cross-path slash bound (touches `resolve_refuted` = higher blast radius, fresh) ·
+  `finalizes_pos_pom` (T3 wiring, preserve reference↔on-VM parity) · lock-sig DEPLOY · learned-v(S) moat.
 - **2026-06-20 (gg)** — BUILT (pom-roadmap-advance fire): **detection → economic slash WIRED** — the
   (dd) step-3 the last four ticks named NEXT. `dispute::collusion_slash(cells, manufactured_value) ->
   Settlement` (node/src/lib.rs, after `apply_slashes`): consumes the (ee) `collusion_residual_by_identity`

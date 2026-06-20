@@ -4568,6 +4568,60 @@ pub mod dispute {
         }
 
         #[test]
+        fn collusion_slash_cannot_be_weaponized_to_frame_an_honest_identity() {
+            // ADVERSARIAL (RSAW on the (gg) slash): now that a slash mechanism exists, can an
+            // attacker WEAPONIZE it to grief an honest victim? To slash V, the attacker must push
+            // V's collusion share > 0. But the share is built from edges `builder->cited` where
+            // builder = the cell's AUTHOR (type_script.args). An attacker can author cells that
+            // CITE V (inbound V edges, attacker-controlled), but a directed cycle OR a mutual pair
+            // through V needs a V-AUTHORED outbound edge (V builds on the attacker) — which only V
+            // creates. Inbound-only edges are a pure GRADIENT (Hodge-absorbed -> residual 0), so an
+            // honest V who never builds on the ring stays at share 0 and is never slashed, no matter
+            // how heavily the ring cites V. Framing is structurally impossible at the attribution
+            // layer (given authorship is bound — the lock-sig/existence concern, tracked separately).
+            const EPS: f64 = 1e-6;
+            let v = vec![1u8];
+            let (k7, k8, k9) = (vec![7u8], vec![8u8], vec![9u8]);
+
+            // Honest victim V (id1) authors ONE root and nothing else. Attackers 7/8/9 form a
+            // directed ring 7->8->9->7 AND every attacker also cites V's root (inbound to V) to try
+            // to drag V into the cyclic structure.
+            let attack = vec![
+                cellc(0, 1, 0, None, b"honest victim root - V never builds on anyone"),
+                cellc(1, 7, 1, None, b"r7"),
+                cellc(2, 8, 2, None, b"r8"),
+                cellc(3, 9, 3, None, b"r9"),
+                cellc(4, 7, 4, Some(2), b"7 cites 8 (ring)"),
+                cellc(5, 8, 5, Some(3), b"8 cites 9 (ring)"),
+                cellc(6, 9, 6, Some(1), b"9 cites 7 (ring)"),
+                cellc(7, 7, 7, Some(0), b"7 cites V (inbound framing edge)"),
+                cellc(8, 8, 8, Some(0), b"8 cites V (inbound framing edge)"),
+                cellc(9, 9, 9, Some(0), b"9 cites V (inbound framing edge)"),
+            ];
+            let shares = crate::collusion_residual_by_identity(&attack);
+            // V's share is ~0: its only edges are inbound (gradient), not cyclic.
+            assert!(
+                *shares.get(&v).unwrap_or(&0.0) < EPS,
+                "honest victim must carry ~0 collusion share despite being cited by the whole ring (got {:?})",
+                shares.get(&v)
+            );
+            // The ring members ARE caught (the framing attempt does not weaken real detection).
+            for k in [&k7, &k8, &k9] {
+                assert!(*shares.get(k).unwrap_or(&0.0) > EPS, "ring member {k:?} still carries collusion share");
+            }
+
+            // End-to-end: the slash lands on the ring, never on V.
+            let mut standing = standing_of(&[(1, 100), (7, 100), (8, 100), (9, 100)]);
+            let s = collusion_slash(&attack, 100.0);
+            apply_slashes(&mut standing, &s.slashes);
+            assert_eq!(standing[&v], 100, "framing failed: honest victim's standing is untouched");
+            assert!(standing[&k7] < 100 && standing[&k8] < 100 && standing[&k9] < 100, "the ring is still slashed");
+            // Honest-scope note: this holds GIVEN authorship is bound (an attacker cannot author a
+            // cell claiming to be V). That binding is the lock-sig/existence layer; pre-deploy a
+            // forged V-authored outbound edge is the orthogonal gap already tracked there, not here.
+        }
+
+        #[test]
         fn refutation_inside_window_cancels_unvested_only() {
             // §6.2: a refutation cancels the unvested entries; already-vested value is
             // untouchable (finality has a price; W bounds the exposure).
