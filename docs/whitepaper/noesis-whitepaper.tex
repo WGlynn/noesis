@@ -33,17 +33,23 @@
 itself an instance of the contribution economy this paper specifies: a human and a machine
 producing provenance-complete, attributable work.}\\
 \texttt{noesis}}
-\date{Version 2.2 \quad June 2026}
+\date{Version 2.4 \quad June 2026}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
 \noindent
-Bitcoin rewards exactly one thing: burning electricity. Not good work. Not useful work. Just
-electricity. Whoever burns the most, wins. It never asks whether you created anything worth having.
-This paper specifies a chain that does, and the claim is larger than a better proof of work: measuring
-contribution on-chain unlocks two things no possession chain like Bitcoin can reach.
+Bitcoin proved that strangers can agree on who owns what, with no one in charge. That was the mastery
+of a new fire: the first control of a force no one had governed before, and the ground every chain
+after it stands on. What it really did was bring into being a market that had no medium to exist in
+before, the market for trustless ownership. This is what cryptoeconomics does: it mints the medium a
+market was missing, and the market appears. Bitcoin gave possession its medium and left the coin's
+value to an outside market, which was the right design for what it was. This paper mints the next
+medium, for the one market still without one, contribution itself: it measures the value of a
+contribution on-chain and makes that measurement the object consensus is about, not who holds the coin
+but how much each participant actually contributed. The claim is larger than a better proof of work,
+because measuring contribution endogenously unlocks two things a possession chain cannot reach.
 
 \smallskip\noindent
 The first is \textbf{cooperative economics by construction}. For a decade, decentralized systems
@@ -58,18 +64,18 @@ promised to play fair.
 \smallskip\noindent
 The second is \textbf{convergence instead of competition}. Because value is measured on-chain and
 conserved along provenance, a contribution from any other chain can be imported, re-scored by the same
-value function, and credited on one canonical graph without loss. A possession chain cannot do this;
-its value is priced off-chain, so there is nothing to carry across a merge, and Bitcoin has no organ
-for valuing another chain's work. A value chain has exactly that organ. So rival useful-work chains
-need not be beaten; they converge in by reverse fork, and the standards war over which chain wins
-dissolves into all of them, on one attribution graph. To every other chain, the offer stops being
-\emph{come compete} and becomes \emph{come join us}.
+value function, and credited on one canonical graph without loss. A possession chain cannot carry value
+across a merge, because its value is priced off-chain; Bitcoin had no organ for valuing another chain's
+work, and did not need one. A value chain has that organ. So the chains that came before are not
+competitors to displace but the prototypes this design was learned from, and the question of which
+chain wins becomes all of them, on one attribution graph. To every chain that came before, the offer is
+not \emph{come compete}; it is \emph{come join us}.
 
 \smallskip\noindent
 The mechanism underneath both is \emph{Proof of Mind} (PoM): value \emph{created} as units of
 contribution, \emph{measured} by a cooperative-game value (the Myerson value over a provenance graph),
-\emph{owned and transferred} like a UTXO, and used to \emph{secure consensus}, in place of a proof of
-wasted energy. The one hard problem is measuring what a contribution is really worth when no market
+\emph{owned and transferred} like a UTXO, and used to \emph{secure consensus}, with verified
+contribution in place of expended energy. The one hard problem is measuring what a contribution is really worth when no market
 prices it. Any fixed formula is gamed the moment it is public, so the answer is not a fixed formula but
 augmented mechanism design: lock a few rules that can never be broken, and let the measure adapt and
 grow faster than anyone can game it. That room to grow is what makes the measure un-gameable, and it is
@@ -84,11 +90,13 @@ feeding the value-model real outcomes at scale is the work that remains.
 
 \section{Introduction: the value chain Bitcoin is mistaken for}
 
-Proof-of-work secures \emph{order}, not \emph{value}. A miner proves it burned energy. The network
-agrees on an order for the transactions. What the coin is worth is decided somewhere else, by a market
-the chain never sees. Nowhere does the chain record \emph{who created what value}. The common belief
-that miners earn value by doing work is a category error: the work is arbitrary, and the value comes
-from outside.
+Proof of work was the first time a network agreed, with no one in charge, on a shared record of who
+owns what. Everything in this paper is built on that achievement. It secured \emph{order}: a miner
+expends energy, the network agrees on a sequence, and the worth of the coin is settled elsewhere, by a
+market the chain never sees. What it does not record is \emph{who created what value}, and it did not
+need to. This is not a flaw to correct but a stage to build on. Mastering fire did not require
+understanding combustion, and it was still the step without which there are no engines and no rockets.
+Bitcoin is the mastery of agreement over possession; what comes next is agreement over contribution.
 
 A real value chain would record the contribution itself: each unit of value, measured by what it
 added, tied to whoever made it, transferable, and counted toward consensus. Chains like this are rare,
@@ -826,8 +834,8 @@ of an application to a property of consensus itself.
 We have specified a chain on which value is created as contribution, measured endogenously by a
 synergy-aware cooperative value over a provenance graph, owned and transferred like a UTXO, and used to
 secure consensus through Proof of Mind. The design replaces the inferences that make decentralized
-trust intractable, ``is this a mind worth trusting,'' with proofs anyone can recompute, and it replaces
-proof of wasted energy with proof of verified thought. The honest center of the system is a single
+trust intractable, ``is this a mind worth trusting,'' with proofs anyone can recompute, and it gives
+contribution the medium it never had, as Bitcoin gave possession one. The honest center of the system is a single
 hard problem, un-gameable value measurement, and the architecture is built so that the learned
 component charged with it can only ever deny value, never mint it, while a separate certificate reports
 when the value can be trusted at all. What remains is to feed that evaluator real outcomes at scale.
