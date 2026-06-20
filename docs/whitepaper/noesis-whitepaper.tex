@@ -2,7 +2,7 @@
 % Foundational whitepaper. Draft 1.0, June 2026. CONFIDENTIAL pre-release.
 \documentclass[11pt]{article}
 
-\usepackage[a4paper,margin=1in]{geometry}
+\usepackage[a4paper,margin=0.8in]{geometry}
 \usepackage{amsmath,amssymb,amsthm}
 \usepackage{booktabs}
 \usepackage{microtype}
@@ -33,7 +33,7 @@
 itself an instance of the contribution economy this paper specifies: a human and a machine
 producing provenance-complete, attributable work.}\\
 \texttt{noesis}}
-\date{Version 1.4 \quad June 2026}
+\date{Version 1.5 \quad June 2026}
 
 \begin{document}
 \maketitle
@@ -44,50 +44,51 @@ You optimize for what you measure, and a blockchain measures the wrong thing. It
 holds the coin, and secures that record by burning energy on work decoupled from any output. The one
 quantity it never measures is the one that matters: the value each participant actually contributed.
 Value has no true price independent of the agents who trade, so measuring it takes a mechanism to
-elicit contribution honestly, an organ Bitcoin does not have, which is why valuation is exported to
-an external market it never observes and the gap fills with extraction. This paper specifies the
-missing organ: a chain on which value is \emph{created} as units of contribution,
-\emph{measured endogenously} by a cooperative-game value function over real outcomes, \emph{owned and
-transferred} in the manner of unspent transaction outputs, and used to \emph{secure consensus}, by
-\emph{Proof of Mind} (PoM): a proof of verified, synergy-weighted mental contribution in place of a
-proof of wasted energy. We give the architecture (provenance-complete blocks, Bitcoin-shaped
-ownership, a synergy value aggregated by the Myerson value over a provenance graph, elicited by a
-learned reward model and estimated by permutation sampling), the consensus rule (PoM-weighted, with a
-participation-aware finalization basis and a coalitional stability constraint), and the mapping from
-Theory of Mind to Proof of Mind that makes a decentralized network of minds tractable. Because value is measured on-chain and conserved along provenance, the chain is also
-forwards-compatible: rival useful-work chains can converge into one attribution graph rather than
-compete for adoption. We are explicit about the one hard problem a value chain cannot sidestep,
-measuring real value across the blockchain--reality airgap with no external market to price it; we treat
-it as the load-bearing open problem, bounded by augmented mechanism design rather than claimed solved.
-Put simply: the chain pays you only for verified, non-duplicate contribution, measures how much your
-work actually mattered by how everything else builds on it, and lets that earned standing, not
-bought stake, secure the network. The mechanisms reported here are implemented and tested in an
-open reference node; we mark throughout what is demonstrated and what is designed.
+elicit contribution honestly, an organ Bitcoin lacks, which is why it exports valuation to an external
+market it never observes and the gap fills with extraction. This paper specifies the missing organ: a
+chain on which value is \emph{created} as units of contribution, \emph{measured endogenously} by a
+cooperative-game value function over real outcomes, \emph{owned and transferred} like unspent
+transaction outputs, and used to \emph{secure consensus}, by \emph{Proof of Mind} (PoM): a proof of
+verified, synergy-weighted mental contribution in place of a proof of wasted energy. We give the
+architecture (provenance-complete blocks, Bitcoin-shaped ownership, a synergy value aggregated by the
+Myerson value over a provenance graph, elicited by a learned reward model and estimated by permutation
+sampling), the consensus rule (PoM-weighted, with a participation-aware finalization basis and a
+coalitional stability constraint), and the mapping from Theory of Mind to Proof of Mind that makes a
+decentralized network of minds tractable. Because value is measured on-chain and conserved along
+provenance, the chain is also forwards-compatible: rival useful-work chains can converge into one
+attribution graph rather than compete for adoption. We are explicit about the one hard problem a value
+chain cannot sidestep, measuring real value across the blockchain-reality airgap with no external
+market to price it; we treat it as the load-bearing open problem, bounded by augmented mechanism
+design rather than claimed solved. The chain pays you only for verified, non-duplicate contribution,
+measures how much your work mattered by how everything else builds on it, and lets that earned
+standing, not bought stake, secure the network. The mechanisms reported here are implemented and
+tested in an open reference node; we mark throughout what is demonstrated and what is designed.
 \end{abstract}
 
 \section{Introduction: the value chain Bitcoin is mistaken for}
 
-Proof-of-work secures \emph{order}, not \emph{value}. A miner proves it expended energy; the network
-agrees on a transaction ordering; the coin's worth is set off-chain by a market. Nowhere does the
-chain record \emph{who contributed what value}. The popular intuition, that miners do work and earn
-value in proportion to it, is a category error: the work is arbitrary, and the value is exogenous.
+Proof-of-work secures \emph{order}, not \emph{value}. A miner proves it burned energy. The network
+agrees on an order for the transactions. What the coin is worth is decided somewhere else, by a market
+the chain never sees. Nowhere does the chain record \emph{who created what value}. The common belief
+that miners earn value by doing work is a category error: the work is arbitrary, and the value comes
+from outside.
 
-A genuine value chain would instead record contribution itself. Each unit of value created, measured
-by what it actually added, attributed to its creator, transferable, and load-bearing for consensus.
-The reason such a chain is rare is not ideology but difficulty. A possession chain never has to
-\emph{measure} value, because the market does; a value chain must. The reason this is hard has a name:
-the gap between what a chain can verify and what is true in the world, the \emph{blockchain--reality
-airgap}. Bitcoin sidesteps the airgap by outsourcing valuation to an external market; a value chain has
-to bridge it, and bridging it objectively and un-gameably is the part this paper takes seriously. The
-same airgap recurs at every scale of the design: between one mind and another (whom to trust), and
-between this chain and the chains it would merge (Sections~\ref{sec:value} and after).
+A real value chain would record the contribution itself: each unit of value, measured by what it
+added, tied to whoever made it, transferable, and counted toward consensus. Chains like this are rare,
+and not because of ideology. They are hard to build. A possession chain never has to \emph{measure}
+value; the market does that for it. A value chain has to. The hard part has a name: the gap between
+what a chain can check and what is actually true in the world, the \emph{blockchain--reality airgap}.
+Bitcoin steps around it by letting a market price the coin. A value chain has to cross it, honestly and
+without being gamed. That is the problem this paper takes seriously. The same gap shows up everywhere
+in the design: between one mind and another (whom to trust), and between this chain and the chains it
+could absorb (Sections~\ref{sec:value} and after).
 
-Proof of Mind is our answer. Its lineage is a single line of descent: proof-of-work, then
-proof-of-\emph{useful}-work (information as the work --- value measured by the signal a contribution
-carries, not the energy it burns), then \textbf{proof of mind}, a proof of
-verified, synergy-weighted contribution, as the apex. The unit of work is a block of thought; the
-proof is that the thought contributed measurable value. Figure~\ref{fig:pipeline} shows how one unit
-of contribution becomes both consensus weight and tradable state.
+Proof of Mind is the answer. It sits at the end of one line of descent: proof-of-work, then
+proof-of-\emph{useful}-work (value measured by the signal a contribution carries, not the energy it
+burns), then \textbf{proof of mind}, a proof of verified, synergy-weighted contribution. The unit of
+work is a block of thought. The proof is that the thought added measurable value.
+Figure~\ref{fig:pipeline} shows how one unit of contribution becomes both consensus weight and
+tradable state.
 
 \begin{figure}[h]
 \centering
@@ -123,16 +124,16 @@ state-capacity (a tradable commodity). You can buy storage; you cannot buy conse
 A block is the unit a participant produces,
 $b = \{\,\mathrm{id},\ \mathrm{parent},\ t,\ \mathrm{inputs},\ \mathrm{output},\ h\,\}$.
 Inputs are retained so that \emph{how} the output came about is provable and reproducible: provenance,
-not merely possession. Authorship is made un-front-runnable by \textbf{commit--reveal}. A producer
-publishes a commitment
+not merely possession. \textbf{Commit--reveal} makes authorship un-front-runnable. A producer publishes
+a commitment
 \begin{equation}
 c \;=\; H(b \,\|\, r)
 \end{equation}
-with a signature and timestamp \emph{before} revealing the content $b$ and the secret $r$. This binds
-authorship and ordering before disclosure, the same mechanism a fair batch exchange uses to eliminate
-front-running. Committing and then failing to reveal valid content is slashable. Crucially, the
-commit order is not only an anti-front-running device: it supplies the canonical ordering that makes
-the value rule of Section~\ref{sec:value} strategyproof.
+with a signature and timestamp \emph{before} revealing the content $b$ and the secret $r$, binding
+authorship and ordering before disclosure, the same mechanism a fair batch exchange uses against
+front-running. Committing and then failing to reveal valid content is slashable. The commit order is
+not only an anti-front-running device: it supplies the canonical ordering that makes the value rule of
+Section~\ref{sec:value} strategyproof.
 
 \section{Ownership: Bitcoin-shaped, recursive for co-authorship}
 
@@ -148,8 +149,8 @@ the prior attestation, and the new owner must re-sign.
 
 A real block often has several authors: a prompt, a generation, a correction. Ownership is then a
 \emph{share vector}, a set of (contributor, share) pairs, like a multi-output transaction. The
-within-block shares are computed by the \emph{same value mechanism one level down}: the contributors
-are players in an intra-block coalition game, and their shares are the Myerson value of their marginal
+within-block shares are computed by the \emph{same value mechanism one level down}: contributors are
+players in an intra-block coalition game, and their shares are the Myerson value of their marginal
 contributions to that block's output. The economy is two-level recursive, outcome $\to$ blocks $\to$
 contributors, and PoM sums a contributor's shares across all blocks.
 
@@ -157,8 +158,8 @@ contributors, and PoM sums a contributor's shares across all blocks.
 \label{sec:value}
 
 The central object is a value function $v(S)$ over sets of blocks. Everything else, the score, the
-stake, the consensus weight, is a functional of $v$. The difficulty is that the obvious choices of
-$v$ are either trivial or gameable, and the contribution of this section is a $v$ that is neither.
+stake, the consensus weight, is a functional of $v$. The obvious choices of $v$ are either trivial or
+gameable; this section gives a $v$ that is neither.
 
 \subsection{Elicitation: from pairwise judgment to cardinal value}
 
@@ -173,18 +174,17 @@ function $r_\theta(x)$ of block features, the same objective
 \begin{equation}
 \mathcal{L}(\theta) \;=\; -\!\!\sum_{(i,j)\,:\,i\succ j} \log \sigma\big(r_\theta(x_i) - r_\theta(x_j)\big)
 \end{equation}
-is exactly the loss used to train a reinforcement-learning-from-human-feedback reward model. The
-distilled judgment model and the reward model are the same object, and that object is the production
-evaluator for $v$. In plain terms: from many ``$A$ contributed more than $B$'' judgments we fit a
-single ``how much it added'' score per block, the same way a chess rating or an RLHF reward model is
-learned from pairwise wins.
+is exactly the loss used to train an RLHF reward model. So from many ``$A$ contributed more than $B$''
+judgments we fit one ``how much it added'' score per block, the way a chess rating or an RLHF reward
+model is learned from pairwise wins. The distilled judgment model and the reward model are the same
+object, and that object is the production evaluator for $v$.
 
 \subsection{The additivity trap}
 
 A natural first attempt sets a block's value to its share of pairwise wins. We built this, and it fails
-in an instructive way. If the coalition value is additive,
-$v(S)=\sum_{i\in S} v(\{i\})$, then the Shapley value collapses to the standalone value,
-$\phi_i = v(\{i\})$, and the normalized allocation is just the proportional (Copeland) win-share.
+instructively. If the coalition value is additive, $v(S)=\sum_{i\in S} v(\{i\})$, then the Shapley
+value collapses to the standalone value, $\phi_i = v(\{i\})$, and the normalized allocation is just the
+proportional (Copeland) win-share.
 \begin{claim}
 For an additive game the entire $2^{|N|}$-coalition Shapley computation returns the same numbers as a
 one-line normalization. The cooperative machinery does no work.
@@ -208,31 +208,29 @@ graph $G$ create value:
 \qquad
 v^{G}(S) = \!\!\sum_{T \in S/G}\!\! v(T),
 \end{equation}
-where $S/G$ are the connected components of $S$ in $G$. In plain terms: a block's credit is its
-average added value taken over every order in which the blocks could have been assembled, counting
-only the groupings actually wired together by provenance. Value flows along provenance edges, not over
-arbitrary sets; plain Shapley is the special case of a complete graph. Exact computation is
-exponential, so we estimate $\phi_i$ by Monte-Carlo permutation sampling (Data-Shapley), which is
-Shapley specialized to data valuation. In a working prototype over real blocks, replacing the additive
-game with a submodular coverage outcome-value made the Myerson values diverge materially from the
-proportional baseline, with mean absolute difference $\lVert \phi - \text{Copeland}\rVert_1 \approx
-0.26$: the cooperative value became load-bearing, rewarding pivotal blocks and discounting redundant
-ones.
+where $S/G$ are the connected components of $S$ in $G$. So a block's credit is its average added value
+over every order in which the blocks could have been assembled, counting only the groupings actually
+wired together by provenance. Value flows along provenance edges, not over arbitrary sets; plain
+Shapley is the special case of a complete graph. Exact computation is exponential, so we estimate
+$\phi_i$ by Monte-Carlo permutation sampling (Data-Shapley), Shapley specialized to data valuation. In
+a working prototype over real blocks, replacing the additive game with a submodular coverage
+outcome-value made the Myerson values diverge materially from the proportional baseline, mean absolute
+difference $\lVert \phi - \text{Copeland}\rVert_1 \approx 0.26$: the cooperative value became
+load-bearing, rewarding pivotal blocks and discounting redundant ones.
 
 \subsection{Strategyproofness: temporal novelty}
 
-A value function over content is gameable by repetition unless novelty is priced. We use the commit
-order to do exactly that. The value of a block is its coverage \emph{minus} the coverage already
-claimed by all earlier-committed blocks,
+A value function over content is gameable by repetition unless novelty is priced. The commit order does
+exactly that. A block's value is its coverage \emph{minus} the coverage already claimed by all
+earlier-committed blocks,
 \begin{equation}
 \nu(b) \;=\; \Big|\ \mathrm{cov}(b)\ \setminus\!\!\bigcup_{c\,:\,t_c < t_b}\!\! \mathrm{cov}(c)\ \Big|.
 \end{equation}
-In plain terms: you are paid only for what you add that no earlier block already covered.
-First-to-reveal earns the novelty; later padding or sybil copies earn zero. (This is the second reason
-the commit order of Section~\ref{sec:blocks} is load-bearing: it supplies the canonical order that makes
-the rule strategyproof.) In the reference implementation a sybil ring of five identical-content
-identities banks the coverage of at most one block ($1.06\times$, not $5\times$), and a cross-block
-re-post earns zero.
+You are paid only for what you add that no earlier block already covered. First-to-reveal earns the
+novelty; later padding or sybil copies earn zero. (This is the second reason the commit order of
+Section~\ref{sec:blocks} is load-bearing: it supplies the canonical order that makes the rule
+strategyproof.) In the reference implementation a sybil ring of five identical-content identities banks
+the coverage of at most one block ($1.06\times$, not $5\times$), and a cross-block re-post earns zero.
 
 \subsection{Saturation under coordinated volume}
 
