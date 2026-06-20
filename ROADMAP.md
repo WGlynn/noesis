@@ -25,6 +25,21 @@
    proven economic calibration. Re-tune only on real data. Per [P·augmented-mechanism-design-paper].
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-20 (ee)** — BUILT (pom-roadmap-advance fire): the (dd)-decided per-identity collusion
+  attribution **`collusion_residual_by_identity`** — the WHO+HOW-MUCH bridge from detection → slash.
+  Self-contained (reuses `solve_psd_cg`; leaves the proven `attribution_cycle_energy` UNTOUCHED — a
+  `hodge_attribution` DRY extraction is the noted follow-up). Per unordered pair: DIRECTED = the Hodge
+  residual `|y − (s_i − s_j)|` + MUTUAL = `min(f_ij, f_ji)`, attributed to BOTH incident identities.
+  **TESTED** (`collusion_residual_by_identity_names_ring_members_spares_honest`): directed 3-cycle →
+  each member **2.0**; honest DAG → **0**; mutual K=3 → each member **2.0** (via circulation);
+  **DISCRIMINATION** → an honest contributor building once on the ring's root scores **0** (exact-fit
+  gradient/leaf edge) while ring members stay slashed — the property that lets a slash target the ring
+  and spare honest minds. lib 233→**234**, 0 new clippy. Anti-theater: honest=0 vs ring>0 in one
+  harness (the positive IS the control — a degenerate all-zero/all-equal impl fails one leg). **HONEST
+  SCOPE:** computes slash TARGETS + shares only; the dispute-settlement WIRING (bounded
+  `Σ ≤ manufactured value`, compose-not-double-slash with the refutation settlement, consensus-keyed
+  identity) is the delicate (dd) step-3, deferred to fresh low-context per PCP. **NEXT:** wire into the
+  slash path; `finalizes_pos_pom` (T3); lock-sig DEPLOY; learned-v(S) moat.
 - **2026-06-20 (dd)** — DESIGN tick (no code; PCP-gate — (cc) already shipped a moat BUILD this
   session, and the next step is slash-PATH surgery = the dispute-settlement trust boundary = highest
   blast radius ⇒ decide now, build fresh, per the (k)/(v) discipline). Advances the (cc) NEXT —

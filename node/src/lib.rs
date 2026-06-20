@@ -334,6 +334,85 @@ fn solve_psd_cg(l: &[Vec<f64>], b: &[f64]) -> Vec<f64> {
     x
 }
 
+/// Per-identity collusion attribution — the WHO + HOW-MUCH an economic slash gate consumes, unifying
+/// both detectors ([`attribution_circulation`] + [`attribution_cycle_energy`]) at the identity level
+/// (ROADMAP (dd)). Detection returns a scalar ("collusion exists"); a slash must name each colluding
+/// identity and its causal share. For each unordered identity pair this sums two orthogonal components
+/// and attributes the total to BOTH incident identities:
+///   - DIRECTED (cyclic): the per-edge Helmholtz–Hodge harmonic residual `|y - (s_i - s_j)|`, where `y`
+///     is the net flow and `s` the least-squares gradient potential (the same `r` whose `Σ y·r` is the
+///     [`attribution_cycle_energy`]). Nonzero only on net-circulating directed-cycle edges; an honest
+///     gradient (acyclic) edge fits exactly ⇒ `r = 0`.
+///   - MUTUAL (balanced): `min(flow[i->j], flow[j->i])`, the bidirectional component
+///     [`attribution_circulation`] sums; catches the balanced ring the residual is blind to (`y = 0`).
+///
+/// Honest provenance (acyclic, diverse certification) attributes 0 to every identity — no false slash;
+/// a directed or mutual k-ring attributes equal nonzero shares to its members. The share is the causal
+/// weight a BOUNDED topological-collusion slash spends (`Σ ≤ manufactured value`), keyed on the
+/// consensus-derived soulbound identity. HONEST SCOPE: this computes the slash TARGETS + shares; wiring
+/// them into the dispute settlement path (composing with the existing refutation slash, never
+/// double-slashing) is the deploy-coupled (dd) step, deferred. Returns `type_script.args` -> share.
+pub fn collusion_residual_by_identity(cells: &[Cell]) -> HashMap<Vec<u8>, f64> {
+    let mut share: HashMap<Vec<u8>, f64> = HashMap::new();
+    let mut ids: Vec<&[u8]> = cells.iter().map(|c| c.type_script.args.as_slice()).collect();
+    ids.sort_unstable();
+    ids.dedup();
+    let n = ids.len();
+    if n == 0 {
+        return share;
+    }
+    let idx: HashMap<&[u8], usize> = ids.iter().enumerate().map(|(i, &a)| (a, i)).collect();
+    let owner: HashMap<u64, &[u8]> =
+        cells.iter().map(|c| (c.id, c.type_script.args.as_slice())).collect();
+    let mut flow: HashMap<(usize, usize), i64> = HashMap::new();
+    for c in cells {
+        if let Some(pid) = c.parent {
+            if let Some(&cited) = owner.get(&pid) {
+                let builder = c.type_script.args.as_slice();
+                if builder != cited {
+                    *flow.entry((idx[builder], idx[cited])).or_insert(0) += 1;
+                }
+            }
+        }
+    }
+    let mut pairs: Vec<(usize, usize)> =
+        flow.keys().map(|&(a, b)| if a < b { (a, b) } else { (b, a) }).collect();
+    pairs.sort_unstable();
+    pairs.dedup();
+    // gradient potential s over the NET-flow graph (balanced pairs carry no net edge). Shares the
+    // Hodge build with `attribution_cycle_energy`; a `hodge_attribution` extraction to retire the
+    // duplication is a noted DRY follow-up (kept separate now to leave the proven energy fn untouched).
+    let mut l = vec![vec![0.0f64; n]; n];
+    let mut b = vec![0.0f64; n];
+    for &(i, j) in &pairs {
+        let y = (*flow.get(&(i, j)).unwrap_or(&0) - *flow.get(&(j, i)).unwrap_or(&0)) as f64;
+        if y == 0.0 {
+            continue;
+        }
+        l[i][i] += 1.0;
+        l[j][j] += 1.0;
+        l[i][j] -= 1.0;
+        l[j][i] -= 1.0;
+        b[i] += y;
+        b[j] -= y;
+    }
+    let s = solve_psd_cg(&l, &b);
+    // attribute directed-residual + mutual-circulation per pair to both incident identities
+    for &(i, j) in &pairs {
+        let fij = *flow.get(&(i, j)).unwrap_or(&0);
+        let fji = *flow.get(&(j, i)).unwrap_or(&0);
+        let y = (fij - fji) as f64;
+        let directed = if y == 0.0 { 0.0 } else { (y - (s[i] - s[j])).abs() };
+        let mutual = fij.min(fji) as f64;
+        let contrib = directed + mutual;
+        if contrib > 0.0 {
+            *share.entry(ids[i].to_vec()).or_insert(0.0) += contrib;
+            *share.entry(ids[j].to_vec()).or_insert(0.0) += contrib;
+        }
+    }
+    share
+}
+
 /// SOULBOUND in the cell/UTXO model.
 ///
 /// A cell is transferable by DEFAULT — nothing stops a spend from producing an output
@@ -2349,6 +2428,75 @@ pub mod value {
                 crate::attribution_cycle_energy(&mutual) < EPS,
                 "mutual ring: harmonic energy ~0 (balanced net) — circulation's regime, not this one"
             );
+        }
+
+        #[test]
+        fn collusion_residual_by_identity_names_ring_members_spares_honest() {
+            // (dd) per-identity slash-share: directed-ring members scored via the Hodge residual,
+            // mutual-ring members via circulation, honest provenance scored 0 (no false slash). The
+            // honest=0 vs ring>0 contrast in one harness is the anti-theater control (positive IS the
+            // control): an all-zero or all-equal degenerate impl fails either the ring or the honest leg.
+            const EPS: f64 = 1e-6;
+            let (k7, k8, k9) = (vec![7u8], vec![8u8], vec![9u8]);
+
+            // DIRECTED 3-cycle 7->8->9->7 (no back-edges): each member ~2.0 (|r|=1 on its 2 edges).
+            let directed = vec![
+                cellc(0, 7, 0, None, b"r7"),
+                cellc(1, 8, 1, None, b"r8"),
+                cellc(2, 9, 2, None, b"r9"),
+                cellc(3, 7, 3, Some(1), b"7 cites 8"),
+                cellc(4, 8, 4, Some(2), b"8 cites 9"),
+                cellc(5, 9, 5, Some(0), b"9 cites 7"),
+            ];
+            let d = crate::collusion_residual_by_identity(&directed);
+            for k in [&k7, &k8, &k9] {
+                let v = *d.get(k).unwrap_or(&0.0);
+                assert!((v - 2.0).abs() < EPS, "directed-ring member {k:?} share = {v} (expect 2.0)");
+            }
+
+            // HONEST one-way DAG: zero share for every identity (no slash).
+            let honest = vec![
+                cellc(0, 1, 0, None, b"root work alpha"),
+                cellc(1, 2, 1, Some(0), b"builds on root beta"),
+                cellc(2, 3, 2, Some(1), b"builds further gamma"),
+            ];
+            for v in crate::collusion_residual_by_identity(&honest).values() {
+                assert!(*v < EPS, "honest provenance must attribute ~0 collusion share (got {v})");
+            }
+
+            // MUTUAL ring K=3: each member ~2.0 via circulation (net cancels, residual blind).
+            let mutual = vec![
+                cellc(0, 7, 0, None, b"r7"),
+                cellc(1, 8, 1, None, b"r8"),
+                cellc(2, 9, 2, None, b"r9"),
+                cellc(3, 7, 3, Some(1), b"7 builds on 8"),
+                cellc(4, 7, 4, Some(2), b"7 builds on 9"),
+                cellc(5, 8, 5, Some(0), b"8 builds on 7"),
+                cellc(6, 8, 6, Some(2), b"8 builds on 9"),
+                cellc(7, 9, 7, Some(0), b"9 builds on 7"),
+                cellc(8, 9, 8, Some(1), b"9 builds on 8"),
+            ];
+            let m = crate::collusion_residual_by_identity(&mutual);
+            for k in [&k7, &k8, &k9] {
+                let v = *m.get(k).unwrap_or(&0.0);
+                assert!((v - 2.0).abs() < EPS, "mutual-ring member {k:?} share = {v} (expect 2.0)");
+            }
+
+            // DISCRIMINATION (the slash-target property): a directed ring + an HONEST contributor (1)
+            // building once on the ring's root — honest gets 0 (gradient/leaf edge, exact fit), ring
+            // members stay slashed. This is what lets a slash target the ring and spare the honest mind.
+            let mixed = vec![
+                cellc(0, 7, 0, None, b"r7"),
+                cellc(1, 8, 1, None, b"r8"),
+                cellc(2, 9, 2, None, b"r9"),
+                cellc(3, 7, 3, Some(1), b"7 cites 8"),
+                cellc(4, 8, 4, Some(2), b"8 cites 9"),
+                cellc(5, 9, 5, Some(0), b"9 cites 7"),
+                cellc(6, 1, 6, Some(0), b"honest 1 builds on 7 root once"),
+            ];
+            let mx = crate::collusion_residual_by_identity(&mixed);
+            assert!(*mx.get(&vec![1u8]).unwrap_or(&0.0) < EPS, "honest contributor must not be slashed");
+            assert!(*mx.get(&k7).unwrap_or(&0.0) > EPS, "ring member 7 must carry collusion share");
         }
 
         #[test]
