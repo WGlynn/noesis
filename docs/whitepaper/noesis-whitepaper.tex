@@ -33,18 +33,20 @@
 itself an instance of the contribution economy this paper specifies: a human and a machine
 producing provenance-complete, attributable work.}\\
 \texttt{noesis}}
-\date{Version 1.2 \quad June 2026}
+\date{Version 1.4 \quad June 2026}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
 \noindent
-Bitcoin is widely imagined as a value chain: a ledger on which doing valuable work earns
-provable, accruing, transferable value. It is not. Bitcoin is a \emph{possession} chain. It records
-who holds which token, orders blocks by burned energy, and lets an external market price the token;
-the ``work'' in proof-of-work is decoupled from any useful output. This paper specifies the system
-the folk myth describes: a chain on which value is \emph{created} as units of contribution,
+You optimize for what you measure, and a blockchain measures the wrong thing. It records cheaply who
+holds the coin, and secures that record by burning energy on work decoupled from any output. The one
+quantity it never measures is the one that matters: the value each participant actually contributed.
+Value has no true price independent of the agents who trade, so measuring it takes a mechanism to
+elicit contribution honestly --- an organ Bitcoin does not have, which is why valuation is exported to
+an external market it never observes and the gap fills with extraction. This paper specifies the
+missing organ: a chain on which value is \emph{created} as units of contribution,
 \emph{measured endogenously} by a cooperative-game value function over real outcomes, \emph{owned and
 transferred} in the manner of unspent transaction outputs, and used to \emph{secure consensus}, by
 \emph{Proof of Mind} (PoM): a proof of verified, synergy-weighted mental contribution in place of a
@@ -81,7 +83,8 @@ same airgap recurs at every scale of the design: between one mind and another (w
 between this chain and the chains it would merge (Sections~\ref{sec:value} and after).
 
 Proof of Mind is our answer. Its lineage is a single line of descent: proof-of-work, then
-proof-of-\emph{useful}-work (information density as work), then \textbf{proof of mind}, a proof of
+proof-of-\emph{useful}-work (information as the work --- value measured by the signal a contribution
+carries, not the energy it burns), then \textbf{proof of mind}, a proof of
 verified, synergy-weighted contribution, as the apex. The unit of work is a block of thought; the
 proof is that the thought contributed measurable value. Figure~\ref{fig:pipeline} shows how one unit
 of contribution becomes both consensus weight and tradable state.
@@ -613,6 +616,56 @@ real outcome labels, the production two-level recursion, owner-signature control
 deterministic transaction digest is built and tested, and the per-input authorization gate is wired
 into ledger validation, inert until the signature verifier is linked at deploy), the open-weight
 fine-tune loop, and the money/stability layer.
+
+\section{Privacy: what a value chain can and cannot hide}\label{sec:privacy}
+
+A value chain is provenance-complete by necessity. Proof of Mind is verifiable precisely because anyone
+can recompute a score from public, signed, attributed blocks; that recomputability is the opposite of
+privacy. So Noesis cannot offer the secrecy of a possession chain that records only balances, it must
+expose enough for value to be checked. The honest question is not whether everything can be hidden ---
+it cannot --- but what minimum must be public for trustless verification, and how the rest is protected.
+The design separates three layers.
+
+\paragraph{Identity is pseudonymous, not anonymous.} Blocks lock to public keys, not legal identities,
+as on Bitcoin; standing accrues to a key. The tension is structural: sybil-resistance and the soulbound
+personhood-binding (Section~\ref{sec:security}) pull toward few keys per person, which limits
+anonymity-by-many-keys. Noesis therefore offers pseudonymity, not unlinkability: one mind to one
+accumulating standing is load-bearing for PoM, so a participant may be unknown but their contributions
+are linkable to the standing they earn.
+
+\paragraph{Content can be committed without being published.} The novelty layer already operates on
+\emph{hashes}: coverage is a set of shingle commitments in the sparse-Merkle index
+(Section~\ref{sec:value}), not plaintext, so duplicate-detection and temporal novelty are computable
+without revealing the underlying text. A contributor can prove coverage and novelty against the public
+commitments while keeping the work itself private, in the spirit of a validity proof that checks a state
+transition without exposing its witness.
+
+\paragraph{The hard case: value measurement requires observation.} The learned evaluator $v(S)$ is the
+exception. Scoring a contribution's outcome-value requires \emph{processing} its content, a privacy
+analog of the blockchain--reality airgap (Section~\ref{sec:security}): measuring value requires
+observing the thing measured. The logical resolution is \emph{compute-to-data} --- bring the evaluator's
+model to the content, never the content to the evaluator. The contribution stays in the contributor's
+environment; on the cell model the content cell is \emph{referenced} read-only by the evaluating
+transaction and never consumed, so at the protocol level the data cannot leave the owner's control, and
+only the score and a proof leave to be committed on-chain. Three layers harden the result, in increasing
+cost: a \emph{zero-knowledge proof of correct execution} binds the emitted score to the canonical model
+run on the committed content, removing any trust in whoever ran it; calibrated \emph{differential-privacy}
+noise on the score bounds what the number itself can leak, since a crafted probe could otherwise
+reconstruct content through repeated scoring; and fully homomorphic encryption, where it becomes
+practical, is the frontier in which even the evaluating environment computes on ciphertext. Compute-to-data
+is the deployable sweet spot --- strong privacy without the overhead of FHE or multi-party computation;
+ZK-execution and differential privacy close the two gaps it leaves (honest execution, output leakage).
+We mark this \emph{designed, not built}: the reference node measures over public content, and the
+strategyproof skeleton (floored novelty, the realized-flow gate, the bounded learned factor) is unchanged
+whether the content is public or scored under compute-to-data, because each gate consumes a commitment, a
+proof, or a noised score, not the plaintext.
+
+\paragraph{Data governance.} Because the chain is also a training signal (Section~\ref{sec:backwards}), a
+participant's blocks shape the model. Consent is structural rather than promised: contribution is opt-in
+and attributed, the standing it earns is soulbound to a key the participant controls and can let decay,
+and the same proven-evaluation path that keeps content private from readers can keep it private from the
+training corpus while still admitting its verified value. Fully content-private contribution that
+nonetheless trains the model is the same observation tension above, and we treat it as open, not solved.
 
 \section{Fair launch and theft-resistance}\label{sec:fairlaunch}
 
