@@ -4,6 +4,37 @@
 > risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-20 (dd)** — DESIGN tick (no code; PCP-gate — (cc) already shipped a moat BUILD this
+  session, and the next step is slash-PATH surgery = the dispute-settlement trust boundary = highest
+  blast radius ⇒ decide now, build fresh, per the (k)/(v) discipline). Advances the (cc) NEXT —
+  **wire BOTH `attribution_circulation` + `attribution_cycle_energy` into the dispute/slash gate
+  (detection → economic penalty)** — from *named* → **DECIDED**. The detectors return SCALARS
+  ("collusion exists"); an economic slash must name **WHO** and **HOW MUCH** ⇒ the missing primitive
+  is a per-identity attribution. **Decision — `collusion_residual_by_identity(cells) -> HashMap<identity,
+  f64>`, the causal-share input a slash gate consumes, unifying both detectors at the identity level:**
+  - **Key simplification found while designing:** the (cc) scalar energy `‖Y − grad s‖² = Σ_pairs y·r`
+    where `r_ij = y_ij − (s_i − s_j)` is the per-edge harmonic residual — so the SAME `r` that sums to
+    the energy ATTRIBUTES the cyclic flow to edges. Per-identity **DIRECTED** share = `Σ` over incident
+    net-pairs of `|r_ij|` (a directed-cycle member carries `|r|>0` on its in/out edges; an honest
+    gradient edge has `r=0`).
+  - Per-identity **MUTUAL** share = reuse `attribution_circulation`'s `min(f_ij, f_ji)` per pair,
+    attributed to both incident identities (catches the balanced ring the residual is blind to: net
+    `y=0 ⇒ r=0`). Total share = directed `|r|` + mutual `min`. The two detectors' regimes compose at
+    the identity level; honest DAG and honest-diverse-certification both score **0** (no false slash).
+  - **Design-verified numerics:** directed 3-cycle ⇒ each member share **2.0** (`|r|=1` on each of its
+    2 incident edges; `s=0` since the cycle is divergence-free); honest chain ⇒ **0**; mutual K=3 ring
+    ⇒ each member **2.0** via circulation. Equal nonzero shares = clean, fair slash targets.
+  - **Build contract (fresh low-context):** (1) extract a private `hodge_attribution(cells) -> (ids,
+    flow, net_pairs_with_y, s)` shared by `attribution_cycle_energy` (rewrite its body to `Σ y·r` over
+    the helper — DRY, behavior-identical, re-verify its test) AND the new fn; (2) `collusion_residual_by_identity`
+    per the decision; (3) wire into the dispute slash path — a topological-collusion slash revoking
+    standing ∝ each identity's share, **BOUNDED** (`Σ ≤ manufactured value`), keyed on consensus-derived
+    identity not producer-asserted ([P·dont-let-attacker-choose-critical-input]), composing with — not
+    double-slashing — the existing refutation settlement; (4) tests: ring members slashed (equal shares),
+    honest members untouched, directed+mutual both covered, bound holds, no-double-slash composition;
+    (5) anti-theater: zero the residual attribution ⇒ ring members get 0 ⇒ slash doesn't fire ⇒ the
+    ring-slashed test goes RED. node unchanged (design tick — no count bump). NEXT after build: lock-sig
+    DEPLOY half · on-VM single-use (k) · learned-v(S) moat.
 - **2026-06-20 (cc)** — BUILT (pom-roadmap-advance fire): **the DIRECTED-k-cycle blind spot named in
   (aa)/(bb) is now DETECTED — shipped the Helmholtz–Hodge harmonic-energy alarm
   `attribution_cycle_energy` (node/src/lib.rs), the precise COMPLEMENT of (bb)'s `attribution_circulation`.**
