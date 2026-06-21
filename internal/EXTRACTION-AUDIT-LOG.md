@@ -1,0 +1,1 @@
+audit | 2026-06-21 | PASS(12/12) | collusion_slash (gg) burns no counterparty + griefing-resistant (hh) + cross-path residual tracked (ii); 1-10 grep-clean, 11-12 reasoning-clean (slash surface: no rent/order/oracle/platform extraction); suite 238 green
