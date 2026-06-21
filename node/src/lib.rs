@@ -4769,6 +4769,42 @@ pub mod dispute {
         }
 
         #[test]
+        fn unified_slash_overlap_with_a_single_path_keeps_that_harm() {
+            // RSAW edge (jj): overlap membership only COLLAPSES the two paths' SUM into a MAX;
+            // it must never ERASE a one-sided harm. An overlap identity carrying only a
+            // collusion slash pays exactly it (max(c,0)=c); only a refutation slash pays
+            // exactly it (max(0,r)=r). The bound de-duplicates, it does not under-slash.
+            let (a, b) = (vec![1u8], vec![2u8]);
+            let collusion =
+                Settlement { slashes: vec![(a.clone(), 7.0)], burned: 7.0, ..Default::default() };
+            let refutation =
+                Settlement { slashes: vec![(b.clone(), 9.0)], burned: 9.0, ..Default::default() };
+            let mut overlap = std::collections::HashSet::new();
+            overlap.insert(a.clone()); // both on the refuted lineage, but each in ONE path only
+            overlap.insert(b.clone());
+            let standing = standing_of(&[(1, 100), (2, 100)]);
+            let merged: HashMap<Vec<u8>, f64> =
+                unified_slash(&collusion, &refutation, &overlap, &standing).into_iter().collect();
+            assert_eq!(merged.get(&a).copied(), Some(7.0), "overlap + collusion-only = the collusion slash");
+            assert_eq!(merged.get(&b).copied(), Some(9.0), "overlap + refutation-only = the refutation slash");
+        }
+
+        #[test]
+        fn unified_slash_zero_standing_yields_no_slash() {
+            // Boundary: an identity with zero standing (already fully slashed, or none earned)
+            // has nothing to take — combined.min(0.0)=0, and zero amounts are dropped, so the
+            // ceiling can never produce a phantom or negative slash.
+            let a = vec![1u8];
+            let collusion =
+                Settlement { slashes: vec![(a.clone(), 5.0)], burned: 5.0, ..Default::default() };
+            let refutation = Settlement::default();
+            let overlap = std::collections::HashSet::new();
+            let standing = standing_of(&[(1, 0)]);
+            let merged = unified_slash(&collusion, &refutation, &overlap, &standing);
+            assert!(merged.is_empty(), "no standing ⇒ nothing to slash, no zero-amount entries emitted");
+        }
+
+        #[test]
         fn refutation_inside_window_cancels_unvested_only() {
             // §6.2: a refutation cancels the unvested entries; already-vested value is
             // untouchable (finality has a price; W bounds the exposure).

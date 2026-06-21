@@ -34,7 +34,9 @@
   double-slash. Overlap detector `dispute::refuted_lineage_identities` reuses the parent-chain
   connectivity (no new oracle, consensus-keyed identity). Tests: overlap→max, disjoint→sum,
   honest-untouched, standing-ceiling, lineage-walk; anti-theater = flip `max`→`+` ⇒ overlap test RED.
-  lib 238→241, full suite green (287+), 0 new clippy. **NEXT:** `finalizes_pos_pom` T3-wiring
+  lib 238→243, full suite green (294), 0 new clippy. RSAW edge tick (same session): one-sided-overlap
+  (max collapses the sum but never under-slashes a single harm) + zero-standing boundary pinned.
+  **NEXT:** `finalizes_pos_pom` T3-wiring
   (reference↔on-VM parity) · lock-sig DEPLOY · learned-v(S) moat.
 - **2026-06-20 (ii)** — DESIGN tick (no code; PCP-gate — 3rd moat tick this session at ~6h/deep context,
   and the build TOUCHES `resolve_refuted` composition = the dispute-settlement trust boundary = highest
