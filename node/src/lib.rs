@@ -4179,9 +4179,9 @@ pub mod dispute {
     /// the STRUCTURAL harm (cyclic provenance); the refutation path slashes a
     /// REFUTED endorsement — orthogonal harms. Composition at the caller is via
     /// `apply_slashes` (saturating, so an identity caught by both can never be driven
-    /// below zero); a unified bound that caps an identity's TOTAL cross-path slash at
-    /// its attributable harm is the next step, deferred (it touches the refutation
-    /// path = higher blast radius).
+    /// below zero); [`unified_slash`] is the cross-path bound that caps an identity's
+    /// TOTAL slash at its attributable harm, counting lineage-overlapping harm once
+    /// (ROADMAP (ii)).
     pub fn collusion_slash(cells: &[Cell], manufactured_value: f64) -> Settlement {
         let mut shares: Vec<(Vec<u8>, f64)> =
             super::collusion_residual_by_identity(cells).into_iter().collect();
@@ -4203,6 +4203,86 @@ pub mod dispute {
             author_compensation: 0.0,
             burned: total,
         }
+    }
+
+    /// The soulbound identities (`type_script.args`) on the refuted target's provenance
+    /// lineage: the target cell plus every parent up its chain present in `cells`
+    /// (cycle-guarded). This is the structural overlap test for [`unified_slash`] — a
+    /// collusion-ring member whose cells sit in the refuted target's lineage MANUFACTURED
+    /// the value the refutation then cancels, so the collusion slash and the refutation
+    /// slash are measuring the SAME harm. Reuses the parent-chain connectivity that the
+    /// Myerson value (`lineage_coalition`) and `collusion_residual_by_identity` already
+    /// walk — no new oracle — keyed on finalized cells, never producer-asserted
+    /// ([P.dont-let-attacker-choose-critical-input]).
+    pub fn refuted_lineage_identities(
+        cells: &[Cell],
+        target: u64,
+    ) -> std::collections::HashSet<Vec<u8>> {
+        let by_id: HashMap<u64, &Cell> = cells.iter().map(|c| (c.id, c)).collect();
+        let mut out = std::collections::HashSet::new();
+        let mut cur = Some(target);
+        let mut guard = 0usize;
+        while let Some(id) = cur {
+            match by_id.get(&id) {
+                Some(c) => {
+                    out.insert(c.type_script.args.clone());
+                    cur = c.parent;
+                }
+                None => break,
+            }
+            guard += 1;
+            if guard > cells.len() {
+                break; // cycle / malformed parent chain — bounded walk
+            }
+        }
+        out
+    }
+
+    /// Cross-path slash bound (ROADMAP (ii)): merge the per-identity slashes of the
+    /// collusion settlement and the refutation settlement into ONE applied slash, so an
+    /// identity caught by both paths for the SAME manufactured value is penalized once,
+    /// not twice. Both source settlements are UNCHANGED — this only replaces the prior
+    /// two-independent-`apply_slashes` composition, which double-slashed the overlap.
+    ///
+    /// - **Overlapping** identity (in `overlap`, i.e. on the refuted target's lineage per
+    ///   [`refuted_lineage_identities`]) → `max(collusion_i, refutation_i)`: the ring
+    ///   manufactured the value the refutation canceled, so it is one harm, one penalty.
+    /// - **Disjoint** identity (a ring member who ALSO certified an *unrelated* refuted
+    ///   target) → `collusion_i + refutation_i`: two distinct harms, two penalties.
+    /// - Every identity's total is then capped at its current `standing` (the ceiling —
+    ///   a cross-path slash can never destroy more than the identity holds).
+    ///
+    /// Deterministic: identities are emitted in canonical (sorted) order. Apply the
+    /// result with [`apply_slashes`].
+    pub fn unified_slash(
+        collusion: &Settlement,
+        refutation: &Settlement,
+        overlap: &std::collections::HashSet<Vec<u8>>,
+        standing: &HashMap<Vec<u8>, u64>,
+    ) -> Vec<(Vec<u8>, f64)> {
+        let mut col: HashMap<&[u8], f64> = HashMap::new();
+        for (who, amt) in &collusion.slashes {
+            *col.entry(who.as_slice()).or_insert(0.0) += *amt;
+        }
+        let mut refu: HashMap<&[u8], f64> = HashMap::new();
+        for (who, amt) in &refutation.slashes {
+            *refu.entry(who.as_slice()).or_insert(0.0) += *amt;
+        }
+        let mut ids: Vec<&[u8]> = col.keys().chain(refu.keys()).copied().collect();
+        ids.sort_unstable();
+        ids.dedup();
+        let mut out = Vec::new();
+        for id in ids {
+            let c = col.get(id).copied().unwrap_or(0.0);
+            let r = refu.get(id).copied().unwrap_or(0.0);
+            let combined = if overlap.contains(id) { c.max(r) } else { c + r };
+            let cap = standing.get(id).copied().unwrap_or(0) as f64;
+            let amt = combined.min(cap);
+            if amt > 0.0 {
+                out.push((id.to_vec(), amt));
+            }
+        }
+        out
     }
 
     // ============ §7 — escalation court + juror accountability ============
@@ -4619,6 +4699,73 @@ pub mod dispute {
             // Honest-scope note: this holds GIVEN authorship is bound (an attacker cannot author a
             // cell claiming to be V). That binding is the lock-sig/existence layer; pre-deploy a
             // forged V-authored outbound edge is the orthogonal gap already tracked there, not here.
+        }
+
+        #[test]
+        fn refuted_lineage_identities_walks_the_provenance_chain() {
+            // The overlap detector: identities on the refuted target's parent chain.
+            // target (id2, identity 5) builds on (id1, identity 8) builds on (id0, identity 7);
+            // an honest unrelated cell (id9, identity 3) is NOT on that chain.
+            let cells = vec![
+                cellc(0, 7, 0, None, b"ring root r7"),
+                cellc(1, 8, 1, Some(0), b"8 builds on 7"),
+                cellc(2, 5, 2, Some(1), b"target built on the ring"),
+                cellc(9, 3, 0, None, b"honest unrelated leaf"),
+            ];
+            let lin = refuted_lineage_identities(&cells, 2);
+            assert!(lin.contains(&vec![5u8]), "target's own identity is on the lineage");
+            assert!(lin.contains(&vec![8u8]), "direct parent identity is on the lineage");
+            assert!(lin.contains(&vec![7u8]), "grandparent (ring root) identity is on the lineage");
+            assert!(!lin.contains(&vec![3u8]), "an unrelated honest identity is NOT on the lineage");
+        }
+
+        #[test]
+        fn unified_slash_overlap_takes_max_disjoint_sums_spares_honest() {
+            // ROADMAP (ii): the cross-path slash bound. `a` is a ring member that ALSO
+            // manufactured the refuted target (OVERLAP — one harm); `b` is a ring member who
+            // ALSO certified an UNRELATED refuted target (DISJOINT — two distinct harms); `h`
+            // is honest, in neither path.
+            let (a, b, h) = (vec![1u8], vec![2u8], vec![9u8]);
+            let collusion = Settlement {
+                slashes: vec![(a.clone(), 10.0), (b.clone(), 4.0)],
+                burned: 14.0,
+                ..Default::default()
+            };
+            let refutation = Settlement {
+                slashes: vec![(a.clone(), 6.0), (b.clone(), 5.0)],
+                burned: 11.0,
+                ..Default::default()
+            };
+            let mut overlap = std::collections::HashSet::new();
+            overlap.insert(a.clone()); // a's collusion manufactured the refuted target
+            let standing = standing_of(&[(1, 100), (2, 100), (9, 100)]);
+
+            let merged: HashMap<Vec<u8>, f64> =
+                unified_slash(&collusion, &refutation, &overlap, &standing).into_iter().collect();
+
+            // ANTI-THEATER (contract item 5): overlap is bounded to max(10,6)=10, NOT the
+            // sum 16. Flip the `c.max(r)` branch to `c + r` and this assertion goes RED.
+            assert_eq!(merged.get(&a).copied(), Some(10.0), "overlap → one harm → max, not double-slash");
+            // disjoint → two harms → sum(4,5)=9.
+            assert_eq!(merged.get(&b).copied(), Some(9.0), "disjoint offenses sum");
+            // honest identity, in neither slash list, never appears.
+            assert!(!merged.contains_key(&h), "an honest identity is untouched");
+        }
+
+        #[test]
+        fn unified_slash_caps_total_at_standing() {
+            // The ceiling: a disjoint identity's summed cross-path slash (30+40=70) can never
+            // destroy more than the standing it holds (25).
+            let a = vec![1u8];
+            let collusion =
+                Settlement { slashes: vec![(a.clone(), 30.0)], burned: 30.0, ..Default::default() };
+            let refutation =
+                Settlement { slashes: vec![(a.clone(), 40.0)], burned: 40.0, ..Default::default() };
+            let overlap = std::collections::HashSet::new(); // disjoint ⇒ would sum to 70
+            let standing = standing_of(&[(1, 25)]);
+            let merged: HashMap<Vec<u8>, f64> =
+                unified_slash(&collusion, &refutation, &overlap, &standing).into_iter().collect();
+            assert_eq!(merged.get(&a).copied(), Some(25.0), "total cross-path slash capped at standing");
         }
 
         #[test]

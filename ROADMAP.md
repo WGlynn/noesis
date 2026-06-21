@@ -25,6 +25,17 @@
    proven economic calibration. Re-tune only on real data. Per [P·augmented-mechanism-design-paper].
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-21 (jj)** — BUILT ✅ (Will: "finish noesis chain") — **the unified cross-path slash
+  bound `unified_slash`**, executing the (ii) DECISION. `dispute::unified_slash(collusion,
+  refutation, overlap, standing)` merges the two settlements' per-identity slashes: an identity on
+  the refuted target's provenance lineage (overlap) pays `max(collusion_i, refutation_i)` — one harm,
+  one penalty — a disjoint double-offender pays the sum, and every total is capped at standing. Both
+  source paths (`resolve_refuted`, `collusion_slash`) UNCHANGED — this only fixes the caller-side
+  double-slash. Overlap detector `dispute::refuted_lineage_identities` reuses the parent-chain
+  connectivity (no new oracle, consensus-keyed identity). Tests: overlap→max, disjoint→sum,
+  honest-untouched, standing-ceiling, lineage-walk; anti-theater = flip `max`→`+` ⇒ overlap test RED.
+  lib 238→241, full suite green (287+), 0 new clippy. **NEXT:** `finalizes_pos_pom` T3-wiring
+  (reference↔on-VM parity) · lock-sig DEPLOY · learned-v(S) moat.
 - **2026-06-20 (ii)** — DESIGN tick (no code; PCP-gate — 3rd moat tick this session at ~6h/deep context,
   and the build TOUCHES `resolve_refuted` composition = the dispute-settlement trust boundary = highest
   blast radius ⇒ decide now, build fresh, per the (dd)/(v)/(k) discipline). Advances the (gg)/(hh) named
