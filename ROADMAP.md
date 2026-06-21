@@ -25,6 +25,37 @@
    proven economic calibration. Re-tune only on real data. Per [P·augmented-mechanism-design-paper].
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-20 (ii)** — DESIGN tick (no code; PCP-gate — 3rd moat tick this session at ~6h/deep context,
+  and the build TOUCHES `resolve_refuted` composition = the dispute-settlement trust boundary = highest
+  blast radius ⇒ decide now, build fresh, per the (dd)/(v)/(k) discipline). Advances the (gg)/(hh) named
+  NEXT — **the unified cross-path slash bound** — from *named* → **DECIDED**, and corrects a wrong
+  first-pass dissolution (the value of designing cold).
+  - **The real subtlety (caught while designing):** both slash paths reduce **standing**. `resolve_refuted`
+    cancels the refuted TARGET's unvested value AND slashes its CERTIFIERS' standing by `λ·causal_share+α`;
+    `collusion_slash` (gg) slashes RING MEMBERS' standing by their bounded residual share. A first analysis
+    said "disjoint quantities ⇒ just sum, standing-ceiling suffices." **Wrong:** when a collusion ring
+    MANUFACTURES the value of a target that is then refuted, an identity that is BOTH a ring member AND a
+    certifier of that target is slashed twice for the SAME manufactured value — `causal_share` (its marginal
+    effect on the refuted target's v6 value) and its `collusion_residual` (its cyclic manufacture) then
+    measure the same harm. Without a unified bound, cross-path composition DOUBLE-SLASHES in the overlap case.
+  - **DECISION — cap each identity's TOTAL cross-path slash at `min(standing, attributable_harm)` where
+    overlapping harm is counted ONCE:** disjoint offenses (ring member who ALSO certified an unrelated
+    refuted target) ⇒ SUM (two distinct harms, two penalties — correct); overlapping (the ring manufactured
+    the refuted target's value) ⇒ `max(collusion_i, refutation_i)` for the overlapping identities (one harm,
+    one penalty). **Structural overlap test:** a ring member whose cells lie in the refuted target's
+    provenance lineage (the same connectivity the Myerson restriction already computes) — no new oracle.
+  - **LEAN (PONYTAIL):** the bound only ENGAGES on structural overlap; the common disjoint case stays the
+    current saturating `apply_slashes` sum. So the change is a `unified_slash(settlements, overlap_lineage,
+    standing)` merge that special-cases overlap, NOT a rewrite of either path.
+  - **Build contract (fresh low-context):** (1) `unified_slash` merging per-identity slashes across the
+    collusion + refutation Settlements; (2) overlap detected via provenance-lineage intersection (reuse the
+    graph-restriction connectivity); (3) overlapping identities → `max`, disjoint → `sum`, all `min`'d by
+    standing; (4) tests — disjoint double-offense sums; overlap (ring manufactures a refuted target) is
+    bounded to the larger single harm not the sum; honest identity in neither path untouched; standing
+    ceiling holds; (5) anti-theater: force the overlap branch to `sum` ⇒ the overlap-bound test goes RED.
+    Touches `resolve_refuted` composition ⇒ build fresh, verify the 230-test dispute suite stays green.
+  - node unchanged (design tick — no count bump). **NEXT:** build this · `finalizes_pos_pom` (T3 wiring,
+    reference↔on-VM parity) · lock-sig DEPLOY · learned-v(S) moat.
 - **2026-06-20 (hh)** — BUILT (pom-roadmap-advance fire): **the (gg) slash is griefing-resistant — it
   cannot be weaponized to frame an honest identity.** RSAW on the new mechanism: a slash gate is itself
   an attack surface (can an adversary slash an honest victim?). To slash V the attacker must push V's
