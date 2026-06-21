@@ -1,8 +1,8 @@
 % Noesis - Proof of Mind: A Value Chain for Verified Mental Contribution
 % Foundational whitepaper. Open source, no patent: the moat is structural, not secret.
-\documentclass[11pt]{article}
+\documentclass[10pt]{article}
 
-\usepackage[a4paper,margin=0.8in]{geometry}
+\usepackage[a4paper,margin=0.7in]{geometry}
 \usepackage{amsmath,amssymb,amsthm}
 \usepackage{booktabs}
 \usepackage{microtype}
@@ -14,9 +14,18 @@
 \usetikzlibrary{arrows.meta,positioning,shapes.geometric,fit,backgrounds}
 \usepackage[hidelinks]{hyperref}
 \usepackage{titlesec}
+\usepackage{multicol}
 
+% Tight vertical rhythm to hold the paper to <=10 pages without shrinking the argument.
 \titleformat{\section}{\large\bfseries}{\thesection}{0.6em}{}
 \titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{1.0ex plus 0.3ex minus 0.2ex}{0.5ex plus 0.2ex}
+\titlespacing*{\subsection}{0pt}{0.7ex plus 0.2ex minus 0.1ex}{0.3ex plus 0.1ex}
+\setlength{\parskip}{0pt}
+\setlength{\abovedisplayskip}{3pt plus 1pt minus 1pt}
+\setlength{\belowdisplayskip}{3pt plus 1pt minus 1pt}
+\setlength{\abovedisplayshortskip}{1pt}
+\setlength{\belowdisplayshortskip}{2pt}
 
 % palette
 \definecolor{sb}{HTML}{1D4ED8}   % soulbound / standing, blue
@@ -29,11 +38,9 @@
 
 \title{\textbf{Proof of Mind}\\[2pt]
 \large A Value Chain for Verified Mental Contribution}
-\author{Will Glynn\thanks{Written with JARVIS, an AI research collaborator. The collaboration is
-itself an instance of the contribution economy this paper specifies: a human and a machine
-producing provenance-complete, attributable work.}\\
+\author{Will Glynn\\
 \texttt{noesis}}
-\date{Version 4.0 \quad June 2026}
+\date{Version 5.0 \quad June 2026}
 
 \begin{document}
 \maketitle
@@ -152,8 +159,8 @@ a commitment
 c \;=\; H(b \,\|\, r)
 \end{equation}
 with a signature and timestamp \emph{before} revealing the content $b$ and the secret $r$, binding
-authorship and ordering before disclosure, the same mechanism a fair batch exchange uses against
-front-running. Committing and then failing to reveal valid content is slashable. The commit order is
+authorship and ordering before disclosure, the same mechanism a fair batch exchange uses against the
+transaction-reordering attacks catalogued in Flash Boys 2.0. Committing and then failing to reveal valid content is slashable. The commit order is
 not only an anti-front-running device: it supplies the canonical ordering that makes the value rule of
 Section~\ref{sec:value} strategyproof.
 
@@ -214,7 +221,8 @@ function $r_\theta(x)$ of block features, the same objective
 \begin{equation}
 \mathcal{L}(\theta) \;=\; -\!\!\sum_{(i,j)\,:\,i\succ j} \log \sigma\big(r_\theta(x_i) - r_\theta(x_j)\big)
 \end{equation}
-is exactly the loss used to train an RLHF reward model. So from many ``$A$ contributed more than $B$''
+is exactly the loss used to train an RLHF reward model from human preferences (Christiano et al., 2017).
+So from many ``$A$ contributed more than $B$''
 judgments we fit one ``how much it added'' score per block, the way a chess rating or an RLHF reward
 model is learned from pairwise wins. The distilled judgment model and the reward model are the same
 object, and that object is the production evaluator for $v$.
@@ -266,8 +274,9 @@ earlier-committed blocks,
 \begin{equation}
 \nu(b) \;=\; \Big|\ \mathrm{cov}(b)\ \setminus\!\!\bigcup_{c\,:\,t_c < t_b}\!\! \mathrm{cov}(c)\ \Big|.
 \end{equation}
-You are paid only for what you add that no earlier block already covered. First-to-reveal earns the
-novelty; later padding or sybil copies earn zero. (This is the second reason the commit order of
+You are paid only for what you add that no earlier block already covered. First to \emph{commit}, then
+validly reveal, earns the novelty; later padding or sybil copies earn zero (the commit timestamp fixes
+priority, and the reveal merely claims it). (This is the second reason the commit order of
 Section~\ref{sec:blocks} is load-bearing: it supplies the canonical order that makes the rule
 strategyproof.) In the reference implementation a sybil ring of five identical-content identities banks
 the coverage of at most one block ($1.06\times$, not $5\times$), and a cross-block re-post earns zero.
@@ -296,7 +305,7 @@ after it, the whole grid is bounded by that ceiling.
 \centering
 \begin{tikzpicture}
 \begin{axis}[
-  width=12cm, height=6cm, font=\footnotesize,
+  width=11cm, height=4.8cm, font=\footnotesize,
   xtick={1,2,3}, xticklabels={$1{\times}1$, $2{\times}2$, $4{\times}4$},
   xlabel={coordinated identities $\times$ children per identity ($K{\times}M$)},
   ylabel={root value $v(\text{root})$},
@@ -335,7 +344,9 @@ $v(\{A,B\})=|\{1,2,3,4\}|=4$. The Myerson value over the edge $A\!-\!B$ is
 $\phi_A=\tfrac12(3-0)+\tfrac12(4-2)=2.5$ and $\phi_B=\tfrac12(2-0)+\tfrac12(4-3)=1.5$, summing to
 $v(\{A,B\})=4$. A proportional split by standalone value would instead give $A=2.4$, $B=1.6$: the
 synergy rule shifts $0.1$ of credit \emph{to} the pivotal $A$ (which owns the shared shingle $3$) and
-away from the partly-redundant $B$. The cooperative machinery is doing work, not ceremony.
+away from the partly-redundant $B$. The cooperative machinery is doing work, not ceremony. Coverage is
+submodular, so on its own it can only \emph{discount redundancy}; crediting genuine complementarity ---
+work worth more together than apart --- is what the learned $v(S)$ adds.
 
 Finally, suppose an attacker floods $A$ with $N$ low-value children each contributing $c$. The geometric
 decay above bounds the parent's aggregated flow at $\sum_{j\ge0}\rho^{\,j} c=\varphi^{2} c\approx
@@ -345,7 +356,8 @@ decay above bounds the parent's aggregated flow at $\sum_{j\ge0}\rho^{\,j} c=\va
 
 Pairwise judgments need not line up consistently; the contradictions are built in (Condorcet), not just
 noise. A single value number is the right object only when the judgments nearly agree. We make that
-checkable. Writing the comparisons as a flow $Y$ on the comparison graph and solving the weighted
+checkable. Writing the comparisons as a flow $Y$ on the \emph{comparison graph} (the graph of judgments,
+distinct from the provenance graph that restricts the Myerson value) and solving the weighted
 least-squares problem
 \begin{equation}
 \min_{s}\ \sum_{i,j} w_{ij}\,\big(s_i - s_j - Y_{ij}\big)^2
@@ -399,7 +411,7 @@ accuracy $\ge 0.9$, while the coverage proxy is blind to lineage and ties at cha
 \centering
 \begin{tikzpicture}
 \begin{axis}[
-  width=9cm, height=5.2cm, font=\footnotesize,
+  width=9cm, height=4.4cm, font=\footnotesize,
   ybar, bar width=20pt,
   symbolic x coords={learned $v(S)$, coverage proxy, random},
   xtick=data,
@@ -424,7 +436,9 @@ runs unchanged when it lands.}
 
 The value function of Section~\ref{sec:value} is not a fixed formula, and it cannot be one. Any static
 value rule is Goodhart-bait: the moment it is published, it is gamed, because a fixed objective tells an
-adversary exactly what to optimize. The only un-gameable measure is one that adapts to the gaming.
+adversary exactly what to optimize. This is reward-model overoptimization (Gao et al., 2023) made
+adversarial, and more generally the performativity of any published predictor (Perdomo et al., 2020):
+the act of publishing the measure changes the distribution it is measured on. The only un-gameable measure is one that adapts to the gaming.
 Measurement on this chain is therefore a closed loop, not a closed form, and its components, introduced
 separately above, are one adaptive system.
 
@@ -474,7 +488,9 @@ provenance-complete blocks it holds,
 In plain terms, your standing is just the summed, verified value of the work you own, nothing you can
 buy, only contribution that survived checking.
 Three properties are inherited from the construction. It is \textbf{verifiable}: every contributing
-block is signed and provenance-complete, so anyone can recompute the score from public data. It is
+block is signed and provenance-complete, so anyone can recompute the score from public data, or, where
+the content is held private, verify a succinct proof that the score was computed correctly
+(Section~\ref{sec:privacy}). It is
 \textbf{sybil-resistant structurally}: PoM requires owned blocks whose value was synergy-judged, and
 splitting one mind across many accounts does not multiply PoM because the synergy game discounts
 redundant copies; a thousand empty nodes score zero. Proof-of-work buys this same sybil and spam
@@ -527,7 +543,8 @@ denominator and finalize a minority. The stable choice is the hybrid
 \text{finalize} \iff \forall d:\quad W^{d}_{\text{for}} \;\ge\; \tfrac{2}{3}\,\max\!\big(W^{d}_{\text{eff}},\, Q^{d}\big),
 \end{equation}
 which pins the denominator at a quorum floor $Q^d$, a fraction of base weight, so neither failure
-occurs. In plain terms: a block is final once a two-thirds supermajority backs it, measured against
+occurs. In plain terms: a block is final once a two-thirds supermajority backs it --- the Byzantine-fault
+threshold of PBFT, carried into a finality gadget in the manner of Casper --- measured against
 whichever is larger, who is actually voting or a fixed floor, so an attacker can neither stall the
 chain by sitting out nor finalize a minority by shrinking the pool. The composition over the dimensions $d$ is AND-gated, not a substitutable weighted sum: a
 single dimension below the supermajority cannot finalize alone. This is verified against tested
@@ -536,11 +553,14 @@ its closure under the quorum floor.
 
 \subsection{Stability: no profitable fork}
 
-PoM-weighted agreement must be defection-proof; no coalition of validators should profit by deviating.
+PoM-weighted agreement must be defection-proof. Individual deviation is already deterred by the Nash
+structure of the value rule; the remaining concern is the \emph{coalitional} one, that no group of
+validators should profit by deviating together.
 We impose a coalitional stability constraint over the PoM-weighted game: require the allocation to lie
-in the \textbf{core} when it is non-empty (no sub-coalition does better by forking), and fall back to
-the \textbf{nucleolus} when the core is empty (the unique split that leaves the
-most-tempted coalition with the least reason to defect). This is added precisely because consensus requires it;
+in the \textbf{core} when it is non-empty (no sub-coalition does better by forking) --- the
+coalitional-stability lineage of Aumann's strong equilibrium and the coalition-proof equilibria of
+Bernheim, Peleg and Whinston --- and fall back to the \textbf{nucleolus} when the core is empty (the
+unique split that leaves the most-tempted coalition with the least reason to defect). This is added precisely because consensus requires it;
 pure attribution does not need a stability concept.
 
 \subsection{Three powers: cognition leads, compute and capital keep it live}
@@ -565,16 +585,22 @@ entirely. A miner's probabilistic lag is a finality-safety hazard, so finalizing
 capital and cognition (PoS and PoM) under an anti-concentration floor, never of the hash. Energy
 circulates; it does not vote on value.
 
-Holding the powers separate is also what makes the chain capture-resistant. Three is the minimum for a
-non-dominated cycle: with two, one power is the strict best response and captures the other; with three
-the relation is non-transitive (rock--paper--scissors) and none dominates; four or more adds complexity
-without adding non-domination. Liveness can fall back to whichever power is awake, but seizing the chain
-means defeating all three at once, and the value layer answers to cognition above all.
+Holding the powers separate is also what makes the chain capture-resistant. The rationale for exactly
+three is a non-dominated cycle: with two, one power tends to be the strict best response and captures the
+other; three admits a non-transitive (rock--paper--scissors) relation in which none dominates, and we
+judge further powers to add coordination cost without adding non-domination (multi-resource consensus in
+the manner of Minotaur composes compute and capital; we add the value franchise as the third). The
+asymmetry is deliberate, and it is what keeps ``you cannot buy consensus'' true even though bought capital
+shares the liveness floor: \emph{halting} the chain requires defeating whichever power is awake at the
+floor, but \emph{capturing value} requires defeating cognition specifically. Finality is the job of
+capital and cognition under an anti-concentration floor, never of the hash, and the value layer answers to
+cognition above all; so compute can keep the chain alive but cannot, even in coalition with capital,
+rewrite attribution or mint standing.
 
 \paragraph{The compute layer is honest money, not waste.} The floor's compute is a proof-of-work
 \emph{money layer}, kept deliberately. Proof-of-work's energy cost is not a flaw peculiar to Bitcoin: it
 is the unavoidable price of issuing money with no privileged issuer, and every proposed alternative pays
-the same cost in a less visible form, an argument made forcefully by Sztorc (2022), under which locked
+the same cost in a less visible form, an argument made forcefully by Sztorc (2015), under which locked
 stake, bought votes, and ground histories are all \emph{obscured} proof-of-work. A chain that uses
 proof-of-work in its own consensus, as this one does, cannot coherently call it waste. What Noesis adds
 is usefulness by construction. The money layer is a proportional proof-of-work currency in the manner of
@@ -589,8 +615,8 @@ value, energy prices money, and each tool sits where it fits.
 
 Ergon alone, however, oscillates. The proportional reward couples price to hashrate, and a single
 feedback loop overshoots, so a proportional coin left to itself swings rather than settles. The money
-layer is therefore not Ergon as-is but a port of the \emph{Trinomial Stability System}: three stabilizing
-mechanisms acting at three separated timescales on one energy-money token. The proportional proof-of-work
+layer is therefore not Ergon as-is but a three-mechanism stabilizer we call the \emph{Trinomial
+Stability System}, acting at three separated timescales on one energy-money token. The proportional proof-of-work
 reward is the long-term anchor, pegging value to energy cost. An elastic rebase corrects short-term
 price deviation. A PI controller damps the medium term. The result that makes this a system and not three
 knobs is that the three loops at separated frequencies are jointly stable where the proportional reward
@@ -607,12 +633,17 @@ whole holds because none is asked to do another's job.
 
 \section{Cryptoeconomics: one PoM, one byte}
 
-Storage is the scarce resource, and PoM is the right to occupy it: \textbf{one PoM equals one byte of
-on-chain state}. Issuance is earned, not bought, because novel verified contribution is the mint;
-state-rent is PoM decay, which both reclaims idle capacity and serves as the supply sink that bounds
-total live PoM. The mint (novel contribution) and the burn (decay) balance. A floor protects a genuine
-contributor from being zeroed by a brief absence: decay reclaims idle capacity, it does not erase
-earned standing to nothing.
+Storage is the scarce resource, and PoM standing is the right to occupy it: \textbf{one unit of PoM
+standing entitles its holder to mint one byte of transferable on-chain state}. Standing is the mint:
+it is issued, not bought, because novel verified contribution is what creates it. Two distinct sinks
+bound the supply, and keeping them distinct is what makes the accounting close. \emph{Franchise decay}
+acts on the soulbound standing, so vote weight tracks live participation and a stale position is
+reclaimed; \emph{state-rent} acts on the transferable bytes, paid by whoever currently holds the state,
+as in the cell-model rent of Nervos CKB. Supply is then bounded rather than balanced by assertion: total
+live standing converges to a fixed point at which the issuance rate from new contribution equals the
+decay rate integrated over the existing stock, and the decay constant is the single parameter that sets
+that ceiling. A floor protects a genuine contributor from being zeroed by a brief absence: decay reclaims
+idle capacity, it does not erase earned standing to nothing.
 
 The subtlety that keeps this from collapsing into proof-of-stake is a split between two cells. A
 participant's \textbf{standing} is \textcolor{sb}{soulbound}: it is the franchise (consensus weight and
@@ -692,7 +723,7 @@ eigenvector-style damping over the attribution graph, and the synergy game's dis
 self-referential coalitions.
 
 \paragraph{Demonstrated versus designed.} \emph{Demonstrated} in the open reference node (a Rust
-implementation with a no-std verification core shared with on-chain scripts, $286$ passing tests at
+implementation with a no-std verification core shared with on-chain scripts, $289$ passing tests at
 the time of writing): ownership and transfer, per-block signing, tamper-resistance, the synergy value
 over a coverage proxy with Myerson and Bradley--Terry and permutation sampling, temporal novelty,
 coordinated-volume saturation (Figure~\ref{fig:sat}), the orphan-root fan-out bounded by realized-flow
@@ -764,6 +795,9 @@ The creator's pre-launch contribution would otherwise be an unearned head start.
 a \textbf{genesis-burn}: the chain stays continuous from genesis and pre-launch blocks remain
 auditable, but their standing and state-value are programmatically burned to zero at the launch height.
 This is a fair launch one can verify on-chain, chosen over a chain reset, which only asserts fairness.
+Post-launch work may still build on a pre-launch block; the credit it generates flows forward to
+post-launch contributors along the provenance edges, while the pre-launch owner's burned standing is
+not retroactively restored.
 
 The mechanism also yields an unusual theft-resistance. Because the system \emph{is} attribution, a
 derivative deployment has two options. It can strip the provenance, in which case the attribution layer
@@ -911,10 +945,12 @@ value in a circle without adding anything anyone builds on, so it earns nothing 
 challenged. ``Honest DeFi'' stops being a promise an application has to make and becomes the path of
 least resistance the chain already rewards. The same holds for any shared activity: because you are paid
 in proportion to what others genuinely build on your work, the smart move at every layer is to make your
-work worth building on. Cooperation is not requested; it is simply the highest-paying strategy, and it
-compounds, since each honest layer makes honesty cheaper for the layer above it. This is the same
+work worth building on. Cooperation is not requested; it is simply the highest-paying strategy ---
+evolutionarily stable in the sense of Maynard Smith and Price --- and it compounds, since each honest
+layer makes honesty cheaper for the layer above it. This is the same
 equilibrium seen one level up: a whole ecosystem in which the dishonest move is just the one that does
-not pay.
+not pay. This holds exactly to the degree the value measure is un-gameable --- the load-bearing open
+problem of Section~\ref{sec:security} --- and is as strong as that measurement, no stronger.
 
 \section{Conclusion}
 
@@ -954,8 +990,9 @@ $W^{d}_{\text{for}},\,W^{d}_{\text{eff}},\,Q^{d}$ & for- / effective- / quorum-f
 credit. They are distinct.)
 
 \section*{References}
-\small
-\begin{enumerate}[leftmargin=1.4em,itemsep=1pt]
+\footnotesize
+\begin{multicols}{2}
+\begin{enumerate}[leftmargin=1.4em,itemsep=0pt]
 \item S. Nakamoto. \emph{Bitcoin: A Peer-to-Peer Electronic Cash System}. 2008.
 \item L. S. Shapley. \emph{A Value for $n$-Person Games}. Contributions to the Theory of Games II, 1953.
 \item R. B. Myerson. \emph{Graphs and Cooperation in Games}. Mathematics of Operations Research, 1977.
@@ -993,5 +1030,6 @@ credit. They are distinct.)
 \item C. Menger. \emph{Principles of Economics} (Grunds\"atze der Volkswirtschaftslehre). 1871.
 \item L. Walras. \emph{Elements of Pure Economics} (\'El\'ements d'\'economie politique pure). 1874.
 \end{enumerate}
+\end{multicols}
 
 \end{document}
