@@ -4252,6 +4252,16 @@ pub mod dispute {
     /// - Every identity's total is then capped at its current `standing` (the ceiling —
     ///   a cross-path slash can never destroy more than the identity holds).
     ///
+    /// Mint<->sink contract (COHERENCE-LAWS) for the composing caller: because overlap
+    /// collapses two slashes into their `max`, the standing actually destroyed equals the
+    /// SUM of THIS function's output, which is `<=` `collusion.burned + Σ refutation.slashes`
+    /// (strictly less whenever an overlap identity is double-listed). A caller wiring this
+    /// into settlement application must therefore set its burned figure to `Σ unified_slash`,
+    /// NOT the sum of the two source `Settlement::burned` fields — otherwise the overlap case
+    /// reports a larger sink than was destroyed and the mint<->sink balance drifts. (The
+    /// unified-Settlement constructor that emits this corrected burned is the next build —
+    /// ROADMAP (kk); kept out of here so this stays a pure, side-effect-free merge.)
+    ///
     /// Deterministic: identities are emitted in canonical (sorted) order. Apply the
     /// result with [`apply_slashes`].
     pub fn unified_slash(

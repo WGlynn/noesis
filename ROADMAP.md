@@ -25,6 +25,19 @@
    proven economic calibration. Re-tune only on real data. Per [P·augmented-mechanism-design-paper].
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-21 (kk)** — DESIGN tick (no code; PCP-gate — deep context ~8h, and the build touches
+  the mint↔sink value-accounting = COHERENCE-LAWS = load-bearing ⇒ decide now, build fresh). Names the
+  `unified_slash` **burned-accounting gap** surfaced while building (jj): the overlap branch collapses
+  two slashes to `max`, so the standing actually destroyed (`Σ unified_slash`) is `≤
+  collusion.burned + Σ refutation.slashes` — strictly less on any double-listed overlap identity. A
+  caller that burns the naive sum of the two source `Settlement::burned` fields would over-report the
+  sink and drift the mint↔sink balance. **DECISION:** the settlement-application caller's burned figure
+  must be `Σ unified_slash`. **NEXT BUILD (fresh):** a `unified_settlement(collusion, refutation,
+  overlap, standing) -> Settlement` that emits the merged slashes AND the corrected `burned = Σ merged`
+  (and zero canceled/payout — a pure cross-path bound carries no new bounty), with a mint↔sink test
+  (`Σ slashes == burned`) and an overlap test (`burned < collusion.burned + Σ refutation.slashes`).
+  Contract documented on `unified_slash` this fire; node otherwise unchanged (doc-only). lib 243 (no
+  count change).
 - **2026-06-21 (jj)** — BUILT ✅ (Will: "finish noesis chain") — **the unified cross-path slash
   bound `unified_slash`**, executing the (ii) DECISION. `dispute::unified_slash(collusion,
   refutation, overlap, standing)` merges the two settlements' per-identity slashes: an identity on
