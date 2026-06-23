@@ -1,5 +1,15 @@
 # DESIGN — lock-sig binding (existence → control)
 
+> **STATUS 2026-06-22 (nn) — VERIFIER LINKED (PQ).** The control predicate below is no longer
+> deploy-coupled-only: `runtime::lamport` (hash-based Lamport one-time signatures, Will chose PQ) is
+> wired as `verify_sig`, and `spend_is_authorized` verifies a presented `auth` FOR REAL against the
+> finalized cell's `lock.args` (a 32-byte pubkey root). Existence→control is closed at the reference
+> layer; `lamport_pq_*` + the end-to-end `spend_path_authorizes_*` tests pin it (anti-theater RED on a
+> stubbed verifier). Remaining: the GO-LIVE flip (`CONTROL_BINDING_ACTIVE=true` + populate `auths` across
+> honest flows + real-entropy keygen), the on-VM lock-script port, and a 🔬 Winternitz/SPHINCS+ size
+> compression of the 16 KiB one-time signature. The design below is the original (v) contract, kept for
+> provenance.
+
 > pom-roadmap-advance design tick 2026-06-19 (v). No code (PCP-gate: lock-sig touches the
 > spend-validation path = high blast radius ⇒ Rust in fresh low-context). Advances the #1
 > named frontier from *named/deploy-coupled* → **DECIDED + reference-scaffold contract**.

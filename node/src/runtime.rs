@@ -239,9 +239,9 @@ impl TokenTx {
             return false;
         }
         // EXISTENCE→CONTROL: each consumed input must be authorized by its owner, not merely exist.
-        // Sentinel-gated INERT pre-deploy (empty `auth` ⇒ authorized), so honest empty-auth flows are
-        // unchanged; a PRESENTED non-empty `auth` is unverifiable today and rejected, keeping the gate
-        // live (not dead code). The message is the canonical [`Self::digest`], computed once.
+        // Empty `auth` is the pre-deploy inert path (authorized while CONTROL_BINDING_ACTIVE is off),
+        // so honest empty-auth flows are unchanged; a PRESENTED `auth` is verified for real against the
+        // input's `lock.args` (post-quantum Lamport). The message is the canonical [`Self::digest`].
         let tx_digest = self.digest();
         self.inputs.iter().enumerate().all(|(i, input)| {
             let auth = self.auths.get(i).map(Vec::as_slice).unwrap_or(&[]);
@@ -337,29 +337,38 @@ impl TokenTx {
     /// proves a consumed input EXISTS; this proves the spender may move it. `tx_digest` is the canonical
     /// message a future owner-signature covers ([`Self::digest`]); `auth` is that signature, an opaque blob.
     ///
-    /// DEPLOY-COUPLED, sentinel-gated INERT (`DESIGN-locksig-binding.md`). Control requires proof of a
-    /// SECRET (the owner key) that lives outside finalized state, so there is no pure-reference predicate —
-    /// only a cryptographic one, wired at deploy. Until then:
-    ///   - an ABSENT (empty) `auth` is the honest pre-deploy case and passes, so existing flows are
-    ///     unchanged (the inert path), and
-    ///   - a PRESENTED (non-empty) `auth` cannot be verified yet, so it is REJECTED — an unverifiable
-    ///     signature is not an authorization. This keeps the gate LIVE (not dead code, not a rubber stamp).
+    /// The verifier is now LINKED — a post-quantum, hash-based Lamport one-time signature (see the
+    /// [`lamport`] module; Will chose PQ 2026-06-22). A PRESENTED `auth` is verified FOR REAL against
+    /// the finalized cell's `lock.args`, closing existence→control cryptographically: a real cell can
+    /// be NAMED by anyone, but only the holder of the lock's one-time key can MOVE it.
+    ///   - an ABSENT (empty) `auth` is the honest pre-deploy case; `CONTROL_BINDING_ACTIVE` gates
+    ///     whether it is still tolerated (pre-deploy YES ⇒ existing empty-auth flows unchanged; at
+    ///     deploy the flag flips and every spend must present a signature), and
+    ///   - a PRESENTED (non-empty) `auth` is verified: accepted iff it is a valid Lamport signature
+    ///     over `tx_digest` under the input's `lock.args` public-key root, rejected otherwise (a
+    ///     garbage blob or a wrong-key/wrong-message signature is not an authorization).
     ///
-    /// At deploy, `CONTROL_BINDING_ACTIVE` flips and the body becomes
-    /// `verify_sig(owner = input.lock.args, msg = tx_digest, sig = auth)` — owner sourced from the
-    /// FINALIZED cell's `lock`, never producer-asserted ([P·dont-let-attacker-choose-critical-input]).
-    /// WIRED into [`Self::is_valid_in_ledger`]: called once per consumed input with that input's
-    /// positional `auth`. Pre-deploy the sentinel path keeps every honest (empty-auth) flow green.
+    /// The owner public key is sourced from the FINALIZED cell's `lock.args`, never producer-asserted
+    /// ([P·dont-let-attacker-choose-critical-input]). WIRED into [`Self::is_valid_in_ledger`]: called
+    /// once per consumed input with that input's positional `auth`.
     pub(crate) fn spend_is_authorized(input: &Cell, auth: &[u8], tx_digest: &[u8; 32]) -> bool {
-        // Explicit deploy flag — never an overloaded sentinel (the QA-port-2 lesson).
+        // Explicit deploy flag — never an overloaded sentinel (the QA-port-2 lesson). Pre-deploy a
+        // cell may carry no control proof; at deploy an empty auth no longer authorizes.
         const CONTROL_BINDING_ACTIVE: bool = false;
-        if CONTROL_BINDING_ACTIVE {
-            // The verifier is not linked yet; flipping this flag without wiring `verify_sig` must FAIL
-            // LOUD rather than silently accept any blob as a signature.
-            let _ = (input, tx_digest); // deploy: verify_sig(input.lock.args, tx_digest, auth)
-            unreachable!("lock-sig verifier not wired — see DESIGN-locksig-binding.md step 3");
+        if auth.is_empty() {
+            return !CONTROL_BINDING_ACTIVE;
         }
-        auth.is_empty()
+        Self::verify_sig(&input.lock.args, tx_digest, auth)
+    }
+
+    /// Post-quantum lock-signature check: the owner key is a 32-byte Lamport public-key root carried
+    /// as the finalized cell's `lock.args`. A `lock.args` that is not exactly a 32-byte root cannot
+    /// authorize a spend (rejected, never panics on a malformed owner field).
+    fn verify_sig(owner_pubkey: &[u8], tx_digest: &[u8; 32], auth: &[u8]) -> bool {
+        match <&[u8; 32]>::try_from(owner_pubkey) {
+            Ok(root) => lamport::verify(root, tx_digest, auth),
+            Err(_) => false,
+        }
     }
 }
 
@@ -530,6 +539,108 @@ impl Node {
     /// the round's proposals are all included).
     pub fn clear_mempool(&mut self) {
         self.mempool.clear();
+    }
+}
+
+// ============ Lock-sig verifier — post-quantum (hash-based Lamport) ============
+//
+// ROADMAP lock-sig DEPLOY half. Will 2026-06-22 chose PQ. Lamport one-time signatures are the
+// structurally-correct PQ choice here, not a default:
+//   - HASH-BASED / post-quantum — no lattice assumption, no external crate (reuses the in-tree
+//     blake2b). Aligns with the post-quantum hash-rooted substrate thesis; lean-like-Bitcoin.
+//   - ONE-TIME is free — a cell is consumed exactly once (single-use invariant, retire-on-apply),
+//     so its lock key signs exactly once; key reuse is structurally impossible, which is precisely
+//     Lamport's safety precondition. The UTXO/cell model IS the precondition (SubstrateGeometryMatch).
+//   - HASH-ROOTED key — a public key is a single 32-byte blake2b root, so it fits a cell's `lock.args`.
+//
+// Reference layer: deterministic seed-expanded keygen (no `rand` dep) so the structure is TESTABLE
+// now; deploy swaps in real entropy. 🔬 The 16 KiB one-time signature is Lamport's known size
+// tradeoff — a Winternitz/SPHINCS+ compression is the deferred optimization, acceptable for a single
+// per-spend authorization at the reference layer.
+pub(crate) mod lamport {
+    const N: usize = 256; // a 32-byte message digest = 256 bits ⇒ one keypair column per bit
+
+    /// Domain-separated 32-byte blake2b. `tag` distinguishes secret-leaf / pk-leaf / root preimages
+    /// so the three uses can never collide; the personalization separates Lamport hashes from the tx
+    /// digest (`noesis-tx-v1`) and the novelty-index node hash (`noesis-smt-v1`).
+    fn h(tag: u8, parts: &[&[u8]]) -> [u8; 32] {
+        let mut hasher = blake2b_ref::Blake2bBuilder::new(32)
+            .personal(b"noesis-lamp-v1\0\0")
+            .build();
+        hasher.update(&[tag]);
+        for p in parts {
+            hasher.update(p);
+        }
+        let mut out = [0u8; 32];
+        hasher.finalize(&mut out);
+        out
+    }
+
+    // Signing/keygen is key-holder (wallet) tooling — a NODE only ever verifies, so these are
+    // test-only here; they move to a client crate at deploy. `pk_leaf`/`root`/`bit`/`verify` are the
+    // production verify path.
+    #[cfg(test)]
+    fn secret_leaf(seed: &[u8; 32], i: usize, b: u8) -> [u8; 32] {
+        h(0x01, &[seed, &(i as u32).to_le_bytes(), &[b]])
+    }
+    fn pk_leaf(preimage: &[u8; 32]) -> [u8; 32] {
+        h(0x02, &[preimage])
+    }
+    /// Commit the full 2N public-key table in canonical (i, bit) order to one 32-byte root.
+    fn root(table: &[[u8; 32]]) -> [u8; 32] {
+        let flat: Vec<u8> = table.iter().flat_map(|leaf| leaf.iter().copied()).collect();
+        h(0x03, &[&flat])
+    }
+    fn bit(msg: &[u8; 32], i: usize) -> u8 {
+        (msg[i / 8] >> (i % 8)) & 1
+    }
+
+    /// Deterministic keygen from a 32-byte seed → the public-key root (a cell's `lock.args`).
+    /// Key-holder / test tooling only; the node itself only ever VERIFIES.
+    #[cfg(test)]
+    pub(crate) fn keygen_root(seed: &[u8; 32]) -> [u8; 32] {
+        let mut table = Vec::with_capacity(2 * N);
+        for i in 0..N {
+            for b in 0..2u8 {
+                table.push(pk_leaf(&secret_leaf(seed, i, b)));
+            }
+        }
+        root(&table)
+    }
+
+    /// Sign a 32-byte message: per bit, reveal the preimage for that bit AND carry the SIBLING pk
+    /// hash (which the verifier cannot derive without the unrevealed preimage). 256 × 64 B = 16 KiB.
+    #[cfg(test)]
+    pub(crate) fn sign(seed: &[u8; 32], msg: &[u8; 32]) -> Vec<u8> {
+        let mut sig = Vec::with_capacity(N * 64);
+        for i in 0..N {
+            let b = bit(msg, i);
+            sig.extend_from_slice(&secret_leaf(seed, i, b)); // revealed preimage for the message bit
+            sig.extend_from_slice(&pk_leaf(&secret_leaf(seed, i, 1 - b))); // sibling pk hash
+        }
+        sig
+    }
+
+    /// Verify `sig` for `msg` under the public-key `root_commit` (the finalized cell's `lock.args`).
+    /// Reconstructs the 2N pk table — revealed-bit slot from `H(preimage)`, sibling slot from the
+    /// carried hash — and checks it commits back to `root_commit`. Forging a DIFFERENT message needs
+    /// an unrevealed preimage (a hash break); the key signs once, so one-time security holds.
+    pub(crate) fn verify(root_commit: &[u8; 32], msg: &[u8; 32], sig: &[u8]) -> bool {
+        if sig.len() != N * 64 {
+            return false; // malformed length is not a signature
+        }
+        let mut table = Vec::with_capacity(2 * N);
+        for i in 0..N {
+            let b = bit(msg, i);
+            let preimage: &[u8; 32] = sig[i * 64..i * 64 + 32].try_into().unwrap();
+            let sibling: [u8; 32] = sig[i * 64 + 32..i * 64 + 64].try_into().unwrap();
+            let revealed = pk_leaf(preimage);
+            // place revealed in the message-bit slot, sibling in the other, table in (i,0),(i,1) order.
+            let (slot0, slot1) = if b == 0 { (revealed, sibling) } else { (sibling, revealed) };
+            table.push(slot0);
+            table.push(slot1);
+        }
+        &root(&table) == root_commit
     }
 }
 
@@ -783,10 +894,10 @@ mod tests {
             TokenTx::spend_is_authorized(input, &[], &d),
             "an absent (sentinel) auth is inert-authorized pre-deploy"
         );
-        // a PRESENTED auth cannot be verified pre-deploy (no verifier) => NOT authorization (gate is live).
+        // a PRESENTED garbage auth fails REAL verification (a 3-byte blob is not a valid Lamport sig).
         assert!(
             !TokenTx::spend_is_authorized(input, &[1, 2, 3], &d),
-            "an unverifiable presented signature is not an authorization"
+            "a malformed presented signature is not an authorization"
         );
     }
 
@@ -850,10 +961,66 @@ mod tests {
             node.validate(&block.clone().with_token_txs(vec![mk(vec![])])),
             "sentinel-auth spend must validate: the inert path leaves existing flows unchanged"
         );
-        // a presented-but-unverifiable auth on the real input => rejected THROUGH the wired path.
+        // a presented garbage auth on the real input => fails real verification THROUGH the wired path.
         assert!(
             !node.validate(&block.with_token_txs(vec![mk(vec![vec![9, 9, 9]])])),
-            "WIRED gate: a presented unverifiable signature must be rejected by is_valid_in_ledger"
+            "WIRED gate: a malformed presented signature must be rejected by is_valid_in_ledger"
+        );
+    }
+
+    #[test]
+    fn lamport_pq_signature_roundtrips_and_rejects_forgery() {
+        // The post-quantum (hash-based) one-time verifier in isolation.
+        let seed = [7u8; 32];
+        let root = super::lamport::keygen_root(&seed);
+        let msg = [42u8; 32];
+        let sig = super::lamport::sign(&seed, &msg);
+        assert!(super::lamport::verify(&root, &msg, &sig), "honest one-time signature verifies");
+        // WRONG MESSAGE — a signature over `msg` must not transfer to a different digest (no replay).
+        let other_msg = [43u8; 32];
+        assert!(!super::lamport::verify(&root, &other_msg, &sig), "sig does not transfer to another message");
+        // WRONG KEY — a signature under one key must not verify under a different owner's root.
+        let other_root = super::lamport::keygen_root(&[8u8; 32]);
+        assert!(!super::lamport::verify(&other_root, &msg, &sig), "sig under one key fails under another");
+        // TAMPERED — flipping any signature byte breaks it.
+        let mut tampered = sig.clone();
+        tampered[100] ^= 0xff;
+        assert!(!super::lamport::verify(&root, &msg, &tampered), "a tampered signature is rejected");
+        // MALFORMED LENGTH — a truncated blob is not a signature.
+        assert!(!super::lamport::verify(&root, &msg, &sig[..sig.len() - 1]), "a wrong-length blob is rejected");
+    }
+
+    #[test]
+    fn spend_path_authorizes_a_valid_pq_signature_and_rejects_a_wrong_key() {
+        // existence→CONTROL closed CRYPTOGRAPHICALLY through the live block-validation path: a real
+        // finalized cell can be NAMED by anyone (existence), but only the holder of the lock's one-time
+        // key can MOVE it. Closes the (o) orthogonal residual — "spending another owner's real cell
+        // still validates" — with a post-quantum signature.
+        let seed = [3u8; 32];
+        let root = super::lamport::keygen_root(&seed); // alice's PQ public key = her cell's lock.args
+        let (mut node, block) = node_and_carrier_block();
+        let alice_cell = ft_cell(b"USD", &root, 6);
+        node.ledger.token_cells.push(alice_cell.clone());
+
+        let unsigned = TokenTx {
+            standard: TokenStandard::Fungible,
+            auths: vec![],
+            code_hash: [20u8; 32],
+            args: b"USD".to_vec(),
+            inputs: vec![alice_cell.clone()],
+            outputs: vec![ft_cell(b"USD", b"bob", 6)],
+        };
+        let digest = unsigned.digest(); // the bytes the owner signs (auth-independent — auths are not in the digest)
+        let good = super::lamport::sign(&seed, &digest);
+        let wrong_key = super::lamport::sign(&[9u8; 32], &digest); // a different key over the SAME movement
+
+        assert!(
+            node.validate(&block.clone().with_token_txs(vec![TokenTx { auths: vec![good], ..unsigned.clone() }])),
+            "a valid PQ owner-signature authorizes the spend through is_valid_in_ledger"
+        );
+        assert!(
+            !node.validate(&block.with_token_txs(vec![TokenTx { auths: vec![wrong_key], ..unsigned }])),
+            "a signature under a DIFFERENT key cannot move alice's cell — existence != control"
         );
     }
 

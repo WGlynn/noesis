@@ -28,6 +28,33 @@
    proven economic calibration. Re-tune only on real data. Per [P·augmented-mechanism-design-paper].
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-22 (nn)** — BUILT ✅ **LOCK-SIG VERIFIER LINKED — post-quantum (Will: "pq")** — the
+  lock-sig DEPLOY half ((y) NEXT). The (x)/(y) scaffold left `spend_is_authorized` verifying nothing
+  (empty auth → inert-authorized; any presented auth → blanket-rejected, `verify_sig` body an
+  `unreachable!`). This LINKS a real verifier: a **Lamport one-time signature**, chosen structurally not
+  by default — hash-based (post-quantum, no lattice, **no external crate** — reuses in-tree blake2b;
+  hash-rooted per the substrate thesis), and its one-time limitation is **free** because a cell is
+  consumed exactly once (single-use invariant (j)), so the lock key signs exactly once — the UTXO/cell
+  model IS Lamport's safety precondition (SubstrateGeometryMatch). A pubkey is a single 32-byte blake2b
+  root ⇒ fits `lock.args`; signature = 256×(revealed preimage ‖ sibling pk-hash) = 16 KiB. `verify_sig`
+  sources the owner root from the FINALIZED cell's `lock.args` (consensus-derived, never
+  producer-asserted). **The presented-auth path now verifies FOR REAL**: accepted iff a valid Lamport sig
+  over `tx_digest` under that root. `CONTROL_BINDING_ACTIVE` stays false (gates only whether an EMPTY auth
+  is tolerated) ⇒ all honest empty-auth flows unchanged; the `unreachable!` is gone (verifier linked).
+  **TESTED** (+2): `lamport_pq_signature_roundtrips_and_rejects_forgery` (verify in isolation:
+  honest-✓, wrong-message-✗, wrong-key-✗, tampered-✗, wrong-length-✗) and
+  `spend_path_authorizes_a_valid_pq_signature_and_rejects_a_wrong_key` — END-TO-END through
+  `node.validate`: a valid owner-sig moves alice's cell, a same-digest signature under a DIFFERENT key
+  cannot — **closing the (o) orthogonal residual ("spend another owner's real cell" ) CRYPTOGRAPHICALLY**.
+  Existing presented-garbage tests (`[1,2,3]`/`[9,9,9]`) now reject via real verification, not absence of
+  one. Keygen/sign are `#[cfg(test)]` (a NODE only verifies; signing is wallet-side). **Anti-theater
+  CONFIRMED:** stub `verify`→always-true ⇒ the wrong-message/wrong-key assertions go RED; restored. lib
+  246→**248**, full suite 296→**298**, 0 new clippy (the 37/38/102/279 hits are pre-existing per (y)).
+  **HONEST SCOPE:** existence ✅ + single-use ✅ + **control ✅ (PQ, linked)** — the spend trifecta is
+  closed at the reference layer. Remaining 🟡: the GO-LIVE flip (`CONTROL_BINDING_ACTIVE=true` + populate
+  `auths` across honest flows + real entropy keygen), the on-VM lock-script port, and a 🔬 Winternitz/
+  SPHINCS+ compression of the 16 KiB one-time sig. **NEXT:** on-VM finalization mirror of the (mm) PoS+PoM
+  rule (Q32.32) · lock-sig go-live flip + on-VM lock script · learned-v(S) on real labels = THE moat.
 - **2026-06-22 (mm)** — BUILT ✅ **T3 FINALITY-WIRING LANDED** (Will: "full auto finish roadmap") —
   executed LOCKED consensus-decision #3. The live finalization decision `runtime::finalizes(c,
   voters_for, all, now)` was a thin wrapper over `consensus::finalizes_hybrid` with the PoW-inclusive
