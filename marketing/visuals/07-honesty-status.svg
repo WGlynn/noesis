@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 420" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <rect width="960" height="420" fill="#fbfaf7"/>
+  <text x="480" y="42" font-size="22" font-weight="700" fill="#1a1f2e" text-anchor="middle">What's real, what's drawn, what's open</text>
+  <text x="480" y="66" font-size="14" fill="#5b6478" text-anchor="middle">We say the status out loud — the same discipline as the whitepaper</text>
+
+  <!-- BOX 1: built + tested (solid filled) -->
+  <rect x="60" y="120" width="260" height="180" rx="12" fill="#1f9d8f"/>
+  <text x="190" y="158" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">conservation core</text>
+  <circle cx="190" cy="200" r="30" fill="#fff" opacity="0.95"/>
+  <path d="M176,200 l9,9 l18,-20" stroke="#1f9d8f" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="190" y="262" font-size="13" font-weight="700" fill="#fff" text-anchor="middle">BUILT &amp; TESTED</text>
+  <text x="190" y="282" font-size="12" fill="#d7f0ec" text-anchor="middle">demonstrated at the reference layer</text>
+
+  <!-- BOX 2: designed, not built (dashed outline) -->
+  <rect x="350" y="120" width="260" height="180" rx="12" fill="#fff" stroke="#5b6478" stroke-width="2" stroke-dasharray="8 6"/>
+  <text x="480" y="158" font-size="15" font-weight="700" fill="#1a1f2e" text-anchor="middle">convergence adapter</text>
+  <g stroke="#5b6478" stroke-width="2" stroke-dasharray="6 5" fill="none">
+    <rect x="455" y="175" width="50" height="50" rx="6"/>
+  </g>
+  <text x="480" y="262" font-size="13" font-weight="700" fill="#5b6478" text-anchor="middle">DESIGNED, NOT YET BUILT</text>
+  <text x="480" y="282" font-size="12" fill="#5b6478" text-anchor="middle">the chain-to-chain "converge-in" bridge</text>
+
+  <!-- BOX 3: null-tested (faded) -->
+  <rect x="640" y="120" width="260" height="180" rx="12" fill="#f4f2ee" stroke="#c9b48a" stroke-width="1.5" opacity="0.95"/>
+  <text x="770" y="158" font-size="15" font-weight="700" fill="#8a7a55" text-anchor="middle">learned value measure</text>
+  <text x="770" y="205" font-size="34" fill="#c9b48a" text-anchor="middle" font-weight="300">?</text>
+  <text x="770" y="262" font-size="13" font-weight="700" fill="#a9741b" text-anchor="middle">FIRST REAL-DATA TEST: NULL</text>
+  <text x="770" y="282" font-size="12" fill="#8a7a55" text-anchor="middle">inconclusive — unsupported, not refuted</text>
+
+  <!-- legend / caption -->
+  <text x="480" y="354" font-size="13" fill="#1a1f2e" text-anchor="middle">
+    <tspan fill="#1f9d8f" font-weight="700">solid = built</tspan>
+    <tspan>   ·   </tspan>
+    <tspan fill="#5b6478" font-weight="700">dashed = designed</tspan>
+    <tspan>   ·   </tspan>
+    <tspan fill="#a9741b" font-weight="700">faded = open / null-tested</tspan>
+  </text>
+  <text x="480" y="382" font-size="12" fill="#5b6478" text-anchor="middle" font-style="italic">honest sells better to serious people — no "live", no fabricated metrics, no phantom users</text>
+</svg>

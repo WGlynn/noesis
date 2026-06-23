@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 560" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="fn-teal" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1f9d8f"/>
+    </marker>
+  </defs>
+  <rect width="720" height="560" fill="#fbfaf7"/>
+  <text x="360" y="42" font-size="22" font-weight="700" fill="#1a1f2e" text-anchor="middle">Claimable-attribution funnel</text>
+  <text x="360" y="66" font-size="14" fill="#5b6478" text-anchor="middle">You don't earn your way in — you claim what's already yours</text>
+
+  <!-- TOP: the whole existing graph (wide) -->
+  <g>
+    <rect x="90" y="92" width="540" height="92" rx="10" fill="#e9f4f2" stroke="#1f9d8f" stroke-width="1.5"/>
+    <!-- little graph nodes to suggest "every repo, every contributor" -->
+    <g fill="#1f9d8f" opacity="0.55">
+      <circle cx="150" cy="125" r="5"/><circle cx="200" cy="150" r="5"/><circle cx="255" cy="118" r="5"/>
+      <circle cx="320" cy="155" r="5"/><circle cx="380" cy="122" r="5"/><circle cx="445" cy="150" r="5"/>
+      <circle cx="510" cy="120" r="5"/><circle cx="560" cy="150" r="5"/>
+    </g>
+    <g stroke="#1f9d8f" stroke-width="1" opacity="0.35">
+      <line x1="150" y1="125" x2="200" y2="150"/><line x1="200" y1="150" x2="255" y2="118"/>
+      <line x1="255" y1="118" x2="320" y2="155"/><line x1="320" y1="155" x2="380" y2="122"/>
+      <line x1="380" y1="122" x2="445" y2="150"/><line x1="445" y1="150" x2="510" y2="120"/>
+      <line x1="510" y1="120" x2="560" y2="150"/>
+    </g>
+    <text x="360" y="178" font-size="13" font-weight="700" fill="#0f6f64" text-anchor="middle">the whole existing contribution graph — every repo, every contributor</text>
+  </g>
+
+  <!-- funnel narrowing into the filter -->
+  <path d="M120,184 L600,184 L470,272 L250,272 Z" fill="#fff" stroke="#d9dde6" stroke-width="1.5"/>
+  <!-- the filter band -->
+  <rect x="250" y="252" width="220" height="36" rx="6" fill="#fff6e6" stroke="#e0a83e" stroke-width="2"/>
+  <text x="360" y="276" font-size="14" font-weight="700" fill="#a9741b" text-anchor="middle">prove it's you</text>
+
+  <!-- side note: the filter -->
+  <text x="630" y="262" font-size="12" fill="#a9741b" font-weight="600">the filter:</text>
+  <text x="630" y="280" font-size="12" fill="#5b6478">only what you</text>
+  <text x="630" y="296" font-size="12" fill="#5b6478">really did</text>
+  <text x="630" y="312" font-size="12" fill="#5b6478">passes through</text>
+  <line x1="475" y1="270" x2="622" y2="270" stroke="#e0a83e" stroke-width="1" stroke-dasharray="3 3"/>
+
+  <!-- arrow down -->
+  <line x1="360" y1="292" x2="360" y2="332" stroke="#1f9d8f" stroke-width="2.5" marker-end="url(#fn-teal)"/>
+
+  <!-- BOTTOM: wallet created + credit claimed -->
+  <rect x="220" y="340" width="280" height="64" rx="10" fill="#1f9d8f"/>
+  <text x="360" y="368" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">wallet created</text>
+  <text x="360" y="390" font-size="13" fill="#d7f0ec" text-anchor="middle">+ credit claimed  (signing up IS the reward)</text>
+
+  <!-- arrow to adopter -->
+  <line x1="360" y1="404" x2="360" y2="444" stroke="#1f9d8f" stroke-width="2.5" marker-end="url(#fn-teal)"/>
+
+  <!-- adopter -->
+  <rect x="270" y="452" width="180" height="52" rx="10" fill="#fff" stroke="#1f9d8f" stroke-width="1.5"/>
+  <text x="360" y="478" font-size="15" font-weight="700" fill="#1a1f2e" text-anchor="middle">a real builder, onboarded</text>
+  <text x="360" y="496" font-size="12" fill="#5b6478" text-anchor="middle">credit comes first, and pulls adoption behind it</text>
+
+  <text x="360" y="538" font-size="12" fill="#a9741b" text-anchor="middle" font-style="italic">a brand-new identity has nothing to claim — nothing here for airdrop farmers to game</text>
+</svg>

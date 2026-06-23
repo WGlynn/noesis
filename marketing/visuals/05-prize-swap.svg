@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 480" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="ps-ink" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1a1f2e"/>
+    </marker>
+    <marker id="ps-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c2453d"/>
+    </marker>
+  </defs>
+  <rect width="960" height="480" fill="#fbfaf7"/>
+  <text x="480" y="42" font-size="22" font-weight="700" fill="#1a1f2e" text-anchor="middle">Change the prize, dissolve the war</text>
+
+  <!-- ============ LEFT: scarce prize ============ -->
+  <text x="220" y="92" font-size="15" font-weight="700" fill="#c2453d" text-anchor="middle">SCARCE PRIZE — one winner</text>
+
+  <!-- single golden coin, contested -->
+  <circle cx="220" cy="230" r="48" fill="#e0a83e" stroke="#a9741b" stroke-width="2"/>
+  <circle cx="220" cy="230" r="34" fill="none" stroke="#a9741b" stroke-width="1.5"/>
+  <text x="220" y="236" font-size="22" font-weight="700" fill="#7a520f" text-anchor="middle">1</text>
+
+  <!-- four hands/chains grabbing the one coin -->
+  <g fill="#fff" stroke="#c2453d" stroke-width="1.5">
+    <rect x="70" y="120" width="70" height="34" rx="6"/>
+    <rect x="300" y="120" width="70" height="34" rx="6"/>
+    <rect x="70" y="306" width="70" height="34" rx="6"/>
+    <rect x="300" y="306" width="70" height="34" rx="6"/>
+  </g>
+  <g font-size="12" fill="#1a1f2e" font-weight="600" text-anchor="middle">
+    <text x="105" y="142">chain</text><text x="335" y="142">chain</text>
+    <text x="105" y="328">chain</text><text x="335" y="328">chain</text>
+  </g>
+  <g stroke="#c2453d" stroke-width="2" fill="none" marker-end="url(#ps-red)">
+    <path d="M128,154 L185,205"/>
+    <path d="M312,154 L255,205"/>
+    <path d="M128,306 L185,255"/>
+    <path d="M312,306 L255,255"/>
+  </g>
+  <text x="220" y="400" font-size="13" fill="#c2453d" text-anchor="middle" font-style="italic">everyone grabs for the one coin —</text>
+  <text x="220" y="418" font-size="13" fill="#c2453d" text-anchor="middle" font-style="italic">someone wins, the rest lose</text>
+
+  <!-- ============ MIDDLE arrow ============ -->
+  <line x1="410" y1="230" x2="545" y2="230" stroke="#1a1f2e" stroke-width="2.5" marker-end="url(#ps-ink)"/>
+  <text x="478" y="218" font-size="12" fill="#1a1f2e" text-anchor="middle" font-weight="600">change</text>
+  <text x="478" y="252" font-size="12" fill="#1a1f2e" text-anchor="middle" font-weight="600">the prize</text>
+
+  <!-- ============ RIGHT: conserved prize ============ -->
+  <text x="740" y="92" font-size="15" font-weight="700" fill="#1f9d8f" text-anchor="middle">CONSERVED PRIZE — everyone adds</text>
+
+  <!-- ever-growing stack of credited blocks -->
+  <g stroke="#0f6f64" stroke-width="1.5">
+    <rect x="650" y="300" width="180" height="26" rx="4" fill="#1f9d8f"/>
+    <rect x="662" y="272" width="156" height="26" rx="4" fill="#27b3a3"/>
+    <rect x="674" y="244" width="132" height="26" rx="4" fill="#1f9d8f"/>
+    <rect x="686" y="216" width="108" height="26" rx="4" fill="#27b3a3"/>
+    <rect x="698" y="188" width="84" height="26" rx="4" fill="#1f9d8f"/>
+    <rect x="710" y="160" width="60" height="26" rx="4" fill="#27b3a3"/>
+  </g>
+  <g font-size="11" fill="#fff" font-weight="600" text-anchor="middle">
+    <text x="740" y="318">your piece, kept</text>
+    <text x="740" y="290">their piece, kept</text>
+    <text x="740" y="262">+ another</text>
+    <text x="740" y="234">+ another</text>
+  </g>
+  <!-- up arrow showing it grows -->
+  <line x1="620" y1="320" x2="620" y2="165" stroke="#1f9d8f" stroke-width="2" marker-end="url(#ps-ink)" stroke-dasharray="4 3"/>
+  <text x="600" y="245" font-size="11" fill="#0f6f64" text-anchor="middle" transform="rotate(-90 600 245)">grows with every contributor</text>
+
+  <text x="740" y="400" font-size="13" fill="#1f9d8f" text-anchor="middle" font-style="italic">contribution adds up instead of running out —</text>
+  <text x="740" y="418" font-size="13" fill="#1f9d8f" text-anchor="middle" font-style="italic">nobody has to lose, so there's nothing to fight over</text>
+</svg>

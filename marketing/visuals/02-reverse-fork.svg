@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 480" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="rf-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c2453d"/>
+    </marker>
+    <marker id="rf-teal" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1f9d8f"/>
+    </marker>
+  </defs>
+  <rect width="960" height="480" fill="#fbfaf7"/>
+  <line x1="480" y1="60" x2="480" y2="430" stroke="#d9dde6" stroke-width="1.5" stroke-dasharray="3 5"/>
+
+  <!-- ============ LEFT: normal fork ============ -->
+  <text x="50" y="46" font-size="22" font-weight="700" fill="#1a1f2e">Normal fork</text>
+  <text x="50" y="68" font-size="14" fill="#5b6478">One community splits off into two</text>
+
+  <!-- single thick line then diverges -->
+  <path d="M70,250 L230,250" stroke="#c2453d" stroke-width="10" fill="none" stroke-linecap="round"/>
+  <path d="M230,250 C300,250 300,150 420,150" stroke="#c2453d" stroke-width="5" fill="none" stroke-linecap="round" marker-end="url(#rf-red)"/>
+  <path d="M230,250 C300,250 300,350 420,350" stroke="#c2453d" stroke-width="5" fill="none" stroke-linecap="round" marker-end="url(#rf-red)"/>
+  <circle cx="230" cy="250" r="6" fill="#c2453d"/>
+
+  <text x="100" y="240" font-size="13" fill="#1a1f2e" font-weight="600">one chain</text>
+  <text x="440" y="155" font-size="13" fill="#c2453d" font-weight="600">split A</text>
+  <text x="440" y="355" font-size="13" fill="#c2453d" font-weight="600">split B</text>
+  <text x="240" y="430" font-size="13" fill="#c2453d" text-anchor="middle" font-style="italic">value splits — community fragments, work is divided</text>
+
+  <!-- ============ RIGHT: reverse-fork ============ -->
+  <text x="510" y="46" font-size="22" font-weight="700" fill="#1a1f2e">Reverse-fork</text>
+  <text x="510" y="68" font-size="14" fill="#5b6478">Two chains merge in, into one</text>
+
+  <!-- two lines converging into one thicker line -->
+  <path d="M540,150 C660,150 660,250 730,250" stroke="#1f9d8f" stroke-width="5" fill="none" stroke-linecap="round" marker-end="url(#rf-teal)"/>
+  <path d="M540,350 C660,350 660,250 730,250" stroke="#1f9d8f" stroke-width="5" fill="none" stroke-linecap="round" marker-end="url(#rf-teal)"/>
+  <path d="M730,250 L900,250" stroke="#1f9d8f" stroke-width="12" fill="none" stroke-linecap="round"/>
+  <circle cx="730" cy="250" r="6" fill="#1f9d8f"/>
+
+  <text x="520" y="142" font-size="13" fill="#1a1f2e" font-weight="600">chain A</text>
+  <text x="520" y="372" font-size="13" fill="#1a1f2e" font-weight="600">chain B</text>
+  <text x="820" y="238" font-size="13" fill="#1f9d8f" font-weight="600" text-anchor="middle">one graph</text>
+  <text x="820" y="282" font-size="11" fill="#5b6478" text-anchor="middle">(thicker = both kept)</text>
+  <text x="720" y="430" font-size="13" fill="#1f9d8f" text-anchor="middle" font-style="italic">value conserved — everything built is carried in, intact</text>
+</svg>

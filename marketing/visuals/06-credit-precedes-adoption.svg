@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 420" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="cp-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c2453d"/>
+    </marker>
+    <marker id="cp-teal" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1f9d8f"/>
+    </marker>
+  </defs>
+  <rect width="960" height="420" fill="#fbfaf7"/>
+  <text x="480" y="42" font-size="22" font-weight="700" fill="#1a1f2e" text-anchor="middle">Credit comes first, and pulls adoption behind it</text>
+
+  <!-- ====== ROW 1: normal chains ====== -->
+  <text x="60" y="108" font-size="15" font-weight="700" fill="#c2453d">OTHER CHAINS</text>
+  <line x1="60" y1="160" x2="900" y2="160" stroke="#d9dde6" stroke-width="2"/>
+
+  <g>
+    <circle cx="220" cy="160" r="9" fill="#c2453d"/>
+    <text x="220" y="138" font-size="14" font-weight="600" fill="#1a1f2e" text-anchor="middle">join</text>
+    <text x="220" y="190" font-size="12" fill="#5b6478" text-anchor="middle">step 1</text>
+  </g>
+  <line x1="232" y1="160" x2="498" y2="160" stroke="#c2453d" stroke-width="2.5" marker-end="url(#cp-red)"/>
+  <g>
+    <circle cx="520" cy="160" r="9" fill="#c2453d"/>
+    <text x="520" y="138" font-size="14" font-weight="600" fill="#1a1f2e" text-anchor="middle">then earn</text>
+    <text x="520" y="190" font-size="12" fill="#5b6478" text-anchor="middle">start at zero</text>
+  </g>
+  <text x="730" y="165" font-size="14" fill="#c2453d" font-style="italic">empty wallet, grind your way up</text>
+
+  <!-- ====== ROW 2: Noesis ====== -->
+  <text x="60" y="278" font-size="15" font-weight="700" fill="#1f9d8f">NOESIS</text>
+  <line x1="60" y1="330" x2="900" y2="330" stroke="#d9dde6" stroke-width="2"/>
+
+  <g>
+    <circle cx="220" cy="330" r="9" fill="#1f9d8f"/>
+    <text x="220" y="308" font-size="14" font-weight="600" fill="#1a1f2e" text-anchor="middle">already credited</text>
+    <text x="220" y="360" font-size="12" fill="#5b6478" text-anchor="middle">before you arrive</text>
+  </g>
+  <line x1="232" y1="330" x2="498" y2="330" stroke="#1f9d8f" stroke-width="2.5" marker-end="url(#cp-teal)"/>
+  <g>
+    <circle cx="520" cy="330" r="9" fill="#1f9d8f"/>
+    <text x="520" y="308" font-size="14" font-weight="600" fill="#1a1f2e" text-anchor="middle">join to claim</text>
+    <text x="520" y="360" font-size="12" fill="#5b6478" text-anchor="middle">open the box with your name</text>
+  </g>
+  <text x="730" y="335" font-size="14" fill="#1f9d8f" font-style="italic">credit is already yours, waiting</text>
+</svg>

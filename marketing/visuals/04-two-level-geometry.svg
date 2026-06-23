@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 560" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="tl-teal" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1f9d8f"/>
+    </marker>
+  </defs>
+  <rect width="760" height="560" fill="#fbfaf7"/>
+  <text x="380" y="42" font-size="22" font-weight="700" fill="#1a1f2e" text-anchor="middle">The same move, two zoom levels</text>
+  <text x="380" y="66" font-size="14" fill="#5b6478" text-anchor="middle">Absorb by attribution — whether the thing joining is a chain or a person</text>
+
+  <!-- panel divider -->
+  <line x1="60" y1="290" x2="700" y2="290" stroke="#d9dde6" stroke-width="1.5" stroke-dasharray="3 5"/>
+
+  <!-- ====== TOP PANEL: chains ====== -->
+  <text x="60" y="108" font-size="15" font-weight="700" fill="#0f6f64">CHAIN LEVEL</text>
+  <text x="60" y="128" font-size="13" fill="#5b6478">whole chains converge into one graph</text>
+
+  <g fill="#e9f4f2" stroke="#1f9d8f" stroke-width="1.5">
+    <rect x="70" y="150" width="92" height="38" rx="6"/>
+    <rect x="70" y="200" width="92" height="38" rx="6"/>
+    <rect x="70" y="250" width="92" height="38" rx="6"/>
+  </g>
+  <g font-size="13" fill="#1a1f2e" font-weight="600" text-anchor="middle">
+    <text x="116" y="174">Chain A</text>
+    <text x="116" y="224">Chain B</text>
+    <text x="116" y="274">Chain C</text>
+  </g>
+  <g stroke="#1f9d8f" stroke-width="2.5" fill="none" marker-end="url(#tl-teal)">
+    <path d="M162,169 Q300,190 470,210"/>
+    <path d="M162,219 Q300,219 470,219"/>
+    <path d="M162,269 Q300,248 470,228"/>
+  </g>
+  <!-- the one graph (top) -->
+  <g transform="translate(540,218)">
+    <polygon points="0,-30 26,-15 26,15 0,30 -26,15 -26,-15" fill="#1f9d8f"/>
+    <polygon points="-26,-12 0,3 0,33 -26,48 -52,33 -52,3" fill="#27b3a3" opacity="0.85"/>
+    <polygon points="26,-12 52,3 52,33 26,48 0,33 0,3" fill="#27b3a3" opacity="0.85"/>
+    <text x="0" y="4" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">ONE</text>
+    <text x="0" y="18" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">GRAPH</text>
+  </g>
+
+  <!-- ====== BOTTOM PANEL: people / repos ====== -->
+  <text x="60" y="332" font-size="15" font-weight="700" fill="#0f6f64">CONTRIBUTOR LEVEL</text>
+  <text x="60" y="352" font-size="13" fill="#5b6478">individual people &amp; repos converge into the same graph</text>
+
+  <g fill="#e9f4f2" stroke="#1f9d8f" stroke-width="1.5">
+    <rect x="70" y="374" width="92" height="38" rx="6"/>
+    <rect x="70" y="424" width="92" height="38" rx="6"/>
+    <rect x="70" y="474" width="92" height="38" rx="6"/>
+  </g>
+  <g font-size="13" fill="#1a1f2e" font-weight="600" text-anchor="middle">
+    <text x="116" y="398">repo / dev</text>
+    <text x="116" y="448">repo / dev</text>
+    <text x="116" y="498">repo / dev</text>
+  </g>
+  <g stroke="#1f9d8f" stroke-width="2.5" fill="none" marker-end="url(#tl-teal)">
+    <path d="M162,393 Q300,414 470,434"/>
+    <path d="M162,443 Q300,443 470,443"/>
+    <path d="M162,493 Q300,472 470,452"/>
+  </g>
+  <g transform="translate(540,442)">
+    <polygon points="0,-30 26,-15 26,15 0,30 -26,15 -26,-15" fill="#1f9d8f"/>
+    <polygon points="-26,-12 0,3 0,33 -26,48 -52,33 -52,3" fill="#27b3a3" opacity="0.85"/>
+    <polygon points="26,-12 52,3 52,33 26,48 0,33 0,3" fill="#27b3a3" opacity="0.85"/>
+    <text x="0" y="4" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">ONE</text>
+    <text x="0" y="18" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">GRAPH</text>
+  </g>
+
+  <text x="380" y="540" font-size="13" fill="#1f9d8f" text-anchor="middle" font-style="italic">absorb by attribution at the chain level, converge by claim at the contributor level — one geometry</text>
+</svg>

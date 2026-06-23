@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 600" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="w-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c2453d"/>
+    </marker>
+    <marker id="w-teal" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1f9d8f"/>
+    </marker>
+  </defs>
+  <rect width="760" height="600" fill="#fbfaf7"/>
+  <text x="380" y="42" font-size="22" font-weight="700" fill="#1a1f2e" text-anchor="middle">The war that ends itself</text>
+  <text x="380" y="66" font-size="14" fill="#5b6478" text-anchor="middle">Every chain attacks every other — Noesis only receives merge-arrows</text>
+
+  <!-- ring of rival chains, all attacking each other (red) -->
+  <!-- positions: 6 chains on a circle of radius 210 around center (380,330) -->
+  <g fill="#fff" stroke="#c2453d" stroke-width="1.5">
+    <rect x="338" y="98"  width="84" height="36" rx="6"/>   <!-- top -->
+    <rect x="568" y="218" width="84" height="36" rx="6"/>   <!-- upper right -->
+    <rect x="568" y="418" width="84" height="36" rx="6"/>   <!-- lower right -->
+    <rect x="338" y="538" width="84" height="36" rx="6"/>   <!-- bottom -->
+    <rect x="108" y="418" width="84" height="36" rx="6"/>   <!-- lower left -->
+    <rect x="108" y="218" width="84" height="36" rx="6"/>   <!-- upper left -->
+  </g>
+  <g font-size="12" fill="#1a1f2e" font-weight="600" text-anchor="middle">
+    <text x="380" y="121">Chain 1</text>
+    <text x="610" y="241">Chain 2</text>
+    <text x="610" y="441">Chain 3</text>
+    <text x="380" y="561">Chain 4</text>
+    <text x="150" y="441">Chain 5</text>
+    <text x="150" y="241">Chain 6</text>
+  </g>
+
+  <!-- red attack arrows around the ring (each attacks neighbors) -->
+  <g stroke="#c2453d" stroke-width="1.6" fill="none" marker-end="url(#w-red)" opacity="0.85">
+    <path d="M430,118 Q520,150 580,222"/>
+    <path d="M600,256 Q625,330 600,416"/>
+    <path d="M580,452 Q520,520 430,556"/>
+    <path d="M330,556 Q240,520 192,452"/>
+    <path d="M158,418 Q135,330 158,256"/>
+    <path d="M192,222 Q240,150 330,118"/>
+    <!-- a couple cross-attacks for the "everyone vs everyone" feel -->
+    <path d="M150,256 Q300,330 560,420" opacity="0.5"/>
+    <path d="M610,256 Q450,330 192,420" opacity="0.5"/>
+  </g>
+
+  <!-- NOESIS center: only incoming merge arrows (teal) -->
+  <g stroke="#1f9d8f" stroke-width="2.4" fill="none" marker-end="url(#w-teal)">
+    <path d="M380,140 L380,278"/>
+    <path d="M576,250 L432,312"/>
+    <path d="M576,422 L432,348"/>
+    <path d="M380,536 L380,398"/>
+    <path d="M184,422 L328,348"/>
+    <path d="M184,250 L328,312"/>
+  </g>
+
+  <!-- center node -->
+  <g transform="translate(380,330)">
+    <circle r="58" fill="#1f9d8f"/>
+    <circle r="58" fill="none" stroke="#0f6f64" stroke-width="2"/>
+    <text x="0" y="-4" font-size="18" font-weight="700" fill="#fff" text-anchor="middle">NOESIS</text>
+    <text x="0" y="16" font-size="11" fill="#d7f0ec" text-anchor="middle">no outgoing attacks</text>
+  </g>
+
+  <text x="380" y="590" font-size="13" fill="#1f9d8f" text-anchor="middle" font-style="italic">the strongest position in any war is the one that ends it — and here it's architectural, not a slogan</text>
+</svg>
