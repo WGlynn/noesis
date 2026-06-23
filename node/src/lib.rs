@@ -9041,7 +9041,7 @@ pub mod index_binding {
 
 // ============ Nash honesty — truthful self-report as a Nash equilibrium ============
 
-/// The self-reporting sub-game of Will's Equilibrium: a participant SELF-REPORTS a fact the chain
+/// The self-reporting sub-game of Honest-Contribution Equilibrium: a participant SELF-REPORTS a fact the chain
 /// cannot verify (the provenance of a contribution — original vs derived-from-X — the stolen-content
 /// case). The chain does NOT learn the truth; it makes truthful reporting the participant's best
 /// response. This is the dissolution meta-pattern made concrete: the oracle is unnecessary because
@@ -9062,7 +9062,7 @@ pub mod index_binding {
 /// by the catch-odds, must cover the gain from an undetected lie. The mechanism makes truth a Nash
 /// equilibrium for EVERY reporter by REQUIRING `b ≥ required_bond(g, p)`.
 ///
-/// SCOPE (honest, marked): this is Will's-Equilibrium property (1) — the NASH / unilateral property —
+/// SCOPE (honest, marked): this is Honest-Contribution Equilibrium property (1) — the NASH / unilateral property —
 /// for the self-reporting game. Coalition-proofness (2) and adaptive-stability (3) are carried
 /// elsewhere (the HodgeRank harmonic residual + geometric saturation; the learned-`v(S)` retraining)
 /// and are NOT claimed by this module. The proof here is the closed-form IC condition, verified

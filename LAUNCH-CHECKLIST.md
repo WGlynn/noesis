@@ -19,7 +19,7 @@
 
 ## Track A — Open-source RELEASE (the actual launch)
 - [ ] 🟡 **Whitepaper finalize** — v3.2 → ≤12pp; finish the plain-down; name-lock + formalize the
-  Glynn equilibrium; move core/nucleolus + hybrid-finalization math to an appendix.
+  Honest-Contribution Equilibrium; move core/nucleolus + hybrid-finalization math to an appendix.
 - [ ] 🔴 **LICENSE** — recommend Apache-2.0 (its patent-grant clause protects contributors; permissive
   is safe since fork-resistance is structural, not legal). CC0 also viable (matches the CMD repo).
 - [ ] 🔴 **Public README** + build/run instructions (the node already runs + 2-node converges).

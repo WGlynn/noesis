@@ -29,7 +29,7 @@
 
 ## Adversarial-loop log (RSAW — newest first)
 - **2026-06-23 (vv)** — SELF-AUDIT (Will-requested anti-hallucination / sanity / psychosis check on the
-  Will's-Equilibrium milestone). Findings, honest:
+  Honest-Contribution Equilibrium milestone). Findings, honest:
   - **Anti-hallucination — ONE real false claim, now fixed.** I asserted "0 new clippy" in the (ss) and
     (tt) commits WITHOUT running clippy. Running it: `ckb_vm_locksig.rs` actually added **5** style
     warnings (the `&[x.clone()]` → `std::slice::from_ref` lint, L83/130/254). Corrected here (from_ref,
@@ -76,12 +76,12 @@
   on the indifference threshold (a mechanism that flips on 1e-17 is broken; the math claim is exact).
   node lib 249→**253**, full suite 312→**316**, 0 new clippy. PURELY ADDITIVE (new pub mod + #[cfg(test)]
   mod; touches no existing path). **HONEST SCOPE (marked, reputation-load-bearing):** this is
-  Will's-Equilibrium property **(1) the NASH / unilateral property** only. Coalition-proofness (2) +
+  Honest-Contribution Equilibrium property **(1) the NASH / unilateral property** only. Coalition-proofness (2) +
   adaptive-stability (3) are carried elsewhere (HodgeRank residual + geometric saturation; learned-v(S)
   retraining) and are NOT claimed here. The theorem-grade formal write-up (peer-prediction collusion-eq
   elimination, existence/uniqueness, embedding into the whitepaper) is the COLD + `/critical-qa` pass per
   the `DESIGN-wills-equilibrium.md` discipline — not claimed as proven by this module. **NEXT:** finalization
-  PROGRAM twin-update ((tt)) · parametric clawback revocation predicate · the formal WE write-up (cold) ·
+  PROGRAM twin-update ((tt)) · parametric clawback revocation predicate · the formal HCE write-up (cold) ·
   learned-v(S) moat.
 - **2026-06-23 (tt)** — BUILT ✅ (lock-script per-input hardening) + DESIGN tick (finalization PROGRAM
   twin-update — DECIDED, build fresh). Two parts:

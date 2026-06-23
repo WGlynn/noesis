@@ -4,7 +4,25 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
-## ⭐ OFFICIAL TOP PRIORITY (Will 2026-06-23) — Will's Equilibrium on the Contribution Consensus Problem
+## 🔝 RESUME HERE (2026-06-23 ~12:30 — naming resolved + M1/M2 drafted)
+- **NAMING (Will: "neutral everywhere"):** "Will's Equilibrium" → **Honest-Contribution Equilibrium (HCE)**
+  across all active surfaces (roadmap spine, `node/src/lib.rs` comments, ROADMAP.md, STUDY-GUIDE.md,
+  LAUNCH-CHECKLIST.md). Filenames kept (`DESIGN-wills-equilibrium.md`, `ROADMAP-WILLS-EQUILIBRIUM.md`)
+  for path stability; CONTINUE.md historical log-entries left as accurate record. Eponym retired per v4.0.
+- **M1 DRAFTED** — `internal/DESIGN-wills-equilibrium.md` rewritten as the paper-grade formalization:
+  game `Γ=(N,A,M,u)`, HCE definition (3 properties), prior-art positioning table (claim only the fusion),
+  status-by-property (demonstrated/designed/open), existence as partial-proposition + labeled-conjecture,
+  proof-obligations→enforcer table. Honest: HCE = result for (1)+(2-cyclic), conjecture for full three.
+- **M2 DRAFTED** — `internal/DESIGN-adaptive-convergence-theorem.md`: the convergence linchpin as a
+  *conditional* theorem via performative prediction (Perdomo 2020). Contraction `ε·β/γ<1` ⇒ unique
+  performatively-stable `v*`. Key honest OPEN: **(C4) inner-equilibrium uniqueness** (the bilevel/
+  Stackelberg coupling) = the genuinely-novel obligation; Hodge potential flagged as candidate potential
+  function. The static guards shrink `ε` ⇒ they enter the (3) proof, not separate from it.
+- **▶ NEXT:** `/critical-qa` both M1+M2 before whitepaper embedding · discharge (C4) (try monotone/
+  potential-game on the inner sub-game) · M3 peer-prediction `p` (build) · M4 self-report collusion-eq
+  (build+proof). Infra in parallel per below.
+
+## ⭐ OFFICIAL TOP PRIORITY (Will 2026-06-23) — the Honest-Contribution Equilibrium on the Contribution Consensus Problem
 *"you cannot have noesis if you dont have wills equilibrium on the contribution problem."* THE load-bearing
 core; the solution-defining spine, above feature-builds. Critical path + honest per-property status + the
 ONE linchpin (the adaptive-convergence theorem, M2) in **`internal/ROADMAP-WILLS-EQUILIBRIUM.md`**. Point

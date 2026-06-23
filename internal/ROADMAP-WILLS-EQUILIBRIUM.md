@@ -1,16 +1,16 @@
-# OFFICIAL ROADMAP — Will's Equilibrium on the Contribution Consensus Problem
+# OFFICIAL ROADMAP — Honest-Contribution Equilibrium on the Contribution Consensus Problem
 
 > **Will 2026-06-23 (official, supersedes feature-priority as the strategic spine):**
 > *"you cannot have noesis if you dont have wills equilibrium on the contribution problem."*
 > This is THE load-bearing core. Feature/engineering builds (finalization twin-update, clawback,
 > lock-sig go-live, deployment) continue as necessary infrastructure, but the SOLUTION-DEFINING work
-> is the critical path below. Noesis ⊃ requires Will's Equilibrium.
+> is the critical path below. Noesis ⊃ requires Honest-Contribution Equilibrium.
 
 ## The problem (named here, name Will-gated)
 The **Contribution Consensus Problem** (descriptor: *Consensus Without Ground Truth*): decentralized
 agreement on contribution VALUE/attribution — not order — with NO ground-truth oracle, under
 SELF-INTERESTED (strategic, ¬ Byzantine) adversaries. Solved when honest contribution AND honest
-self-reporting is the equilibrium: **Will's Equilibrium** = (1) Nash + (2) coalition-proof +
+self-reporting is the equilibrium: **Honest-Contribution Equilibrium** = (1) Nash + (2) coalition-proof +
 (3) adaptive-stable. Spec: `DESIGN-wills-equilibrium.md`. Problem memory: `[[contribution-consensus-problem]]`.
 
 ## Honest status by property (✓ demonstrated · ◐ designed · ○ open/research)
@@ -46,7 +46,7 @@ self-reporting is the equilibrium: **Will's Equilibrium** = (1) Nash + (2) coali
   live network and surviving over time.
 
 ## The critical path (ordered by leverage, honest about kind-of-work)
-- **M1 — Formalize.** State the Contribution Consensus Problem + the Will's Equilibrium definition,
+- **M1 — Formalize.** State the Contribution Consensus Problem + the Honest-Contribution Equilibrium definition,
   paper-grade, with the precise positioning vs coalition-proof-NE / performative-prediction / ESS (claim
   only the fusion). Companion paper to the cybernetics one. **[desk; cold + `/critical-qa`]**
 - **M2 — The linchpin: adaptive-convergence theorem.** Existence + uniqueness conditions of the
