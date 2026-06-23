@@ -544,105 +544,18 @@ impl Node {
 
 // ============ Lock-sig verifier — post-quantum (hash-based Lamport) ============
 //
-// ROADMAP lock-sig DEPLOY half. Will 2026-06-22 chose PQ. Lamport one-time signatures are the
-// structurally-correct PQ choice here, not a default:
-//   - HASH-BASED / post-quantum — no lattice assumption, no external crate (reuses the in-tree
-//     blake2b). Aligns with the post-quantum hash-rooted substrate thesis; lean-like-Bitcoin.
-//   - ONE-TIME is free — a cell is consumed exactly once (single-use invariant, retire-on-apply),
-//     so its lock key signs exactly once; key reuse is structurally impossible, which is precisely
-//     Lamport's safety precondition. The UTXO/cell model IS the precondition (SubstrateGeometryMatch).
-//   - HASH-ROOTED key — a public key is a single 32-byte blake2b root, so it fits a cell's `lock.args`.
+// ROADMAP lock-sig DEPLOY half (verifier, (nn)) → on-VM port ((pp)). Will 2026-06-22 chose PQ. Lamport
+// one-time signatures are the structurally-correct PQ choice: HASH-BASED (no lattice, no external
+// crate beyond the in-tree blake2b; post-quantum hash-rooted), ONE-TIME-safe for FREE (a cell is
+// consumed exactly once ⇒ its lock key signs exactly once; the UTXO/cell model IS Lamport's safety
+// precondition, a SubstrateGeometryMatch), HASH-ROOTED key (a 32-byte blake2b root fits `lock.args`).
 //
-// Reference layer: deterministic seed-expanded keygen (no `rand` dep) so the structure is TESTABLE
-// now; deploy swaps in real entropy. 🔬 The 16 KiB one-time signature is Lamport's known size
-// tradeoff — a Winternitz/SPHINCS+ compression is the deferred optimization, acceptable for a single
-// per-spend authorization at the reference layer.
-pub(crate) mod lamport {
-    const N: usize = 256; // a 32-byte message digest = 256 bits ⇒ one keypair column per bit
-
-    /// Domain-separated 32-byte blake2b. `tag` distinguishes secret-leaf / pk-leaf / root preimages
-    /// so the three uses can never collide; the personalization separates Lamport hashes from the tx
-    /// digest (`noesis-tx-v1`) and the novelty-index node hash (`noesis-smt-v1`).
-    fn h(tag: u8, parts: &[&[u8]]) -> [u8; 32] {
-        let mut hasher = blake2b_ref::Blake2bBuilder::new(32)
-            .personal(b"noesis-lamp-v1\0\0")
-            .build();
-        hasher.update(&[tag]);
-        for p in parts {
-            hasher.update(p);
-        }
-        let mut out = [0u8; 32];
-        hasher.finalize(&mut out);
-        out
-    }
-
-    // Signing/keygen is key-holder (wallet) tooling — a NODE only ever verifies, so these are
-    // test-only here; they move to a client crate at deploy. `pk_leaf`/`root`/`bit`/`verify` are the
-    // production verify path.
-    #[cfg(test)]
-    fn secret_leaf(seed: &[u8; 32], i: usize, b: u8) -> [u8; 32] {
-        h(0x01, &[seed, &(i as u32).to_le_bytes(), &[b]])
-    }
-    fn pk_leaf(preimage: &[u8; 32]) -> [u8; 32] {
-        h(0x02, &[preimage])
-    }
-    /// Commit the full 2N public-key table in canonical (i, bit) order to one 32-byte root.
-    fn root(table: &[[u8; 32]]) -> [u8; 32] {
-        let flat: Vec<u8> = table.iter().flat_map(|leaf| leaf.iter().copied()).collect();
-        h(0x03, &[&flat])
-    }
-    fn bit(msg: &[u8; 32], i: usize) -> u8 {
-        (msg[i / 8] >> (i % 8)) & 1
-    }
-
-    /// Deterministic keygen from a 32-byte seed → the public-key root (a cell's `lock.args`).
-    /// Key-holder / test tooling only; the node itself only ever VERIFIES.
-    #[cfg(test)]
-    pub(crate) fn keygen_root(seed: &[u8; 32]) -> [u8; 32] {
-        let mut table = Vec::with_capacity(2 * N);
-        for i in 0..N {
-            for b in 0..2u8 {
-                table.push(pk_leaf(&secret_leaf(seed, i, b)));
-            }
-        }
-        root(&table)
-    }
-
-    /// Sign a 32-byte message: per bit, reveal the preimage for that bit AND carry the SIBLING pk
-    /// hash (which the verifier cannot derive without the unrevealed preimage). 256 × 64 B = 16 KiB.
-    #[cfg(test)]
-    pub(crate) fn sign(seed: &[u8; 32], msg: &[u8; 32]) -> Vec<u8> {
-        let mut sig = Vec::with_capacity(N * 64);
-        for i in 0..N {
-            let b = bit(msg, i);
-            sig.extend_from_slice(&secret_leaf(seed, i, b)); // revealed preimage for the message bit
-            sig.extend_from_slice(&pk_leaf(&secret_leaf(seed, i, 1 - b))); // sibling pk hash
-        }
-        sig
-    }
-
-    /// Verify `sig` for `msg` under the public-key `root_commit` (the finalized cell's `lock.args`).
-    /// Reconstructs the 2N pk table — revealed-bit slot from `H(preimage)`, sibling slot from the
-    /// carried hash — and checks it commits back to `root_commit`. Forging a DIFFERENT message needs
-    /// an unrevealed preimage (a hash break); the key signs once, so one-time security holds.
-    pub(crate) fn verify(root_commit: &[u8; 32], msg: &[u8; 32], sig: &[u8]) -> bool {
-        if sig.len() != N * 64 {
-            return false; // malformed length is not a signature
-        }
-        let mut table = Vec::with_capacity(2 * N);
-        for i in 0..N {
-            let b = bit(msg, i);
-            let preimage: &[u8; 32] = sig[i * 64..i * 64 + 32].try_into().unwrap();
-            let sibling: [u8; 32] = sig[i * 64 + 32..i * 64 + 64].try_into().unwrap();
-            let revealed = pk_leaf(preimage);
-            // place revealed in the message-bit slot, sibling in the other, table in (i,0),(i,1) order.
-            let (slot0, slot1) = if b == 0 { (revealed, sibling) } else { (sibling, revealed) };
-            table.push(slot0);
-            table.push(slot1);
-        }
-        &root(&table) == root_commit
-    }
-}
+// SINGLE SOURCE (lean, same pattern as `finalization_fixed`): the verify arithmetic + keygen/sign live
+// in `noesis-core::lamport` so the on-VM lock-script type-script and the node validate with ONE
+// implementation. The node only ever VERIFIES; keygen/sign are key-holder (wallet) tooling exposed for
+// tests. 🔬 the 16 KiB one-time signature is Lamport's known size tradeoff (Winternitz/SPHINCS+
+// compression is the deferred optimization).
+pub(crate) use noesis_core::lamport;
 
 // ============ Finalization decision ============
 

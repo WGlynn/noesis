@@ -28,6 +28,23 @@
    proven economic calibration. Re-tune only on real data. Per [P·augmented-mechanism-design-paper].
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-23 (pp)** — BUILT ✅ **on-VM port of the PQ lock-sig verifier ((nn) → `noesis-core`)** —
+  the verify ARITHMETIC the on-VM lock-script type-script will link. Moved the whole `lamport` module
+  (hash-based one-time-sig keygen/sign/verify) from the node into `noesis-core::lamport` (no_std + alloc),
+  the SAME single-source pattern (oo) used for finalization: the on-VM lock-script and the node now
+  validate with ONE implementation. The node's `runtime::lamport` is now `pub(crate) use
+  noesis_core::lamport` — `verify_sig` + all (nn) tests reference it unchanged. **Behavior-identical**
+  (a pure move): every (nn) test — `lamport_pq_signature_roundtrips_and_rejects_forgery` and the
+  end-to-end `spend_path_authorizes_a_valid_pq_signature_and_rejects_a_wrong_key` — passes against the
+  ported verifier with no edit, which is the regression proof. Builds **host AND
+  `riscv64imac-unknown-none-elf`**. Lean: keygen/sign are `pub` (a lib doesn't dead-code-warn pub items),
+  so no `#[cfg(test)]` scaffolding needed and the duplicate node copy is DELETED (−86 node lines).
+  full suite **300** (a move, no count change), 0 new clippy. **HONEST SCOPE / 🟡 remaining:** this ports
+  the verify FUNCTION to no_std/riscv (what the lock-script links); the full on-VM lock-script PROGRAM (an
+  ELF reading `lock.args` from the consumed cell + the `auth` from the witness + the `tx_digest`
+  recomputed on-VM) is the deploy-coupled next grain — the lock-sig sibling of the on-VM finalization
+  PROGRAM ((oo) 🟡). **NEXT:** on-VM lock-script PROGRAM + on-VM finalization PROGRAM (both ELF + witness
+  wiring) · lock-sig go-live flip · learned-v(S) on real labels = THE moat (data-blocked).
 - **2026-06-23 (oo)** — BUILT ✅ **on-VM finalization mirror of the (mm) PoS+PoM rule (Q32.32)** —
   closes the forward-parity (mm) documented. `noesis-core::finalization::finalizes_pos_pom_fixed` +
   `FINALITY_MIX_Q` (PoW=0, pos+pom=ONE exactly) + `MIN_DIM_BPS` + `dim_ok_q`: the live (mm) PoS+PoM

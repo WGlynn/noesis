@@ -608,3 +608,93 @@ pub mod finalization {
         out
     }
 }
+
+/// Post-quantum lock-sig verifier - hash-based Lamport one-time signatures. SINGLE SOURCE for the
+/// verify arithmetic the on-VM lock-script links and the node validates with (same pattern as the
+/// finalization mirror). Hash-rooted: a public key is one 32-byte blake2b root, carried as a cell's
+/// `lock.args`. One-time-safe for free: a cell is consumed exactly once, so its lock key signs once.
+/// no_std + alloc; builds for riscv64imac. keygen/sign are key-holder (wallet) tooling; a node only
+/// ever VERIFIES (they are pub here so the wallet/tests can link them - a lib does not dead-code-warn
+/// pub items).
+pub mod lamport {
+    use alloc::vec::Vec;
+
+    const N: usize = 256; // a 32-byte message digest = 256 bits => one keypair column per bit
+
+    /// Domain-separated 32-byte blake2b. `tag` distinguishes secret-leaf / pk-leaf / root preimages
+    /// so the three uses can never collide; the personalization separates Lamport hashes from the tx
+    /// digest and the novelty-index node hash.
+    fn h(tag: u8, parts: &[&[u8]]) -> [u8; 32] {
+        let mut hasher = blake2b_ref::Blake2bBuilder::new(32)
+            .personal(b"noesis-lamp-v1\0\0")
+            .build();
+        hasher.update(&[tag]);
+        for p in parts {
+            hasher.update(p);
+        }
+        let mut out = [0u8; 32];
+        hasher.finalize(&mut out);
+        out
+    }
+
+    fn secret_leaf(seed: &[u8; 32], i: usize, b: u8) -> [u8; 32] {
+        h(0x01, &[seed, &(i as u32).to_le_bytes(), &[b]])
+    }
+    fn pk_leaf(preimage: &[u8; 32]) -> [u8; 32] {
+        h(0x02, &[preimage])
+    }
+    /// Commit the full 2N public-key table in canonical (i, bit) order to one 32-byte root.
+    fn root(table: &[[u8; 32]]) -> [u8; 32] {
+        let flat: Vec<u8> = table.iter().flat_map(|leaf| leaf.iter().copied()).collect();
+        h(0x03, &[&flat])
+    }
+    fn bit(msg: &[u8; 32], i: usize) -> u8 {
+        (msg[i / 8] >> (i % 8)) & 1
+    }
+
+    /// Deterministic keygen from a 32-byte seed -> the public-key root (a cell's `lock.args`).
+    /// Key-holder / test tooling; the node itself only ever VERIFIES.
+    pub fn keygen_root(seed: &[u8; 32]) -> [u8; 32] {
+        let mut table = Vec::with_capacity(2 * N);
+        for i in 0..N {
+            for b in 0..2u8 {
+                table.push(pk_leaf(&secret_leaf(seed, i, b)));
+            }
+        }
+        root(&table)
+    }
+
+    /// Sign a 32-byte message: per bit, reveal the preimage for that bit AND carry the SIBLING pk
+    /// hash (which the verifier cannot derive without the unrevealed preimage). 256 x 64 B = 16 KiB.
+    pub fn sign(seed: &[u8; 32], msg: &[u8; 32]) -> Vec<u8> {
+        let mut sig = Vec::with_capacity(N * 64);
+        for i in 0..N {
+            let b = bit(msg, i);
+            sig.extend_from_slice(&secret_leaf(seed, i, b)); // revealed preimage for the message bit
+            sig.extend_from_slice(&pk_leaf(&secret_leaf(seed, i, 1 - b))); // sibling pk hash
+        }
+        sig
+    }
+
+    /// Verify `sig` for `msg` under the public-key `root_commit` (the finalized cell's `lock.args`).
+    /// Reconstructs the 2N pk table - revealed-bit slot from `H(preimage)`, sibling slot from the
+    /// carried hash - and checks it commits back to `root_commit`. Forging a DIFFERENT message needs
+    /// an unrevealed preimage (a hash break); the key signs once, so one-time security holds.
+    pub fn verify(root_commit: &[u8; 32], msg: &[u8; 32], sig: &[u8]) -> bool {
+        if sig.len() != N * 64 {
+            return false; // malformed length is not a signature
+        }
+        let mut table = Vec::with_capacity(2 * N);
+        for i in 0..N {
+            let b = bit(msg, i);
+            let preimage: &[u8; 32] = sig[i * 64..i * 64 + 32].try_into().unwrap();
+            let sibling: [u8; 32] = sig[i * 64 + 32..i * 64 + 64].try_into().unwrap();
+            let revealed = pk_leaf(preimage);
+            // place revealed in the message-bit slot, sibling in the other, table in (i,0),(i,1) order.
+            let (slot0, slot1) = if b == 0 { (revealed, sibling) } else { (sibling, revealed) };
+            table.push(slot0);
+            table.push(slot1);
+        }
+        &root(&table) == root_commit
+    }
+}
