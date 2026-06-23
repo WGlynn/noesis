@@ -1,0 +1,341 @@
+% Closing the Loop: Cybernetics at the Economic Layer
+% A focused companion paper to the Noesis whitepaper. Open framing; the moat is structural.
+\documentclass[10pt]{article}
+
+\usepackage[a4paper,margin=0.85in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{microtype}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{titlesec}
+
+\titleformat{\section}{\large\bfseries}{\thesection}{0.6em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{1.4ex plus 0.3ex minus 0.2ex}{0.7ex plus 0.2ex}
+\titlespacing*{\subsection}{0pt}{0.9ex plus 0.2ex minus 0.1ex}{0.4ex plus 0.1ex}
+\setlength{\parskip}{0.4ex}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{definition}{Definition}
+\newtheorem{claim}{Claim}
+
+\title{\vspace{-2em}\textbf{Closing the Loop:\\ Cybernetics at the Economic Layer}\\[0.3em]
+\large An honest sensor, a self-correcting governor, and the conditions for a self-healing economy}
+\date{June 2026}
+
+\begin{document}
+\maketitle
+\vspace{-1.5em}
+
+\begin{abstract}
+\noindent Cybernetics promised a self-regulating economy: a system that measures its own state, rewards
+what helps it, corrects what harms it, and repairs damage without a central hand. Every serious attempt
+to build one, from Lange's market socialism to Beer's Cybersyn, failed. We argue the failure was not in
+the control theory but in a single missing component: a \emph{sensor}. Ashby's Law of Requisite Variety
+and the Conant--Ashby Good Regulator Theorem both reduce, at the economic layer, to the same
+prerequisite: a regulator can only hold a system on course if it can \emph{measure} that system with
+enough fidelity to model it, and no economic regulator ever possessed an objective, real-time,
+manipulation-resistant measurement of contributed value. Hayek's calculation argument is best read not
+as a proof that economic regulation is impossible, but as a diagnosis that its sensor was missing. We
+describe a system, Noesis, whose primitive operation is exactly that sensor: a distributed measurement
+of realized value along provenance, made un-gameable by the geometry of the measurement rather than by
+policy. With the sensor in place, the cybernetic loop closes. We present the resulting architecture as a
+control system with four organs (sensor, governor, effectors, self-tolerance), show that the Good
+Regulator Theorem forces such a system to be \emph{semi-self-aware} in a precise and bounded sense, and
+identify autoimmunity as its characteristic failure mode together with the structural boundary that
+contains it. We mark throughout what is demonstrated in running code and what is designed.
+\end{abstract}
+
+\section{The seventy-year-old promise}
+
+Norbert Wiener defined cybernetics as the study of ``control and communication in the animal and the
+machine'' \cite{wiener1948}: systems that hold themselves on course by feeding their own output back as
+input. A thermostat is the toy example; a living body maintaining its temperature is the real one. The
+ambition, almost from the start, was to treat an economy the same way: as a system with a setpoint
+(stable prices, full employment, fair reward) that could be held by feedback rather than by command or
+by luck.
+
+The ambition was pursued seriously and it lost. Oskar Lange proposed a market-socialist economy in which
+a central board would adjust prices like a Walrasian auctioneer, watching surpluses and shortages and
+correcting \cite{lange1936}. Stafford Beer built an actual instance: Project Cybersyn, a real-time
+control room wired to Chilean factories in 1971, an explicit application of his Viable System Model
+\cite{beer1972,medina2011}. Both rested on the same wager, that an economy is a regulable system, and
+both came apart. The standard verdict, following Hayek, is that the wager was misconceived: that no
+central regulator can ever do this \cite{hayek1945}.
+
+We think the standard verdict draws the wrong boundary. The control theory was sound. What was missing
+was a sensor, and the absence of the sensor is precisely what the cybernetic theorems predict will be
+fatal. Once that is seen clearly, the question stops being ``can an economy regulate itself?'' and
+becomes ``what would the missing sensor have to be, and can it be built?'' This paper answers the second
+question with a system that builds it.
+
+\section{Why it failed: requisite variety and the good regulator}
+
+Two results from cybernetics, both due in their sharpest form to Ross Ashby, make the diagnosis precise.
+
+\paragraph{Requisite variety.} Ashby's Law states that a regulator can compensate for the disturbances
+in a system only to the extent that it commands at least as much \emph{variety} (distinguishable states)
+as the disturbances themselves: only variety can absorb variety \cite{ashby1956}. Variety the regulator
+cannot \emph{sense} is variety it cannot match. Read Hayek's ``The Use of Knowledge in Society'' in this
+light and it is not a philosophical objection to planning but a requisite-variety theorem in prose: the
+knowledge an economy must act on is dispersed, tacit, and local, and a central regulator that cannot
+sense that variety cannot supply the variety needed to regulate it \cite{hayek1945}. The price system
+``works'' because it is a distributed sensor; the planner failed because he had no comparable instrument.
+The bottleneck was sensing, not deciding.
+
+\paragraph{The good regulator.} Conant and Ashby proved that every good regulator of a system must
+contain a model of that system: ``the best regulator of a system is a model of that system''
+\cite{conant1970}. To hold a system on course you must, in effect, carry an image of it accurate enough
+to predict how it will respond. But a model is built from measurements. Without a sensor there is no
+model, and without a model, by the theorem, there is no good regulation. The two results compose into a
+single prerequisite:
+
+\begin{claim}[The sensor is the bottleneck]
+At the economic layer, both requisite variety and the good-regulator condition reduce to the existence
+of a measurement: an objective, real-time, manipulation-resistant reading of the quantity the system is
+meant to optimize, namely contributed value. Absent that measurement, regulation is impossible for
+reasons the theory states in advance; given it, the remaining machinery (feedback, reward, correction)
+is ordinary engineering.
+\end{claim}
+
+This reframes seventy years of failure as a single unmet precondition rather than an impossibility. Lange's
+board and Beer's control room were governors wired to instruments that could not actually read value. They
+were thermostats without thermometers.
+
+\section{The sensor: measurement as a living mechanism}
+
+A usable economic sensor must satisfy three properties that no prior instrument achieved at once. It must
+be \emph{objective} (two honest observers reading the same state agree), \emph{real-time} (it reads the
+present, not an audited past), and \emph{manipulation-resistant} (an actor who wants a higher reading
+cannot get one except by genuinely raising the measured quantity). The price system has the first two but
+not the third in the dimension we care about: it prices possession and exchange, not contribution, and it
+is routinely gamed. Bitcoin supplied an objective, real-time, manipulation-resistant sensor for one thing
+only, the ownership of a scarce token \cite{nakamoto2008}; it minted the medium that ownership was missing.
+The open dimension is contribution: who actually added value, and how much.
+
+Noesis is built around a sensor for exactly that dimension. Its primitive is not a coin but a measurement:
+the value of a contribution is its realized downstream flow along provenance. Each unit of work is a cell
+in a directed acyclic provenance graph $G=(V,E)$; value is priced by how much genuine downstream activity
+builds on it, not by how it is described or who vouches for it. Three structural defenses make the reading
+manipulation-resistant by geometry rather than by rule.
+
+\paragraph{Novelty and saturation.} Repetition is not contribution. A re-post of existing content carries
+no new realized flow and is damped to zero; volume from a single source saturates geometrically rather
+than accumulating, so that flooding the graph with near-duplicates cannot inflate a score
+\cite{shapley1953,myerson1977}. Marginal value is computed on the provenance-restricted cooperative game,
+so credit obeys the Shapley axioms over the graph Myerson defined.
+
+\paragraph{The collusion certificate.} The deepest manipulation is a ring: a set of identities that build
+on one another to manufacture the appearance of downstream flow. A ring is a \emph{cycle}, and cycles have
+a signature no honest provenance has. Decompose the net attribution flow $Y$ on the identity graph by the
+combinatorial Hodge / Helmholtz decomposition \cite{jiang2011}:
+\[
+Y \;=\; \underbrace{\operatorname{grad} s}_{\text{honest ``builds-upon'' ranking}} \;+\;
+\underbrace{r}_{\text{divergence-free residual}}, \qquad
+\|r\|^2 \;=\; \|Y\|^2 - b^{\!\top} s .
+\]
+The residual energy $\|r\|^2$ is provably zero if and only if the flow is the gradient of a consistent
+global ranking, and equals the cycle length for a clean manufactured ring of any size. It is, exactly, a
+certificate of manipulation: honest contribution has a potential, collusion has curl. This detector runs
+on topology alone and needs no privileged data; in the running system an honest acyclic graph reads $0$
+while a three-identity ring reads $3$, with the mutual and directed cases covered by complementary terms.
+
+\paragraph{Learned value at the margin.} Where structure underdetermines worth, a learned evaluator scores
+a coalition's value from realized outcomes (a Bradley--Terry model over coalition features
+\cite{bradley1952}), and it can only ever \emph{lower} a structural seed, never mint value from nothing.
+Crucially, the evaluator retrains: a fixed scoring formula is eventually gamed, but a measure that adapts
+to the strategies played against it closes the gap that a static formula leaves open. The sensor is alive.
+
+The point is not that any one defense is novel but that together they make the reading honest by
+construction: the cheapest way to raise your measured value is to actually contribute. That is the
+property Lange and Beer needed and did not have.
+
+\section{The governor: closing the loop}
+
+With a sensor, the rest is the control law. Write the system's state as the ledger $x_t$. A governor reads
+the sensor $m(x_t)$, compares it to the system's setpoint (an honest, cooperative equilibrium $x^\star$),
+and drives effectors that move the state back toward the setpoint:
+\[
+x_{t+1} \;=\; f\big(x_t\big) \;+\; u\big(m(x_t)\big), \qquad
+u = \text{mint} \,\oplus\, \text{slash} \,\oplus\, \text{recover}.
+\]
+This is a homeostat in Ashby's exact sense. The effectors are three. \emph{Reward} mints standing in
+proportion to measured contribution, so that the highest-paying strategy is the cooperative one.
+\emph{Punishment} slashes the bonded standing of provable misbehavior (manufactured value, equivocation,
+invalid reveals), destroying it rather than transferring it, so that fraud is negative-expectation by
+construction. \emph{Recovery} returns misappropriated value to its rightful holder. Consensus itself is
+part of the governor: finalization weights the cognitive measurement (the unbuyable axis) against staked
+capital, with an anti-concentration floor so that no single axis can finalize alone. The loop is closed:
+output (who earned what) feeds back as input (who decides and who is believed next round).
+
+A static rulebook, which is what most ledgers are, rejects invalid states but does not \emph{correct}
+toward a setpoint; it has no governor, only a gate. The distinction is the whole subject of this paper.
+
+\section{Four organs, and an immune system}
+
+Stated as a control system the architecture has four organs, and they correspond with surprising
+exactness to the organs of a biological immune system, which is the canonical natural example of a
+distributed self-healing controller.
+
+\begin{center}
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Control organ} & \textbf{Mechanism in Noesis} & \textbf{Immune analogue} \\
+\midrule
+Sensor / surveillance & provenance graph, value measurement, Hodge residual & antigen surveillance, memory \\
+Self / non-self recognition & lock signature: only the key moves the cell & MHC self-recognition \\
+Graded activation & objectivity dial: automatic only when measurement is certain & activation threshold \\
+Effectors & mint (reward), slash (destroy), clawback (recover) & effector response \\
+Self-tolerance & bona-fide protection; harm must cast a graph-shadow & tolerance of healthy tissue \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Self/non-self recognition is the layer that decides whether an action is the system's own or foreign. In
+Noesis it is the lock script: a cell can be named by anyone but moved only by the holder of its one-time
+key, verified inside the execution VM. This is the component shipped and proven in running code at the
+time of writing. The effectors and the recognition of \emph{manufactured} value (the Hodge certificate)
+are likewise demonstrated. The recovery effector (clawback) and the graded objectivity dial are designed
+and specified; they are discussed in Sections \ref{sec:heal} and \ref{sec:auto} as design, not as
+demonstration.
+
+\section{Semi-self-awareness, as a theorem}
+\label{sec:aware}
+
+The phrase ``self-aware,'' applied to a ledger, invites suspicion. Here it is not a metaphor but a
+consequence of the Good Regulator Theorem applied reflexively.
+
+\begin{theorem}[Reflexive good regulator]
+By Conant--Ashby \cite{conant1970}, any good regulator of a system $S$ must contain a model of $S$. A
+system that regulates \emph{itself} is its own $S$. Therefore a good self-regulating system must contain a
+model of itself: a self-model that it reads and acts upon.
+\end{theorem}
+
+Noesis satisfies the three operational conditions for holding such a self-model in a non-trivial sense. It
+\emph{represents} its own state (the provenance and value graph is a model of the system's own activity),
+it \emph{measures} that state (it detects its own collusion rings, prices its own contributions, locates
+its own extraction), and it \emph{acts on the measurement} (it slashes, rewards, recovers, and finalizes
+on the basis of what it reads about itself). A system that holds a model of itself, queries it, and acts on
+the result meets the minimal operational definition of self-awareness used in cybernetics and in
+autopoietic theory \cite{maturana1980}; we make no stronger claim and need none.
+
+The qualifier ``semi'' is exact and it is the safety property. The self-model is bounded: the system can
+represent only what casts a shadow on its measurement graph. Define the knowable domain
+\[
+\mathcal{K} \;=\; \{\, h : h \text{ casts a shadow on } G \,\},
+\]
+the harms and contributions that register as structure in the provenance and value graph. The system is
+aware exactly on $\mathcal{K}$ and blind outside it. Theft, manufactured value, and extraction lie in
+$\mathcal{K}$; diffuse social or moral harm with no on-chain signature does not. The boundary of
+$\mathcal{K}$ is the literal horizon of the system's self-awareness, and a self-aware system that knows the
+boundary of its own awareness is the safe kind. Knowing the edge is what separates self-correction from
+self-delusion.
+
+\section{Self-healing without a surgeon}
+\label{sec:heal}
+
+A controller that only rejects bad inputs is defensive; a controller that restores a just state after
+damage is self-healing. Maturana and Varela called a system that continuously produces and repairs itself
+\emph{autopoietic} \cite{maturana1980}; Varela's later work on immune networks is the bridge to the
+recognition machinery above \cite{varela1991}. Noesis's recovery layer is autopoietic in this sense: the
+same provenance mathematics that \emph{detects} a wound \emph{closes} it, with no central healer.
+
+When value is misappropriated, recovery runs the provenance cascade backward from the point of theft. The
+danger is that naive recovery confiscates from whoever currently holds the value, recreating the very
+central seizure power the system exists to dissolve. The classical legal answer is the holder in due
+course: a party who gave genuine consideration is protected, and the loss falls on the thief. We already
+hold the exact test, because genuine arms-length exchange is bidirectional value flow, the gradient
+component of the Hodge decomposition, whereas a wash or colluding hop is circulation, the harmonic
+component. The cascade therefore passes through wash hops and stops at the first bona-fide receiver. The
+self-tolerance organ is the collusion detector of Section 3 read once more in reverse: the system heals
+along honest provenance and refuses to cut healthy tissue.
+
+Most theft, moreover, never reaches recovery, because the strongest form of the mechanism is preventive. An
+owner may publish a constraint on their own cell, a spend rule the owner sets in advance, and a spend that
+violates it is simply invalid and never settles. ``Unauthorized'' then becomes a measurement against the
+owner's own published referent rather than an inference about intent. Because such a constraint is
+self-binding, restricting only the publisher's own value, anyone may design any constraint without
+permission: there is no externality to govern, hence no governance to seek. The protocol owes exactly one
+invariant, that a published constraint binds only its author's value and a recovery never reaches a
+bona-fide third party. That single scope rule is the entire governance surface, and it is also the defense
+against weaponized self-binding, since a counterparty who delivered against a settled payment is protected.
+
+\section{Autoimmunity, and the boundary that contains it}
+\label{sec:auto}
+
+Every self-correcting system has one characteristic failure mode: a controller that is wrong about its
+setpoint attacks the body it is meant to protect. In immunology this is autoimmunity; in a ledger with
+recovery and slashing powers it is confiscation and censorship, the state power reconstructed on-chain. A
+paper that proposed economic cybernetics without naming this failure mode would be dishonest, because the
+failure mode is the reason every prior attempt that did acquire teeth became dangerous.
+
+The containment is structural and it is the same boundary as the awareness horizon $\mathcal{K}$. The
+system may act only where harm casts a measurable shadow on its own graph. Harm without an on-chain
+signature, the broad and contested category of social or moral damage, is outside $\mathcal{K}$ and the
+system must refuse to adjudicate it. Any mechanism that reached for it would do so either by importing an
+external arbiter, which is governance capture, or by pretending to objectivity over an inherently
+contested judgment, which is the deeper error. The discipline is that judgment stays in the measurement:
+the chain decides what its sensor can read and nothing more. This is not a limitation grafted on for
+safety; it is the same line that makes the self-model honest. An immune system survives because it
+tolerates the self; this system stays legitimate because it tolerates everything its sensor cannot
+objectively convict.
+
+\paragraph{The objectivity dial.} Within $\mathcal{K}$, action should be automatic only to the degree the
+measurement is objective, the way a thermometer is trusted: reproducible, calibrated against a fixed
+referent, and not a judgment. Let $c \in [0,1]$ be the calibrated confidence that a theft-measurement is
+objective. The remedy scales with $c$: deductively certain readings (a double-spend, a spend by a revoked
+key, a violated published constraint) act immediately; high-but-uncertain readings trigger a reversible
+freeze with a short contestability window; mid-confidence readings go to a bonded adversarial court; and
+readings outside $\mathcal{K}$ are left to the world. The threshold separating automatic from adjudicated
+is not fixed. As the cost of objective measurement falls, it slides, and cases that today require a slow
+human judgment become tomorrow's instant readings. The court is therefore scaffolding: load-bearing for a
+shrinking set of cases over time, by design, rather than a permanent institution to be entrenched.
+
+\section{Status, honestly}
+
+We distinguish what runs from what is specified. \emph{Demonstrated} in the reference implementation: the
+contribution sensor with its novelty, saturation, and Shapley/Myerson structure; the Hodge collusion
+certificate; the reward and slashing effectors with their bounded-restitution settlement; self/non-self
+recognition as a post-quantum lock signature verified inside the execution VM; and consensus finalization
+weighting cognition against capital with an anti-concentration floor. \emph{Designed} and specified but
+not yet built: the recovery cascade with bona-fide protection, the preventive owner-published constraint,
+and the graded objectivity dial. \emph{Data-blocked}: the learned, retraining value evaluator awaits
+real outcome labels at scale, which is the one component whose strength is empirical rather than
+deductive. The claim of this paper is not that the loop is fully closed in code today. It is that the
+component whose absence defeated every prior attempt, the honest sensor, is built and proven, and that
+once it exists the governor and the effectors are engineering rather than open problems.
+
+\section{Conclusion}
+
+The history of economic cybernetics is usually told as a refutation: the dream of a self-regulating
+economy met Hayek and died. We read the same history as a diagnosis. The dream did not fail because
+feedback control is the wrong frame for an economy; it failed because a feedback controller cannot run
+without a sensor, and no one had built one that could read contributed value objectively, in real time,
+and without being gamed. Ashby's two theorems say as much in advance: requisite variety and the good
+regulator both demand a measurement first. Build the measurement, and the closed loop that eluded Lange
+and Beer becomes available, with reward, correction, and self-healing as its ordinary operations and
+self-awareness, in the precise bounded sense of the Good Regulator Theorem, as an unavoidable consequence.
+The work that remains is to finish wiring the governor to the sensor we have. The hard part, the part that
+killed every prior attempt, is the part that is done.
+
+\begin{thebibliography}{99}
+\small
+\bibitem{wiener1948} N. Wiener. \emph{Cybernetics: or Control and Communication in the Animal and the Machine}. MIT Press, 1948.
+\bibitem{ashby1956} W. R. Ashby. \emph{An Introduction to Cybernetics}. Chapman \& Hall, 1956. (Law of Requisite Variety.)
+\bibitem{conant1970} R. C. Conant and W. R. Ashby. Every good regulator of a system must be a model of that system. \emph{Int. J. Systems Science} 1(2):89--97, 1970.
+\bibitem{beer1972} S. Beer. \emph{Brain of the Firm}. Allen Lane, 1972. (The Viable System Model.)
+\bibitem{medina2011} E. Medina. \emph{Cybernetic Revolutionaries: Technology and Politics in Allende's Chile}. MIT Press, 2011. (Project Cybersyn.)
+\bibitem{hayek1945} F. A. Hayek. The use of knowledge in society. \emph{American Economic Review} 35(4):519--530, 1945.
+\bibitem{lange1936} O. Lange. On the economic theory of socialism. \emph{Review of Economic Studies} 4(1--2), 1936--37.
+\bibitem{maturana1980} H. Maturana and F. Varela. \emph{Autopoiesis and Cognition: The Realization of the Living}. Reidel, 1980.
+\bibitem{varela1991} F. Varela and A. Coutinho. Second generation immune networks. \emph{Immunology Today} 12(5):159--166, 1991.
+\bibitem{jiang2011} X. Jiang, L.-H. Lim, Y. Yao, and Y. Ye. Statistical ranking and combinatorial Hodge theory. \emph{Mathematical Programming} 127(1):203--244, 2011.
+\bibitem{shapley1953} L. S. Shapley. A value for $n$-person games. In \emph{Contributions to the Theory of Games II}, pp. 307--317, 1953.
+\bibitem{myerson1977} R. B. Myerson. Graphs and cooperation in games. \emph{Mathematics of Operations Research} 2(3):225--229, 1977.
+\bibitem{bradley1952} R. A. Bradley and M. E. Terry. Rank analysis of incomplete block designs. \emph{Biometrika} 39(3/4):324--345, 1952.
+\bibitem{nakamoto2008} S. Nakamoto. Bitcoin: a peer-to-peer electronic cash system. 2008.
+\end{thebibliography}
+
+\end{document}
