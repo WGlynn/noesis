@@ -40,8 +40,14 @@ Will: "invite Tom lindeman and Bernhard to noesis private repo so they can help 
   RED on `dim_ok_q→true`. Closes the (mm) forward-parity: the live rule and its on-VM arithmetic are now one.
   Re-exported in node lib (single source). Commit `9de617f`. lib 300, full suite **300 green**. Remaining 🟡 =
   the on-VM PROGRAM (ELF calling it + header-`now` + fixtures).
-- **▶ NEXT (all gated):** on-VM finalization PROGRAM (ELF type-script + header-`now` sourcing + fixtures) ·
-  on-VM lock-script port of `lamport::verify` · lock-sig GO-LIVE flip (`CONTROL_BINDING_ACTIVE=true` + populate `auths` across
+- **(pp) on-VM PORT of the PQ lock-sig verifier BUILT ✅:** moved `lamport` (keygen/sign/verify) into
+  `noesis-core::lamport` (no_std, builds riscv64imac) — single source for the on-VM lock-script + the node;
+  node re-exports it, `verify_sig` + all (nn) tests reference it UNCHANGED (behavior-identical move = the
+  regression proof). Duplicate node copy deleted (−86 lines). Commit `e211303`. Full suite **300 green**.
+- **▶ NEXT (all gated):** the two on-VM PROGRAMS — finalization (ELF + header-`now` + fixtures) and
+  lock-script (ELF reading `lock.args` from the consumed cell + `auth` from the witness + `tx_digest`
+  recomputed on-VM); both now have their verify ARITHMETIC single-sourced in noesis-core ((oo)/(pp)), so
+  the remaining work is the ELF + witness wiring · lock-sig GO-LIVE flip (`CONTROL_BINDING_ACTIVE=true` + populate `auths` across
   honest token flows + real-entropy keygen — a deploy step, breaks every empty-auth test until flows carry
   sigs) · on-VM finalization mirror of the (mm) PoS+PoM rule (Q32.32/RISC-V, large fresh build) · on-VM
   lock-script port of `lamport::verify` · 🔬 Winternitz/SPHINCS+ compression of the 16 KiB one-time sig ·
