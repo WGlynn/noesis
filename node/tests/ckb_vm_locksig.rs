@@ -240,3 +240,42 @@ fn an_empty_input_group_is_rejected() {
     let (res, _) = run_typescript_t7(ELF, &served(&cell(1, [0u8; 32], FUNGIBLE, &[9], &[5])), vec![], vec![], vec![], vec![]);
     assert_eq!(res.unwrap(), 41, "an empty input group authorizes nothing");
 }
+
+/// Build a two-owner movement (inputs owned by keys A and B over one shared digest) + the per-input
+/// witnesses. `corrupt_second` signs input 1 with A's key instead of B's (the smuggle attempt).
+fn two_owner_move(corrupt_second: bool) -> (Vec<Cell>, Vec<Cell>, Vec<Vec<u8>>) {
+    let (seed_a, root_a) = keypair(7);
+    let (seed_b, root_b) = keypair(8);
+    let issuer = vec![9u8];
+    let in_a = cell(1, root_a, FUNGIBLE, &issuer, &[5]);
+    let in_b = cell(2, root_b, FUNGIBLE, &issuer, &[3]);
+    let out = cell(3, root_a, FUNGIBLE, &issuer, &[8]);
+    let inputs = vec![in_a.clone(), in_b.clone()];
+    let d = digest(0, &FUNGIBLE, &issuer, &inputs, &[out.clone()]);
+    let sig_a = lamport::sign(&seed_a, &d);
+    // input 1 is owned by B; the smuggle signs it with A's key (wrong owner for that cell).
+    let sig_1 = if corrupt_second { lamport::sign(&seed_a, &d) } else { lamport::sign(&seed_b, &d) };
+    (
+        vec![served(&in_a), served(&in_b)],
+        vec![served(&out)],
+        vec![sig_a, sig_1],
+    )
+}
+
+/// Every consumed input is authorized independently: two cells owned by different keys, each correctly
+/// signed over the shared digest, both clear.
+#[test]
+fn each_input_is_authorized_independently() {
+    let (inputs, outputs, wits) = two_owner_move(false);
+    let (res, _) = run_typescript_t7(ELF, &inputs[0], inputs.clone(), outputs, vec![], wits);
+    assert_eq!(res.unwrap(), 0, "two distinct owners each signing their own input both authorize");
+}
+
+/// The per-input gate checks EVERY input, not just index 0: a valid input-0 signature cannot smuggle a
+/// wrong-key input-1 past the loop (the on-VM analog of the finalization "second cell can't smuggle").
+#[test]
+fn a_wrong_signature_on_a_later_input_cannot_smuggle_past_the_first() {
+    let (inputs, outputs, wits) = two_owner_move(true);
+    let (res, _) = run_typescript_t7(ELF, &inputs[0], inputs.clone(), outputs, vec![], wits);
+    assert_eq!(res.unwrap(), 42, "input 1 signed by the wrong owner is caught — the loop gates every input");
+}

@@ -12,6 +12,26 @@ Will: "invite Tom lindeman and Bernhard to noesis private repo so they can help 
   give them the lean-like-Bitcoin design constraint + the value-flow moat thread (the un-gameable v(S)).
 - Check acceptance: `gh api repos/WGlynn/noesis/invitations`.
 
+## 🔝 RESUME HERE (2026-06-23 ~10:45 — (tt): lock-script multi-input hardening + finalization twin-update DECIDED + cybernetics PAPER)
+**This session also shipped:**
+- **PAPER** `docs/cybernetics-economic-layer.tex` → 5pp PDF (pushed `50fa213`; Desktop
+  `Noesis-Cybernetics-Economic-Layer-2026-06-23.pdf`). "Closing the Loop: Cybernetics at the Economic
+  Layer." Thesis: economic cybernetics (Lange/Beer/Cybersyn) failed on the missing SENSOR, not control
+  theory (Ashby Requisite-Variety + Conant-Ashby Good-Regulator both ⇒ measure-first; Hayek = sensing
+  diagnosis). Noesis = the sensor; Good-Regulator applied reflexively ⇒ "semi-self-aware" is a THEOREM
+  bounded by the measurement-horizon K; autopoiesis/immune-net for self-healing; autoimmunity = failure
+  mode contained by K. Honest demonstrated-vs-designed. Memory `[[noesis-as-self-healing-immune-system]]`.
+- **(tt) lock-script per-input hardening** — +2 multi-input tests on (ss): two different-key owners each
+  sign their own input (both→0); a wrong-key signature on a LATER input can't smuggle past index 0 (→42).
+  Proves the per-input authorization loop gates EVERY input. locksig 10→**12**, full suite 310→**312**.
+- **(tt) finalization PROGRAM twin-update — DECIDED, build fresh.** Route `finalization-typescript` through
+  `finalizes_pos_pom_fixed` ((oo)). NOT a 1-line swap: that fn hardcodes `FINALITY_MIX_Q` + `quorum_floor=0`
+  + anti-concentration, so cell `mix` AND `quorum_floor` go VESTIGIAL ⇒ DECISION = DROP/ignore (ignored ⇒
+  not attacker-choosable; wire format stable; SECURITY WIN: mix now consensus-constant). Real work = TEST
+  RE-DERIVATION: `now_is_header_sourced` must be REDESIGNED (pos_pom removes the floor ⇒ `now` only flips
+  via DIFFERENTIAL validator decay, not the floor) + ADD an anti-concentration fixture (PoM-whale/zero-PoS
+  rejected). Full contract in ROADMAP (tt). **Build fresh low-context** (finality semantics = high care).
+
 ## 🔝 RESUME HERE (2026-06-23 ~10:00 — "continue building noesis per roadmap": on-VM LOCK SCRIPT BUILT (ss))
 **(ss) the on-VM lock-script PROGRAM is BUILT ✅** — executed the (rr) build contract, the #1 on-VM
 frontier. New crate `onchain/locksig-typescript` (no_std, riscv64imac; mirrors `finalization-typescript`):

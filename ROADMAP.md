@@ -28,6 +28,40 @@
    proven economic calibration. Re-tune only on real data. Per [P·augmented-mechanism-design-paper].
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-23 (tt)** — BUILT ✅ (lock-script per-input hardening) + DESIGN tick (finalization PROGRAM
+  twin-update — DECIDED, build fresh). Two parts:
+  - **BUILT — multi-input authorization coverage on (ss).** All 10 (ss) tests were single-input, but
+    the lock script's authorization runs PER-INPUT (`for (i,input) in inputs.iter().enumerate()`). Added
+    `each_input_is_authorized_independently` (two cells owned by DIFFERENT Lamport keys, each signing the
+    shared digest, both clear → 0) and `a_wrong_signature_on_a_later_input_cannot_smuggle_past_the_first`
+    (input-0 valid + input-1 signed by the WRONG owner ⇒ 42 — the on-VM analog of the finalization
+    "second cell can't smuggle a false claim"; proves the loop gates EVERY input, not just index 0).
+    Anti-theater intrinsic (both-valid→0 vs wrong-later→42 is self-controlling). ELF unchanged (additive
+    tests on the existing fixture). locksig suite 10→**12**, full suite 310→**312**, 0 new clippy.
+  - **DESIGN tick — finalization PROGRAM twin-update to `finalizes_pos_pom_fixed` ((oo)), DECIDED.**
+    Grounded the (oo)/(rr)-named NEXT and found it is NOT a one-line function swap. `finalizes_pos_pom_fixed
+    (voters_for, all, now, horizon, decay_pos, threshold_bps)` (noesis-core L481) HARDCODES `FINALITY_MIX_Q`
+    (PoW out of finality) AND passes `quorum_floor_bps = 0`, then adds anti-concentration over raw pos/pom
+    balances. ⇒ in `finalization-typescript::validate_cell`, BOTH the cell-carried `mix` AND
+    `quorum_floor_bps` become VESTIGIAL. **DECISION = DROP/ignore (not keep-and-assert):** an ignored field
+    cannot affect finality ⇒ is no longer an attacker-choosable-critical input ([dont-let-attacker-choose-
+    critical-input]) ⇒ safe to ignore; keep the cell WIRE FORMAT stable (`parse_finalization_cell`
+    unchanged, bind `_mix`/ignore floor). SECURITY WIN: the finalization mix is now a consensus CONSTANT,
+    not a producer-supplied cell field. **The real work = TEST RE-DERIVATION** (`ckb_vm_finalization.rs`
+    cross-checks the ELF against `finalizes_fixed`; switch the reference to `finalizes_pos_pom_fixed`):
+    supermajority→0 / below→30 / malformed / votes / header / empty / duplicate-vote / second-cell tests
+    carry mostly unchanged, BUT **`now_is_header_sourced_not_tx_chosen` must be REDESIGNED** — it flips
+    now=0→finalize / now=200→reject via the quorum-floor×decay interaction, which pos_pom REMOVES (floor=0);
+    with uniform validators all voting, decay cancels in numerator/denominator so `now` never flips. Make
+    `now` flip via **DIFFERENTIAL validator decay** (validators with distinct `last_heartbeat` so voters_for
+    decay relative to the set) to PRESERVE the header-sourcing adversarial point (now from HEADER, not tx).
+    Also ADD an anti-concentration fixture (a PoM-whale with zero PoS rejected; both-dims finalizes) to
+    cover the new floor (T11 capital-orthogonality on-VM). Closes the (mm)/(oo) forward-parity AT THE
+    PROGRAM level (the ELF then mirrors the LIVE finality rule, not bare `finalizes_hybrid`). **Build fresh
+    low-context** (finality semantics + careful test re-derivation = high care; the repo's "decide cold,
+    build clean" discipline). node otherwise unchanged (design tick — no count bump beyond the +2 above).
+  **NEXT:** finalization PROGRAM twin-update (this contract, fresh) · parametric clawback revocation
+  predicate (`DESIGN-parametric-clawback.md`, spend-path, fresh) · lock-sig GO-LIVE flip · learned-v(S) moat.
 - **2026-06-23 (ss)** — BUILT ✅ **the on-VM lock-script PROGRAM — existence→CONTROL enforced INSIDE
   the VM** — executes the (rr) build contract. New crate `onchain/locksig-typescript` (no_std,
   riscv64imac, ckb-std + noesis-core, mirroring `finalization-typescript`): one ELF that reconstructs
