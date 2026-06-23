@@ -272,64 +272,24 @@ impl TokenTx {
     /// fixed-32 hashes are emitted raw. The hasher's personalization is domain-separated from the smt
     /// node hasher so a tx digest can never collide with a novelty-index node hash.
     ///
-    /// SINGLE-SOURCE DEBT: serializer + tx-domain hasher live here for now; move to `noesis-core` at
-    /// the on-VM lock-sig port, when the type-script becomes the second consumer of this serializer.
+    /// SINGLE SOURCE ((qq), debt paid): the serializer + tx-domain hasher live in `noesis_core::tx`
+    /// (no_std, builds riscv) so the on-VM lock-script type-script recomputes the SAME digest — this
+    /// builds borrowed `CellView`s over the tx's cells and delegates. Byte-identical to the prior
+    /// in-line form (the digest/signing tests are the regression proof).
     pub(crate) fn digest(&self) -> [u8; 32] {
-        // The ledger's cell-identity key (single-sourced with `is_valid_in_ledger` above).
-        fn ident_key(c: &Cell) -> (u64, &[u8; 32], &[u8], &[u8; 32], &[u8], &[u8]) {
-            (
-                c.id,
-                &c.lock.code_hash,
-                &c.lock.args,
-                &c.type_script.code_hash,
-                &c.type_script.args,
-                &c.data,
-            )
+        fn view(c: &Cell) -> noesis_core::tx::CellView<'_> {
+            noesis_core::tx::CellView {
+                id: c.id,
+                lock_code_hash: &c.lock.code_hash,
+                lock_args: &c.lock.args,
+                type_code_hash: &c.type_script.code_hash,
+                type_args: &c.type_script.args,
+                data: &c.data,
+            }
         }
-        // Canonicalize order on clones of the references — never mutate the tx.
-        let mut inputs: Vec<&Cell> = self.inputs.iter().collect();
-        let mut outputs: Vec<&Cell> = self.outputs.iter().collect();
-        inputs.sort_by(|a, b| ident_key(a).cmp(&ident_key(b)));
-        outputs.sort_by(|a, b| ident_key(a).cmp(&ident_key(b)));
-
-        // Injective length-prefix framing for variable-length fields.
-        fn put(buf: &mut Vec<u8>, bytes: &[u8]) {
-            buf.extend_from_slice(&(bytes.len() as u64).to_le_bytes());
-            buf.extend_from_slice(bytes);
-        }
-        // Serialize a cell by its ledger identity tuple (see CELL IDENTITY above).
-        fn serialize_cell(buf: &mut Vec<u8>, c: &Cell) {
-            buf.extend_from_slice(&c.id.to_le_bytes());
-            buf.extend_from_slice(&c.lock.code_hash);
-            put(buf, &c.lock.args);
-            buf.extend_from_slice(&c.type_script.code_hash);
-            put(buf, &c.type_script.args);
-            put(buf, &c.data);
-        }
-
-        let mut buf: Vec<u8> = Vec::new();
-        buf.extend_from_slice(b"noesis-tx-v1"); // domain tag in the preimage as well as the personalization
-        buf.push(self.standard as u8);
-        buf.extend_from_slice(&self.code_hash);
-        put(&mut buf, &self.args);
-        buf.extend_from_slice(&(inputs.len() as u64).to_le_bytes());
-        for c in &inputs {
-            serialize_cell(&mut buf, c);
-        }
-        buf.extend_from_slice(&(outputs.len() as u64).to_le_bytes());
-        for c in &outputs {
-            serialize_cell(&mut buf, c);
-        }
-
-        // tx-domain blake2b — personalization DISTINCT from the smt hasher (`noesis-smt-v1`) so a tx
-        // digest can never alias a novelty-index node hash. 16-byte personal (12 tag + 4 pad).
-        let mut h = blake2b_ref::Blake2bBuilder::new(32)
-            .personal(b"noesis-tx-v1\0\0\0\0")
-            .build();
-        h.update(&buf);
-        let mut out = [0u8; 32];
-        h.finalize(&mut out);
-        out
+        let inputs: Vec<noesis_core::tx::CellView<'_>> = self.inputs.iter().map(view).collect();
+        let outputs: Vec<noesis_core::tx::CellView<'_>> = self.outputs.iter().map(view).collect();
+        noesis_core::tx::tx_digest(self.standard as u8, &self.code_hash, &self.args, &inputs, &outputs)
     }
 
     /// Does the presenter of `input` prove CONTROL of it (hold the spending key), as opposed to merely

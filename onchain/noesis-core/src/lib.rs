@@ -698,3 +698,81 @@ pub mod lamport {
         &root(&table) == root_commit
     }
 }
+
+/// Canonical transaction digest - SINGLE SOURCE for the bytes a lock-signature covers and the
+/// replica-deterministic identity of a value movement. Lives here (no_std, builds riscv) so the
+/// on-VM lock-script type-script recomputes the SAME digest the node signs/verifies over - paying the
+/// single-source debt the node `TokenTx::digest` flagged. Injective length-prefix framing; canonical
+/// input/output order; tx-domain blake2b personalization distinct from the smt + lamport hashers.
+pub mod tx {
+    use alloc::vec::Vec;
+
+    /// A borrowed view of a cell's consensus identity - exactly the fields the digest commits to
+    /// (the ledger identity tuple + `data`). Built by the node from its `Cell`, and on-VM from the
+    /// loaded cell fields.
+    pub struct CellView<'a> {
+        pub id: u64,
+        pub lock_code_hash: &'a [u8; 32],
+        pub lock_args: &'a [u8],
+        pub type_code_hash: &'a [u8; 32],
+        pub type_args: &'a [u8],
+        pub data: &'a [u8],
+    }
+
+    type IdentKey<'a> = (u64, &'a [u8; 32], &'a [u8], &'a [u8; 32], &'a [u8], &'a [u8]);
+    fn ident_key<'a>(c: &CellView<'a>) -> IdentKey<'a> {
+        (c.id, c.lock_code_hash, c.lock_args, c.type_code_hash, c.type_args, c.data)
+    }
+
+    /// Injective length-prefix framing for a variable-length field.
+    fn put(buf: &mut Vec<u8>, bytes: &[u8]) {
+        buf.extend_from_slice(&(bytes.len() as u64).to_le_bytes());
+        buf.extend_from_slice(bytes);
+    }
+    fn serialize_cell(buf: &mut Vec<u8>, c: &CellView) {
+        buf.extend_from_slice(&c.id.to_le_bytes());
+        buf.extend_from_slice(c.lock_code_hash);
+        put(buf, c.lock_args);
+        buf.extend_from_slice(c.type_code_hash);
+        put(buf, c.type_args);
+        put(buf, c.data);
+    }
+
+    /// The canonical, injective 32-byte digest of a value movement. Inputs/outputs are serialized in
+    /// canonical identity order (sorted on a copy of the indices - the caller's slices are never
+    /// mutated), so a re-presented tx hashes identically. `standard` is the token-standard tag byte.
+    pub fn tx_digest(
+        standard: u8,
+        code_hash: &[u8; 32],
+        args: &[u8],
+        inputs: &[CellView],
+        outputs: &[CellView],
+    ) -> [u8; 32] {
+        let mut in_order: Vec<usize> = (0..inputs.len()).collect();
+        let mut out_order: Vec<usize> = (0..outputs.len()).collect();
+        in_order.sort_by(|&a, &b| ident_key(&inputs[a]).cmp(&ident_key(&inputs[b])));
+        out_order.sort_by(|&a, &b| ident_key(&outputs[a]).cmp(&ident_key(&outputs[b])));
+
+        let mut buf: Vec<u8> = Vec::new();
+        buf.extend_from_slice(b"noesis-tx-v1"); // domain tag in the preimage as well as the personalization
+        buf.push(standard);
+        buf.extend_from_slice(code_hash);
+        put(&mut buf, args);
+        buf.extend_from_slice(&(inputs.len() as u64).to_le_bytes());
+        for &i in &in_order {
+            serialize_cell(&mut buf, &inputs[i]);
+        }
+        buf.extend_from_slice(&(outputs.len() as u64).to_le_bytes());
+        for &i in &out_order {
+            serialize_cell(&mut buf, &outputs[i]);
+        }
+
+        let mut h = blake2b_ref::Blake2bBuilder::new(32)
+            .personal(b"noesis-tx-v1\0\0\0\0")
+            .build();
+        h.update(&buf);
+        let mut out = [0u8; 32];
+        h.finalize(&mut out);
+        out
+    }
+}

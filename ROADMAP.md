@@ -28,6 +28,21 @@
    proven economic calibration. Re-tune only on real data. Per [P·augmented-mechanism-design-paper].
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-23 (qq)** — BUILT ✅ **tx_digest serializer ported to `noesis-core` — single-source debt PAID**
+  — the prerequisite the on-VM lock-script PROGRAM needs (it must recompute the SAME `tx_digest` the node
+  signs/verifies over). `TokenTx::digest` flagged this debt explicitly ("move to noesis-core at the on-VM
+  lock-sig port"). Now `noesis_core::tx::{CellView, tx_digest}` (no_std, builds riscv64imac) owns the
+  canonical serializer — injective length-prefix framing, canonical input/output identity-sort (on a copy
+  of the indices, never mutating the caller's slices), tx-domain blake2b personalization — and the node's
+  `digest` builds borrowed `CellView`s and delegates. **Byte-identical** (the regression proof is the
+  signing path itself: `spend_path_authorizes_a_valid_pq_signature_and_rejects_a_wrong_key` signs over the
+  digest and verifies — a single changed byte would break it; it passes unchanged, as do all
+  conservation/forgery tests). full suite **300** (a move, no count change), 0 new clippy, host + riscv
+  green. With (pp), BOTH ingredients the on-VM lock-script needs — the `verify` arithmetic AND the
+  `tx_digest` it covers — are now single-sourced in noesis-core. **NEXT:** the on-VM lock-script PROGRAM
+  (ELF: read `lock.args` from the consumed cell + `auth` from the witness + recompute `tx_digest` on-VM →
+  `lamport::verify`) + the on-VM finalization PROGRAM — both now reduce to ELF + witness wiring over
+  already-ported arithmetic · lock-sig go-live flip · learned-v(S) = THE moat (data-blocked).
 - **2026-06-23 (pp)** — BUILT ✅ **on-VM port of the PQ lock-sig verifier ((nn) → `noesis-core`)** —
   the verify ARITHMETIC the on-VM lock-script type-script will link. Moved the whole `lamport` module
   (hash-based one-time-sig keygen/sign/verify) from the node into `noesis-core::lamport` (no_std + alloc),
