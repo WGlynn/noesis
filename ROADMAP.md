@@ -28,6 +28,25 @@
    proven economic calibration. Re-tune only on real data. Per [P·augmented-mechanism-design-paper].
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-23 (oo)** — BUILT ✅ **on-VM finalization mirror of the (mm) PoS+PoM rule (Q32.32)** —
+  closes the forward-parity (mm) documented. `noesis-core::finalization::finalizes_pos_pom_fixed` +
+  `FINALITY_MIX_Q` (PoW=0, pos+pom=ONE exactly) + `MIN_DIM_BPS` + `dim_ok_q`: the live (mm) PoS+PoM
+  finality rule recomputed in pure integer Q32.32 (no floats), so the live reference and its future
+  on-VM type-script are ONE arithmetic. Follows the established `finalizes_fixed`/`finalization_fixed`
+  drift-guard pattern (T8 lineage); reuses `bps_of_ceil` (the floor rounds UP = against finalization),
+  so the fixed gate is NEVER more permissive than f64. Anti-concentration over RAW dimension balances,
+  mirroring the f64 `dim_ok`. ADDITIVE — touches no live path; node lib RE-EXPORTS it (single source).
+  Builds **host AND `riscv64imac-unknown-none-elf`** (the real on-VM target). **TESTED** (+2):
+  `pos_pom_fixed_mirrors_the_live_finality_rule` (conservative-direction `!fixed || float` swept over
+  participation × decay × {now} × 4 validator shapes incl. PoW-only and PoM-whale — fixed never
+  finalizes a float-rejected case) and `pos_pom_fixed_enforces_anti_concentration_like_the_live_rule`
+  (PoM-whale with zero capital rejected by BOTH; both-dims finalizes in BOTH). **Anti-theater CONFIRMED:**
+  `dim_ok_q → always-true` ⇒ the anti-concentration test goes RED; restored. lib 298→**300**, 0 new
+  clippy (the `nonminimal_bool` on `!(a&&!b)` rewritten to `!a||b`; noesis-core warnings pre-existing).
+  **HONEST SCOPE / 🟡 remaining:** this ships the fixed ARITHMETIC; the full on-VM PROGRAM (an ELF
+  type-script calling it + `now` header-sourced not tx-chosen + activated-path fixtures) is the
+  deploy-coupled next grain, per `ON-VM-FINALIZATION.md`. **NEXT:** on-VM finalization PROGRAM (header-`now`
+  + fixtures) · on-VM lock-script port of `lamport::verify` · lock-sig go-live flip · learned-v(S) moat.
 - **2026-06-22 (nn)** — BUILT ✅ **LOCK-SIG VERIFIER LINKED — post-quantum (Will: "pq")** — the
   lock-sig DEPLOY half ((y) NEXT). The (x)/(y) scaffold left `spend_is_authorized` verifying nothing
   (empty auth → inert-authorized; any presented auth → blanket-rejected, `verify_sig` body an
@@ -1210,7 +1229,10 @@ is a reputation system.
   retention-decay, drift-guarded; key adversarial pin = `now` MUST be header-sourced not
   tx-chosen (same "don't let the attacker pick the security-critical input" lesson as the
   index-dep binding F1). Build: ✅ fixed ref + drift-guard SHIPPED (`finalization_fixed`,
-  node 202); on-VM program + header-`now` sourcing + fixtures pending budgeted session.
+  node 202); ✅ **(oo) 2026-06-23: the LIVE rule is now PoS+PoM (PoW out of finality, (mm)), and its
+  Q32.32 mirror `finalizes_pos_pom_fixed` is SHIPPED + drift-guarded + riscv-built** — so the on-VM
+  arithmetic now mirrors the live (mm) rule, not bare `finalizes_hybrid`. Remaining: the on-VM PROGRAM
+  (ELF type-script calling it + header-`now` sourcing + activated-path fixtures) pending budgeted session.
 
 ### Execution-layer tier marks (2026-06-12, story-loop + roadmap-advance)
 - ✅ T1 fixed-point intake (`value_fixed`, Q16.16, f64-equivalence tested)

@@ -7970,8 +7970,8 @@ pub mod finalization_fixed {
     // and the drift-guard tests) — the arithmetic itself is no longer duplicated here.
     pub use noesis_core::finalization::{
         base_weight_q, effective_weight_q, encode_finalization_cell, encode_votes, finalizes_fixed,
-        parse_finalization_cell, parse_votes, retention_q, FinalParams, MixQ, ValidatorQ, ONE, PARAMS_LEN,
-        VREC_LEN,
+        finalizes_pos_pom_fixed, parse_finalization_cell, parse_votes, retention_q, FinalParams, MixQ,
+        ValidatorQ, FINALITY_MIX_Q, MIN_DIM_BPS, ONE, PARAMS_LEN, VREC_LEN,
     };
 
     /// f64 → Q32.32 (round to nearest). Test/loader helper; the on-VM inputs arrive already fixed.
@@ -8139,6 +8139,65 @@ pub mod finalization_fixed {
             let (fx, fl) = both(&all[..2], &all, NCI, 0, 100, false, TWO_THIRDS_BPS, 0);
             assert!(!fl, "two-of-three = 66.67% < 6667bps bar ⇒ float rejects");
             assert!(!fx, "fixed rounds against finalization ⇒ also rejects (no boundary flip)");
+        }
+
+        // ---- PoS+PoM (mm) finality: the Q32.32 on-VM mirror tracks the live f64 rule ----
+
+        #[test]
+        fn pos_pom_fixed_mirrors_the_live_finality_rule() {
+            // The on-VM mirror `finalizes_pos_pom_fixed` must NEVER finalize a case the live f64 (mm)
+            // rule rejects — the load-bearing conservative direction (`!(fixed && !float)`), swept over
+            // participation, decay clocks, and dimension presence (incl. PoW-only and PoM-whale shapes).
+            use crate::runtime::finality::finalizes_pos_pom as float_pp;
+            let sets: Vec<Vec<Validator>> = vec![
+                vec![v(0, 0.0, 100.0, 100.0, 0), v(1, 0.0, 100.0, 100.0, 0)], // both dims, both vote
+                vec![v(0, 0.0, 0.0, 200.0, 0), v(1, 0.0, 100.0, 0.0, 0)],     // pom-whale + capital
+                vec![v(0, 1.0, 1.0, 1.0, 0), v(1, 1.0, 0.0, 1.0, 0), v(2, 0.0, 1.0, 0.0, 0)], // pow+pom voters, pos abstainer
+                vec![v(0, 0.0, 50.0, 80.0, 0), v(1, 0.0, 50.0, 20.0, 5), v(2, 0.0, 10.0, 5.0, 40)],
+            ];
+            for all in &sets {
+                for k in 1..=all.len() {
+                    let voters: Vec<Validator> = all.iter().take(k).cloned().collect();
+                    for &decay in &[false, true] {
+                        for &now in &[0u64, 10, 100, 100_000] {
+                            let horizon = 100u64;
+                            let vf_q: Vec<ValidatorQ> = voters.iter().map(val_to_q).collect();
+                            let all_q: Vec<ValidatorQ> = all.iter().map(val_to_q).collect();
+                            let fixed = finalizes_pos_pom_fixed(&vf_q, &all_q, now, horizon, decay, TWO_THIRDS_BPS);
+                            let float = float_pp(&voters, all, now, horizon, decay, TWO_THIRDS_BPS);
+                            // conservative direction: fixed ⇒ float (the fixed mirror never finalizes
+                            // a case the f64 rule rejects). `!fixed || float` ≡ ¬(fixed ∧ ¬float).
+                            assert!(
+                                !fixed || float,
+                                "fixed finalized a float-rejected pos_pom case (k={k}, decay={decay}, now={now})"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        #[test]
+        fn pos_pom_fixed_enforces_anti_concentration_like_the_live_rule() {
+            // ANTI-THEATER for the mirror: a PoM whale that clears 2/3 of the PoS+PoM set but holds ZERO
+            // capital must be REJECTED by both rules (degenerate `dim_ok_q ⇒ true` would let it through ⇒
+            // RED here); both dimensions participating finalizes in both.
+            let all = vec![v(0, 0.0, 0.0, 200.0, 0), v(1, 0.0, 100.0, 0.0, 0)];
+            let all_q: Vec<ValidatorQ> = all.iter().map(val_to_q).collect();
+            let whale_q = vec![val_to_q(&all[0])];
+            assert!(
+                !finalizes_pos_pom_fixed(&whale_q, &all_q, 1, 0, false, TWO_THIRDS_BPS),
+                "fixed: PoM whale with zero capital must fail anti-concentration"
+            );
+            assert!(
+                !crate::runtime::finality::finalizes_pos_pom(&[all[0].clone()], &all, 1, 0, false, TWO_THIRDS_BPS),
+                "float: same"
+            );
+            assert!(finalizes_pos_pom_fixed(&all_q, &all_q, 1, 0, false, TWO_THIRDS_BPS), "fixed: both dims finalize");
+            assert!(
+                crate::runtime::finality::finalizes_pos_pom(&all, &all, 1, 0, false, TWO_THIRDS_BPS),
+                "float: both dims finalize"
+            );
         }
     }
 }

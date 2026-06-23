@@ -456,6 +456,53 @@ pub mod finalization {
         basis > 0 && weight_for >= bps_of_ceil(basis, threshold_bps)
     }
 
+    /// Anti-concentration floor (mirrors `runtime::finality::MIN_DIM_BPS`): each fast-final dimension
+    /// must independently supply ≥ 50% of its OWN dimension total.
+    pub const MIN_DIM_BPS: u64 = 5000;
+
+    /// PoW-free finality mix in Q32.32 (mirrors `runtime::finality::FINALITY_MIX = 0 : 1/3 : 2/3`).
+    /// `pos + pom = ONE` exactly (the two fast-final dimensions renormalized; PoW out of finality).
+    pub const FINALITY_MIX_Q: MixQ = MixQ { pow: 0, pos: 0x5555_5555, pom: 0xAAAA_AAAB };
+
+    /// A dimension clears the anti-concentration floor. Mirrors `runtime::finality::dim_ok`: a
+    /// dimension absent from the whole set can't gate (avoids /0); else the voting weight in that
+    /// dimension must clear `MIN_DIM_BPS` of the dimension total. The floor rounds UP (against
+    /// finalization) so the fixed gate is NEVER more permissive than the f64 one.
+    fn dim_ok_q(weight_for: u128, weight_all: u128) -> bool {
+        weight_all == 0 || weight_for >= bps_of_ceil(weight_all, MIN_DIM_BPS)
+    }
+
+    /// PoS+PoM finality in Q32.32 — the on-VM mirror of the live `runtime::finality::finalizes_pos_pom`
+    /// (ROADMAP (mm)/(oo)). PoW is excluded by `FINALITY_MIX_Q` (probabilistic/reorgeable ⇒ a
+    /// finality-safety vector); the anti-concentration floor forces BOTH the capital (PoS) and value
+    /// (PoM) axes to participate, so PoM's 60% cannot unilaterally finalize (T11 capital-orthogonality).
+    /// The on-VM finalization type-script will call THIS, so the live (mm) rule and its future on-VM
+    /// mirror are ONE arithmetic — closing the forward parity (mm) documented. Bit-for-bit deterministic.
+    pub fn finalizes_pos_pom_fixed(
+        voters_for: &[ValidatorQ],
+        all: &[ValidatorQ],
+        now: u64,
+        horizon: u64,
+        decay_pos: bool,
+        threshold_bps: u64,
+    ) -> bool {
+        // PoW out of finality + the usual 2/3 supermajority of the fast-final (PoS+PoM) set.
+        if !finalizes_fixed(voters_for, all, FINALITY_MIX_Q, now, horizon, decay_pos, threshold_bps, 0) {
+            return false;
+        }
+        // Anti-concentration over the RAW (unweighted) dimension balances, mirroring the f64 rule.
+        let (mut pos_for, mut pos_all, mut pom_for, mut pom_all) = (0u128, 0u128, 0u128, 0u128);
+        for v in voters_for {
+            pos_for = pos_for.saturating_add(v.pos);
+            pom_for = pom_for.saturating_add(v.pom);
+        }
+        for v in all {
+            pos_all = pos_all.saturating_add(v.pos);
+            pom_all = pom_all.saturating_add(v.pom);
+        }
+        dim_ok_q(pos_for, pos_all) && dim_ok_q(pom_for, pom_all)
+    }
+
     // ---- Wire format (single home for the finalization-cell + vote layout) ----
     // The ELF DECODES; the node/producer ENCODES; both call the same functions so the format
     // has exactly one definition. All little-endian. Q values are u128 (16B) to match the core
