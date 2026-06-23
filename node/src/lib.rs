@@ -9038,3 +9038,138 @@ pub mod index_binding {
         }
     }
 }
+
+// ============ Nash honesty — truthful self-report as a Nash equilibrium ============
+
+/// The self-reporting sub-game of Will's Equilibrium: a participant SELF-REPORTS a fact the chain
+/// cannot verify (the provenance of a contribution — original vs derived-from-X — the stolen-content
+/// case). The chain does NOT learn the truth; it makes truthful reporting the participant's best
+/// response. This is the dissolution meta-pattern made concrete: the oracle is unnecessary because
+/// honesty is the equilibrium ([P·dissolution-over-solution-meta-pattern]).
+///
+/// MECHANISM. A reporter posts a bond `b` with a claim and books the value the claim earns. A false
+/// over-claim books an EXTRA gain `g` over the honest value, but a witness challenges and PROVES the
+/// lie with probability `p`, in which case the ill-gotten gain is clawed back AND the bond is slashed
+/// (redistributed to the challenger — the bounty that pulls the off-chain witness on-chain). Truth
+/// withstands challenge, so an honest report is never successfully challenged.
+///
+/// PAYOFFS, net of the honest baseline value `V` both strategies keep (so `V` cancels and we work in
+/// the deviation surplus):
+///   honest:  U_H = 0
+///   lie:     U_L = (1-p)·g − p·b      [ keep g if uncaught (prob 1−p); lose b and g if caught (prob p) ]
+///
+/// NASH-HONESTY — no profitable UNILATERAL deviation: `U_H ≥ U_L  ⟺  p·b ≥ (1−p)·g`. The bond, scaled
+/// by the catch-odds, must cover the gain from an undetected lie. The mechanism makes truth a Nash
+/// equilibrium for EVERY reporter by REQUIRING `b ≥ required_bond(g, p)`.
+///
+/// SCOPE (honest, marked): this is Will's-Equilibrium property (1) — the NASH / unilateral property —
+/// for the self-reporting game. Coalition-proofness (2) and adaptive-stability (3) are carried
+/// elsewhere (the HodgeRank harmonic residual + geometric saturation; the learned-`v(S)` retraining)
+/// and are NOT claimed by this module. The proof here is the closed-form IC condition, verified
+/// against the payoff function over a deterministic parameter grid in the tests below.
+pub mod nash_honesty {
+    /// Float-robustness tolerance. The IC condition `p·b ≥ (1−p)·g` is exact in the reals, but at the
+    /// indifference threshold the payoff difference is computed as a tiny rounding residual; a mechanism
+    /// that flipped its verdict on `1e-17` would be broken, so the predicate treats the threshold (and
+    /// anything within `EPS`) as satisfied. The math claim is unchanged; `EPS` only absorbs float noise.
+    pub const EPS: f64 = 1e-9;
+
+    /// Expected surplus of honest reporting over the common baseline `V`. An honest report is never
+    /// successfully challenged ⇒ surplus is exactly zero.
+    pub fn surplus_honest() -> f64 {
+        0.0
+    }
+
+    /// Expected surplus of a unilateral lie over the honest baseline: keep the over-claim `g` with
+    /// probability `1−p`; on a catch (probability `p`) the gain is clawed and the bond `b` slashed.
+    /// Caller contract: `p ∈ [0,1]`, `g ≥ 0`, `b ≥ 0`, all finite.
+    pub fn surplus_lie(g: f64, p: f64, b: f64) -> f64 {
+        (1.0 - p) * g - p * b
+    }
+
+    /// Truthful reporting is a Nash equilibrium (no profitable unilateral deviation) iff a lie's
+    /// expected surplus does not exceed honesty's: `p·b ≥ (1−p)·g`.
+    pub fn honest_is_nash(g: f64, p: f64, b: f64) -> bool {
+        surplus_lie(g, p, b) <= surplus_honest() + EPS
+    }
+
+    /// The exact bond at which the reporter is INDIFFERENT between honesty and lying — the threshold
+    /// the mechanism must require (or exceed) to make truth a Nash equilibrium: `b* = (1−p)/p · g`.
+    /// As `p → 0` (no witness can ever challenge) the required bond diverges: the honest residual where
+    /// the dissolution runs out — and there the harm is unobservable to everyone, so `g` is a gain no
+    /// one can even perceive. `p ≤ 0 ⇒ +∞`.
+    pub fn required_bond(g: f64, p: f64) -> f64 {
+        if p <= 0.0 {
+            f64::INFINITY
+        } else {
+            (1.0 - p) / p * g
+        }
+    }
+}
+
+#[cfg(test)]
+mod nash_honesty_tests {
+    use super::nash_honesty::*;
+
+    /// THE COMPUTATIONAL PROOF. Over a deterministic grid of (gain `g`, catch-probability `p`): the
+    /// closed-form IC condition `p·b ≥ (1−p)·g` coincides EXACTLY with the payoff comparison
+    /// `U_H ≥ U_L` at every sampled bond, and the threshold bond makes honesty a Nash equilibrium. The
+    /// analytic condition stated in the module doc is thereby validated against the payoff function it
+    /// claims to summarize — a proof by exhaustive agreement, not a single hand-picked case.
+    #[test]
+    fn honest_is_a_nash_equilibrium_exactly_when_the_bond_covers_the_gain() {
+        let gs = [0.5_f64, 1.0, 2.0, 5.0, 10.0];
+        for &g in &gs {
+            for k in 1..20 {
+                let p = k as f64 / 20.0; // 0.05 .. 0.95, deterministic (no RNG)
+                let bstar = required_bond(g, p);
+                // At the threshold the reporter is indifferent ⇒ honesty is a (weak) Nash equilibrium.
+                assert!(honest_is_nash(g, p, bstar), "threshold bond must make honesty Nash (g={g}, p={p})");
+                assert!(surplus_lie(g, p, bstar).abs() < 1e-9, "threshold is the exact indifference point");
+                // Strictly above it, lying strictly loses.
+                assert!(surplus_lie(g, p, bstar + 1.0) < surplus_honest());
+                // The payoff-derived predicate IS the closed-form IC condition, at every sampled bond.
+                for &b in &[0.0, bstar * 0.5, bstar, bstar + 0.3, bstar + 5.0] {
+                    assert_eq!(
+                        honest_is_nash(g, p, b),
+                        p * b >= (1.0 - p) * g - EPS,
+                        "payoff predicate must coincide with p·b >= (1-p)·g (g={g}, p={p}, b={b})"
+                    );
+                }
+            }
+        }
+    }
+
+    /// TIGHTNESS / break-on-purpose: below the threshold a unilateral lie STRICTLY profits, so the bond
+    /// is load-bearing — the equilibrium genuinely fails without enough of it. The condition is not vacuous.
+    #[test]
+    fn a_lie_strictly_profits_when_the_bond_is_below_the_threshold() {
+        let (g, p) = (4.0, 0.25);
+        let bstar = required_bond(g, p); // (0.75/0.25)·4 = 12.0
+        assert!((bstar - 12.0).abs() < 1e-9);
+        let too_small = bstar - 1.0;
+        assert!(!honest_is_nash(g, p, too_small), "below-threshold bond is NOT a Nash equilibrium");
+        assert!(surplus_lie(g, p, too_small) > surplus_honest(), "a unilateral lie strictly profits");
+    }
+
+    /// The honest residual: as the catch-probability vanishes the required bond diverges — dissolution
+    /// runs out exactly where no one holds a signal of the truth.
+    #[test]
+    fn the_required_bond_diverges_as_the_catch_probability_vanishes() {
+        let g = 1.0;
+        assert!(required_bond(g, 0.5) < required_bond(g, 0.1));
+        assert!(required_bond(g, 0.01) > 90.0);
+        assert!(required_bond(g, 0.0).is_infinite(), "no witness => no finite bond makes honesty Nash");
+    }
+
+    /// Honesty is free when there is nothing to gain by lying: a truthful report that books no extra
+    /// value needs no bond (`required_bond(0, p) = 0` for any `p > 0`).
+    #[test]
+    fn honesty_is_free_when_there_is_nothing_to_gain_by_lying() {
+        for k in 1..20 {
+            let p = k as f64 / 20.0;
+            assert_eq!(required_bond(0.0, p), 0.0);
+            assert!(honest_is_nash(0.0, p, 0.0));
+        }
+    }
+}

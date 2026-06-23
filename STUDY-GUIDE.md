@@ -2,7 +2,7 @@
 
 > Regenerated FROM the repo by `scripts/study-guide.py`, so it cannot lag the
 > code. Tick the boxes as you internalize each piece. Re-run to refresh.
-> Node test suite: **249 passing**.
+> Node test suite: **253 passing**.
 
 ## Read in this order
 
@@ -31,6 +31,7 @@
 - [ ] DESIGN-multi-identity-split-acceptance.md — The (q) per-identity λ^r damping caps ONE identity's volume but is INERT against a split across K distinct vested identities (each child is rank-0 in its own identity-group ⇒ λ^0=1 ⇒ full weight). Measured (test `multi_identity_split_volume...
 - [ ] DESIGN-onvm-locksig-program.md — - **Verify arithmetic, single-sourced:** `noesis_core::lamport::verify(root, msg, sig)` ((pp)) — no_std, builds riscv64imac. The node's `runtime::lamport` re-exports it. - **Digest, single-sourced:** `noesis_core::tx::tx_digest(standard, co...
 - [ ] DESIGN-parametric-clawback.md — Should clawback cascades be consensus-native (a justice-like presence at the wallet level that deals with theft / fraud / harm), or should the broad-harm case be governed by slashing?
+- [ ] DESIGN-stolen-offchain-content.md — An attacker ingests content created by someone ELSE who never put it on-chain. The attacker is credited as the contributor and captures the realized-downstream-flow value; the genuine off-chain creator gets
 - [ ] DESIGN-wills-equilibrium.md — Proof of Mind does not just reach a Nash equilibrium where honest contribution is individually rational. It reaches one that **also survives coalitions and survives an adaptive adversary**, because the value measure itself adapts. That thir...
 - [ ] EXTRACTION-AUDIT-2026-06-19.md — **NO live extraction vector.** Noesis is GEV-aligned by construction. The classic MEV preconditions (fees, block rewards, producer-chosen ordering, transferable franchise, slash payouts, oracles, liquidations) are **structurally absent**, n...
 - [ ] EXTRACTION-AUDIT-CHECKLIST.md — 1. **[Shapley invariant]** every value-paying path (`value_v5..v8`, `value_flow_with_own`) distributes strictly along the provenance DAG by Myerson share. FAIL if a cell can earn without realized external flow (`downstream_flow_external`).
@@ -84,6 +85,7 @@
 - [ ] `index_rule` — T7 #3 — the index-cell root-transition rule (`T7-CROSS-CELL-SIMILARITY.md` §QA R2: per-block batched update)
 - [ ] `commit_order` — The fix for the temporal-order attacker-choosable-input finding ([P·dont-let-attacker-choose-critical-input], 2026-06-13)
 - [ ] `index_binding` — Host-side reference model of the on-VM index cell-dep binding
+- [ ] `nash_honesty` — The self-reporting sub-game of Will's Equilibrium: a participant SELF-REPORTS a fact the chain cannot verify (the provenance of a contributi...
 
 ## Glossary (the load-bearing terms)
 

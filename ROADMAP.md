@@ -28,6 +28,32 @@
    proven economic calibration. Re-tune only on real data. Per [P·augmented-mechanism-design-paper].
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-23 (uu)** — BUILT ✅ **Nash honesty — truthful self-report as a Nash equilibrium, with a
+  computational proof** (Will: "build the solve for Nash Honesty complete into the system and prove it").
+  The self-reporting sub-game of [[wills-equilibrium]]: a participant self-reports a fact the chain
+  CANNOT verify (contribution provenance — the stolen-content case); the chain does not learn the truth,
+  it makes truthful reporting the best response. The dissolution meta-pattern in code (the oracle is
+  unnecessary because honesty is the equilibrium, [P·dissolution-over-solution-meta-pattern]). New
+  reference module `node/src/lib.rs::nash_honesty`: a bonded reporter gains `g` by over-claiming, is
+  caught w.p. `p` (a witness challenges) losing bond `b` + the clawed gain; honest surplus 0, lie surplus
+  `(1−p)g − pb`. **Nash-honesty (no profitable unilateral deviation) ⟺ `p·b ≥ (1−p)·g`** ⟺ require
+  `b ≥ (1−p)/p·g`. **COMPUTATIONAL PROOF** (4 tests): over a deterministic (g,p) grid the closed-form IC
+  condition coincides EXACTLY with the payoff comparison at every sampled bond + the threshold bond makes
+  honesty Nash (`honest_is_a_nash_equilibrium_exactly_when_the_bond_covers_the_gain`); TIGHTNESS /
+  anti-theater — below threshold a unilateral lie STRICTLY profits so the bond is load-bearing
+  (`a_lie_strictly_profits_when_the_bond_is_below_the_threshold`); the honest residual — `required_bond →
+  ∞` as `p → 0` (dissolution runs out exactly where no witness holds the truth, and there the harm is
+  unobservable too); honesty is free when there's nothing to gain by lying. Float-robustness `EPS=1e-9`
+  on the indifference threshold (a mechanism that flips on 1e-17 is broken; the math claim is exact).
+  node lib 249→**253**, full suite 312→**316**, 0 new clippy. PURELY ADDITIVE (new pub mod + #[cfg(test)]
+  mod; touches no existing path). **HONEST SCOPE (marked, reputation-load-bearing):** this is
+  Will's-Equilibrium property **(1) the NASH / unilateral property** only. Coalition-proofness (2) +
+  adaptive-stability (3) are carried elsewhere (HodgeRank residual + geometric saturation; learned-v(S)
+  retraining) and are NOT claimed here. The theorem-grade formal write-up (peer-prediction collusion-eq
+  elimination, existence/uniqueness, embedding into the whitepaper) is the COLD + `/critical-qa` pass per
+  the `DESIGN-wills-equilibrium.md` discipline — not claimed as proven by this module. **NEXT:** finalization
+  PROGRAM twin-update ((tt)) · parametric clawback revocation predicate · the formal WE write-up (cold) ·
+  learned-v(S) moat.
 - **2026-06-23 (tt)** — BUILT ✅ (lock-script per-input hardening) + DESIGN tick (finalization PROGRAM
   twin-update — DECIDED, build fresh). Two parts:
   - **BUILT — multi-input authorization coverage on (ss).** All 10 (ss) tests were single-input, but
