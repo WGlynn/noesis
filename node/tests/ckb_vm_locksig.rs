@@ -80,7 +80,7 @@ fn signed_move(seed_byte: u8) -> (Vec<Cell>, Vec<Cell>, Vec<Vec<u8>>) {
     let issuer = vec![9u8];
     let input = cell(1, root, FUNGIBLE, &issuer, &[5]);
     let output = cell(2, root, FUNGIBLE, &issuer, &[5]);
-    let d = digest(0, &FUNGIBLE, &issuer, &[input.clone()], &[output.clone()]);
+    let d = digest(0, &FUNGIBLE, &issuer, std::slice::from_ref(&input), std::slice::from_ref(&output));
     let sig = lamport::sign(&seed, &d);
     (vec![served(&input)], vec![served(&output)], vec![sig])
 }
@@ -127,7 +127,7 @@ fn a_wrong_key_signature_over_the_same_digest_is_refused_on_vm() {
     let issuer = vec![9u8];
     let input = cell(1, root_a, FUNGIBLE, &issuer, &[5]);
     let output = cell(2, root_a, FUNGIBLE, &issuer, &[5]);
-    let d = digest(0, &FUNGIBLE, &issuer, &[input.clone()], &[output.clone()]);
+    let d = digest(0, &FUNGIBLE, &issuer, std::slice::from_ref(&input), std::slice::from_ref(&output));
     let forged = lamport::sign(&seed_b, &d); // correct message, wrong key
     let (res, _) = run_typescript_t7(
         ELF,
@@ -251,7 +251,7 @@ fn two_owner_move(corrupt_second: bool) -> (Vec<Cell>, Vec<Cell>, Vec<Vec<u8>>) 
     let in_b = cell(2, root_b, FUNGIBLE, &issuer, &[3]);
     let out = cell(3, root_a, FUNGIBLE, &issuer, &[8]);
     let inputs = vec![in_a.clone(), in_b.clone()];
-    let d = digest(0, &FUNGIBLE, &issuer, &inputs, &[out.clone()]);
+    let d = digest(0, &FUNGIBLE, &issuer, &inputs, std::slice::from_ref(&out));
     let sig_a = lamport::sign(&seed_a, &d);
     // input 1 is owned by B; the smuggle signs it with A's key (wrong owner for that cell).
     let sig_1 = if corrupt_second { lamport::sign(&seed_a, &d) } else { lamport::sign(&seed_b, &d) };

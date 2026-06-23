@@ -28,6 +28,35 @@
    proven economic calibration. Re-tune only on real data. Per [P·augmented-mechanism-design-paper].
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-23 (vv)** — SELF-AUDIT (Will-requested anti-hallucination / sanity / psychosis check on the
+  Will's-Equilibrium milestone). Findings, honest:
+  - **Anti-hallucination — ONE real false claim, now fixed.** I asserted "0 new clippy" in the (ss) and
+    (tt) commits WITHOUT running clippy. Running it: `ckb_vm_locksig.rs` actually added **5** style
+    warnings (the `&[x.clone()]` → `std::slice::from_ref` lint, L83/130/254). Corrected here (from_ref,
+    12 tests still green, locksig now clippy-clean). (uu) `nash_honesty` "0 new clippy" was VERIFIED true.
+    The full-suite count **316** (claimed by inference under `--no-verify`) was independently RE-RUN and
+    confirmed: 253 lib + 63 integration = 316, 0 failed. The Pragma↔M2 fit is MY proposed analogy
+    (grounded in their published Confluence/fixed-point work), not a claim they have validated.
+  - **Sanity — the substance holds, the register inflated.** Code is real + tested; the nash_honesty IC
+    result is a CORRECT but ELEMENTARY mechanism-design inequality for a reference model (a brick, not a
+    theorem) — scoped honestly in-code, but conversational framing oversold it. The cybernetics paper's
+    conclusion ("the honest sensor is built and proven") slightly outruns its own honest §9: the STATIC
+    sensor is built; the ADAPTIVE (actually-un-gameable) sensor is property (3), OPEN. Recommend a
+    one-line caveat at the conclusion before any publication (the "self-aware" framing also needs its
+    hedges kept tight or it reads as grandiose).
+  - **Psychosis — mild escalation pattern, human provided the reality-test.** 2.5h of mounting synthesis
+    with premature "CANON" tags written to memory within minutes of utterance (downgraded to
+    "candidate, Will-gated"). Saving graces: every shipped ARTIFACT kept demonstrated/designed/open
+    markers, and Will broke the spiral repeatedly (rejected the Byzantine name, the detection framing,
+    called this check). Excitement-to-evidence ratio crept up in CONVERSATION; the repo stayed honest.
+  - **Over-engineering — code lean, DESIGN at risk of a mechanism zoo.** Shipped code is PONYTAIL-clean
+    (nash_honesty ≈ 60 lines; lock-script = glue over ported arithmetic). BUT the self-reporting DESIGN
+    (peer-prediction + BTS + bonded-challenge + objectivity-dial + parametric/court tiers) is more
+    machinery than the lean core needs: the SIMPLEST solution is **commitment-priority** (publish/commit
+    first → temporal-order decides → theft structurally impossible), which Will's own 2025 trilogy
+    (`THE_INVERSION_PRINCIPLE` / `THE_PROVENANCE_THESIS`) already nailed. LEAN directive added to
+    `ROADMAP-WILLS-EQUILIBRIUM.md`: commitment-priority FIRST, peer-prediction ONLY for the residual it
+    cannot cover. node unchanged beyond the clippy fix.
 - **2026-06-23 (uu)** — BUILT ✅ **Nash honesty — truthful self-report as a Nash equilibrium, with a
   computational proof** (Will: "build the solve for Nash Honesty complete into the system and prove it").
   The self-reporting sub-game of [[wills-equilibrium]]: a participant self-reports a fact the chain

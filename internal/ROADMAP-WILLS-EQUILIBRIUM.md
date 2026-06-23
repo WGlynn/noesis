@@ -59,6 +59,18 @@ self-reporting is the equilibrium: **Will's Equilibrium** = (1) Nash + (2) coali
 - **M5 — Data acquisition (DeepFunding labels at scale).** Unblocks (3) empirical — the moat. **[data]**
 - **M6 — Empirical adaptive-robustness in deployment.** The only place (3) is finally confirmed. **[deploy]**
 
+## LEAN directive (PONYTAIL / Bitcoin-simplicity — anti over-engineering, (vv) self-audit)
+Do NOT build the mechanism zoo. The SIMPLEST solution is **commitment-priority**: publish/commit a
+32-byte hash the moment you have the work → consensus temporal-order (`commit_order`) decides priority →
+theft becomes structurally impossible (the timestamp exists before any claim — prevention, not
+punishment). Will's own 2025 trilogy already proved this (`vibeswap/docs/research/essays/THE_INVERSION_
+PRINCIPLE.md`, `.../theorems/THE_PROVENANCE_THESIS.md`). **Sequence:** commitment-priority FIRST (it
+handles the published-work majority on machinery that already exists); add bonded self-report + the
+peer-prediction layer (M3) ONLY for the residual commitment-priority cannot cover (disputed / never-
+committed work). Each added mechanism must earn its place against that residual or be dropped. Keep the
+core statable in one sentence: *measure realized contribution; make honest reporting cost less than it
+gains.*
+
 ## The one-line distance
 The STATIC problem (honest is the equilibrium against every known, non-adaptive deviation) is largely
 solved in the reference layer — the hard structural foundation is real. The remaining distance is **M2
