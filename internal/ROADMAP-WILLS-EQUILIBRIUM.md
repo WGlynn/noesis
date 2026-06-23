@@ -78,6 +78,39 @@ solved in the reference layer — the hard structural foundation is real. The re
 that only deployment closes. M1 and the M2 theory are desk-work; M3/M4 are bounded builds. **Point the
 research stack at M2 first** — it is the only claim that is both unproven and the linchpin of un-gameability.
 
+## CHARTER (Will 2026-06-23) — the real-time monitor / continuous immune-surveillance layer
+> Will: *"i want to solve all these problems that surfaced from the 4 topics, also i need these all
+> working in the future to catch it ALL in real-time. that way things can't escalate in a bad direction."*
+
+The four problem-threads of the session are ONE runtime loop, not four fixes: a continuous per-block
+health evaluation over the provenance/value graph (the cybernetic governor / immune surveillance from the
+paper, made OPERATIONAL), with every effector firing PRE-finalization so deviations are corrected while
+small (negative feedback ⇒ no compounding ⇒ "can't escalate").
+
+| thread | real-time sensor | effector | status |
+|---|---|---|---|
+| theft / unauthorized spend / fraud | lock-sig gate + owner-published constraints | reject @ spend / parametric clawback | lock-sig ✓ · constraints+clawback ◐ |
+| stolen off-chain content | commitment-priority (temporal order) + novelty/duplicate | priority @ commit; damp the later instance | ◐ (trilogy) |
+| merge overlap / collusion ring | HodgeRank residual over the graph | `collusion_slash` | ✓ built+tested |
+| dishonest self-report | bonded report + peer-prediction score | slash + redistribute, within window | ◐ |
+
+**Unify**: ONE continuous per-block graph-health pass (one bloodstream, many threats), effectors
+pre-finalization. Each thread ≡ "an honest equilibrium maintained in real time" ⇒ all four collapse into
+the Contribution Consensus Problem.
+
+**HONEST BOUNDARY (post-(vv), reputation-load-bearing):** ✗ catch literally ALL in real-time — structural,
+not an engineering gap. Property (3): value reveals OVER TIME via realized downstream flow ⇒ adaptive /
+slow-burn attacks (manufactured-value that only looks valueless LATER; the learning adversary) are caught
+AS THEY REVEAL by the retraining loop, on a LAG, not instantaneously. So: real-time catches everything that
+casts a graph-shadow THIS block; the delayed-value tail is caught lagged, BOUNDED, never zero. "Can't
+escalate" holds HARD for observable deviations (homeostat keeps them small); for the unobservable tail it
+is bounded escalation that self-corrects as the signal arrives — exactly M2 (how fast/surely the lagged
+correction converges). ✗ claim instantaneous total coverage.
+
+**Build path:** the per-thread sensors+effectors above are the pieces; the CHARTER deliverable is the
+unified continuous monitor that runs them every block + fires pre-finalization. Gated by the same M1-M6
+spine (esp. M2 for the lagged-correction guarantee). Sibling: `[[noesis-as-self-healing-immune-system]]`.
+
 ## Not on this spine but required infrastructure (continue in parallel)
 finalization PROGRAM twin-update ((tt)) · parametric clawback revocation predicate
 (`DESIGN-parametric-clawback.md`) · lock-sig GO-LIVE flip · networking/deploy. Necessary for a live
