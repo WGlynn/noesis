@@ -49,6 +49,16 @@ and load-bearing for consensus. The reason this is rare is not ideology but
 difficulty: a possession chain never has to *measure* value (the market does), while a
 value chain must. Measuring contribution objectively and un-gameably is the hard part.
 
+We call this the **Contribution Consensus Problem**: reaching agreement on what each
+participant contributed, and how much it is worth, *without an immediate per-decision
+oracle to settle the question*. There is no oracle that prices a contribution at the
+moment it is made; the chain has instead the aggregate of realized downstream outcomes,
+which retrains the value measure over time. So the honest statement is "no immediate
+per-decision ground truth," not "no outcome signal ever" — the measure is anchored on
+aggregate realized outcomes. The participants are not assumed
+to be arbitrarily faulty in the Byzantine sense; they are **strategic**, each optimizing
+its own standing, which is the harder and more realistic adversary for a value chain.
+
 Proof of Mind is our answer. Its lineage: proof-of-work → proof-of-*useful*-work
 (information density as work, e.g. CogCoin/Economitra) → **proof of mind** (verified,
 synergy-weighted contribution) as the apex. The unit of work is a *block of thought*;
@@ -232,6 +242,67 @@ flowchart TD
   SLASH --> S2["refuted value<br/>(dispute window)"]
 ```
 
+### 6.1 The Honest-Contribution Equilibrium
+
+The strategyproof value rule (§4), the coalitional stability constraint above, and the
+adaptive measure (§"Measurement as a living mechanism") are meant to combine into one
+target: a profile in which honest contribution **and** honest self-reporting is the
+strategy no participant wants to leave. We name that target the **Honest-Contribution
+Equilibrium (HCE)** and state it with three properties:
+
+1. **Nash** — no participant gains by deviating alone.
+2. **Coalition-proof** — no coalition gains by a joint deviation, because the
+   provenance-geometry guards (temporal novelty, saturation, the HodgeRank residual)
+   zero the gains from rings, mutual-citation, and sybil pools *structurally*, so the
+   deviation is not merely expensive but valueless.
+3. **Adaptive-stable**: it stays a (1)+(2) equilibrium under the measure's own
+   retraining dynamic, against an adversary who best-responds to the *current* measure,
+   so no *eventually-discovered* exploit is profitable, not only no *currently-known*
+   one.
+
+Properties (1)+(2) under a fixed payoff rule are a coalition-proof Nash equilibrium in
+the established sense (Nash; Aumann's strong equilibrium; Bernheim-Peleg-Whinston).
+Property (3) is the new content: an equilibrium of a game whose *payoff function is
+itself a learned object co-adapting with the adversary* — the formal statement of why a
+fixed formula is gamed the moment it is public and only an adapting measure is
+un-gameable.
+
+**Result vs conjecture, honestly.** For *contribution*, (1) is demonstrated (novelty,
+saturation, standing-gating). For *self-reporting*, the honest-report incentive
+compatibility (`p·b ≥ (1−p)·g`) is demonstrated in the reference node *conditional on the
+catch-probability p (supplied by a peer-elicitation layer that is not yet built)*; that
+layer is *designed; proof-templated by the peer-elicitation result below, with two named
+open theorems remaining*. For (2), *cyclic* collusion (rings, mutual-citation) is
+demonstrated (HodgeRank residual wired to slash); the *symmetric-lie* self-report
+collusion is *designed* — the stochastic-dominance result below removes the risk-attitude
+loophole but the symmetric lie is a *joint* deviation it does not by itself eliminate, so
+this half is closed only by a bonded information-score backstop, not yet proven. For (3),
+the retraining harness is wired but *data-blocked* (needs real outcome-preference data),
+the convergence theorem is open, and the first real-data test of the learned measure (on
+Ethereum Deep Funding jury labels) did not yet show the learned value beating a fixed
+structural proxy under the available graph proxies — unsupported, not refuted (the test
+used single-repo proxy features over a dependency graph, not the set-level features over a
+provenance DAG the measure is defined on), so a faithful provenance-feature port is the
+open test. **HCE today is therefore a result for property (1) and the cyclic half of
+property (2), and a labeled conjecture for the full three properties** — claimed as a
+named conjecture with its demonstrated core marked, not as a finished theorem.
+
+**Proof template for the self-report layer.** Two published results supply a template.
+Peer Elicitation Games (Chen et al., arXiv:2505.13636, 2025) prove a training-free game
+of one reporter and several independent discriminators, scored by a determinant-based
+mutual-information score, makes truthful reporting a *Nash equilibrium with no
+ground-truth labels* with *last-iterate convergence*; this supplies exactly the
+catch-probability p the IC bound was conditional on. Stochastically-Dominant Peer
+Prediction (Zhang/Xu/Pennock/Schoenebeck) strengthens the target to stochastic
+dominance, so truth is *payoff-dominant* under *any monotone utility*. That removes the
+risk-attitude loophole — a property of a *unilateral* deviation; it does not by itself
+eliminate the *symmetric-lie* co-equilibrium (a coalition jointly agreeing on the same
+falsehood), which remains the separate bonded-backstop obligation. With that distinction
+kept, this moves the self-report properties from designed to *proof-templated*, with two
+named theorems remaining: generalizing the mutual-information score to cooperative-game
+value over the provenance DAG, and establishing inner-equilibrium uniqueness so the
+retraining map is well-posed.
+
 **Finalization basis (reference-modeled, tested).** Weighting by PoM is necessary but not
 sufficient. Once vote weight decays with staleness (so standing tracks live participation), the
 finalization rule must choose what its supermajority is a fraction *of*. A base-weight basis is
@@ -285,6 +356,47 @@ over a dependency graph) and the author's Contribution Compact (streaming-Shaple
 attribution); EigenTrust (eigenvector reputation); and VibeSwap's commit-reveal batch
 auction and ShapleyDistributor, whose mechanisms this system turns inward onto an
 agent's own contribution history.
+
+**Equilibrium concepts and truthful elicitation.** The Honest-Contribution Equilibrium
+(§6.1) is positioned against a clear lineage and claims only the fusion. Properties
+(1)+(2) are a coalition-proof Nash equilibrium in the established sense (Nash 1950;
+Aumann's strong equilibrium 1959; Bernheim-Peleg-Whinston 1987), with an evolutionary
+reading as an ESS (Maynard Smith & Price 1973); all assume a *fixed* payoff rule. The
+catch-probability that makes truthful self-reporting incentive-compatible without a
+ground-truth oracle is the province of *peer prediction* (truth as a Bayes-Nash
+equilibrium over peers' reports, the Bayesian Truth Serum and Cheng-Friedman lineage
+through recent strengthenings): Peer Elicitation Games (Chen et al., arXiv:2505.13636,
+2025) prove a determinant-based mutual-information score yields a truthful Nash
+equilibrium with last-iterate convergence and no ground truth, and Stochastically-
+Dominant Peer Prediction (Zhang/Xu/Pennock/Schoenebeck) lifts truthfulness from
+expectation to stochastic dominance under any monotone utility. The third property,
+adaptive-stability against a measure that retrains on the behavior it induces, is
+*performative prediction* (Perdomo et al., ICML 2020): publishing the measure shifts the
+distribution it is scored on, and the un-gameable target is a performatively-stable fixed
+point. Bittensor's Yuma consensus is the deployed system closest to property (2)'s
+problem and pays for coalition-resistance with an assumed honest stake majority; our
+contribution obtains the same resistance from *provenance geometry* (the HodgeRank
+residual) rather than from a stake majority. The novelty is the *fusion*: a
+coalition-proof, performatively-stable equilibrium in which the adapting measure *is* the
+consensus object. The lineage is cited, not pretended-invented.
+
+**Escaping the Sybil impossibility.** Cheng & Friedman (*Sybilproof reputation
+mechanisms*, 2005) prove any reputation or ranking mechanism satisfying a natural axiom
+set — crucially *symmetry / anonymity*, where the mechanism sees only the graph and not
+who is who — is Sybil-attackable: an agent strictly gains by splitting into fresh
+pseudonyms. Proof of Mind escapes by relaxing exactly the anonymity axiom, structurally
+rather than by patching. Two mechanisms make a fresh identity worth zero by construction:
+*commit-reveal timestamp-priority*, so standing accrues to the first commitment covering
+a piece of work and a new identity (having no history) cannot inherit or back-date
+priority; and a *proof-of-work-anchored (JUL) cost of identity*, so a sybil swarm pays
+the identity cost N times for no franchise gain (the cost-of-identity condition of the
+false-name-proofness lineage, Yokoo 2000; Mazorra & Della Penna 2023). Because the
+mechanism conditions on temporal priority and an anchored identity cost, it is *not*
+anonymous, so the Cheng-Friedman hypotheses do not hold and the impossibility does not
+bind. This makes the money layer load-bearing for coalition-proofness, not incidental:
+the cost-of-identity anchor is the Sybil defense. Honest scope: this defeats
+*identity-multiplication* sybils, not the single-identity self-report collusion ring,
+which is the separate obligation closed by the bonded information-score backstop (§6.1).
 
 ## 10. Status and roadmap
 

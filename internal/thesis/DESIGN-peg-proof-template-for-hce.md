@@ -1,8 +1,9 @@
 # A1 — PEG / SD-PP proof template for the Honest-Contribution Equilibrium (PRIVATE / stealth)
 
 > The highest-leverage move in `ROADMAP-LEAN-INTO-EDGE.md` (Track A1). Adapts two *verified* published
-> results into a proof template that elevates HCE's self-report properties from *designed* to
-> *proven-in-template*, with the remaining gap named precisely. Companions: `DESIGN-wills-equilibrium.md`
+> results into a proof template that elevates HCE's self-report properties from *designed* to *designed;
+> proof-templated, with two named open theorems* — NOT "proven". The remaining gaps are named precisely
+> below. Status authority: `STATUS-LEDGER.md`. Companions: `DESIGN-wills-equilibrium.md`
 > (M1), `DESIGN-adaptive-convergence-theorem.md` (M2). Run `/critical-qa` before whitepaper embedding.
 > Papers fetched + verified 2026-06-23 (arXiv abstracts), not taken on the research agent's word.
 
@@ -37,13 +38,19 @@ the reports. Then, by PEG (i)–(iii):
   of property (1) **in template**;
 - the agents' learning dynamic exhibits **last-iterate convergence** to that truthful equilibrium — a
   concrete realization of the M2 convergence claim on the self-report sub-game;
-- replacing the expected-value target with SD-PP's **SD-truthfulness** makes truth out-pay every deviation
-  under *any monotone utility*, hardening property (2) against the symmetric-lie collusion equilibrium
-  (the M4 obligation) beyond a risk-neutral assumption.
+- replacing the expected-value target with SD-PP's **SD-truthfulness** makes truth **payoff-dominant**
+  under *any monotone utility*. This removes the **risk-attitude loophole** (a risk-seeking reporter
+  cannot prefer to lie) — a property of a **unilateral** deviation. It does NOT by itself eliminate the
+  **symmetric-lie co-equilibrium**, where a coalition jointly agrees on the same falsehood; that JOINT
+  deviation is the separate M4 obligation (bonded BTS backstop). SD-truthfulness hardens the unilateral
+  half of property (2), not the joint half.
 
-This moves HCE's self-report properties from **designed** to **proven-in-template**: the components PEG/SD-PP
-prove are exactly (1)-self-report `p`, the (2)-self-report-collusion robustness, and a self-report-layer
-instance of the M2 convergence.
+This moves HCE's self-report properties from **designed** to **designed; proof-templated by PEG/SD-PP,
+with two named open theorems (graph-generalization + C4 inner-uniqueness)** — NOT "proven". The components
+PEG/SD-PP prove are (1)-self-report `p` and a self-report-layer instance of the M2 convergence; for
+(2)-self-report-collusion they give only the UNILATERAL robustness (SD-truthfulness removes the
+risk-attitude loophole), which does NOT eliminate the symmetric-lie co-equilibrium (a JOINT deviation —
+see §4). Status authority: `STATUS-LEDGER.md` HCE-1-report, HCE-2-selfreport.
 
 ## 4. The remaining obligations (honest — what PEG does NOT give us)
 PEG/SD-PP prove their results for **single-fact reporting among symmetric discriminators**. HCE needs two
@@ -61,13 +68,16 @@ generalizations they do not cover; these are the real, novel work:
    graph-valued generalization. Candidate tool: monotone / potential-game structure on the inner game,
    with the Hodge potential as the potential function.
 
-**Net honest status:** with A1, HCE self-report = *proven-in-template, modulo (1) the graph-generalization
-of the determinant-MI score and (2) C4 for the graph game.* That is a sharp, defensible elevation — and it
-names the two theorems left to prove rather than papering over them.
+**Net honest status:** with A1, HCE self-report = *designed; proof-templated by PEG/SD-PP, with two named
+open theorems remaining — (1) the graph-generalization of the determinant-MI score and (2) C4 inner-
+uniqueness for the graph game* — plus, for the (2)-self-report-collusion half specifically, the joint
+symmetric-lie deviation that SD-truthfulness does not cover (M4). This is NOT "proven": it is a sharp,
+defensible elevation that NAMES the theorems left to prove rather than papering over them. Status
+authority: `STATUS-LEDGER.md`.
 
 ## 5. Next
 - Draft the graph-generalized determinant-MI score over the provenance DAG; test the HodgeRank-determinant
   operator conjecture (4.1).
 - Discharge C4 via a potential-game argument (4.2) — shared obligation with M2 §6.
 - `/critical-qa` this file (mechanism / composition / honesty) before it enters whitepaper §9 / the M1 paper.
-- Fold the elevated status into `DESIGN-wills-equilibrium.md` §4 table (self-report rows: ◐ → proven-in-template).
+- Fold the elevated status into `DESIGN-wills-equilibrium.md` §4 table (self-report rows: ◐ → designed; proof-templated, two named open theorems). Done — both cite `STATUS-LEDGER.md`.

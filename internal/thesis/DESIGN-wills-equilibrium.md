@@ -69,19 +69,30 @@ value chain, whose coalition-proofness comes from provenance geometry.** That th
 defensible novelty. The lineage above must be cited, not pretended-invented.
 
 ## 4. Status by property — demonstrated (✓) / designed (◐) / open (○)
-- **(1) Nash** — ✓ honest contribution structurally rational (novelty→0, saturation, standing-gating;
-  the gaming suite); ✓ honest self-report IC **proven** (`nash_honesty`: `p·b ≥ (1−p)·g`, 4 tests
-  green). ◐ *conditional on the catch-probability `p`*: the layer that supplies a high `p` with no
-  ground truth (peer-prediction, truthful report a BNE over peers' reports) is **designed, not built**
-  (M3). Until M3, (1) for self-reporting is "proven modulo one component."
-- **(2) Coalition-proof** — ✓ cyclic collusion (rings / mutual-citation / manufactured flow) zeroed by
-  the HodgeRank harmonic certificate, wired to slash (demonstrated, tested). ○ the **symmetric-lie
-  self-report collusion equilibrium** (everyone agrees on the same lie — the classic peer-prediction
-  weakness) is killed only by a **designed** bonded + Bayesian-Truth-Serum information-score backstop
-  (M4), not yet proven.
-- **(3) Adaptive-stability** — ◐ learned-`v(S)` retraining harness wired; **data-blocked** (needs real
-  DeepFunding outcome labels). ○ the **convergence theorem** (does `T` reach a *unique* un-gameable
-  fixed point rather than oscillate?) is M2 — both unproven and load-bearing. See companion file.
+> Status authority: `STATUS-LEDGER.md`. The rows below restate, by ID, the ledger's wording. If a
+> status changes, change the ledger first.
+
+- **(1) Nash** [HCE-1-contrib, HCE-1-report] — ✓ honest contribution structurally rational (novelty→0,
+  saturation, standing-gating; the gaming suite). Honest self-report IC: ✓ the inequality
+  `p·b ≥ (1−p)·g` is **demonstrated** (`nash_honesty`, 4 tests green) **conditional on the
+  catch-probability `p`**; the layer that supplies a high `p` with no ground truth (peer-prediction,
+  truthful report a BNE over peers' reports) is **designed; proof-templated by PEG/SD-PP, with two named
+  open theorems (graph-generalization + C4 inner-uniqueness)** (M3). It is NOT "proven"; until M3 plus
+  those two theorems, (1) for self-reporting is "designed and proof-templated, modulo two named theorems."
+- **(2) Coalition-proof** [HCE-2-cyclic, HCE-2-selfreport] — ✓ cyclic collusion (rings / mutual-citation
+  / manufactured flow) zeroed by the HodgeRank harmonic certificate, wired to slash (demonstrated, tested).
+  ○ the **symmetric-lie self-report collusion equilibrium** (everyone agrees on the same lie — the classic
+  peer-prediction weakness) is a **JOINT** deviation; SD-PP's SD-truthfulness (below) removes the
+  risk-attitude loophole but is a UNILATERAL property and does NOT kill the symmetric-lie co-equilibrium.
+  That co-equilibrium is killed only by a **designed** bonded + Bayesian-Truth-Serum information-score
+  backstop (M4), not yet proven.
+- **(3) Adaptive-stability** [HCE-3-adaptive] — ◐ learned-`v(S)` retraining harness wired; **data-blocked**.
+  The first real-data test (DeepFunding, `data/deepfunding/RESULTS.md`) is **null-tested**: the learned
+  `v(S)` did NOT reliably beat a fixed structural proxy under the available graph proxies (mean Δ +0.0021
+  over 20 seeds, wins 11/20). **Unsupported, not refuted** — the test used single-repo proxy features over
+  a dependency graph, not the set-level features over a provenance DAG; the faithful provenance-feature
+  port is the open test. ○ the **convergence theorem** (does `T` reach a *unique* un-gameable fixed point
+  rather than oscillate?) is M2 — both unproven and load-bearing. See companion file.
 
 **Therefore HCE today = a result for (1) + the hard half of (2); a labeled conjecture for the full
 three properties.** It enters the whitepaper marked demonstrated-for-(1)+(2-cyclic),
@@ -109,9 +120,13 @@ anonymous** — it distinguishes a standing-bearing identity from a fresh one �
 hypotheses do not hold and the impossibility does not bind. **This makes the JUL money-layer load-bearing
 for coalition-proofness (property 2), not incidental:** the cost-of-identity anchor IS the Sybil defense.
 
-> **Positioning line (whitepaper §9):** *"PoM escapes the Cheng-Friedman Sybil impossibility by relaxing
-> anonymity: commit-reveal timestamp-priority on a PoW-anchored (JUL) identity makes a fresh identity
-> structurally worth zero, so false names cannot inherit standing."*
+> **Positioning line (whitepaper §9) [SCOPE-CF]:** *"PoM escapes the Cheng-Friedman Sybil impossibility by
+> relaxing anonymity: commit-reveal timestamp-priority on a PoW-anchored (JUL) identity makes a fresh
+> identity structurally worth zero, so false names cannot inherit standing — this defeats
+> identity-multiplication Sybils only, NOT the single-identity self-report collusion ring (everyone
+> agrees on the same lie), which is the separate HCE-2-selfreport / M4 obligation."*
+> The scope clause is part of the quote: it must not be lifted clean. Status authority: `STATUS-LEDGER.md`
+> row SCOPE-CF.
 
 Honest scope: this defeats *identity-multiplication* Sybils. It does NOT by itself defeat a single-identity
 **self-report collusion** ring (everyone agrees on the same lie) — that is the separate M4 obligation (BTS
@@ -119,11 +134,15 @@ information-score backstop). Sybil-proofness (here) and collusion-proofness (M4)
 property (2).
 
 ## 5. Existence — stated honestly
-- **Proposition (partial, holds today).** Under the guards `𝒢` with a fixed measure `v`, the honest
-  profile satisfies (1) for contribution and self-report (given catch-probability `p` and bond
-  `b ≥ (1−p)/p · g`) and (2) for all *cyclic* coalition deviations. [Proof: `nash_honesty` for the
-  report IC; the novelty/saturation/standing guards for contribution; the HodgeRank residual for
-  cyclic coalitions. All demonstrated in the suite.]
+- **Proposition (partial, conditional on `p` (M3, not yet built), proven-in-template).** Under the guards
+  `𝒢` with a fixed measure `v`, the honest profile satisfies (1) for contribution and self-report
+  **conditional on the catch-probability `p`** (with bond `b ≥ (1−p)/p · g`) and (2) for all *cyclic*
+  coalition deviations. The self-report half is conditional because `p` is supplied by the M3
+  peer-elicitation layer, which is designed and proof-templated (PEG/SD-PP) but not built — so this does
+  NOT "hold today" as an unconditional result. [Proof: `nash_honesty` for the report IC given `p`; the
+  novelty/saturation/standing guards for contribution; the HodgeRank residual for cyclic coalitions.
+  Contribution and cyclic-coalition parts demonstrated in the suite; the self-report `p` is the open M3
+  component. Status authority: `STATUS-LEDGER.md` HCE-1-report.]
 - **Conjecture (the full object).** The PoM game admits a profile that is simultaneously Nash,
   coalition-proof (including self-report collusion), and adaptive-stable — the HCE. Existence of the
   *adaptive* fixed point reduces to M2 (Brouwer gives existence under weak conditions; uniqueness /
@@ -136,9 +155,9 @@ file keeps the line on the defensible side.
 | property | enforcer (exists / status) |
 |---|---|
 | (1) contribution | novelty + saturation + standing-gating — ✓ in `value` + gaming suite |
-| (1) self-report | `nash_honesty` IC + bond — ✓; catch-prob `p` via PEG peer-elicitation, no oracle — **proven-in-template (A1)**, modulo graph-generalization of the determinant-MI score. See `DESIGN-peg-proof-template-for-hce.md`. |
-| (2) cyclic | HodgeRank harmonic residual → `collusion_slash`/`unified_slash` — ✓ |
-| (2) self-report collusion | SD-PP SD-truthfulness (any monotone utility) + bonded BTS — **proven-in-template (A1)**, modulo graph-generalization + C4 inner-uniqueness (M4). |
+| (1) self-report [HCE-1-report] | `nash_honesty` IC + bond — ✓ given `p`; catch-prob `p` via PEG peer-elicitation, no oracle — **designed; proof-templated by PEG/SD-PP, with two named open theorems (graph-generalization + C4 inner-uniqueness)** (A1, M3). NOT "proven". See `DESIGN-peg-proof-template-for-hce.md`. |
+| (2) cyclic [HCE-2-cyclic] | HodgeRank harmonic residual → `collusion_slash`/`unified_slash` — ✓ |
+| (2) self-report collusion [HCE-2-selfreport] | SD-PP SD-truthfulness removes the risk-attitude loophole (unilateral) but does NOT kill the symmetric-lie co-equilibrium (a JOINT deviation); bonded BTS backstop — **designed; proof-templated only for the unilateral half**, modulo graph-generalization + C4 inner-uniqueness + the joint-deviation elimination (M4). |
 | (3) | learned-`v(S)` retrain-on-outcomes loop — ◐ designed, data-blocked; convergence — ○ (M2) |
 
 ## 7. Next

@@ -28,6 +28,24 @@
    proven economic calibration. Re-tune only on real data. Per [P·augmented-mechanism-design-paper].
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-23 (ww)** — NULL RESULT ✗ (honesty-critical) — **first real-data test of the learned `v(S)`
+  moat (moat-1) on REAL DeepFunding jury labels returned NULL.** Write-up: `data/deepfunding/RESULTS.md`.
+  **Headline:** a LEARNED `v(S)` (Bradley-Terry over set-level structural features) does NOT reliably beat
+  a FIXED structural proxy (best single feature) at predicting human-jury contribution preferences. Mean
+  delta **+0.0021** over 20 seeds (std 0.0049), learned **wins 11/20** (a coin flip), both scorers **~0.56
+  vs the 0.50 floor**; the per-split sampling-noise band (~0.023 at 1 SE on 465 pairs) is ~**10x** the
+  delta. The single headline seed prints "+0.0032 LEARNED BEATS PROXY" — a sampling-noise artifact; the
+  20-seed table is the real answer. **HONEST FRAME — UNSUPPORTED, NOT REFUTED:** the experiment used
+  single-repo PROXY features over a DEPENDENCY graph, not the set-level features over a PROVENANCE DAG that
+  the Rust `outcome` harness scores. The **faithful provenance-feature port** (coalition-level features
+  over a true provenance DAG) is the open test and the next real test — it could move the numbers either
+  way. **What WAS validated:** the `load_prefs` seam consumes real DeepFunding data end-to-end (115 feature
+  rows + 2325 `pref` lines, 97% repo/pair join coverage; the null is not a coverage artifact). Propagated:
+  whitepaper (Fig. moat caption + §living + HCE-3 status downgraded to "designed; first real-data test did
+  not show learned beating a fixed proxy under available graph proxies; provenance-feature port open"),
+  `MOAT-STACK.md` (moat-1 paper-edge UNCONFIRMED), `DESIGN-wills-equilibrium.md` §4 (HCE-3 null-tested),
+  and the new `internal/STATUS-LEDGER.md` (single source of truth: MOAT-1 = null-tested). **NEXT:** the
+  faithful provenance-feature port over the Rust `outcome` set-level DAG features — the open real test.
 - **2026-06-23 (vv)** — SELF-AUDIT (Will-requested anti-hallucination / sanity / psychosis check on the
   Honest-Contribution Equilibrium milestone). Findings, honest:
   - **Anti-hallucination — ONE real false claim, now fixed.** I asserted "0 new clippy" in the (ss) and
@@ -1242,9 +1260,18 @@ is a reputation system.
     with the intake floor), so a fake lineage of NOISE scores 0 while real work keeps its value.
     Structure can no longer manufacture value from noise. Test:
     `semantic_floor_closes_the_fake_lineage_spoof_at_the_score`.
-- 🟡 **Outcome-value labels** — coalition-level "how good is the outcome using only S"
+- 🟡 / ✗ null **Outcome-value labels** — coalition-level "how good is the outcome using only S"
   judgments (model/jury, DeepFunding-distill over *sets*). The model + held-out harness are
   built; this real-label pull is the remaining mile (the harness runs unchanged when it lands).
+  - ✗ **NULL (2026-06-23, (ww)):** the FIRST real-data pull — REAL DeepFunding jury labels through
+    `load_prefs` — returned a NULL result: the learned `v(S)` did NOT reliably beat a fixed structural
+    proxy (mean Δ +0.0021/20 seeds, wins 11/20, both ~0.56 vs 0.50 floor). `data/deepfunding/RESULTS.md`.
+    **UNSUPPORTED, not refuted:** the test used single-repo PROXY features over a DEPENDENCY graph, not the
+    set-level features over a PROVENANCE DAG the `outcome` module scores. The data SEAM is validated
+    end-to-end (real labels flow through the contract unchanged); the learned-beats-proxy claim is not.
+    **NEXT REAL TEST: the faithful provenance-feature port** — re-run with coalition-level features over a
+    true provenance DAG (the quantity the Rust harness actually computes), which the proxy only
+    approximated. Status authority: `internal/STATUS-LEDGER.md` MOAT-1 / HCE-3-adaptive.
 - ✅ **Strategyproofness — production rule shipped** (`value-v3.py`). The canonical
   value rule is **temporal-novelty** (value = coverage novel vs earlier-committed
   blocks, via commit-reveal order), strategyproof **by construction**: sybil-split,
@@ -1339,7 +1366,11 @@ is a reputation system.
       fake-lineage-of-noise subclass IS fully zeroed (`value_v8_fake_lineage_of_noise_seeds_nothing`).
       Full closure rides the SAME pending real DeepFunding-distill-over-sets label pull — the seam is
       now wired end-to-end (`load_prefs` → `train` → `v_outcome_floored` → seed), runs UNCHANGED when
-      labels land. node 227→232 (+5 v8 tests).
+      labels land. node 227→232 (+5 v8 tests). **UPDATE (2026-06-23, (ww)):** the first real-label pull
+      through this seam returned a NULL result under single-repo proxy features over a dependency graph
+      (`data/deepfunding/RESULTS.md`); the seam is validated end-to-end but the learned edge is
+      unconfirmed. The set-level provenance-DAG feature port (the quantity v8 actually scores) is the open
+      real test. Status authority: `internal/STATUS-LEDGER.md` MOAT-1.
     - ✅ **CLOSED (2026-06-12, same day): ENDORSEMENT-SLASHING — `dispute` module shipped.**
       The vested-certifier residual (`vested_certifier_endorsing_garbage_open_gap`, gate-level
       pin retained as surface documentation) is NEGATIVE-EV at the dispute layer. Design =

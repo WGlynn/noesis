@@ -1,5 +1,5 @@
 % Noesis - Proof of Mind: A Value Chain for Verified Mental Contribution
-% Foundational whitepaper. Open source, no patent: the moat is structural, not secret.
+% Foundational whitepaper. Open source, no patent: the defense is structural, not secret.
 \documentclass[10pt]{article}
 
 \usepackage[a4paper,margin=0.7in]{geometry}
@@ -40,7 +40,7 @@
 \large A Value Chain for Verified Mental Contribution}
 \author{Will Glynn\\
 \texttt{noesis}}
-\date{Version 5.0 \quad June 2026}
+\date{Version 5.2 \quad June 2026}
 
 \begin{document}
 \maketitle
@@ -105,7 +105,16 @@ possession, then agreement over contribution.
 A real value chain would record the contribution itself: each unit of value, measured by what it
 added, tied to whoever made it, transferable, and counted toward consensus. Chains like this are rare,
 and not because of ideology. They are hard to build. A possession chain never has to \emph{measure}
-value; the market does that for it. A value chain has to. The hard part has a name: the gap between
+value; the market does that for it. A value chain has to. We call this the \textbf{Contribution
+Consensus Problem}: reaching agreement on what each participant contributed, and how much it is worth,
+\emph{without an immediate per-decision oracle to settle the question}. There is no oracle that prices a
+contribution at the moment it is made; what the chain has instead is the aggregate of realized
+downstream outcomes, which retrains the value measure over time. So the honest statement is not ``no
+outcome signal ever'' but ``no immediate per-decision ground truth'': the measure is anchored to
+aggregate realized outcomes, not to a per-contribution label. The participants are not assumed to be
+arbitrarily faulty in the Byzantine sense; they are
+\emph{strategic}, each optimizing its own standing, which is the harder and more realistic adversary
+for a value chain. The hard part has a name: the gap between
 what a chain can check and what is actually true in the world, the \emph{blockchain--reality airgap}.
 Bitcoin steps around it by letting a market price the coin. A value chain has to cross it, honestly and
 without being gamed. That is the problem this paper takes seriously. The same gap shows up everywhere
@@ -403,9 +412,16 @@ $v_8 \equiv v_7$ under an adversarial $+\infty$ model. The proof obligation coll
 neural network is un-gameable'' to ``three bounds hold,'' which are small functions with tests.
 
 The value of the learned model is what it adds \emph{within} those bounds. Figure~\ref{fig:moat}
-reports a held-out measurement: trained on one split of coalitions and tested on coalitions never
-seen, the learned $v(S)$ ranks ``work built on work'' above the same cells dumped as orphans with
-accuracy $\ge 0.9$, while the coverage proxy is blind to lineage and ties at chance.
+reports a held-out measurement on \emph{synthetic structural} labels: trained on one split of
+coalitions and tested on coalitions never seen, the learned $v(S)$ ranks ``work built on work'' above
+the same cells dumped as orphans with accuracy $\ge 0.9$, while the coverage proxy is blind to lineage
+and ties at chance. This is a demonstration on constructed labels, not on real outcome preferences. A
+first test on real data (Ethereum Deep Funding jury labels) did \emph{not} yet reproduce it: under the
+graph proxies available there, the learned $v(S)$ did not reliably beat the best fixed structural proxy
+(both near chance above the floor). That test used single-repo proxy features over a dependency graph
+rather than the set-level features over a provenance graph this measure is defined on, so the result is
+\emph{unsupported, not refuted}; a faithful provenance-feature port is the open test, and feeding the
+evaluator real outcome-preference data at scale remains the work that closes this.
 
 \begin{figure}[h]
 \centering
@@ -424,15 +440,17 @@ accuracy $\ge 0.9$, while the coverage proxy is blind to lineage and ties at cha
 \addplot[draw=sb,fill=sb!25] coordinates {(learned $v(S)$,0.90) (coverage proxy,0.50) (random,0.50)};
 \end{axis}
 \end{tikzpicture}
-\caption{The moat, measured not asserted. On coalitions never seen in training, the learned $v(S)$
-distinguishes connected, synergistic contribution from the same content as disconnected orphans
-($\ge 0.9$), while the coverage proxy the per-block rule can see is blind to lineage and ranks at
-chance ($0.5$). The remaining mile is real outcome-preference data; the measurement harness
-runs unchanged when it lands.}
+\caption{Held-out value measurement on synthetic structural labels, measured not asserted. On
+coalitions never seen in training, the learned $v(S)$ distinguishes connected, synergistic contribution
+from the same content as disconnected orphans ($\ge 0.9$), while the coverage proxy the per-block rule
+can see is blind to lineage and ranks at chance ($0.5$). These are constructed labels: a first test on
+real Deep Funding jury labels did not yet show the learned measure beating a fixed structural proxy
+under the available graph proxies, so a faithful provenance-feature port and real outcome-preference
+data at scale remain the open test; the measurement harness runs unchanged when they land.}
 \label{fig:moat}
 \end{figure}
 
-\section{Measurement as a living mechanism}
+\section{Measurement as a living mechanism}\label{sec:living}
 
 The value function of Section~\ref{sec:value} is not a fixed formula, and it cannot be one. Any static
 value rule is Goodhart-bait: the moment it is published, it is gamed, because a fixed objective tells an
@@ -445,7 +463,9 @@ separately above, are one adaptive system.
 \begin{enumerate}[leftmargin=1.4em,itemsep=2pt]
 \item \textbf{Realized, not predicted.} The learned model can only lower a seed it never raises one
 (Section~\ref{sec:value}). Value is gated on realized downstream flow, so the measure is anchored to
-what actually happened, not to a prediction an adversary can spoof.
+what actually happened, not to a prediction an adversary can spoof. The anchor is \emph{aggregate}, not
+per-decision: there is no oracle that prices a single contribution at emission, only the accumulated
+realized outcomes the measure retrains on.
 \item \textbf{It retrains on outcomes.} The chain is a clean, provenance-complete, value-weighted
 dataset (Section~\ref{sec:backwards}). The evaluator is fine-tuned on verified high-value contributions
 against caught failures, so the measure sharpens as the chain accumulates verified truth. Yesterday's
@@ -471,11 +491,13 @@ Put together, the loop is: measure, realize, dispute, retrain, decay, re-measure
 Goodhart on its first day; an adaptive measure with an un-gameable realized-value anchor, a dispute
 process for finality, and a residual that reports its own validity does not present a fixed target to
 optimize against. This is why Section~\ref{sec:security} calls value measurement the load-bearing open
-problem rather than a solved one: the claim is not a closed-form proof of un-gameability but a mechanism
-that holds un-gameability as a moving equilibrium, and whose present strength is measured
-(Figure~\ref{fig:moat}) rather than asserted. A static rule, exact on paper but gameable in practice, is
-wrong in the only sense that matters; an adaptive measure that is approximately right and provably
-converging is the better object. It is better to be approximately right than absolutely wrong.
+problem rather than a solved one: the claim is not a closed-form proof of un-gameability but a designed
+mechanism meant to hold un-gameability as a moving equilibrium, whose static-label strength is measured
+(Figure~\ref{fig:moat}) rather than asserted and whose behavior on real outcome data is not yet
+established. A static rule, exact on paper but gameable in practice, is wrong in the only sense that
+matters; an adaptive measure that is approximately right and \emph{conjectured} to converge (the
+convergence theorem is open, Section~\ref{sec:hce}) is the better object to aim at. It is better to be
+approximately right than absolutely wrong.
 
 \section{Proof of Mind}
 
@@ -562,6 +584,77 @@ coalitional-stability lineage of Aumann's strong equilibrium and the coalition-p
 Bernheim, Peleg and Whinston --- and fall back to the \textbf{nucleolus} when the core is empty (the
 unique split that leaves the most-tempted coalition with the least reason to defect). This is added precisely because consensus requires it;
 pure attribution does not need a stability concept.
+
+\subsection{The Honest-Contribution Equilibrium}\label{sec:hce}
+
+The pieces above (the strategyproof value rule, the coalitional stability constraint, and the adaptive
+measure of Section~\ref{sec:living}) are meant to combine into one target: a profile in which honest
+contribution \emph{and} honest self-reporting is the strategy no participant wants to leave. We name
+that target the \textbf{Honest-Contribution Equilibrium} (HCE) and state it with three properties.
+
+\begin{definition}[Honest-Contribution Equilibrium]
+A strategy profile in which every participant contributes honestly and reports truthfully is an HCE if
+it is
+\begin{enumerate}[leftmargin=1.6em,itemsep=1pt,topsep=2pt]
+\item \textbf{Nash} --- no participant gains by deviating alone;
+\item \textbf{coalition-proof} --- no coalition gains by a joint deviation, because the
+provenance-geometry guards (temporal novelty, saturation, the HodgeRank residual) zero the gains from
+rings, mutual-citation, and sybil pools \emph{structurally}, so the deviation is not merely expensive
+but valueless; and
+\item \textbf{adaptive-stable} --- it remains a (1)+(2) equilibrium under the measure's own
+retraining dynamic (Section~\ref{sec:living}), against an adversary who best-responds to the
+\emph{current} measure, so that no \emph{eventually-discovered} exploit is profitable, not only no
+\emph{currently-known} one.
+\end{enumerate}
+\end{definition}
+
+\noindent
+Properties (1) and (2) under a fixed payoff rule are a coalition-proof Nash equilibrium in the
+established sense (Nash; Aumann; Bernheim, Peleg and Whinston). Property (3) is the new content: an
+equilibrium of a game whose \emph{payoff function is itself a learned object co-adapting with the
+adversary}. It is the formal statement of why a fixed formula is gamed the moment it is public and only
+a measure with room to adapt is un-gameable.
+
+\paragraph{What is a result, and what is a conjecture.} We state the status honestly, property by
+property, against a single status ledger so the words below never drift. For \emph{contribution}, (1)
+is demonstrated: honest contribution is structurally rational under the novelty, saturation, and
+standing-gating guards. For \emph{self-reporting}, the honest-report incentive compatibility (a bond
+$b$ lost with catch-probability $p$, requiring $p\,b \ge (1-p)\,g$ against an over-claim gain $g$) is
+demonstrated in the reference node \emph{conditional on the catch-probability $p$}; supplying that $p$
+with no ground-truth oracle is \emph{designed} and \emph{proof-templated} by the peer-elicitation
+result below, with two named open theorems remaining (a graph-generalization and an inner-uniqueness
+condition), not yet a built component. For (2), \emph{cyclic} collusion (rings, mutual-citation,
+manufactured flow) is demonstrated, zeroed by the HodgeRank harmonic certificate wired to slash; the
+\emph{symmetric-lie} self-report collusion (everyone agrees on the same falsehood) is \emph{designed}:
+the stochastic-dominance result below removes the risk-attitude loophole, but the symmetric lie is a
+\emph{joint} deviation it does not by itself eliminate, so this half is closed only by a bonded
+information-score backstop, not yet proven. For (3), the retraining harness is wired but
+\emph{data-blocked}: confirming it lands in the convergent regime needs real outcome-preference data at
+scale, the convergence theorem itself is open (Section~\ref{sec:living}), and the first real-data test
+of the learned measure (on Ethereum Deep Funding jury labels) did not yet show the learned value
+beating a fixed structural proxy under the available graph proxies, so a faithful provenance-feature
+port is the open test. \textbf{HCE today is therefore a result for property (1) and the cyclic half of
+property (2), and a labeled conjecture for the full three properties.} We claim it as a named
+conjecture with its demonstrated core marked, not as a finished theorem.
+
+\paragraph{A proof template for the self-report layer.} The self-report properties are not built, but
+they are not unsupported either: two published results supply a template. Peer Elicitation Games
+(Chen et al., 2025) prove that a training-free game of one reporter and several independent
+discriminators, scored by a determinant-based mutual-information score, makes truthful reporting a
+\emph{Nash equilibrium with no ground-truth labels} and exhibits \emph{last-iterate convergence} to
+it. Instantiating the PoM self-report layer this way supplies exactly the catch-probability $p$ the
+incentive-compatibility bound was conditional on, and gives a concrete realization of the convergence
+claim on the self-report sub-game. Stochastically-Dominant Peer Prediction (Zhang et al.) strengthens
+the target from expected value to \emph{stochastic dominance}, so truth is \emph{payoff-dominant} under
+\emph{any monotone utility}. This removes the risk-attitude loophole (a risk-seeking reporter cannot
+prefer to lie), which is a property of a \emph{unilateral} deviation; it does not by itself eliminate
+the \emph{symmetric-lie} co-equilibrium, in which a coalition jointly agrees on the same falsehood, so
+that joint deviation remains the separate obligation of the bonded backstop above. With that
+distinction kept, this moves the self-report properties from designed to \emph{proof-templated}, with
+two named theorems remaining: generalizing the mutual-information score from a single report to
+cooperative-game value over the provenance graph, and establishing uniqueness of the inner equilibrium
+so the retraining map is well-posed (Section~\ref{sec:living}). Naming the two theorems left to prove
+is the honest form of the claim.
 
 \subsection{Three powers: cognition leads, compute and capital keep it live}
 
@@ -894,6 +987,47 @@ has prior art. Neither, however, makes non-transferable earned standing the \emp
 keeping a separate \emph{transferable state-capacity} token: SourceCred's consensus is social, and the
 soulbound-token proposal addresses correlation-discounted DAO voting, not a consensus franchise.
 
+\paragraph{Equilibrium concepts and truthful elicitation.} The Honest-Contribution Equilibrium of
+Section~\ref{sec:hce} is positioned against a clear lineage, and claims only the fusion. Its first two
+properties are a coalition-proof Nash equilibrium in the established sense (Nash 1950; Aumann's strong
+equilibrium 1959; Bernheim, Peleg and Whinston 1987), and its evolutionary reading is that of an
+evolutionarily stable strategy (Maynard Smith and Price 1973); all of these assume a \emph{fixed}
+payoff rule. The catch-probability that makes truthful self-reporting incentive-compatible without a
+ground-truth oracle is the province of \emph{peer prediction}, where truth-telling is a Bayes--Nash
+equilibrium over peers' reports (the line from the Bayesian Truth Serum and Cheng and Friedman's work
+through the recent strengthenings); Peer Elicitation Games (Chen et al., arXiv:2505.13636, 2025) prove
+a determinant-based mutual-information score yields a truthful Nash equilibrium with last-iterate
+convergence and no ground truth, and Stochastically-Dominant Peer Prediction (Zhang, Xu, Pennock and
+Schoenebeck) lifts truthfulness from expectation to stochastic dominance under any monotone utility.
+The third property, adaptive-stability against a measure that retrains on the behavior it induces, is
+\emph{performative prediction} (Perdomo, Zrnic, Mendler-D\"unner and Hardt, ICML 2020): the act of
+publishing the measure shifts the distribution it is scored on, and the un-gameable target is a
+performatively-stable fixed point. Bittensor's Yuma consensus is the deployed system closest to
+property (2)'s problem, and it pays for coalition-resistance with an assumed honest stake majority; our
+contribution is to obtain the same resistance from \emph{provenance geometry} (the HodgeRank residual)
+rather than from a stake majority. What is novel here is none of these primitives individually but
+their \emph{fusion}: a coalition-proof, performatively-stable equilibrium in which the adapting measure
+\emph{is} the consensus object. The lineage is cited, not pretended-invented.
+
+\paragraph{Escaping the Sybil impossibility.} Cheng and Friedman (2005) prove that any
+reputation or ranking mechanism satisfying a natural axiom set --- crucially \emph{symmetry /
+anonymity}, where the mechanism sees only the graph and not who is who --- is Sybil-attackable: an agent
+strictly gains by splitting into fresh pseudonyms. Every anonymity-respecting reputation system inherits
+this wall, which is why stake-weighted schemes lean on an honest stake majority. Proof of Mind escapes by
+relaxing exactly the anonymity axiom, structurally rather than by patching. Two mechanisms make a fresh
+identity worth zero by construction: \emph{commit-reveal timestamp-priority}, so standing accrues to the
+first commitment covering a piece of work and a new identity, having no history, cannot inherit or
+back-date priority; and a \emph{proof-of-work-anchored cost of identity} on the separate money layer, so
+a sybil swarm pays the identity cost $N$ times for no franchise gain (the cost-of-identity condition of
+the false-name-proofness lineage, Yokoo 2000; Mazorra and Della Penna 2023). Because the mechanism
+conditions on temporal priority and an anchored identity cost, it is \emph{not} anonymous --- it
+distinguishes a standing-bearing identity from a fresh one --- so the Cheng--Friedman hypotheses do not
+hold and the impossibility does not bind. This makes the money layer load-bearing for coalition-proofness,
+not incidental: the cost-of-identity anchor is itself the Sybil defense. The honest scope is that this
+defeats \emph{identity-multiplication} sybils; it does not by itself defeat a single-identity
+self-report collusion ring, which is the separate obligation closed by the bonded information-score
+backstop of Section~\ref{sec:hce}.
+
 \paragraph{Net.} \emph{Objective} value measurement as the consensus object, a cooperative-game value
 over a provenance graph made the finality weight directly (Section~\ref{sec:value}), is the novel core:
 the adjacent systems above reward output quality by subjective peer agreement, not by an objective
@@ -1026,6 +1160,12 @@ credit. They are distinct.)
 \item H. Jia, M. Yaghini, C. A. Choquette-Choo, et al. \emph{Proof-of-Learning: Definitions and Practice}. IEEE S\&P 2021.
 \item SourceCred. \emph{Cred and Grain: non-transferable reputation and a transferable token}. 2020.
 \item E. Ohlhaver, E. G. Weyl, V. Buterin. \emph{Decentralized Society: Finding Web3's Soul}. 2022.
+\item Y. Chen, M. Zhu, K. Han, B. Li, G. Li, B. Dai. \emph{Peer Elicitation Games: Truthful, Ground-Truth-Free Reasoning via Last-Iterate Convergence}. arXiv:2505.13636, 2025.
+\item Y. Zhang, S. Xu, D. M. Pennock, G. Schoenebeck. \emph{Stochastically Dominant Peer Prediction}. arXiv:2506.02259.
+\item A. Cheng, E. Friedman. \emph{Sybilproof Reputation Mechanisms}. ACM SIGCOMM P2PEcon, 2005.
+\item M. Yokoo, Y. Sakurai, S. Matsubara. \emph{The Effect of False-Name Bids in Combinatorial Auctions: New Fraud in Internet Auctions}. Games and Economic Behavior, 2000.
+\item B. Mazorra, N. Della Penna. \emph{Towards a Theory of Maximal Extractable Value II: Uncertainty} (cost-of-identity / false-name-proofness conditions). 2023.
+\item D. Prelec. \emph{A Bayesian Truth Serum for Subjective Data}. Science 306, 2004.
 \item W. S. Jevons. \emph{The Theory of Political Economy}. 1871.
 \item C. Menger. \emph{Principles of Economics} (Grunds\"atze der Volkswirtschaftslehre). 1871.
 \item L. Walras. \emph{Elements of Pure Economics} (\'El\'ements d'\'economie politique pure). 1874.

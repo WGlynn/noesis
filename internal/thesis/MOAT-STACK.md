@@ -11,9 +11,35 @@
 
 | # | moat | axis | what it is | status |
 |---|---|---|---|---|
-| 1 | cooperative-economic structure | **WHAT** is consensus-ed | consensus on contribution VALUE (not order), no ground-truth oracle: the Contribution Consensus Problem solved by the Honest-Contribution Equilibrium — un-gameable `v(S)`, HodgeRank collusion geometry, commit-reveal provenance | result for HCE (1)+(2-cyclic); conjecture for full three |
+| 1 | cooperative-economic structure | **WHAT** is consensus-ed | consensus on contribution VALUE (not order), no IMMEDIATE per-decision oracle (aggregate realized outcomes retrain `v(S)`): the Contribution Consensus Problem solved by the Honest-Contribution Equilibrium, un-gameable `v(S)`, HodgeRank collusion geometry, commit-reveal provenance | result for HCE (1)+(2-cyclic); conjecture for full three. **Paper-edge UNCONFIRMED on first real-data test (null), see below.** Status authority: `STATUS-LEDGER.md` MOAT-1, MOAT-1-anchor |
 | 2 | cybernetic governor | **HOW** it stays healthy | the missing SENSOR that Lange/Beer/Cybersyn lacked: a per-block measure of system health + effectors firing pre-finalization (real-time immune surveillance / homeostat) | sensor built; adaptive control-loop designed (prop-3 open) |
 | 3 | convergence-native substrate | **WHEN** — built for the merged discipline | the AI **is** the consensus: `v(S)` learned-measure = consensus object; consensus = model-inference; chain state = AI value-judgment; every block = training signal. Mind and ledger are one artifact. | architecturally committed; learned-measure-as-consensus data-blocked (M5) |
+
+## Moat 1 — status after the first real-data test (HONEST)
+**Null result on the first real-data test (2026-06-23).** The Phase-1 experiment on REAL DeepFunding
+mini-contest jury labels (`data/deepfunding/RESULTS.md`) asked whether a LEARNED `v(S)` beats a FIXED
+structural proxy at predicting jury preferences. It does **not**, on this test: mean delta +0.0021 over
+20 seeds, learned wins 11/20 (a coin flip), both scorers ~0.56 vs the 0.50 floor; the per-split
+sampling-noise band (~±0.023) is ~10x the delta. The paper-edge of moat-1 is therefore **UNCONFIRMED on
+the first real-data test.**
+
+**Honest frame: UNSUPPORTED, not REFUTED.** The experiment used single-repo PROXY features over a
+DEPENDENCY graph, not the set-level features over a PROVENANCE DAG the Rust `outcome` harness scores. The
+faithful feature port (coalition-level features over a true provenance DAG) is the open test and could
+move the numbers either way. What WAS validated: the `load_prefs` data seam consumes real DeepFunding
+data end-to-end (real jury labels flow through the on-disk contract unchanged). So: data pathway ✓,
+learned-beats-proxy ✗-so-far. Status authority: `STATUS-LEDGER.md` MOAT-1.
+
+**The aggregate-outcome-anchor caveat (pre-empt the fair objection).** Moat-1's "no ground-truth oracle"
+is "no IMMEDIATE per-decision oracle." The design DOES anchor on aggregate realized outcomes, which
+retrain `v(S)`. A competitor can fairly say "you also anchor on outcomes, in aggregate", and that is
+true; the honest differentiator is the *immediacy / per-decision* axis, not "we use no outcomes at all."
+Status authority: `STATUS-LEDGER.md` MOAT-1-anchor.
+
+**`p + epsilon` bribery is NOT a differentiator.** Out-of-band payment to a reporter/validator to lie
+(`p + epsilon` bribery) is an **open shared attack** on bonded peer-prediction / reputation mechanisms
+generally. HCE's bond raises the cost of the bribe but does **not** provably close it. Do NOT list
+bribery-resistance as a moat or differentiation anywhere. Status authority: `STATUS-LEDGER.md` ATK-bribery.
 
 ## Moat 3 — the convergence moat, stated precisely
 The frontier splits into two RETROFITS, each carrying an **AI⊥consensus airgap** (the AI sits *beside*
