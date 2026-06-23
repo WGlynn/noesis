@@ -27,11 +27,19 @@ Will: "invite Tom lindeman and Bernhard to noesis private repo so they can help 
   with `c.mix`. Body-only, suite green, pinned by `live_finalizes_wrapper_routes_through_pos_pom`
   (anti-theater RED on revert). Parity caveat resolved: on-VM mirror still 🟡 designed ⇒ forward constraint.
   Commit `7662ce0`. lib 245, full suite **296 green**.
-- **▶ NEXT (all gated — stopped here on purpose, not fresh-low-context-clean):** lock-sig DEPLOY (needs a
-  CRYPTO-SUITE DECISION — ed25519 fast-path vs PQ Lamport + a dependency; Will-facing, deploy-coupled) ·
-  on-VM finalization mirror of the PoS+PoM rule (Q32.32/RISC-V, large fresh build, must mirror (mm)) ·
-  temporal-flow iterated-Shapley fixed-point (🔬 research) · **learned-v(S) on real DeepFunding labels = THE
-  moat (data-blocked)**.
+- **(nn) lock-sig PQ verifier LINKED ✅** (Will: "pq"): `runtime::lamport` — hash-based Lamport one-time
+  signatures (no external crate; pubkey = 32-byte blake2b root = `lock.args`; one-time-safe for free via
+  the single-use cell invariant). `spend_is_authorized` now verifies a presented `auth` FOR REAL against
+  the finalized cell's `lock.args`; existence→CONTROL closed cryptographically (the (o) residual), pinned
+  end-to-end through `node.validate` + anti-theater RED on stub. `CONTROL_BINDING_ACTIVE` still false (gates
+  only empty-auth tolerance) so honest flows unchanged. keygen/sign are `cfg(test)` (a node only verifies).
+  Commit `216b4ec`. lib 248, full suite **298 green**.
+- **▶ NEXT (all gated):** lock-sig GO-LIVE flip (`CONTROL_BINDING_ACTIVE=true` + populate `auths` across
+  honest token flows + real-entropy keygen — a deploy step, breaks every empty-auth test until flows carry
+  sigs) · on-VM finalization mirror of the (mm) PoS+PoM rule (Q32.32/RISC-V, large fresh build) · on-VM
+  lock-script port of `lamport::verify` · 🔬 Winternitz/SPHINCS+ compression of the 16 KiB one-time sig ·
+  temporal-flow iterated-Shapley fixed-point (🔬) · **learned-v(S) on real DeepFunding labels = THE moat
+  (data-blocked)**.
 
 ## ▶ RESUME HERE (2026-06-21 ~10:00 — WP v4.0 shipped + moat gg/hh/ii + THE SOURCE WAR capstone opened)
 **Whitepaper now v4.0** (master, pushed; PDF `~/Desktop/Noesis-Whitepaper-v4.0-2026-06-20-1653.pdf`, 17pp). Arc this session: v3.4 abstract reframe (lead-with-thesis, Bitcoin-grading cut) · v3.5 capstone line ("the explanation of how they hold together at once") · v3.6 refs 15→33 (2×) · v3.7 NEW §"Value at the margin" (marginal-revolution grounding, Jevons/Menger/Walras) · v3.8 bib web-verified (3 fixes: Minotaur authors, Sztorc 2015, Ergon 2021; +Jevons/Menger/Walras → 36 refs) · v3.9 CUT §15 economic-frame (redundant) keep value-at-margin · **v4.0 ELIMINATED the named "Glynn equilibrium" conjecture** (Will: ¬name-after-me). OPEN: author's-note (Will-voice) · accessible-tier `docs/NOESIS-*.md` sweep vs v4.0 · `DESIGN-wills-equilibrium.md` rename · ≤12pp target · in-repo pdf stale vs .tex.
