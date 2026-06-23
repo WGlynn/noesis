@@ -6,3 +6,7 @@ onchain/*/target/
 # Generated / local
 WHITEPAPER.pdf
 NOESIS-HARVEST.md
+
+# external public data clones (reproducible; keep PROVENANCE.md + derived only)
+data/deepfunding/mini-contest/
+data/deepfunding/dependency-graph/

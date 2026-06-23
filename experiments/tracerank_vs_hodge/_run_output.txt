@@ -1,0 +1,58 @@
+==============================================================================
+B1 BENCHMARK -- TraceRank/PageRank flat propagation vs HodgeRank residual
+==============================================================================
+seed=7  nodes=45 (honest=40, ring=5)  edges=99
+ring members (node ids): [np.int64(40), np.int64(41), np.int64(42), np.int64(43), np.int64(44)]
+
+-- TOP 10 BY PAGERANK (flat value-weighted propagation) --
+ node    type   pagerank  pr_rank  hodge_resid  res_rank
+   19  honest    0.10409        1       0.0528        23
+   16  honest    0.08494        2       0.0495        25
+   44    RING    0.06599        3     135.3241         3
+   40    RING    0.06382        4     144.3041         1
+   41    RING    0.06115        5     137.0389         2
+   43    RING    0.06048        6     112.4093         5
+   42    RING    0.05962        7     118.0107         4
+    1  honest    0.04666        8       0.0523        24
+   27  honest    0.04498        9       0.0450        28
+    5  honest    0.03843       10       0.1710        18
+
+-- TOP 10 BY HODGE RESIDUAL ENERGY (harmonic+curl) --
+ node    type  hodge_resid  res_rank   pagerank  pr_rank
+   40    RING     144.3041         1    0.06382        4
+   41    RING     137.0389         2    0.06115        5
+   44    RING     135.3241         3    0.06599        3
+   42    RING     118.0107         4    0.05962        7
+   43    RING     112.4093         5    0.06048        6
+   18  honest       4.9325         6    0.01304       16
+   23  honest       2.8569         7    0.00690       40
+   10  honest       1.8196         8    0.00841       30
+   30  honest       0.7739         9    0.01253       17
+   22  honest       0.5236        10    0.01798       13
+
+-- RING vs HONEST AGGREGATES --
+metric                           ring mean   honest mean     ratio
+pagerank                           0.06221       0.01722       3.6x
+hodge residual energy            129.41744       0.34496     375.2x
+
+-- VERDICT --
+PageRank   : ring mean rank 5.0 / 45  (avg honest rank 25.2)  -> ring REWARDED (ranks high)
+Hodge res. : ring mean rank 3.0 / 45  (avg honest rank 25.5)  -> ring FLAGGED (residual high)
+honest residual: mean=0.3450  max=4.9325  (~0, gradient-consistent)
+
+-- SLASH RULE (flag if Hodge residual > honest_mean + 5*honest_std) --
+threshold = 4.8587
+flagged nodes: [np.int64(18), np.int64(40), np.int64(41), np.int64(42), np.int64(43), np.int64(44)]
+true positives=5  false positives=1  false negatives=0
+PRECISION = 0.833   RECALL = 1.000
+
+-- LARGEST-GAP THRESHOLD (unsupervised, separates the two populations) --
+largest residual gap is at 58.671 (below: max honest 4.933; above: min ring 112.409)
+flagged nodes: [np.int64(40), np.int64(41), np.int64(42), np.int64(43), np.int64(44)]
+PRECISION = 1.000   RECALL = 1.000  (clean order-of-magnitude separation)
+
+-- SAME 5-SIGMA SLASH RULE ON PAGERANK (control: flat propagation cannot isolate) --
+threshold = 0.11979
+flagged nodes: []
+ring caught=0  honest wrongly flagged=0  (PageRank flags ring as TOP performers, not cheaters -> reward, not slash)
+==============================================================================
