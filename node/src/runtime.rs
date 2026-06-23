@@ -20,7 +20,7 @@
 //! governance-bounded (ROADMAP 2026-06-16 (c) — the completeness/weights cleavage).
 
 use crate::commit_order::{canonical_order, is_canonical_order, Committed};
-use crate::consensus::{self, Mix, Validator, NCI, TWO_THIRDS_BPS};
+use crate::consensus::{Mix, Validator, NCI, TWO_THIRDS_BPS};
 use crate::smt::{Hash, NoveltyIndex};
 use crate::{coverage, pom_scores, tokens, Cell, Script};
 use std::collections::{HashMap, HashSet};
@@ -536,19 +536,22 @@ impl Node {
 // ============ Finalization decision ============
 
 /// Does a block finalize under the constitution, given the validators that voted for it?
-/// Thin wrapper over `consensus::finalizes_hybrid` so the runtime reads the rule from the
-/// constitution rather than threading eight parameters at every call site.
+///
+/// T3 WIRING (ROADMAP decision #3, LOCKED 2026-06-20): the live finalization decision routes
+/// through [`finality::finalizes_pos_pom`] — PoS+PoM only, PoW EXCLUDED from finality — not the
+/// PoW-inclusive `c.mix`. PoW's finality is probabilistic/reorgeable, so counting freshly-mined
+/// PoW weight as final is a safety vector (RESEARCH-NETWORK-CONSENSUS.md / Casper-FFG-class
+/// pattern); PoW still secures production/ordering/sybil-cost via the constitution mix elsewhere.
+/// The anti-concentration floor additionally forces BOTH the capital (PoS) and value (PoM) axes to
+/// participate, so PoM's 60% cannot unilaterally finalize (T11 capital-orthogonality, in code).
+///
+/// `finalizes_pos_pom` REUSES `consensus::finalizes_hybrid` internally (with the PoW-free
+/// `FINALITY_MIX`), so the 235-test core rule is intact; the `c.mix`/`c.quorum_floor_bps` fields
+/// govern the production/ordering path, not this fast-final gate. Forward parity: when the on-VM
+/// finalization mirror (🟡 `ON-VM-FINALIZATION.md`) is built, it must mirror THIS rule (PoW-out +
+/// anti-concentration), not bare `finalizes_hybrid`.
 pub fn finalizes(c: &Constitution, voters_for: &[Validator], all: &[Validator], now: u64) -> bool {
-    consensus::finalizes_hybrid(
-        voters_for,
-        all,
-        c.mix,
-        now,
-        c.horizon,
-        c.decay_pos,
-        c.threshold_bps,
-        c.quorum_floor_bps,
-    )
+    finality::finalizes_pos_pom(voters_for, all, now, c.horizon, c.decay_pos, c.threshold_bps)
 }
 
 // ============ PoS+PoM finality gadget (T3 — PoW out of finality) ============
@@ -1342,6 +1345,38 @@ mod tests {
         // two validators each carrying capital (pos) AND contribution (pom); both vote.
         let all = vec![v(0, 0.0, 100.0, 100.0), v(1, 0.0, 100.0, 100.0)];
         assert!(finalizes_pos_pom(&all, &all, 1, 0, false, TWO_THIRDS_BPS));
+    }
+
+    #[test]
+    fn live_finalizes_wrapper_routes_through_pos_pom_not_the_pow_mix() {
+        // T3-WIRING ANTI-THEATER: the LIVE `runtime::finalizes` (the wrapper every node call site
+        // uses) must route through `finalizes_pos_pom` — PoW out of finality + anti-concentration —
+        // NOT the PoW-inclusive constitution mix. The existing tests above exercise
+        // `finalizes_pos_pom` DIRECTLY; this one pins the wrapper itself, so reverting `finalizes`
+        // back to `finalizes_hybrid(c.mix, ...)` goes RED.
+        //
+        // A,B vote carrying PoW+PoM but NO PoS; C (PoS-only) abstains.
+        let a = v(0, 1.0, 0.0, 1.0);
+        let b = v(1, 1.0, 0.0, 1.0);
+        let c_pos = v(2, 0.0, 1.0, 0.0);
+        let all = vec![a.clone(), b.clone(), c_pos];
+        let voters = vec![a, b];
+        let c = Constitution::default(); // NCI mix 10/30/60
+
+        // PRECONDITION — the discriminator is real: under the OLD PoW-inclusive rule, A+B's
+        // PoW+PoM weight (2×(0.10+0.60)=1.40 of 1.70 ≈ 82%) clears 2/3, so it WOULD finalize.
+        assert!(
+            crate::consensus::finalizes_hybrid(
+                &voters, &all, c.mix, 0, c.horizon, c.decay_pos, c.threshold_bps, c.quorum_floor_bps,
+            ),
+            "precondition: the PoW-inclusive rule WOULD finalize this set (else the test proves nothing)"
+        );
+        // THE WIRING: the live wrapper must REJECT it — PoW is excluded and PoS is absent from the
+        // voters, so the anti-concentration floor (dim_ok pos) fails.
+        assert!(
+            !super::finalizes(&c, &voters, &all, 0),
+            "live finalization still counts PoW / skips anti-concentration — T3 wiring not live"
+        );
     }
 
     #[test]

@@ -14,17 +14,42 @@
    one structural test: anti-plutocracy is the mix caps, no dim ≥ 2/3). lib 235→233. **Follow-up
    (VibeSwap, out of noesis scope):** `NakamotoConsensusInfinity.sol` still log₂-scales PoW+PoM —
    the one live remaining site; flagged for a separate VibeSwap tick (PoM→linear, PoW→proportional).
-3. **`finalizes_pos_pom` wiring (T3)** — **RULED the finality rule; BUILD in fresh context.** PoW's
-   probabilistic lag is a finality-safety vector ⇒ finality = PoS+PoM + anti-concentration floor
-   (`finalizes_pos_pom`, built+tested but stranded — live `finalizes` still calls `finalizes_hybrid`
-   with pow in the sum). Not a one-line swap: the on-VM finalization mirror + the 233-test core are
-   built on `finalizes_hybrid`, so wiring must preserve reference↔on-VM parity. Makes #1 true.
+3. **`finalizes_pos_pom` wiring (T3)** — **DONE 2026-06-22 (mm).** PoW's probabilistic lag is a
+   finality-safety vector ⇒ finality = PoS+PoM + anti-concentration floor. The live `runtime::finalizes`
+   now routes through `finalizes_pos_pom` (was `finalizes_hybrid` with `c.mix`, pow in the sum); body-only
+   change, 4-arg signature preserved, full node suite green, pinned by `live_finalizes_wrapper_routes_
+   through_pos_pom` (anti-theater RED on revert). The "preserve ref↔on-VM parity" caveat resolved on
+   inspection: the on-VM finalization mirror is still 🟡 DESIGNED (no live mirror to break) ⇒ parity is a
+   FORWARD constraint — when the mirror is built it must mirror THIS rule, not bare `finalizes_hybrid`.
+   Makes #1 true (PoW out of finality, in code).
 4. **Ergon decay geometry** — **Keep Ergon's calibrated constants** (≈2.3yr anchor half-life, 120d PI,
    5% band, lag 10). SubstrateGeometryMatch is mechanism-shape (Ergon already IS power-law energy
    economics); φ belongs to *our* designed dampings (value-layer λ=1/φ), not as an override of a
    proven economic calibration. Re-tune only on real data. Per [P·augmented-mechanism-design-paper].
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-22 (mm)** — BUILT ✅ **T3 FINALITY-WIRING LANDED** (Will: "full auto finish roadmap") —
+  executed LOCKED consensus-decision #3. The live finalization decision `runtime::finalizes(c,
+  voters_for, all, now)` was a thin wrapper over `consensus::finalizes_hybrid` with the PoW-inclusive
+  `c.mix` (10/30/60) — so freshly-mined, probabilistic/reorgeable PoW weight counted as FINAL = a
+  finality-safety vector. The fix `finality::finalizes_pos_pom` (PoW-out `FINALITY_MIX` + per-dimension
+  anti-concentration floor) was built+tested but STRANDED — nothing live called it. This wires the live
+  wrapper through it: PoW is excluded from finality (still secures production/ordering/sybil-cost via the
+  constitution mix), and BOTH the capital (PoS) and value (PoM) axes must independently clear the floor so
+  PoM's 60% cannot unilaterally finalize (T11 capital-orthogonality, now in the LIVE path). Body-only change
+  (the 4-arg signature is unchanged ⇒ all node call sites — byzantine/gaming/two_node — untouched). **Blast
+  radius checked, not assumed:** the locked rule flags "not a one-line swap, preserve ref↔on-VM parity"; on
+  inspection the on-VM finalization mirror is still 🟡 DESIGNED (`ON-VM-FINALIZATION.md`), so no live on-VM
+  code exists to break — parity is a FORWARD constraint (documented: the mirror must mirror THIS rule when
+  built). Full node suite stayed green through the swap (byzantine 5 / gaming 2 / two_node 3 — validators
+  carry PoS+PoM so anti-concentration passes). **TESTED** — added `live_finalizes_wrapper_routes_through_
+  pos_pom_not_the_pow_mix`: a set the OLD PoW-inclusive rule WOULD finalize on PoW+PoM weight (precondition
+  asserted) is REJECTED by the live wrapper because PoS is absent from the voters. **Anti-theater CONFIRMED:**
+  reverting the wrapper body to `finalizes_hybrid(c.mix,..)` makes it go RED with the exact "T3 wiring not
+  live" message; restored green. Also dropped the now-unused `consensus::self` import (the wrapper no longer
+  names `consensus::`). lib 244→**245**, full suite 295→**296**, 0 new clippy. **NEXT:** lock-sig DEPLOY
+  (link crypto verifier — deploy-coupled) · on-VM finalization mirror of the PoS+PoM rule (Q32.32, forward
+  parity) · 2-level recursion temporal-flow (🔬) · learned-v(S) on real labels = THE moat (data-blocked).
 - **2026-06-22 (ll)** — BUILT ✅ (Will: "continue kk noesis roadmaps" → "full auto finish roadmap") —
   **`dispute::unified_settlement`, executing the (kk) build contract.** The (jj) `unified_slash` returns
   the merged per-identity slash vector; (kk) named the missing piece: a settlement-application caller that
