@@ -69,7 +69,11 @@ When the base layer pays people to be honest and useful, **everything built on t
 
 ## It doesn't fight other projects — it invites them
 
-Most crypto projects compete to be "the one chain everybody uses." Noesis doesn't have to win that fight. Because it can take useful work from *any* other chain, re-price it fairly, and credit it on one shared record, the older projects aren't rivals to beat — they're the prototypes this was learned from. **The message to every other chain isn't "come compete." It's "come join us."**
+Most crypto projects compete to be "the one chain everybody uses." Noesis is built to be the first chain that *doesn't have to win that fight at all.* Every other chain is in a zero-sum war for the same prize, and a fork *splits* a community in two. Noesis does the opposite: it can take useful work from *any* other chain, re-price it fairly, and fold it into one shared record without anyone losing what they built. A rival joining in keeps everything. So the older projects aren't rivals to beat — they're the prototypes this was learned from, and the fight isn't won, it's simply dissolved. **The message to every other chain isn't "come compete." It's "come join us."** (The piece that does this inside one chain is built and tested; the bridge that pulls in a *foreign* chain is designed but not yet built.)
+
+## You're already credited — before you even sign up
+
+Here's the part that flips how joining works. To be *credited* on Noesis, you don't need an account or a wallet — credit is just a record that says "this useful work came from you," tied to something you already have (a code repo, a dataset, an email). So Noesis can give credit to the whole existing world of contributors *before any of them join.* When you do show up, you're not starting from zero — you're **claiming what's already provably yours.** And it's opt-in by design: the credit just sits there with your name on it until you decide to claim it, you can wave it off if you'd rather not be listed, and nothing is ever paid out for you without your say-so.
 
 ## Proof of work has a real home here
 

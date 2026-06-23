@@ -80,17 +80,29 @@ learned semantic floor, Role C) remains research.
 
 ## 4. Honest open items
 
-- **Held-out generalization harness — SHIPPED (2026-06-13, `outcome` module).** The MOAT
-  measurement now exists: `proxy_value` (the coverage-only baseline the per-block rule sees) +
-  `pairwise_accuracy` (the held-out ranking metric) + the test
+- **Held-out generalization harness — SHIPPED (2026-06-13, `outcome` module).** The
+  measurement plumbing now exists: `proxy_value` (the coverage-only baseline the per-block rule
+  sees) + `pairwise_accuracy` (the held-out ranking metric) + the test
   `learned_v_s_beats_coverage_proxy_on_held_out_coalitions`. It trains Bradley-Terry on one split
   and measures ranking accuracy on coalitions NEVER seen in training: at identical coverage, a
-  connected work-built-on-work coalition vs the same cells dumped as orphans. The learned `v(S)`
-  ranks the unseen pairs ≥ 0.9; the coverage proxy is blind to lineage and ties at exactly 0.5.
-  This is the un-gameable-`v(S)` gate measured, not asserted — the number the value layer rests on.
-- Outcome-set LABELS at scale (the model + the held-out harness are built; the remaining mile is
-  the real preference data — DeepFunding-distill-over-sets — replacing the structural lineage
-  stand-in with real outcomes). The harness runs unchanged the moment those labels land.
+  connected work-built-on-work coalition vs the same cells dumped as orphans. On this **structural
+  lineage stand-in** the learned `v(S)` ranks the unseen pairs ≥ 0.9 while the coverage proxy ties
+  at 0.5. **Honest scope (load-bearing):** this is the harness exercising a SYNTHETIC lineage
+  signal — it shows the plumbing separates connected from orphaned sets, NOT that the learned
+  measure beats a fixed proxy on real outcomes. It is not the moat demonstrated.
+- **First real-data test — NULL (DeepFunding).** When the same learned `v(S)` was run against
+  real DeepFunding jury labels, it did **not** reliably beat the best fixed structural proxy
+  (mean delta +0.0021 over 20 seeds, wins 11/20, both ~0.56 vs a 0.50 floor). The "learned measure
+  beats a fixed proxy / closes the Goodhart gap" claim is therefore **unsupported, NOT refuted**:
+  the test used single-repo PROXY features over a DEPENDENCY graph, not the set-level features over
+  a PROVENANCE DAG this harness scores; the `load_prefs` data seam IS validated end-to-end. No doc
+  may state the moat / un-gameability / Goodhart-closure as demonstrated. Adaptive-stability
+  (HCE property 3) is DESIGNED / CONJECTURE, with this note attached. See the status ledger.
+- Outcome-set LABELS at scale, faithfully ported (the model + the held-out harness are built; the
+  remaining mile is real preference data — DeepFunding-distill-over-sets — feeding the SET-level
+  features over a true provenance DAG, replacing both the structural lineage stand-in AND the
+  single-repo dependency-graph proxy the null test used). The faithful feature port is the open
+  real test; the harness runs unchanged the moment those labels land.
 - κ, μ calibration (with W/B/α/β — one calibration harness for the whole dispute stack).
 - Role C semantic floor — research; the AND-composition rule is fixed in advance so the
   research cannot drift into a rescue path.

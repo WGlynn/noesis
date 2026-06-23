@@ -53,6 +53,16 @@ genuinely useful — an idea, a fix, a piece of work — it gets:
 3.  Turned into two things: a reputation you earn and can never sell
     (your standing), and a kind of storage credit you can trade.
 
+    flowchart LR
+      C["You contribute<br/>something useful"] --> F["Fingerprinted<br/>who did it and when<br/>(can't fake or back-date)"]
+      F --> S["Priced by how much<br/>others build on it<br/>(a copy scores zero)"]
+      S --> REP["A reputation<br/>you earn and can't sell"]
+      S --> STO["A storage credit<br/>you can trade"]
+      classDef a fill:#1e293b,stroke:#60a5fa,color:#e5e7eb;
+      classDef b fill:#1e293b,stroke:#34d399,color:#e5e7eb;
+      class REP a
+      class STO b
+
 The score is called Proof of Mind. Where Bitcoin proves you burned
 electricity, this proves you contributed thought.
 
@@ -89,6 +99,14 @@ That’s the quiet trick: Bitcoin uses electricity to make cheating
 expensive; Noesis builds the same protection into how it measures value,
 so spam and fakes simply score zero — no burning required.
 
+    flowchart TD
+      subgraph BTC["Bitcoin"]
+        B1["Spend electricity to take part<br/>(the cost keeps spam/fakes out)"] --> B2["Fastest gets paid<br/>(value is set by an outside market)"]
+      end
+      subgraph NOE["Noesis"]
+        N1["Contribute something real"] --> N2["Proven and priced by what builds on it<br/>copy = zero · spam = zero · ring = zero · can't buy influence"]
+      end
+
 Why this is bigger than one app
 
 When the base layer pays people to be honest and useful, everything
@@ -103,11 +121,30 @@ Being honest is simply the highest-paying move, at every level.
 It doesn’t fight other projects — it invites them
 
 Most crypto projects compete to be “the one chain everybody uses.”
-Noesis doesn’t have to win that fight. Because it can take useful work
-from any other chain, re-price it fairly, and credit it on one shared
-record, the older projects aren’t rivals to beat — they’re the
-prototypes this was learned from. The message to every other chain isn’t
-“come compete.” It’s “come join us.”
+Noesis is built to be the first chain that doesn’t have to win that
+fight at all. Every other chain is in a zero-sum war for the same prize,
+and a fork splits a community in two. Noesis does the opposite: it can
+take useful work from any other chain, re-price it fairly, and fold it
+into one shared record without anyone losing what they built. A rival
+joining in keeps everything. So the older projects aren’t rivals to beat
+— they’re the prototypes this was learned from, and the fight isn’t won,
+it’s simply dissolved. The message to every other chain isn’t “come
+compete.” It’s “come join us.” (The piece that does this inside one
+chain is built and tested; the bridge that pulls in a foreign chain is
+designed but not yet built.)
+
+You’re already credited — before you even sign up
+
+Here’s the part that flips how joining works. To be credited on Noesis,
+you don’t need an account or a wallet — credit is just a record that
+says “this useful work came from you,” tied to something you already
+have (a code repo, a dataset, an email). So Noesis can give credit to
+the whole existing world of contributors before any of them join. When
+you do show up, you’re not starting from zero — you’re claiming what’s
+already provably yours. And it’s opt-in by design: the credit just sits
+there with your name on it until you decide to claim it, you can wave it
+off if you’d rather not be listed, and nothing is ever paid out for you
+without your say-so.
 
 Proof of work has a real home here
 

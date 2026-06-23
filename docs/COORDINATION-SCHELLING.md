@@ -157,13 +157,42 @@ flowchart LR
   NOE --> INV["INVARIANT — nets positive IFF<br/>Noesis integrity > weaker of {LLM, protocol} security<br/>(else it concentrates risk, not dissolves it)"]
 ```
 
+## The spread mechanism, sharpened (DESIGN theses — mark as such)
+
+The Schelling-point logic above has three concrete deployment theses, all DESIGN-stage
+(specified, conservation core built at the reference layer; cross-chain adapter UNBUILT).
+They are why convergence is the obvious move, not why it has happened:
+
+- **Non-zero-sum paradigm (the headline).** Noesis is designed to be the first chain whose
+  competitive relationship to OTHER chains is non-zero-sum: instead of winning an adoption
+  war, it ABSORBS rivals by conserving their contributions into one attribution graph
+  (reverse-fork = accretion). Convergence is positive-sum; the adoption war is dissolved,
+  not won. The Schelling point is focal precisely because joining it costs no rival anything
+  they had. See `internal/thesis/DESIGN-non-zero-sum-protocol.md`.
+- **Claimable attribution (the adoption engine).** The entire existing contribution graph is
+  attributed BY IDENTIFIER before anyone holds a wallet; onboarding = claiming what is
+  provably yours; credit precedes adoption. Consent guardrail (load-bearing): provenance is a
+  fact, but standing is INERT until claimed — opt-in only, right-to-disclaim, no unconsented
+  payout. See `internal/thesis/DESIGN-claimable-attribution.md`.
+- **Reflexive provenance.** Ingested external data is itself attributed; the DeepFunding
+  ingestion (the same data behind the null test above) is the first instance. See
+  `internal/thesis/DESIGN-reflexive-provenance.md`.
+
+These are the adoption side of the same honesty-is-focal property (Edge 2): credit that is
+provably yours and costs no rival is the structural reason to converge.
+
 ## What this does NOT rescue
 
-Neither edge removes the one load-bearing risk: the value function `v(S)` must be
-**un-gameable**. The Schelling framing explains *spread*; it does not substitute for
+Neither edge removes the one load-bearing risk: the value function `v(S)` must measure
+trustworthily. The Schelling framing explains *spread*; it does not substitute for
 strategyproof measurement. Temporal-novelty gives the floor (sybil/padding/collusion
-earn 0); the learned `v(S)` must preserve it. That remains the moat and the open
-problem.
+earn 0 — demonstrated); the learned `v(S)` must preserve it AND, the design thesis goes,
+beat a fixed structural proxy. **Honest status:** that learned-measure claim is a DESIGN
+thesis whose first real-data test (DeepFunding) came back **null** — unsupported, not
+refuted (the test used single-repo proxy features over a dependency graph, not the
+set-level features over a provenance DAG the faithful port would; see OUTCOME-EVALUATOR.md
+and the status ledger). The faithful feature port is the open problem; nothing here is the
+moat demonstrated.
 
 ## Tie-in: fair launch (Will's open question, 2026-06-11)
 

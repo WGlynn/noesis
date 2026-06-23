@@ -11,16 +11,19 @@ The **Contribution Consensus Problem** (descriptor: *Consensus Without Ground Tr
 agreement on contribution VALUE/attribution — not order — with NO ground-truth oracle, under
 SELF-INTERESTED (strategic, ¬ Byzantine) adversaries. Solved when honest contribution AND honest
 self-reporting is the equilibrium: **Honest-Contribution Equilibrium** = (1) Nash + (2) coalition-proof +
-(3) adaptive-stable. Spec: `DESIGN-wills-equilibrium.md`. Problem memory: `[[contribution-consensus-problem]]`.
+(3) adaptive-stable. Spec: `thesis/DESIGN-wills-equilibrium.md`. Problem memory: `[[contribution-consensus-problem]]`.
 
 ## Honest status by property (✓ demonstrated · ◐ designed · ○ open/research)
 ### (1) Nash — no profitable UNILATERAL deviation — **essentially picked**
 - ✓ honest contribution unilaterally rational — structural (novelty→0 padding, geometric saturation,
   standing-gating); demonstrated in `value` + the gaming suite.
-- ✓ honest self-report IC — PROVEN (uu) `nash_honesty`: `p·b ≥ (1−p)·g`, computational proof.
+- ◐ honest self-report IC — designed; proof-templated by PEG/SD-PP (arXiv:2505.13636), with two open
+  theorems (graph-generalization + C4 inner-uniqueness). `nash_honesty` (uu) proves the IC inequality
+  `p·b ≥ (1−p)·g` CONDITIONAL on the catch-probability `p`; it is NOT a standalone proof of honest
+  self-report (status: see STATUS-LEDGER HCE-1-report).
 - ◐ **GATING:** the IC proof is conditional on the catch-probability `p`. The peer-prediction layer
   that supplies a high `p` WITHOUT ground truth (truthful reporting as a BNE over peers' reports) is
-  DESIGNED, not built. Until built, (1) for self-reporting is "proven modulo one component."
+  DESIGNED, not built. Until built, (1) for self-reporting is "designed, proof-templated modulo one component."
 - ◐ formal theorem-grade statement of (1) for the PoM game — cold + `/critical-qa`.
 
 ### (2) Coalition-proof — no profitable JOINT deviation — **half-turned (hard half done)**
@@ -35,6 +38,13 @@ self-reporting is the equilibrium: **Honest-Contribution Equilibrium** = (1) Nas
 ### (3) Adaptive-stability — honest stays the equilibrium vs an adversary who LEARNS — **THE FRONTIER**
 - ◐ learned-`v(S)` retraining harness — wired (`load_prefs → train → v_outcome_floored → seed`),
   **DATA-BLOCKED**: needs real DeepFunding outcome labels at scale to show it closes the Goodhart gap.
+- ○ **NULL RESULT (load-bearing, status: see STATUS-LEDGER MOAT-1):** the learned-`v(S)` un-gameable-measure
+  claim had its FIRST real-data test (DeepFunding jury labels) come back **NULL** — the learned model did
+  NOT reliably beat a fixed structural proxy (mean delta +0.0021 over 20 seeds, wins 11/20). HONEST FRAME:
+  **unsupported, NOT refuted** — the test used single-repo PROXY features over a DEPENDENCY graph, not the
+  set-level features over a PROVENANCE DAG the harness scores; the faithful provenance-feature port is the
+  open real test. No moat / un-gameability / Goodhart-closure claim is demonstrated; property (3)
+  adaptive-stability remains DESIGNED / conjecture.
 - ○ **THE LINCHPIN — the adaptive-convergence theorem:** does the retraining loop converge to an
   un-gameable FIXED POINT rather than oscillate? Existence plausible via Brouwer (cf. iterated-Shapley
   fairness fixed point); **uniqueness OPEN in our own prior work**. This is the single item that is BOTH

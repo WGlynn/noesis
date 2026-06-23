@@ -4,7 +4,7 @@
 > its OWN inputs is self-refuting. So this file gives the DeepFunding data what Noesis exists to give
 > every contribution: **provenance.** It is both MIT-license compliance and a live demonstration of the
 > commit-reveal provenance mechanism applied reflexively — Noesis's first real-data ingestion, recorded
-> by Noesis's own rule. Principle captured in `internal/DESIGN-reflexive-provenance.md`.
+> by Noesis's own rule. Principle captured in `internal/thesis/DESIGN-reflexive-provenance.md`.
 
 ## Source (attributed contributors)
 - **Mechanism + program:** Deep Funding, designed by **Vitalik Buterin**, run via **Gitcoin** /

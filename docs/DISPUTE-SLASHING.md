@@ -66,7 +66,13 @@ pricing moved from "who wrote it" to "who vouched for it". Endorsement = underwr
 Building on a cell IS the certification act that pumped the gate; the slash makes that
 underwriting literal.
 
-## 4. Incentive analysis (the un-gameability inequality)
+## 4. Incentive analysis (the designed deterrence inequality)
+
+> This inequality is a property of the BONDED DISPUTE MECHANISM (designed), not a claim
+> about the learned `v(S)`. It assumes the verdict catches garbage with probability `p`; an
+> out-of-band `p + epsilon` bribe to a reporter/juror to lie is an **open shared attack** of
+> bonded peer-prediction mechanisms generally (the bond raises the bribe cost but does not
+> provably close it) — NOT a differentiator. Do not read this section as un-gameability.
 
 Attacker (vested certifier C, pocket key P, garbage X):
 - Gain: V = value vested to X caused by C's certification (≤ C's causal share, by §2.2).

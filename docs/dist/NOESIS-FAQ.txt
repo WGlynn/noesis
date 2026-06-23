@@ -19,17 +19,19 @@ and earns; dead-end or copied work doesn’t. It’s a market revealing
 value, not a committee or a fixed formula assigning it.
 
 Can’t people just farm points — spam, fake accounts, friends upvoting
-each other? That’s the central design problem, and one rule handles all
-of it: you’re only paid for genuinely new work that others actually
-build on. - Copies and re-posts earn zero (only new contribution
-counts). - Spamming variations hits a hard ceiling — volume can’t pump
-your score. - A ring of accounts citing each other is just value moving
-in a circle; it produces no real outside work building on it, and the
-chain detects the circulation. - Splitting yourself across 100 accounts
-doesn’t multiply anything — 100 copies of one idea is still one idea’s
-worth. These are demonstrated in our tests. The harder, unsolved version
-— judging subtle real-world quality un-gameably at scale — is the open
-problem (see below).
+each other? That’s the central design problem (we call it the
+contribution consensus problem: reaching agreement on who contributed
+what value when there’s no ground-truth oracle to check against), and
+one rule handles all of it: you’re only paid for genuinely new work that
+others actually build on. - Copies and re-posts earn zero (only new
+contribution counts). - Spamming variations hits a hard ceiling — volume
+can’t pump your score. - A ring of accounts citing each other is just
+value moving in a circle; it produces no real outside work building on
+it, and the chain detects the circulation. - Splitting yourself across
+100 accounts doesn’t multiply anything — 100 copies of one idea is still
+one idea’s worth. These are demonstrated in our tests. The harder,
+unsolved version — judging subtle real-world quality un-gameably at
+scale — is the open problem (see below).
 
 What stops rich people from taking over, like in proof-of-stake? Your
 standing (voting weight) is soulbound — earned by contribution and
@@ -76,12 +78,32 @@ adapting faster than attackers can game it, anchored so it can only ever
 under-credit honest work, never forge value. We treat this as the
 load-bearing open problem, not a solved one.
 
-Does it compete with other chains? No — it absorbs them. Because value
-is measured on-chain and carried along provenance, useful work from any
-other chain can be imported and re-priced on one shared graph without
-loss. Other projects aren’t rivals to beat; they’re the prototypes this
-was learned from. The offer to every other chain isn’t “come compete,”
-it’s “come join us.”
+Does it compete with other chains? No — it absorbs them. This is the
+headline idea: Noesis is designed to be the first blockchain whose
+relationship to other chains is non-zero-sum. Every other chain is in a
+zero-sum standards war (one wins the slot, the rest lose); a fork splits
+value. Noesis instead conserves a rival’s contributions into one shared
+attribution graph — a “reverse fork,” where merging in is accretion, not
+a contest. Another chain converging in keeps everything it built. The
+adoption war isn’t won, it’s dissolved. So other projects aren’t rivals
+to beat; they’re the prototypes this was learned from, and the offer
+isn’t “come compete,” it’s “come join us.” (Honest scope: the
+conservation engine is built and tested in the reference node; the
+cross-chain adapter that imports a foreign chain is designed, not yet
+built.)
+
+How can you credit me if I’ve never had a wallet? You don’t need one to
+be credited. Provenance is a fact — “this work came from X” — keyed to
+an identifier you already have (a code repo, a dataset hash, an email,
+an ENS name), not to a wallet. So Noesis can attribute the entire
+existing contribution graph — open-source repos, datasets, prior
+projects — before anyone signs up. Onboarding isn’t earning from zero;
+it’s claiming what’s already provably yours. Credit comes first and
+pulls adoption. Guardrails are built in: attribution is opt-in (standing
+sits inert until you claim it), you can disclaim an identifier you don’t
+want associated with you, and nothing is ever paid out on your behalf
+without your key. (The conservation core for this is built at the
+reference layer; the cross-chain side is designed, not yet built.)
 
 Why does this matter beyond one app? A base layer that pays for honesty
 is inherited by everything built on it. On Noesis, honest finance (real

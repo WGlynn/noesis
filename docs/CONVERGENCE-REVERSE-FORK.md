@@ -50,6 +50,23 @@ This is not a new mechanism; it is the existing one taken to its limit.
    contribution is documented on the canonical chain with its lineage intact. Positive-sum in real
    time. The merge is not a zero-sum standards war; it is accretion.
 
+## Two levels, one geometry: claimable attribution is reverse-fork at the contributor granularity
+
+The same convergence-by-attribution operates one level down, on *people, repos, datasets* rather than
+chains. **Claimable attribution** (`internal/thesis/DESIGN-claimable-attribution.md`): the entire
+pre-existing contribution graph — every OSS repo, dataset, juror — is attributed by identifier (repo URL,
+juror ID, content-hash, ENS, email) *before anyone has a wallet*; onboarding is *claiming what is provably
+yours*, so credit precedes adoption. A foreign chain's contributors, or the whole OSS world's
+contributors, are credited by identifier and onboard by claiming. **Absorb by attribution, converge by
+claim** — the chain-agnostic contribution adapter named below (foreign unit → provenance-bearing cell) and
+the identifier→wallet claim are the *same import interface seen from the two ends*. Reverse-fork at the
+chain granularity and claimable attribution at the contributor granularity are two radii of one fold.
+
+Consent guardrail (carries with the claim, both granularities): provenance is a fact recorded without
+anyone's permission; standing is *inert until claimed* (opt-in), with a right to disclaim an identifier and
+no unconsented payout. The conservation core is built+tested at the reference layer; the cross-chain
+adapter is unbuilt (see Status).
+
 ## What the abstraction requires (the unbuilt part, named honestly)
 
 For convergence to be *inherent* rather than a per-chain hack, the protocol needs a **chain-agnostic
@@ -59,8 +76,10 @@ contribution adapter** — a first-class import interface, not a bespoke bridge.
   its work output becomes the contribution payload; its lineage becomes parent edges; its native
   consensus becomes an *attestation* about that work (an oracle input, not a value claim).
 - **One value function over imported contributions.** Foreign contributions are scored by the same
-  un-gameable `v(S)`, never by the foreign chain's own reward. This is the firewall: a chain can attest
-  *that* work happened; only Noesis's measurement decides *what it was worth* on the canonical graph. A
+  `v(S)`, never by the foreign chain's own reward (whether the *learned* `v(S)` reliably beats a fixed
+  structural proxy is the open moat question — first real-data test null, see `internal/STATUS-LEDGER.md`
+  MOAT-1; the merge geometry below does not depend on that resolving). This is the firewall: a chain can
+  attest *that* work happened; only Noesis's measurement decides *what it was worth* on the canonical graph. A
   flood of low-value imported work saturates exactly as a domestic flood does (temporal novelty +
   geometric damping), so importing cannot pump standing.
 - **Cross-chain temporal novelty / dedup.** First-to-cover must hold across chains: the same

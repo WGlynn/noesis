@@ -4,9 +4,9 @@
 > doc restated status in its own words. From now on, **every other doc cites a row of this ledger by
 > ID rather than restating the status.** If a claim's status changes, it changes HERE, once.
 >
-> Authority for: `docs/whitepaper/noesis-whitepaper.tex`, `docs/WHITEPAPER.md`, `internal/MOAT-STACK.md`,
-> `internal/DESIGN-wills-equilibrium.md`, `internal/DESIGN-peg-proof-template-for-hce.md`,
-> `internal/DESIGN-adaptive-convergence-theorem.md`, `ROADMAP.md` Phase 1.
+> Authority for: `docs/whitepaper/noesis-whitepaper.tex`, `docs/WHITEPAPER.md`, `internal/thesis/MOAT-STACK.md`,
+> `internal/thesis/DESIGN-wills-equilibrium.md`, `internal/thesis/DESIGN-peg-proof-template-for-hce.md`,
+> `internal/thesis/DESIGN-adaptive-convergence-theorem.md`, `ROADMAP.md` Phase 1.
 >
 > Status vocabulary (use exactly these words everywhere):
 > - **demonstrated** - runs and is tested in the open reference node (cite the test/module).
@@ -24,7 +24,7 @@
 | ID | claim | status | evidence | open obligation |
 |---|---|---|---|---|
 | **HCE-1-contrib** | (1) Nash: honest contribution is the no-regret unilateral action | demonstrated | novelty->0 padding/sybil, geometric saturation, standing-gating; `value` module + gaming suite | none for contribution; see HCE-1-report for the report half |
-| **HCE-1-report** | (1) Nash: honest self-report is incentive-compatible, `p*b >= (1-p)*g` | designed; proof-templated by PEG/SD-PP, with two named open theorems (graph-generalization + C4 inner-uniqueness) | `nash_honesty` (4 tests) proves the IC inequality CONDITIONAL on the catch-probability `p`; the layer that supplies a high `p` with no oracle is the PEG instantiation (DESIGN-peg-proof-template-for-hce.md), not built (M3) | build the peer-elicitation `p`-supplier (M3); discharge the two open theorems below |
+| **HCE-1-report** | (1) Nash: honest self-report is incentive-compatible, `p*b >= (1-p)*g` | designed; proof-templated by PEG/SD-PP, with two named open theorems (graph-generalization + C4 inner-uniqueness) | `nash_honesty` (4 tests) proves the IC inequality CONDITIONAL on the catch-probability `p`; the layer that supplies a high `p` with no oracle is the PEG instantiation (thesis/DESIGN-peg-proof-template-for-hce.md), not built (M3) | build the peer-elicitation `p`-supplier (M3); discharge the two open theorems below |
 | **HCE-2-cyclic** | (2) Coalition-proof against cyclic collusion (rings / mutual-citation / manufactured flow) | demonstrated | HodgeRank harmonic-energy certificate detects circulation on topology alone, wired to `collusion_slash`/`unified_slash`; tested | none for the cyclic half |
 | **HCE-2-selfreport** | (2) Coalition-proof against the symmetric-lie self-report collusion equilibrium | designed; proof-templated by SD-PP (removes the risk-attitude loophole only), open for the joint deviation | SD-PP SD-truthfulness makes truth payoff-dominant under any monotone utility (a UNILATERAL property); the symmetric-lie co-equilibrium is a JOINT deviation SD-truthfulness does NOT kill; bonded BTS backstop is designed (M4) | prove elimination of the symmetric-lie co-equilibrium (M4); graph-generalization + C4 |
 | **HCE-3-adaptive** | (3) Adaptive-stability / Goodhart-robust: honest stays an equilibrium under the retraining dynamic vs an adversary who learns | conjecture (designed harness; convergence open; first real-data test null) | retraining harness wired (`load_prefs -> train -> v_outcome_floored -> seed`); the learned `v(S)` first real-data test (DeepFunding) is **null-tested** (see MOAT-1); convergence theorem open (M2) | the adaptive-convergence theorem (M2, uniqueness of the fixed point); the faithful provenance-feature port that the null test did not yet use (see MOAT-1) |
@@ -36,7 +36,7 @@
 | **TH-C4-unique** | inner-equilibrium uniqueness (M2 condition C4): the inner reporter game has a unique equilibrium so the retraining map `T` is single-valued | open | PEG narrows it (its game converges) but does not discharge it for the graph game | potential-game / monotone argument with the Hodge potential |
 
 ### Self-report IC layer notes (cross-referenced)
-- **M1 existence Proposition** (DESIGN-wills-equilibrium.md §5): the honest profile satisfies (1) for
+- **M1 existence Proposition** (thesis/DESIGN-wills-equilibrium.md §5): the honest profile satisfies (1) for
  self-report only **conditional on the catch-probability `p` (supplied by M3, not yet built)**;
  proof-templated. It does NOT "hold today" as an unconditional result.
 - **Cheng-Friedman escape** (HCE-2-cyclic / Sybil half): see SCOPE-CF below; that line is about

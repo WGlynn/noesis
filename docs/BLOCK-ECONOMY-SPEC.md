@@ -21,10 +21,14 @@ consensus (PoM, not PoW). Proof of **Mind** replaces proof of wasted energy.
 
 Load-bearing caveat: a literal value chain must *measure* value trustworthily — the
 one hard problem Bitcoin sidesteps by being mere possession (the market measures value
-off-chain; we measure it on-chain). Un-gameable `v(S)` is the entire bet. Get it right
-and this stands; fudge it and it's a reputation system. Lineage: PoW → proof-of-useful-
-work (CogCoin / Economitra: information density as work) → **Proof of Mind** (verified
-synergy-valued contribution) is the apex.
+off-chain; we measure it on-chain). A trustworthy `v(S)` is the entire bet. The
+strategyproof FLOOR (temporal-novelty: sybil/padding/collusion → 0) is demonstrated; the
+LEARNED `v(S)` that would beat a fixed structural proxy is a DESIGN thesis whose first
+real-data test (DeepFunding) came back **null** — unsupported, not refuted; see
+OUTCOME-EVALUATOR.md and the status ledger. Get the learned measure right and this is a
+value chain; fall back to the floor and it is a strategyproof reputation system, not a
+gamed one. Lineage: PoW → proof-of-useful-work (CogCoin / Economitra: information density
+as work) → **Proof of Mind** (verified synergy-valued contribution) is the apex.
 
 ## The stack (each layer demonstrated, not asserted)
 

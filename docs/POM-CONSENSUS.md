@@ -323,4 +323,7 @@ consensus and value-judgment are the same coordination problem at two scales.
   gate is the strategyproof skeleton; the LEARNED outcome-evaluator (Phase-1 core bet) is
   bounded to advance/evidence roles so it cannot mint even if corrupt. Get v(S) right first
   remains the load-bearing risk — now with the authority boundary that makes it safe to
-  iterate.
+  iterate. Honest status: the learned v(S)'s first real-data test (DeepFunding) came back
+  **null** (does not yet reliably beat a fixed structural proxy) — unsupported, not refuted;
+  see OUTCOME-EVALUATOR.md. The bounded-authority design above is exactly what keeps that
+  open result from endangering the chain.

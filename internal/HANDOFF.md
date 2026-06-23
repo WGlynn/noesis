@@ -1,75 +1,49 @@
-# Noesis HANDOFF — 2026-06-16 (PRIVATE, stealth)
+# Noesis — session handoff (2026-06-23 PM, PRIVATE / stealth)
 
-Fast orientation for a fresh chat. DETAIL lives in `CONTINUE.md` (top block, newest first),
-`ROADMAP.md`, and `internal/RESEARCH-NETWORK-CONSENSUS.md`. Repo: `WGlynn/noesis` (private remote).
-Node: `node/`, Rust. Keep ALL of it out of public substrate (leak-gate enforces).
+> Full-auto session: HCE milestone hardened + honest, the non-zero-sum paradigm crystallized, the moat
+> empirically tested (null), and a marketing suite + repo-wide doc-currency pass shipped. Authority for
+> the status of every claim: `internal/STATUS-LEDGER.md`. Resume detail: `internal/CONTINUE.md`. Keep all
+> of it out of public substrate (leak-gate enforces). Repo: `WGlynn/noesis` (private remote).
 
-## Current state (suite 262 green)
-The mechanism library (22 modules in `node/src/lib.rs`, ~6k lines) now has a NODE RUNTIME on top, so
-the chain can be RUN, not just unit-tested. Latest increment (2026-06-16 (f), RSAW) hardened the gap #4
-token gate: the mint authority is now DERIVED from issuer control of a consumed authority cell, not a
-self-declared `minter` field (8th attacker-input site) — an attacker can no longer mint by naming itself
-the issuer. (e) wired **gap #4 — token conservation into block validation**: `runtime::TokenTx` /
-`TokenStandard` ride inside a `Block` (empty by default), and `Node::validate` rejects any block carrying
-a non-conserving / unauthorized-mint movement (single-sourced from the `tokens` analogs). Validation only
-— spending/persisting token state is the deploy-coupled next layer. Prior session (full-auto, Will-armed) added:
+## Where we are
+- **The thesis is set and honest.** Headline = the **non-zero-sum paradigm**: Noesis is the first
+  blockchain whose competitive relationship to other chains is non-zero-sum. It absorbs rivals (reverse-
+  fork = accretion) instead of competing; the adoption war is dissolved, not won. The adoption engine is
+  **claimable attribution**: the existing contribution graph is attributed by identifier before anyone
+  has a wallet, so onboarding is claiming what is provably yours. Both are DESIGN theses (conservation
+  core built at the reference layer; the cross-chain adapter is unbuilt).
+- **The moat came back null.** The learned-`v(S)` "un-gameable measure" was tested on real DeepFunding
+  jury labels and did NOT reliably beat a fixed structural proxy (mean delta +0.0021 / 20 seeds, 11/20).
+  Honest frame: **unsupported, not refuted** (proxy features over a dependency graph, not set-level
+  features over a provenance DAG). The faithful feature port is THE open test. Evidence:
+  `data/deepfunding/RESULTS.md`. No doc claims the moat as proven.
+- **Everything is honesty-marked** (demonstrated / designed / open) per `STATUS-LEDGER.md`. Whitepaper is
+  v5.2 (PDF on Desktop). 316 tests passing (verified this session).
 
-- **`node/src/runtime.rs`** — replicated state machine (orchestration only, no new mechanism):
-  `Constitution` (value-matrix governance frame), `Ledger` (cells + novelty-index + PoM + height),
-  `Block` (canonical commit-reveal batch), `Node` (submit/propose/validate/apply), `finalizes`
-  (wraps `consensus::finalizes_hybrid`), and `finality::finalizes_pos_pom` (T3 fix — see below).
-- **`node/tests/two_node.rs`** (3) — deterministic state-machine replication: two nodes hold
-  byte-identical (cells, index root, PoM) after every block; presentation-independent assembly;
-  non-canonical reorder rejected.
-- **`node/tests/byzantine.rs`** (5) — honest node rejects wrong-height/reordered/empty blocks;
-  equivocation detected; Byzantine minority can't finalize; honest supermajority can.
-- **`node/src/tokens.rs`** (9) — starter ERC analogs: fungible/ERC-20 (sUDT-style), nft/ERC-721,
-  multi/ERC-1155. Conservation = a PURE function of the tx (no oracle, airgap closed — Will T7).
-- **`runtime::finality::finalizes_pos_pom`** (3) — T3 fix: PoW out of finality, PoS+PoM gadget,
-  anti-concentration rule (PoM-60% can't unilaterally finalize = T11 capital-orthogonality in code).
-- **`node/tests/gaming.rs`** (2) — adversarial-gaming loop at runtime level: a 5-identity sybil ring
-  banks ≤1 cell's coverage; cross-block re-post earns 0. Un-gameable-`v(S)` holds through the live node.
-
-**Honest scope:** the 2-node milestone is achieved IN-PROCESS (deterministic SMR, adversarial-safe).
-It is NOT yet two OS processes over a network — that needs the transport (T1), genesis, persistence.
-
-## Key decisions this session (and why)
-- **Value-dimension matrix = MIXED 3-layer, NOT immutable** (Will). physics (anchor-in-realized-flow +
-  noise floor; near-immutable) > constitutional (amendment rules: a dimension admitted only if it
-  predicts realized value — verifier-gated; weights bounded) > governance (weights, fluid). Boundary =
-  the completeness/weights cleavage (value-disputes-are-incompleteness-bias). Immutable would foreclose
-  debiasing-by-completion; free-governance would reopen gameability. Code: `Constitution` struct (stub).
-- **T3 — PoW OUT of finality.** `finalizes_hybrid` had a latent bug: it counted reorgeable PoW weight
-  as final ⇒ PoW lag = finality-safety vector. Fix at runtime level (core left intact):
-  `finalizes_pos_pom` uses `FINALITY_MIX={pow:0,pos:1/3,pom:2/3}`, 2/3-of-fast-final-set, +
-  `MIN_DIM_BPS` anti-concentration (each dim must independently clear its floor).
-- **T11 — capital-orthogonality is a FEATURE.** Do NOT value-weight PoS. Because PoM (60%) already
-  carries subjective value, PoS (30%) must be the objective, capital-at-risk, slashable complement.
-  Value-weighting stake would correlate the axes and destroy the Minotaur multi-resource security gain
-  (= multi-axis-robustness + filter-coincidence). The anti-concentration rule enforces this in code.
-- **CKB-shape COMMITTED** (Will); only the transport/peer layer is open.
-
-## Research verdicts (full detail in RESEARCH-NETWORK-CONSENSUS.md)
-- T1 transport → **rust-libp2p lean** (QUIC + GossipSub v1.2 + custom RFC0012 addr-gossip, skip DHT);
-  tentacle #2 (lightest, TCP-only). FOUNDATIONAL ⇒ Will-confirm before build.
-- T2 ML-consensus → role-bound learned signal VALIDATES the existing design; safe add = clamped
-  deterministic weight multiplier; DO-NOT float-on-consensus-path / score-gates-finality.
-- T9 Ergo sub-blocks → ADOPT two-tier (sub-blocks fast/revertible, ordering blocks = finality
-  checkpoints), gate re-derived from contribution-weight not PoW.
-- T10 Constellation → mostly hype; salvage only standing-weighted GossipSub peer-scoring (converges w/ T1).
+## Key decisions (and why)
+- Honesty is load-bearing: the null result is surfaced everywhere, never buried; marketing sells the
+  architecture + the adoption engine (defensible), never the moat as proven.
+- Eponym retired: "Will's Equilibrium" -> Honest-Contribution Equilibrium (HCE), neutral everywhere.
+- Scope cuts (Will): capital raise, patent, Pragma onboarding are OUT. "Complete Noesis" = the technical
+  and narrative artifact, not the company.
+- Data: pulled the PUBLIC DeepFunding dataset (auto), credited it (reflexive-provenance rule).
 
 ## Open threads / next steps
-- **Will-gated:** (1) T1 transport choice (rust-libp2p vs tentacle); (2) audit PoM validator/identity
-  distribution before shipping finality (PoM=60%=kingmaker).
-- **Pure-additive builds (no core change):** genesis/chain-spec (gap #1) · tx input/output model + wire
-  token conservation into block validation (gap #4) · VRF leader selection + Phragmén (T11) · two-tier
-  sub/ordering blocks (T9) · mempool policy · persistence · sync/late-joiner.
-- **Design:** T5 shard + commit-reveal + pairwise wiring (VibeSwap CommitRevealAuction + PsiNet CRPC);
-  constitutional-cell whose transitions obey the verifier gate (matures the `Constitution` stub).
-- The 12-item gap list is in CONTINUE.md top block (d).
+1. **THE moat** — build the faithful provenance-feature port of the DeepFunding test (set-level features
+   over a real provenance DAG). Spec: `internal/thesis/DESIGN-peg-proof-template-for-hce.md` 4.1 + the
+   Hodge-determinant conjecture. This is the real moat experiment; the null was on proxies.
+2. **M2 / C4** — inner-equilibrium uniqueness is the open linchpin. WARNING (audit): a potential function
+   needs the GRADIENT summand, but the Hodge harmonic residual is the CYCLIC summand. Type-check first.
+3. dist `.html/.pdf` regen for the accessible-tier (only `.txt` regenerated; MiKTeX is present).
+4. Deck polish: slide-1 honesty-pills (show all three statuses or none) + slide-8 funnel redraw. Will
+   judgment on the first.
+5. Em-dash full-scrub of the public accessible docs (deferred; non-surgical).
 
-## Build / verify
-`cd node && cargo test` (262 green). Pre-commit hooks (doc-coherence + study-guide) enforce doc
-freshness — if blocked: `python scripts/study-guide.py && python scripts/doc-coherence.py --stamp`,
-then `git add -A`, retry. Watch for the `N tests` regex false-positive (don't write "(9 tests)" in a
-doc — the checker compares it to the suite total).
+## Where things live
+- Status authority: `internal/STATUS-LEDGER.md`
+- The thesis cluster: `internal/thesis/` (non-zero-sum capstone, claimable-attribution, M1/M2/A1, moat-stack)
+- The moat evidence: `data/deepfunding/RESULTS.md` + `PROVENANCE.md`
+- The pitch: `marketing/` (deck/index.html, paper/noesis-for-humans.md, visuals/)
+- The whitepaper: `docs/whitepaper/noesis-whitepaper.tex` (v5.2) + `docs/WHITEPAPER.md`
+- Accessible explainers: `docs/NOESIS-{FAQ,FOR-DUMMIES,LITEPAPER,ONEPAGER}.md`
+- This session in memory: `project_session-2026-06-23-noesis-fullauto-pitch`

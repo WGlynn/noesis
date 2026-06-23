@@ -7,13 +7,14 @@
 ## 🔝 RESUME HERE (2026-06-23 ~12:30 — naming resolved + M1/M2 drafted)
 - **NAMING (Will: "neutral everywhere"):** "Will's Equilibrium" → **Honest-Contribution Equilibrium (HCE)**
   across all active surfaces (roadmap spine, `node/src/lib.rs` comments, ROADMAP.md, STUDY-GUIDE.md,
-  LAUNCH-CHECKLIST.md). Filenames kept (`DESIGN-wills-equilibrium.md`, `ROADMAP-WILLS-EQUILIBRIUM.md`)
-  for path stability; CONTINUE.md historical log-entries left as accurate record. Eponym retired per v4.0.
-- **M1 DRAFTED** — `internal/DESIGN-wills-equilibrium.md` rewritten as the paper-grade formalization:
+  LAUNCH-CHECKLIST.md). Eponymous filenames kept for path stability (`DESIGN-wills-equilibrium.md` since
+  moved to `internal/thesis/`; `ROADMAP-WILLS-EQUILIBRIUM.md` stays in `internal/`); CONTINUE.md historical
+  log-entries left as accurate record. Eponym retired per v4.0.
+- **M1 DRAFTED** — `internal/thesis/DESIGN-wills-equilibrium.md` rewritten as the paper-grade formalization:
   game `Γ=(N,A,M,u)`, HCE definition (3 properties), prior-art positioning table (claim only the fusion),
   status-by-property (demonstrated/designed/open), existence as partial-proposition + labeled-conjecture,
   proof-obligations→enforcer table. Honest: HCE = result for (1)+(2-cyclic), conjecture for full three.
-- **M2 DRAFTED** — `internal/DESIGN-adaptive-convergence-theorem.md`: the convergence linchpin as a
+- **M2 DRAFTED** — `internal/thesis/DESIGN-adaptive-convergence-theorem.md`: the convergence linchpin as a
   *conditional* theorem via performative prediction (Perdomo 2020). Contraction `ε·β/γ<1` ⇒ unique
   performatively-stable `v*`. Key honest OPEN: **(C4) inner-equilibrium uniqueness** (the bilevel/
   Stackelberg coupling) = the genuinely-novel obligation; Hodge potential flagged as candidate potential

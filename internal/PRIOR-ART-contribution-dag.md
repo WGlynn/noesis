@@ -80,6 +80,13 @@ Noesis fuses them: PoM — the contribution measure — IS the **soulbound, unbu
 ([[attribution-network-cannot-be-stolen-only-joined]]): copying the mechanism either strips attribution
 (collapses to a worse chain) or keeps it (credits the origin). A scoring tool you can fork; a franchise
 earned on the origin's graph you cannot.
+- Forward note: this is the root of the non-zero-sum / reverse-fork thesis. Because copying honestly
+  *adds* the copier to the same attribution graph, forking becomes contribution and rival chains
+  converge in by accretion rather than competing (`docs/CONVERGENCE-REVERSE-FORK.md`); the same geometry
+  one level down credits people/repos/datasets by identifier before they have a wallet
+  (`internal/thesis/DESIGN-claimable-attribution.md`). Two levels, one geometry. Both are DESIGN theses:
+  the conservation core is built+tested at the reference layer, the cross-chain adapter is unbuilt
+  (`internal/STATUS-LEDGER.md`).
 
 ### Axis 4 — STRATEGYPROOF-BY-CONSTRUCTION, NOT BY HEURISTIC (method)
 SourceCred's sybil-resistance is heuristic PageRank + community moderation; it is gameable and admits it
