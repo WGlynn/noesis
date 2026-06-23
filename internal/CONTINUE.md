@@ -4,6 +4,14 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## ⭐ OFFICIAL TOP PRIORITY (Will 2026-06-23) — Will's Equilibrium on the Contribution Consensus Problem
+*"you cannot have noesis if you dont have wills equilibrium on the contribution problem."* THE load-bearing
+core; the solution-defining spine, above feature-builds. Critical path + honest per-property status + the
+ONE linchpin (the adaptive-convergence theorem, M2) in **`internal/ROADMAP-WILLS-EQUILIBRIUM.md`**. Point
+the research stack at M2 first (the only claim both unproven AND load-bearing for un-gameability). Memory:
+`[[contribution-consensus-problem]]` · `[[wills-equilibrium]]`. Feature infra (finalization twin-update,
+clawback, lock-sig go-live, deploy) continues in parallel but does NOT define whether the problem is solved.
+
 ## ⚑ COLLABORATORS (2026-06-18) — Pragma Research brought in
 Will: "invite Tom lindeman and Bernhard to noesis private repo so they can help us."
 - Tom Lindeman = `EtherDotBlue` (Runtime Verification Inc) — write-invite `322876564` PENDING.
