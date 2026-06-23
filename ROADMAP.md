@@ -28,6 +28,58 @@
    proven economic calibration. Re-tune only on real data. Per [P·augmented-mechanism-design-paper].
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-23 (ss)** — BUILT ✅ **the on-VM lock-script PROGRAM — existence→CONTROL enforced INSIDE
+  the VM** — executes the (rr) build contract. New crate `onchain/locksig-typescript` (no_std,
+  riscv64imac, ckb-std + noesis-core, mirroring `finalization-typescript`): one ELF that reconstructs
+  the value-movement on-VM, recomputes the canonical `tx_digest` in the SAME single-sourced serializer
+  the node signs over ((qq) `noesis_core::tx`), and verifies each consumed input's post-quantum Lamport
+  signature ((pp) `noesis_core::lamport::verify`) against that input's `lock.args` root. The on-VM twin
+  of the node's (nn) `spend_is_authorized`: a real cell can be NAMED by anyone, only its one-time-key
+  holder can MOVE it — closing existence→control at the VM layer. **Every digest field is
+  consensus-sourced, never attacker-chosen** ([dont-let-attacker-choose-critical-input]): cell
+  identities from the served cell set, `(code_hash,args)` from the single asserted-unified group
+  type-script, `standard` DERIVED from `code_hash` via a fixed map (unknown ⇒ reject), `auth` =
+  `witness[i]` (not in the digest ⇒ no circularity). **Single-source codec added** to `noesis_core::tx`
+  (`OwnedCellView` + `encode_cell_identity`/`parse_cell_identity`, reusing the digest's own
+  `serialize_cell` framing — bounds-checked, rejects short/trailing) so the HOST harness encodes a
+  cell's identity with the exact bytes the ELF parses; purely additive, no_std + riscv-built.
+  **TESTED — 10 end-to-end through the ELF** (`node/tests/ckb_vm_locksig.rs`, host ckb-vm harness):
+  valid owner sig ⇒ exit 0; **wrong-key sig over the same digest ⇒ 42** (the on-VM analog of the (nn)
+  wrong-key test — existence ≠ control, closes (o) at the VM layer); tampered sig ⇒ 42; empty auth ⇒ 0
+  (inert pre-deploy, `CONTROL_ENFORCED=false`); non-32B lock.args ⇒ 43; unknown standard ⇒ 44;
+  mixed-type group ⇒ 45; malformed/short record ⇒ 41; empty input group ⇒ 41; **DIGEST PARITY** proven
+  two ways — directly (encode→parse leaves `tx_digest` invariant) AND end-to-end (a host-signed sig
+  verifies inside the VM ONLY IF the on-VM digest is byte-equal). **Anti-theater CONFIRMED:** stubbing
+  the ELF's `verify→true` flips the wrong-key test 42→0 (RED); reverted. Sibling VM suites
+  (finalization 6 / proven_e2e 10 / commit_order 8) + node digest tests green; node lib 249, full
+  test suite 300→**310** (+10 locksig), 0 NEW clippy (the 4 noesis-core `is_multiple_of`/`div_ceil`
+  are pre-existing, untouched). Exit namespace
+  41-45 (per-binary; reuse vs commit-order's 40s is fine — triage is per script). **HONEST SCOPE /
+  🟡 deploy-coupled:** pre-deploy a cell's identity is the served model record via `load_cell_data`
+  (the `CELL_FIELDS_BOUND` boundary — at deploy it comes from real CKB cell-field syscalls), and
+  `CONTROL_ENFORCED` is inert (empty auth still authorizes), exactly the finalization registry-binding
+  / commit-order coord-binding discipline; the GO-LIVE flip + multi-lock-group support are deferred.
+  **NEXT:** the finalization PROGRAM twin-update to `finalizes_pos_pom_fixed` ((oo)) · lock-sig GO-LIVE
+  flip (`CONTROL_BINDING_ACTIVE` + `CONTROL_ENFORCED` + populate `auths` + real-entropy keygen) ·
+  🔬 Winternitz/SPHINCS+ compression of the 16 KiB sig · learned-v(S) on real labels = THE moat (data-blocked).
+- **2026-06-23 (rr)** — DESIGN tick (no code; PCP-gate — the on-VM lock-script ELF reconstructs the
+  TokenTx inside the VM = the spend trust boundary at highest blast radius, AND it carries a real design
+  fork (TokenTx↔CKB-cell mapping) that must be DECIDED cold then built fresh; ~13.5h session ⇒ the
+  (v)/(dd)/(ii)/(kk) discipline applies). Advances the #1 on-VM frontier *named → DECIDED + build contract*
+  (`internal/DESIGN-onvm-locksig-program.md`). **The fork, resolved:** a per-input lock script sources every
+  `tx_digest` field from CONSENSUS state, never a free witness — inputs/outputs via `Source::Input/Output`;
+  `(code_hash,args)` from the single group `type_script` (a Noesis token tx is single-type by construction,
+  asserted); **`standard` DERIVED from `type_script.code_hash` via a const map** (unknown ⇒ reject) so the
+  digest's standard byte can't be attacker-chosen ([dont-let-attacker-choose-critical-input]); `auth` =
+  `witness[input_index]` (the finalization votes-witness idiom; auth is not in the digest ⇒ no circularity).
+  Build = glue over the ALREADY-PORTED arithmetic ((pp) verify + (qq) digest): load → build `CellView`s →
+  `tx_digest` → `lamport::verify` per input. Pinned: 40s exit namespace, `CONTROL_ENFORCED` sentinel-inert
+  (empty auth passes pre-deploy, presented auth verified for real — consistent with the node (nn) gate),
+  and **the load-bearing DIGEST-PARITY test** (a host-signed sig verifies inside the VM only if the ELF's
+  on-VM digest is byte-equal to `TokenTx::digest` — the on-VM analog of the (qq) proof) + anti-theater
+  (stub verify→true ⇒ wrong-key test RED). node unchanged (design tick — no count bump; suite 300).
+  **NEXT (fresh):** build `onchain/locksig-typescript` to this contract · then the finalization PROGRAM
+  twin-update to `finalizes_pos_pom_fixed` ((oo)) · lock-sig GO-LIVE flip · learned-v(S) (data-blocked).
 - **2026-06-23 (qq)** — BUILT ✅ **tx_digest serializer ported to `noesis-core` — single-source debt PAID**
   — the prerequisite the on-VM lock-script PROGRAM needs (it must recompute the SAME `tx_digest` the node
   signs/verifies over). `TokenTx::digest` flagged this debt explicitly ("move to noesis-core at the on-VM

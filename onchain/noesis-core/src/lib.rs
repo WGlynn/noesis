@@ -775,4 +775,79 @@ pub mod tx {
         h.finalize(&mut out);
         out
     }
+
+    /// An OWNED cell identity — the on-VM lock script loads bytes it owns, then borrows them as a
+    /// [`CellView`] to feed [`tx_digest`]. Same six fields the digest commits to.
+    pub struct OwnedCellView {
+        pub id: u64,
+        pub lock_code_hash: [u8; 32],
+        pub lock_args: Vec<u8>,
+        pub type_code_hash: [u8; 32],
+        pub type_args: Vec<u8>,
+        pub data: Vec<u8>,
+    }
+
+    impl OwnedCellView {
+        /// Borrow this owned record as the digest's `CellView` (zero-copy).
+        pub fn view(&self) -> CellView<'_> {
+            CellView {
+                id: self.id,
+                lock_code_hash: &self.lock_code_hash,
+                lock_args: &self.lock_args,
+                type_code_hash: &self.type_code_hash,
+                type_args: &self.type_args,
+                data: &self.data,
+            }
+        }
+    }
+
+    /// Serialize ONE cell's consensus identity as a self-delimited record, reusing the digest's own
+    /// `serialize_cell` framing so encode and parse share ONE injective format. This is the pre-deploy
+    /// model wire by which the host harness serves a cell's identity to the on-VM lock script (one
+    /// record per `load_cell_data`). At deploy the same fields are sourced from real CKB cell-field
+    /// syscalls (the `CELL_FIELDS_BOUND` binding) — structure now, consensus field-loading at deploy,
+    /// the same boundary as the index-dep and header-`now` bindings.
+    pub fn encode_cell_identity(c: &CellView) -> Vec<u8> {
+        let mut buf = Vec::new();
+        serialize_cell(&mut buf, c);
+        buf
+    }
+
+    /// Parse exactly one record produced by [`encode_cell_identity`]. Bounds-checked end to end —
+    /// returns `None` on any short read OR trailing bytes (the blob must be one whole record), never
+    /// panics on attacker-supplied bytes. The inverse of `serialize_cell`.
+    pub fn parse_cell_identity(data: &[u8]) -> Option<OwnedCellView> {
+        fn take<'a>(d: &'a [u8], p: &mut usize, n: usize) -> Option<&'a [u8]> {
+            let end = p.checked_add(n)?;
+            if end > d.len() {
+                return None;
+            }
+            let s = &d[*p..end];
+            *p = end;
+            Some(s)
+        }
+        fn take_u64(d: &[u8], p: &mut usize) -> Option<u64> {
+            Some(u64::from_le_bytes(take(d, p, 8)?.try_into().ok()?))
+        }
+        fn take_arr32(d: &[u8], p: &mut usize) -> Option<[u8; 32]> {
+            let mut a = [0u8; 32];
+            a.copy_from_slice(take(d, p, 32)?);
+            Some(a)
+        }
+        fn take_var(d: &[u8], p: &mut usize) -> Option<Vec<u8>> {
+            let n = take_u64(d, p)? as usize;
+            Some(take(d, p, n)?.to_vec())
+        }
+        let mut p = 0usize;
+        let id = take_u64(data, &mut p)?;
+        let lock_code_hash = take_arr32(data, &mut p)?;
+        let lock_args = take_var(data, &mut p)?;
+        let type_code_hash = take_arr32(data, &mut p)?;
+        let type_args = take_var(data, &mut p)?;
+        let cell_data = take_var(data, &mut p)?;
+        if p != data.len() {
+            return None; // trailing bytes ⇒ not a single clean record
+        }
+        Some(OwnedCellView { id, lock_code_hash, lock_args, type_code_hash, type_args, data: cell_data })
+    }
 }

@@ -12,6 +12,30 @@ Will: "invite Tom lindeman and Bernhard to noesis private repo so they can help 
   give them the lean-like-Bitcoin design constraint + the value-flow moat thread (the un-gameable v(S)).
 - Check acceptance: `gh api repos/WGlynn/noesis/invitations`.
 
+## 🔝 RESUME HERE (2026-06-23 ~10:00 — "continue building noesis per roadmap": on-VM LOCK SCRIPT BUILT (ss))
+**(ss) the on-VM lock-script PROGRAM is BUILT ✅** — executed the (rr) build contract, the #1 on-VM
+frontier. New crate `onchain/locksig-typescript` (no_std, riscv64imac; mirrors `finalization-typescript`):
+one ELF that, INSIDE the VM, reconstructs the value-movement, recomputes the canonical `tx_digest` via
+the single-sourced `noesis_core::tx` ((qq)), and verifies each input's PQ Lamport sig ((pp)) against the
+cell's `lock.args` root — the on-VM twin of the node's (nn) `spend_is_authorized`, closing
+existence→control at the VM layer. **Single-source codec added** to `noesis_core::tx`
+(`OwnedCellView` + `encode_cell_identity`/`parse_cell_identity`, reusing the digest's `serialize_cell`
+framing) so host and on-VM agree by construction. **10 tests through the ELF** (`node/tests/ckb_vm_locksig.rs`):
+valid→0, wrong-key→42 (existence≠control, the anti-theater anchor — stub verify→true flips it RED,
+confirmed), tampered→42, empty-auth→0 (inert), non-32B root→43, unknown standard→44, mixed-type→45,
+malformed→41, empty group→41; DIGEST PARITY proven directly + end-to-end. Exit namespace 41-45. Siblings
+green (finalization 6 / proven_e2e 10 / commit_order 8); node lib 249, full suite 300→310; 0 new clippy. Commit: see git tip.
+Honest 🟡 deploy-coupled (same boundary as the finalization registry / commit-order coord bindings):
+pre-deploy cell identity rides the served model record via `load_cell_data` (`CELL_FIELDS_BOUND` flips to
+real CKB cell-field syscalls at deploy); `CONTROL_ENFORCED` inert (empty auth authorizes).
+
+**▶ NEXT (BUILD fresh):** (1) finalization PROGRAM twin-update → `finalizes_pos_pom_fixed` ((oo)) — its
+own small fork (cell `mix` vestigial under hardcoded `FINALITY_MIX_Q`: keep-and-assert vs drop). (2)
+lock-sig GO-LIVE flip (`CONTROL_BINDING_ACTIVE` + `CONTROL_ENFORCED` true + populate `auths` across honest
+flows + real-entropy keygen — a deploy step, breaks every empty-auth test until flows carry sigs). (3) 🔬
+Winternitz/SPHINCS+ compression of the 16 KiB Lamport sig. (4) temporal-flow iterated-Shapley fixed-point
+(🔬). (5) **learned-v(S) on real DeepFunding labels = THE moat (data-blocked).**
+
 ## ▶ RESUME HERE (2026-06-21 ~15:00 — WP v5.0 shipped: trim 17→13pp + full coherence/fact/tokenomics audit, committed `9a3f15e`)
 **Whitepaper now v5.0** (master, pushed `9a3f15e`; PDF `~/Desktop/Noesis-Whitepaper-v5.0-2026-06-21-1455.pdf`, 13pp). This session: (1) **trim 17→13pp** typography-only (10pt, 0.7in margins, tight rhythm, 2-col refs, author footnote cut) — Will reverted the prose-compression, full argument preserved; (2) **coherence/fact/tokenomics audit, 16 fixes** — full findings `~/Desktop/noesis-whitepaper-audit-2026-06-21.md`. Headlines: Sztorc 2022→2015; **11 of 37 refs were orphans** (never cited) → all woven into the claim they back (CKB/PBFT/Casper/Minotaur/Flash Boys/Aumann/Bernheim/Gao/Perdomo/Christiano/Maynard Smith); the **PoW "zero-weight" vs "defeat-all-three" contradiction** resolved (halting vs value-capture); **"one PoM = one byte"** made precise (soulbound standing → right to mint a transferable byte); **franchise-decay separated from state-rent**; **"mint and burn balance"** → explicit fixed-point equilibrium; "Trinomial Stability System" reframed as Will's own coinage (was reading as external prior art); test count 286→289. **OPEN (whitepaper):** `docs/WHITEPAPER.md` plain-language markdown rewrite is uncommitted mid-stream (not mine; left untouched) — reconcile vs v5.0 or finish/delete; author's-note (Will-voice); `DESIGN-wills-equilibrium.md` rename; accessible-tier `docs/NOESIS-*.md` sweep vs v5.0.
 
@@ -48,12 +72,16 @@ Will: "invite Tom lindeman and Bernhard to noesis private repo so they can help 
   (no_std, builds riscv) — the single-source debt `TokenTx::digest` flagged, paid. Node delegates;
   byte-identical (the spend/sign test is the regression proof). Commit `731d1fd`. Full suite **300 green**.
   With (pp), BOTH on-VM lock-script ingredients (verify arithmetic + tx_digest) are now single-sourced.
-- **▶ NEXT (all gated):** the two on-VM PROGRAMS — now both reduce to ELF + witness wiring over
-  already-ported noesis-core arithmetic: (a) lock-script ELF (read `lock.args` from the consumed cell +
-  `auth` from the witness + `tx_digest` recomputed via `noesis_core::tx` → `lamport::verify`); (b)
-  finalization ELF (already exists — wire it to call `finalizes_pos_pom_fixed` + header-`now` + fixtures).
-  Mirror the `finalization-typescript`/`commit-order-typescript` scaffold + the `ckb_vm_*` harnesses ·
-  lock-sig GO-LIVE flip · learned-v(S) = THE moat (data-blocked). (`CONTROL_BINDING_ACTIVE=true` + populate `auths` across
+- **(rr) on-VM lock-script PROGRAM — DESIGN tick (build contract DECIDED):**
+  `internal/DESIGN-onvm-locksig-program.md`. Resolves the TokenTx↔CKB-cell fork (every digest field from
+  consensus state; `standard` derived from `type_script.code_hash` via a const map; `auth`=witness[i]).
+  Build = glue over the ported (pp)/(qq) arithmetic. Pinned: 40s exit codes, `CONTROL_ENFORCED` sentinel,
+  the digest-PARITY test, anti-theater. Doc-only; suite still 300.
+- **▶ NEXT (BUILD this fresh):** `onchain/locksig-typescript` to the (rr) contract (mirror
+  `finalization-typescript` + the `ckb_vm_*` host harness). THEN: finalization PROGRAM twin-update to
+  `finalizes_pos_pom_fixed` ((oo)) — its own small design fork (cell `mix` vestigial under hardcoded
+  `FINALITY_MIX_Q`) · lock-sig GO-LIVE flip (`CONTROL_BINDING_ACTIVE` + `CONTROL_ENFORCED`) · learned-v(S)
+  = THE moat (data-blocked). (`CONTROL_BINDING_ACTIVE=true` + populate `auths` across
   honest token flows + real-entropy keygen — a deploy step, breaks every empty-auth test until flows carry
   sigs) · on-VM finalization mirror of the (mm) PoS+PoM rule (Q32.32/RISC-V, large fresh build) · on-VM
   lock-script port of `lamport::verify` · 🔬 Winternitz/SPHINCS+ compression of the 16 KiB one-time sig ·

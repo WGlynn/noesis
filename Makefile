@@ -2,7 +2,7 @@
 # type-scripts build standalone for RISC-V (their own pinned nightly toolchain).
 
 ELF_TARGET := riscv64imac-unknown-none-elf
-SCRIPTS    := pom-typescript finalization-typescript commit-order-typescript
+SCRIPTS    := pom-typescript finalization-typescript commit-order-typescript locksig-typescript
 
 .PHONY: all test fmt fmt-check clippy elf check docs clean
 

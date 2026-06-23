@@ -7,4 +7,4 @@
 [workspace]
 resolver = "2"
 members = ["node", "onchain/noesis-core"]
-exclude = ["onchain/pom-typescript", "onchain/finalization-typescript", "onchain/commit-order-typescript"]
+exclude = ["onchain/pom-typescript", "onchain/finalization-typescript", "onchain/commit-order-typescript", "onchain/locksig-typescript"]

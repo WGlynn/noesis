@@ -18,6 +18,10 @@ noesis-core = { path = "../onchain/noesis-core" }
 
 [dev-dependencies]
 ckb-vm = "0.24"
+# Integration tests call the single-sourced tx digest + Lamport verifier directly (the host
+# wallet side of the on-VM lock script) — noesis-core is a normal dep but isn't auto-visible to
+# the separate integration-test crates, so it is listed here too.
+noesis-core = { path = "../onchain/noesis-core" }
 
 [lib]
 name = "noesis"

@@ -1,0 +1,5 @@
+# Same pinned toolchain that built pom-/finalization-/commit-order-typescript.
+[toolchain]
+channel = "nightly-2024-09-01"
+targets = ["riscv64imac-unknown-none-elf"]
+components = ["rust-src", "llvm-tools-preview"]
