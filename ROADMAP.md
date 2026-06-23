@@ -25,6 +25,23 @@
    proven economic calibration. Re-tune only on real data. Per [P·augmented-mechanism-design-paper].
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-22 (ll)** — BUILT ✅ (Will: "continue kk noesis roadmaps" → "full auto finish roadmap") —
+  **`dispute::unified_settlement`, executing the (kk) build contract.** The (jj) `unified_slash` returns
+  the merged per-identity slash vector; (kk) named the missing piece: a settlement-application caller that
+  burns the NAIVE sum of the two source `Settlement::burned` fields over-reports the sink on any overlap
+  identity, drifting the mint↔sink balance. `unified_settlement(collusion, refutation, overlap, standing)
+  -> Settlement` wraps `unified_slash` and emits the corrected `burned = Σ merged` with
+  `canceled/challenger_payout/author_compensation = 0` — a pure cross-path bound cancels nothing and mints
+  no bounty (those live on the two SOURCE settlements it composes, never replaces). PURELY ADDITIVE: does
+  not touch `unified_slash`, `resolve_refuted`, or `collusion_slash`; lowest blast radius of the moat queue.
+  **TESTED** (`unified_settlement_burned_equals_sum_and_undercounts_overlap`, the two (kk) contract tests in
+  one harness): a overlaps (max(10,6)=10), b disjoint (sum(4,5)=9) ⇒ (1) mint↔sink `burned == Σ slashes ==
+  19`; (2) overlap `burned 19 < collusion.burned(14) + Σ refutation.slashes(11) = 25`. Anti-theater is
+  input-level: drop `a` from `overlap` ⇒ it sums to 16 ⇒ burned 25 == naive ⇒ the strict `<` goes RED, so
+  the overlap collapse is load-bearing. lib 243→**244**, full lib suite green, 0 new clippy (28 pre-existing,
+  all outside the changed region; the one located hit is in `onchain/noesis-core`). **NEXT:**
+  `finalizes_pos_pom` T3-wiring (preserve reference↔on-VM parity) · lock-sig DEPLOY (link crypto verifier) ·
+  2-level recursion (P2) · learned-v(S) on real labels = THE moat (data-blocked).
 - **2026-06-21 (kk)** — DESIGN tick (no code; PCP-gate — deep context ~8h, and the build touches
   the mint↔sink value-accounting = COHERENCE-LAWS = load-bearing ⇒ decide now, build fresh). Names the
   `unified_slash` **burned-accounting gap** surfaced while building (jj): the overlap branch collapses

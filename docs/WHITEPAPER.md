@@ -4,34 +4,44 @@
 
 ---
 
+> **Bitcoin proves you wasted energy. Proof of Mind proves you contributed a valuable
+> thought — and pays you for the mind, not the megawatts.**
+
 ## Abstract
 
-Bitcoin is widely *imagined* as a value chain: a ledger where doing valuable work
-earns provable, accruing, transferable value. It is not. Bitcoin is a *possession*
-chain — it records who holds which token, orders blocks by burned energy, and lets an
-external market price the token. The "work" in proof-of-work is decoupled from any
-useful output; it is hashing. This paper specifies the system that the folk myth
-describes: a chain on which value is **created** (as units of contribution),
-**measured endogenously** (by a cooperative-game value function over real outcomes),
-**owned and transferred** (UTXO-style), and used to **secure consensus** — by *Proof
-of Mind* (PoM), a proof of verified, synergy-weighted mental contribution, in place of
-proof of wasted energy. We give the architecture (provenance-complete blocks,
-Bitcoin-shaped ownership, a synergy outcome-value aggregated by the Myerson value over
-a provenance DAG, elicited by a learned reward model and estimated by Data-Shapley
-sampling), the consensus mechanism (PoM-weighted, with a stability constraint), and a
-mapping from Theory of Mind to Proof of Mind. We are explicit about the one hard
-problem a value chain cannot sidestep — trustworthy, un-gameable value *measurement* —
-and treat it as the load-bearing open problem rather than a solved one.
+Everyone thinks Bitcoin rewards valuable work. It doesn't. It rewards burning
+electricity — miners race to guess random numbers, and the guessing produces nothing
+useful. Bitcoin only tracks *who owns which coin* and orders blocks by who burned the
+most power; the coin's worth is decided off-chain by a market. The popular story —
+"do work, earn value proportional to it" — is a myth no chain has actually built.
+
+This paper builds it. **Proof of Mind** (PoM) is a chain that rewards *thinking that
+turns out to be valuable* instead of wasted energy. You contribute an idea — a *block
+of thought* — and lock it in secretly before revealing it, so no one can steal or
+front-run it. The network then measures how much your idea actually added: was it new,
+did it build on others, did it lead to real downstream value? Padding, spam, and
+collusion score zero. That measured contribution becomes two things: **reputation you
+cannot sell** (your standing and your weight in consensus) and **a tradable resource**
+(spendable, like money, to use the network).
+
+We give the full architecture — provenance-complete blocks, Bitcoin-shaped ownership,
+a synergy value aggregated by the Myerson value over a provenance DAG, elicited by a
+learned reward model and estimated by Data-Shapley sampling — the PoM-weighted
+consensus mechanism, and the mapping from Theory of Mind to Proof of Mind. And we are
+honest about the one hard problem a value chain cannot dodge: measuring contribution
+fairly, in a way no one can game. We treat that as the load-bearing open problem we are
+building, not one we pretend is solved.
 
 ---
 
 ## 1. Introduction: the value chain Bitcoin is mistaken for
 
-Proof-of-work secures *order*, not *value*. A miner proves it expended energy; the
-network agrees on a transaction ordering; the coin's worth is set off-chain by a
-market. Nowhere does the chain record *who contributed what value*. The popular
-intuition — "miners do work and earn value proportional to it" — is a category error:
-the work is arbitrary, and the value is exogenous.
+Picture what most people believe Bitcoin is: do valuable work, earn value for it. Now
+look at what it actually does. A miner burns electricity to win a number-guessing race,
+the network agrees on an ordering of transactions, and the coin's price is set somewhere
+else entirely — by a market. Nowhere does the chain record *who contributed what value*.
+The work is arbitrary. The value comes from outside. The thing everyone imagines Bitcoin
+to be has never been built.
 
 A genuine value chain would instead record contribution itself: each unit of value
 created, measured by what it actually added, attributed to its creator, transferable,
@@ -65,23 +75,29 @@ flowchart LR
 
 ## 2. The block: a unit of provenance
 
+**In plain terms:** a "block" here isn't a batch of payments — it's one piece of work
+you produced, with a record of *how* you got there, so anyone can check it's real.
+
 A block is the unit a participant produces: `{id, parent, timestamp, inputs, output,
-hash}`. Inputs are retained so that *how the output came about is provable and
+hash}`. The inputs are kept too, so that *how the output came about is provable and
 reproducible* — provenance, not just possession. Authorship is made un-front-runnable
 by **commit-reveal**: a producer publishes `hash(block ‖ secret)` with a signature and
-timestamp before revealing content, binding authorship and ordering before disclosure
-(the same mechanism a fair batch exchange uses to eliminate MEV). Failure to reveal
-valid content after committing is slashable.
+timestamp before revealing content, locking in who made it and when before anyone sees
+it (the same trick a fair exchange uses to kill front-running). Commit, then fail to
+reveal valid content, and you get slashed.
 
 ## 3. Ownership: Bitcoin-shaped, recursive for co-authorship
 
-Each block is locked to an owner public key. Only the current owner's key produces a
-valid block-attestation, and ownership is **transferable**: the current owner signs a
-reassignment to a new key, exactly as a UTXO is spent to a new locking script. Current
-ownership is not stored as a mutable table; it is *derived* by folding a signed
-transfer log over a genesis owner — the ownership set is a fold over transaction
-history, so there is nothing to forge. Transfer voids the prior owner's attestation;
-the new owner must re-sign.
+**In plain terms:** you own your contribution the same way you own a Bitcoin — only
+your key controls it, and you can hand it to someone else. And because real work usually
+has more than one author, ownership can be split into shares.
+
+Each block is locked to an owner's public key. Only the current owner's key produces a
+valid block-attestation, and ownership is **transferable**: the current owner signs it
+over to a new key, exactly as a Bitcoin is spent to a new address. Ownership isn't
+stored as a table someone could edit; it's *derived* by replaying the signed transfer
+log from the original owner forward — so there is nothing to forge. A transfer voids the
+old owner's attestation; the new owner must re-sign.
 
 **Multiple contributors.** A real block often has several authors (a prompt, a
 generation, a correction). Ownership is then a *share vector* — a set of (contributor,

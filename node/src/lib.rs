@@ -4295,6 +4295,38 @@ pub mod dispute {
         out
     }
 
+    /// The unified cross-path Settlement (ROADMAP (kk)): wrap [`unified_slash`] so the
+    /// settlement-application caller receives ONE `Settlement` whose `burned` is the
+    /// CORRECTED `Σ unified_slash` — the standing actually destroyed once the overlap
+    /// double-slash is collapsed to `max`. Emits ONLY the merged slashes; `canceled`,
+    /// `challenger_payout`, and `author_compensation` are zero by construction — a pure
+    /// cross-path slash bound cancels nothing and mints no new bounty (those live on the two
+    /// SOURCE settlements, which this composes, never replaces).
+    ///
+    /// Mint<->sink (COHERENCE-LAWS): `burned == Σ slashes` exactly (the sink equals the
+    /// standing removed), and on any overlap identity slashed by BOTH source paths,
+    /// `burned < collusion.burned + Σ refutation.slashes` — strictly less, because the
+    /// overlap's two slashes collapse to their `max`. A caller that instead summed the two
+    /// source `burned` fields would over-report the sink and drift the balance; this
+    /// constructor is the single correct burned figure. Deterministic: `slashes` are in the
+    /// canonical sorted order [`unified_slash`] emits.
+    pub fn unified_settlement(
+        collusion: &Settlement,
+        refutation: &Settlement,
+        overlap: &std::collections::HashSet<Vec<u8>>,
+        standing: &HashMap<Vec<u8>, u64>,
+    ) -> Settlement {
+        let slashes = unified_slash(collusion, refutation, overlap, standing);
+        let burned = slashes.iter().map(|(_, amt)| *amt).sum();
+        Settlement {
+            canceled: 0.0,
+            slashes,
+            challenger_payout: 0.0,
+            author_compensation: 0.0,
+            burned,
+        }
+    }
+
     // ============ §7 — escalation court + juror accountability ============
     // The judge-cartel structural counter (design doc §7). Round 1 is PoM-only (cheap);
     // its veto is NOT final: an appeal escalates to the AND-composed full-mix tribunal
@@ -4812,6 +4844,54 @@ pub mod dispute {
             let standing = standing_of(&[(1, 0)]);
             let merged = unified_slash(&collusion, &refutation, &overlap, &standing);
             assert!(merged.is_empty(), "no standing ⇒ nothing to slash, no zero-amount entries emitted");
+        }
+
+        #[test]
+        fn unified_settlement_burned_equals_sum_and_undercounts_overlap() {
+            // ROADMAP (kk): the cross-path Settlement constructor. `a` overlaps (one harm →
+            // max), `b` is disjoint (two distinct harms → sum). Two contract assertions:
+            // (1) mint<->sink — the Settlement's `burned` equals Σ of the merged slashes;
+            // (2) overlap — that corrected sink is STRICTLY LESS than naively summing the two
+            // source burned figures, because the overlap double-slash collapsed to its max.
+            let (a, b) = (vec![1u8], vec![2u8]);
+            let collusion = Settlement {
+                slashes: vec![(a.clone(), 10.0), (b.clone(), 4.0)],
+                burned: 14.0,
+                ..Default::default()
+            };
+            let refutation = Settlement {
+                slashes: vec![(a.clone(), 6.0), (b.clone(), 5.0)],
+                burned: 11.0,
+                ..Default::default()
+            };
+            let mut overlap = std::collections::HashSet::new();
+            overlap.insert(a.clone()); // a's collusion manufactured the refuted target — one harm
+
+            let standing = standing_of(&[(1, 100), (2, 100)]);
+            let s = unified_settlement(&collusion, &refutation, &overlap, &standing);
+
+            // a → max(10,6)=10 ; b → sum(4,5)=9 ; Σ = 19.
+            let sum_slashes: f64 = s.slashes.iter().map(|(_, x)| *x).sum();
+            // CONTRACT TEST 1 (mint<->sink): the sink burned equals the standing removed.
+            assert_eq!(s.burned, sum_slashes, "burned == Σ slashes (mint<->sink balance)");
+            assert_eq!(s.burned, 19.0, "10 (overlap max) + 9 (disjoint sum)");
+            // A pure cross-path bound cancels nothing and mints no bounty.
+            assert_eq!(s.canceled, 0.0);
+            assert_eq!(s.challenger_payout, 0.0);
+            assert_eq!(s.author_compensation, 0.0);
+
+            // CONTRACT TEST 2 (overlap undercount): strictly under the naive two-path sum.
+            // ANTI-THEATER: drop `a` from `overlap` (treat it as disjoint) ⇒ a sums to 16 ⇒
+            // burned becomes 25 == collusion.burned(14) + Σ refutation.slashes(11) ⇒ this strict
+            // inequality goes RED. The overlap collapse is load-bearing, not decoration.
+            let naive_two_path_sum: f64 =
+                collusion.burned + refutation.slashes.iter().map(|(_, x)| *x).sum::<f64>();
+            assert!(
+                s.burned < naive_two_path_sum,
+                "overlap collapse ⇒ corrected sink ({}) strictly under naive two-path sum ({})",
+                s.burned,
+                naive_two_path_sum
+            );
         }
 
         #[test]
