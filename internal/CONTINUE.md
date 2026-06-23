@@ -34,7 +34,14 @@ Will: "invite Tom lindeman and Bernhard to noesis private repo so they can help 
   end-to-end through `node.validate` + anti-theater RED on stub. `CONTROL_BINDING_ACTIVE` still false (gates
   only empty-auth tolerance) so honest flows unchanged. keygen/sign are `cfg(test)` (a node only verifies).
   Commit `216b4ec`. lib 248, full suite **298 green**.
-- **▶ NEXT (all gated):** lock-sig GO-LIVE flip (`CONTROL_BINDING_ACTIVE=true` + populate `auths` across
+- **(oo) on-VM finalization mirror of (mm) BUILT ✅:** `noesis-core::finalizes_pos_pom_fixed` +
+  `FINALITY_MIX_Q` + `MIN_DIM_BPS` + `dim_ok_q` — the live PoS+PoM rule in pure Q32.32, builds host AND
+  riscv64imac, drift-guarded vs the f64 (mm) rule (conservative direction + anti-concentration), anti-theater
+  RED on `dim_ok_q→true`. Closes the (mm) forward-parity: the live rule and its on-VM arithmetic are now one.
+  Re-exported in node lib (single source). Commit `9de617f`. lib 300, full suite **300 green**. Remaining 🟡 =
+  the on-VM PROGRAM (ELF calling it + header-`now` + fixtures).
+- **▶ NEXT (all gated):** on-VM finalization PROGRAM (ELF type-script + header-`now` sourcing + fixtures) ·
+  on-VM lock-script port of `lamport::verify` · lock-sig GO-LIVE flip (`CONTROL_BINDING_ACTIVE=true` + populate `auths` across
   honest token flows + real-entropy keygen — a deploy step, breaks every empty-auth test until flows carry
   sigs) · on-VM finalization mirror of the (mm) PoS+PoM rule (Q32.32/RISC-V, large fresh build) · on-VM
   lock-script port of `lamport::verify` · 🔬 Winternitz/SPHINCS+ compression of the 16 KiB one-time sig ·
