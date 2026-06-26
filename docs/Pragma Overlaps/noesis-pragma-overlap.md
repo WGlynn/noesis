@@ -1,37 +1,44 @@
-# Noesis and Pragma Coherence: where the two systems are the same system
+# Noesis and Pragma Coherence: the same primitive at two layers
 
-This note lays out, concretely, where Noesis and Pragma's OPH and Coherence work overlap, so we are looking at the same object. The prompt for it was a line from the consensus discussion that stuck: everything that is true overlaps with OPH. I think that is right, and this is the work shown for why.
+The line from the consensus discussion that prompted this was: everything that is true overlaps with OPH. I want to make the overlap precise enough to be useful, not flattering. The test I am holding myself to is simple: if a sentence about Noesis stays true when you swap in any other chain's name, I have said nothing. So this is only the parts that do not survive that swap.
 
-Noesis is public, so nothing here needs to stay private. Where I describe a composition between the two systems I mark what is a built mechanism versus a thesis we have not yet jointly built. I would rather understate it.
+Noesis is public now, so its mechanism is fair to describe. I mark thesis versus built where it matters.
 
-## The shared claim
+## The primitive, and the one axis that is not shared
 
-OPH says reality is an observer-overlap fixed-point. Noesis says contribution and value are a mechanism-overlap fixed-point. That is the same shape in two substrates. In both, the thing you are solving for is not stored anywhere locally. It is whatever survives when many local consistencies are forced to agree. The same markets-as-overlap angle was reached independently from the OPH side, which is the part that makes this a shared research program rather than an analogy.
+Pragma certifies an agent's actions against a declared manifest from the outside. A Coherence License, an external verifier, an H1 obstruction over the action graph. The question it answers is: did the agent stay inside its declared intent. Proof of intended execution, externally attested.
 
-So when the claim is that everything true overlaps with OPH, I read it not as a slogan but as a claim about how truth is established at all: by coherence across overlapping views. Noesis is that claim instantiated in an economic substrate. A contribution is valuable if and only if it coheres with the realized downstream value-flow that overlapping evaluators converge on. Noesis is not adjacent to OPH. It is an OPH-shaped object pointed at contribution instead of physics.
+Noesis enforces state transitions against declared rules from the inside of consensus. The gate refuses an incoherent transition, so an action is in bounds before it ever finalizes rather than certified as in-bounds afterward. Proof of intended execution, native. Same primitive, one layer in.
 
-## The composition: adjacent layers, not the same fight
+That much is a clean duality and it already fails the swap test for a generic chain, because a generic chain validates signatures and balances, not coherence against a declared intent manifest. But here is the axis Pragma does not have and no settlement chain has: Noesis prices which mind earns the credit. Coherence is the floor, the did-you-stay-in-bounds check. Proof of Mind is the layer on top that asks what was contributed and routes value to the contributor by provenance. Swap Ethereum into "prices which mind the value is owed to by tracing the contribution graph" and it is false. That sentence is the point of Noesis, and it is the half of the stack Pragma is not building.
 
-The cleanest way to see the fit is by what each system produces. Noesis produces blocks. It is a block-producer with Proof-of-Mind consensus and value attribution, and it boots and mines on commodity hardware today. Pragma Coherence produces certificates for on-chain actions and has no blocks of its own. It attests to actions produced elsewhere.
+## A receipt, so this is not vibes
 
-That is a mutual fit, not an overlap to fight over. Noesis is the block-producer a certificate layer needs something to attest. Pragma is the formal verification Noesis currently carries with tests alone. Noesis blocks, attested by Pragma certs. Two stacked layers. This is a thesis we have not jointly built yet, but neither side has to bend its design for it to be true.
+An adversarial pass on the Noesis token layer found an action the gate would have wrongly accepted as coherent: spend 1000 while owning 6, because cell existence was bound to identity but not to amount. Caught, closed with a one-line fix, regression pinned. That is a coherence-RED on our own substrate, found by running intended-execution checks natively at the consensus gate. It is the exact failure class Pragma sells the external detection of, found internally before finalization. The two layers are not analogous by hand-waving; they catch the same bug from opposite sides.
 
-## Three places the Coherence tools bite, concretely
+## The math bridge, term for term
 
-**Confluence and rule-mutation axiom-preservation.** Noesis is a rule-set that mutates: governance changes the dispute-stack parameters, the value rule has versioned several times, and finalization composes a Proof-of-Work, Proof-of-Stake, and Proof-of-Mind mix. Across all of it the standing question is the 2x2: does a given mutation preserve the cooperative-game axioms (Myerson and Shapley null-player, symmetry, efficiency) and strategyproofness, or does it land in the dangerous quadrant, confluent but axiom-breaking, the one nobody is checking today. The dispute-slashing and outcome-evaluator surfaces are exactly where this lives, and the design already insists the learned evaluator can inform timing but never mint, precisely because proving axiom-preservation of a learned value function is the wrong shape. Checking the rule mutation is the right shape. That is Confluence.
+This is where the overlap stops being a slogan. The disagreement machinery lines up directly, and the pieces are standard enough (constraint codes, term rewriting, Lyapunov descent) that the correspondence is checkable, not asserted.
 
-**Topos and the provenance graph.** Noesis value flows over a provenance multigraph by eigenvector value-flow with a two-level recursion. The same H1 obstruction and fungibility lens that applies to wrapped-asset bridge graphs should apply here, where what builds on what has parallel edges by certifying identity. If the provenance multigraph carries an H1 obstruction analogous to the bridge case, that is a real result, not a metaphor.
+- A patch net is a graph where each node holds local state and each edge is an interface where neighbors compare. That is the Noesis replica graph, and one level down, the cell-provenance graph.
+- An inconsistency potential sums weighted disagreement across every interface; the consistent states are exactly the zero set of that potential. That is the converged Noesis ledger: every replica's state digest agrees.
+- A law is a local repair map that commits only if it strictly lowers the disagreement it touches. That is the Noesis apply step, the finalized deterministic version of the same monotone move; idempotent index insertion gives the same behavior.
+- Asynchronous confluence to a unique normal form is Newman's lemma: local confluence plus termination yields a schedule-independent result. That is the Noesis convergence guarantee verbatim: two honest nodes applying the same finalized blocks reach an identical digest regardless of order.
 
-**Reconcile and Witness and deterministic finalization.** Two Noesis nodes that finalize the same blocks must converge on the same state digest. The question of state that lives outside the agents is exactly what the Cell model and commit-reveal ordering formalize, and it is where a productized Reconcile would have a real substrate to verify against rather than a toy.
+One level up, selecting among laws by which ones let observers agree most efficiently is a replicator dynamic over the space of rules. That is mechanism selection, the same object as augmented mechanism design: a rule survives only if it makes coordination the surviving equilibrium. The observer-agreement requirement is the selector on both sides. That is the cleanest formal bridge between a physics-flavored consensus and a contribution-pricing chain, and it is why the convergence is not a coincidence.
 
-## The deeper unifier
+One honest distinction worth keeping straight rather than blurring for effect: the OPH error model is redundancy-based, many observers redundantly recording the same fact so disagreement is correctable by code distance. The Noesis integrity model is cryptographic, a hash root that makes a record un-forgeable by collision resistance. Same goal, un-forgeable agreed state, different threat model. Naming the difference is the part that makes the rest credible.
 
-Both systems make incoherence structurally costly. Noesis prices dishonesty by slashing at network scale. Coherence certifies consistency at formal scale. It is the same principle at two scales, and it is why this keeps converging. The version of it worth holding onto is that honesty becomes a load-bearing structural property: a protocol where dishonesty is simply not profitable, so you do not have to assume good actors. A third independent arrival at the same invariant, from intra-agent honesty work at the scale of a single mind, would make it three, which is the part that argues the abstraction is real rather than a few groups flattering each other.
+## The composition and the endgame it serves
+
+So the stack is not two overlapping products, it is two halves. Native coherence at the gate (Noesis) plus external certification any counterparty can verify in one call (Pragma) plus a value axis that prices contribution (Noesis PoM). The soulbound Coherence License and a soulbound PoM attestation are the same shape of object pointed at different questions, authorization versus credit.
+
+The endgame this serves is concrete. A sovereign agent that runs as a Noesis-native subject has every state transition coherence-checked by the gate before it finalizes, carries an external Coherence License any third party verifies without trusting us, and earns PoM for what it produces. Pragma is the credential such an agent shows the world. That is a real reason the two systems want each other, not a partnership for its own sake.
 
 ## The open question that is worth a paper
 
-Where does OPH's observer-overlap consistency formally meet Proof-of-Mind's contribution-overlap finalization? If there is a shared fixed-point theorem under both, that is a joint paper, and I think it exists.
+Where does OPH's observer-overlap consistency formally meet Proof-of-Mind's contribution-overlap finalization? Both are fixed points of a disagreement-lowering dynamic over a partial order; if there is a single fixed-point theorem under which the observer case and the contribution case are instances, that is a joint paper.
 
-The shared hard part underneath it is the ground-truth oracle. What gives Noesis's value function its ground truth, and what gives a coherence certificate its ground truth, is the same unsolved question in two costumes. Noesis's current answer is to source value from realized downstream flow rather than a proxy, and to treat the residual of that flow as the hard-to-game certificate. Whether that maps onto how a Coherence cert is grounded is the question worth answering, because if it does, the oracle problem has one solution and not two.
+The shared hard part under it is the ground-truth oracle. What grounds a coherence certificate, and what grounds Noesis's value function, is the same unsolved question in two costumes. Noesis's current answer is to source value from realized downstream flow rather than a declared proxy, and to treat the residual of that flow, the part no reordering of credit can explain away, as the certificate that is hard to game. Whether that residual maps onto how a coherence cert is grounded is the question I actually want answered, because if it does, the oracle problem has one solution and not two.
 
-That is the overlap. Same research program, two substrates, and a composition that does not ask either side to give anything up.
+That is the overlap that survives the swap test. Same operator, two layers, and one axis, contribution pricing, that only one side is building.
