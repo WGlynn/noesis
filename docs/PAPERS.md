@@ -22,3 +22,7 @@ These state where the protocol is headed and are marked as design theses, not bu
 - **Reflexive provenance** — any external data Noesis ingests is itself attributed; the first instance is the DeepFunding ingestion.
 
 Status note: where these theses rely on a *learned* value function being un-gameable, that property is unproven — its first real-data test came back null (unsupported, not refuted). The papers carry a status ledger that marks each claim as built, designed, or open.
+
+## Reference
+
+- **Tokenomics** ([`TOKENOMICS.md`](TOKENOMICS.md)) — the canonical token model: three tokens (JUL = money, VIBE = governance, state-bytes = capital) plus **soulbound PoM-standing** as the unbuyable consensus weight. Clarifies that *Ergon* is a design model for JUL, not a token, and marks honestly what is built (soulbound PoM + transferable state-bytes) versus designed (the JUL money layer).
