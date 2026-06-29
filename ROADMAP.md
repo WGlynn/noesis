@@ -28,6 +28,24 @@
    proven economic calibration. Re-tune only on real data. Per [P·augmented-mechanism-design-paper].
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-29 RESEARCH INPUT (not a build)** — literature sweep on loop-engineering / verifier-gaming
+  (full synthesis off-repo: `~/Desktop/loop-engineering-self-improvement-synthesis-2026-06-29.md`).
+  Headline (Helff et al. arXiv:2604.15149, controlled causal result): proxy/extensional verifiers are
+  systematically gamed; the demonstrated fix is **invariance-based verification** + hardening loops that
+  re-validate legit work survives the patch. Four candidate moat items, honest priority:
+  - 🔬 **(cand-A, P1, hard)** isomorphism-invariance gate for v(S): score v(S) under structure-preserving
+    relabeling/permutation; a gaming vector breaks invariance, honest work doesn't. UNSOLVED for
+    coalitional/Shapley measures (demonstrated only on symbolic reasoning); maps onto the HodgeRank-residual
+    certificate (relabel-invariance ≈ topology-only harmonic component). Design pass warranted, not a port.
+  - 🟡 **(cand-B, P1, cheap)** solver/legitimacy guard (Hacker-Fixer-Solver, arXiv:2606.08960): every v(S)
+    patch must keep a regression set of KNOWN-LEGIT contributions scoring. This is the auto-check for the
+    (xx) Will-review flag — would catch the 0.95 floor over-cutting honest near-overlap work.
+  - 🟡 **(cand-C, P2)** v(S)-refresh cron + anti-recycling "seen-vectors" memory (GVU arXiv:2512.02731 proves
+    refresh is structurally necessary to reset generator-verifier correlation; R-Diverse arXiv:2602.13103
+    "Diversity Illusion"). Natural host = the daily `noesis-extraction-audit` cron. Our loop patches but has
+    no refresh cadence or anti-recycling memory ⇒ a standing adversary will eventually re-find patched vectors.
+  - 🟡 **(cand-D, P2)** shared defense pool: a structural patch (like the (xx) floor) propagates across all
+    v(S) contexts, not just where found. Caveat: generalizes for infra-level patches, less for one-off rules.
 - **2026-06-29 (xx)** — BUILT ✅ (pom-roadmap-advance / adversarial-gaming loop, the moat) — **found + closed
   a NEW runtime gaming vector: the paraphrase-padding sybil ring.** The (e) runtime test only proved that
   an IDENTICAL-content ring banks ≤1 cell (plain temporal-novelty zeroes exact duplicates). But the live
