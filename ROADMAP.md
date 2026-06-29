@@ -28,6 +28,26 @@
    proven economic calibration. Re-tune only on real data. Per [P·augmented-mechanism-design-paper].
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-29 (xx)** — BUILT ✅ (pom-roadmap-advance / adversarial-gaming loop, the moat) — **found + closed
+  a NEW runtime gaming vector: the paraphrase-padding sybil ring.** The (e) runtime test only proved that
+  an IDENTICAL-content ring banks ≤1 cell (plain temporal-novelty zeroes exact duplicates). But the live
+  attribution path — `runtime.rs::apply` → `pom_scores` → plain `temporal_novelty` — was NOT using the
+  near-duplicate similarity floor that already exists in the lib (`temporal_novelty_with_similarity_floor_q16`,
+  wired into `value_v5..v8` but never into the consensus PoM gate). So a smarter attacker flipping a few bytes
+  per copy (near-dup, not exact-dup) leaks the change-spanning shingles as residual novelty: a ring of K
+  near-copies banked ~K cells of standing at runtime. **Demonstrated RED→GREEN:** the new test
+  `paraphrase_padding_ring_cannot_multiply_standing_through_runtime` (node/tests/gaming.rs) FAILS on the plain
+  rule (ring multiplied standing across all 5 identities) and PASSES once the floor is wired. **Fix:** added
+  `pom_scores_with_similarity_floor_q16` (lib.rs, deterministic integer cross-multiplied overlap — replica-safe)
+  + a `theta_sim_q16` field on the genesis `Constitution` (default `62259` = 0.95, only near-identical cells
+  cut) + routed `apply` through it. Full node suite **317/317 green**, 0 new clippy. **⚑ WILL-REVIEW FLAG:**
+  this makes the near-dup floor a *consensus-affecting* parameter (PoM drives the finality franchise). The
+  conservative 0.95 default cuts only near-identical cells, but honest work that builds VERY closely on prior
+  content (>95% coverage overlap) would also be floored — the lib comment notes this should ideally compose
+  with the learned quality model, which the runtime PoM path does not yet carry. `theta_sim_q16` is a
+  Constitution param so it stays governable / tunable. Open question for you: is 0.95 the right consensus
+  default, or should the floor wait until the quality model is in the runtime path? **Distinct from (e):** (e)
+  = exact-dup ring (already bounded by the plain rule); (xx) = near-dup ring (needed the floor).
 - **2026-06-23 (ww)** — NULL RESULT ✗ (honesty-critical) — **first real-data test of the learned `v(S)`
   moat (moat-1) on REAL DeepFunding jury labels returned NULL.** Write-up: `data/deepfunding/RESULTS.md`.
   **Headline:** a LEARNED `v(S)` (Bradley-Terry over set-level structural features) does NOT reliably beat

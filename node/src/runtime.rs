@@ -22,7 +22,7 @@
 use crate::commit_order::{canonical_order, is_canonical_order, Committed};
 use crate::consensus::{Mix, Validator, NCI, TWO_THIRDS_BPS};
 use crate::smt::{Hash, NoveltyIndex};
-use crate::{coverage, pom_scores, tokens, Cell, Script};
+use crate::{coverage, pom_scores_with_similarity_floor_q16, tokens, Cell, Script};
 use std::collections::{HashMap, HashSet};
 
 // ============ Constitution — how value is measured (the amendment frame) ============
@@ -48,6 +48,12 @@ pub struct Constitution {
     pub horizon: u64,
     /// NCI as-built decays PoW+PoM only; `true` decays PoS too (the symmetric fix).
     pub decay_pos: bool,
+    /// near-duplicate similarity floor for the PoM / attribution gate, Q16.16. A cell whose
+    /// coverage overlap with earlier-committed coverage exceeds this fraction earns 0 novelty —
+    /// the paraphrase-padding-ring defense (loop 3). Conservative default 0.95 cuts only
+    /// near-identical cells; honest novel work (low overlap) is untouched. Lives here because it
+    /// governs HOW value is measured (the measurement-amendment frame).
+    pub theta_sim_q16: u64,
 }
 
 impl Default for Constitution {
@@ -58,6 +64,7 @@ impl Default for Constitution {
             quorum_floor_bps: 0,
             horizon: 0,
             decay_pos: false,
+            theta_sim_q16: 62259, // floor(0.95 · 2^16) — only near-identical cells are cut
         }
     }
 }
@@ -492,7 +499,8 @@ impl Node {
             self.ledger.cells.push(cell.clone());
         }
         self.ledger.height = b.height;
-        self.ledger.pom = pom_scores(&self.ledger.cells);
+        self.ledger.pom =
+            pom_scores_with_similarity_floor_q16(&self.ledger.cells, self.constitution.theta_sim_q16);
     }
 
     /// Drop mempool entries (called after a block finalizes; v1 clears the whole pool since

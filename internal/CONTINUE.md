@@ -4,6 +4,21 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## 🔝 RESUME HERE (2026-06-29 — adversarial loop (xx): runtime near-dup floor) [full-auto, Will recovering]
+- **BUILT ✅** closed a runtime gaming vector: the **paraphrase-padding sybil ring**. The live PoM path
+  (`runtime.rs::apply` → `pom_scores` → plain `temporal_novelty`) was NOT using the near-dup similarity floor
+  that already exists in the lib. A ring of K near-duplicate copies (few bytes flipped) leaked residual novelty
+  and banked ~K cells of standing. Fix: `pom_scores_with_similarity_floor_q16` (deterministic, replica-safe)
+  + `Constitution.theta_sim_q16` (0.95 default) routed through `apply`. New regression
+  `paraphrase_padding_ring_cannot_multiply_standing_through_runtime` (RED on plain rule, GREEN with floor).
+  **node suite 317/317 green, 0 new clippy.** Full write-up: ROADMAP.md adversarial-loop log **(xx)**.
+- **⚑ WILL DECISION PENDING:** the floor is now *consensus-affecting* (PoM drives finality franchise). 0.95
+  cuts only near-identical cells, but honest work with >95% coverage overlap would also be floored (lib note:
+  ideally compose with the learned quality model, not yet in the runtime path). Is 0.95 the right consensus
+  default, or hold the floor until the quality model is in-path? `theta_sim_q16` is a governable Constitution param.
+- **NEXT (unchanged moat priority):** the faithful provenance-feature port over the Rust `outcome` set-level
+  DAG features — the open real test after the (ww) learned-`v(S)` NULL result.
+
 ## 🔝 RESUME HERE (2026-06-23 ~12:30 — naming resolved + M1/M2 drafted)
 - **NAMING (Will: "neutral everywhere"):** "Will's Equilibrium" → **Honest-Contribution Equilibrium (HCE)**
   across all active surfaces (roadmap spine, `node/src/lib.rs` comments, ROADMAP.md, STUDY-GUIDE.md,

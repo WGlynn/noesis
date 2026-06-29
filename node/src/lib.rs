@@ -168,6 +168,30 @@ pub fn pom_scores(cells_in_commit_order: &[Cell]) -> HashMap<Vec<u8>, u64> {
     pom
 }
 
+/// PoM score per contributor WITH the near-duplicate similarity floor — the runtime / consensus
+/// attribution path. Mirrors [`pom_scores`] but routes novelty through the deterministic Q16.16
+/// floor ([`value_fixed::temporal_novelty_with_similarity_floor_q16`]) instead of plain
+/// [`temporal_novelty`]. The plain rule zeroes only EXACT duplicates; a paraphrase-padding ring
+/// (near-identical cells, a few bytes flipped) leaks the change-spanning shingles as small residual
+/// novelty, so K near-copies bank ~K cells of standing. The floor zeroes any cell whose coverage
+/// overlap with earlier-committed coverage exceeds `theta_sim_q16`, bounding the ring to a single
+/// cell's coverage. Integer cross-multiplied overlap ⇒ bit-identical across replicas, so it is safe
+/// to drive the consensus franchise. `theta_sim_q16` is carried by the genesis Constitution (the
+/// measurement-amendment frame); a conservative value cuts only near-identical cells and leaves
+/// honest novel work (low overlap) untouched.
+pub fn pom_scores_with_similarity_floor_q16(
+    cells_in_commit_order: &[Cell],
+    theta_sim_q16: u64,
+) -> HashMap<Vec<u8>, u64> {
+    let vals =
+        value_fixed::temporal_novelty_with_similarity_floor_q16(cells_in_commit_order, theta_sim_q16);
+    let mut pom: HashMap<Vec<u8>, u64> = HashMap::new();
+    for (c, v) in cells_in_commit_order.iter().zip(vals) {
+        *pom.entry(c.type_script.args.clone()).or_insert(0) += v;
+    }
+    pom
+}
+
 /// Shardability: cells partition by id; no cross-shard state dependency in the cell
 /// itself (the only shared object is the committed novelty-set, distributed as a
 /// commitment in production).

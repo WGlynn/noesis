@@ -105,3 +105,64 @@ fn cross_block_redundancy_earns_zero() {
     let copycat = n.ledger.pom.get(&b"copycat".to_vec()).copied().unwrap_or(0);
     assert_eq!(copycat, 0, "copycat earned standing for re-posting already-committed content");
 }
+
+#[test]
+fn paraphrase_padding_ring_cannot_multiply_standing_through_runtime() {
+    // The harder sybil vector. The IDENTICAL-content ring above is already zeroed by plain
+    // temporal-novelty (exact duplicates earn 0). A smarter attacker flips a few bytes so the
+    // copies are NEAR-duplicates: plain temporal-novelty leaks the change-spanning shingles as
+    // small residual novelty, so a ring of K near-copies banks ~K cells' worth of standing. The
+    // runtime PoM gate must apply the similarity floor (Constitution.theta_sim_q16) so the ring is
+    // bounded to a single cell's coverage regardless of how many near-copies are minted.
+    let vs = vec![validator(0, 100.0), validator(1, 100.0)];
+    let mut a = Node::new(0, vs.clone(), Constitution::default());
+    let mut b = Node::new(1, vs.clone(), Constitution::default());
+
+    let mut proposals = vec![(
+        cell(1, b"honest", 1, b"honest unique contribution alpha beta gamma delta epsilon zeta eta"),
+        Committed { height: 1, secret: secret(1) },
+    )];
+    // a long shared padding base; each sybil flips ONLY the final byte, leaving coverage overlap
+    // far above the 0.95 floor — a near-duplicate, not an exact one.
+    let base: &[u8] = b"sybil padding ring near-duplicate filler text, long enough that one flipped tail byte leaves coverage overlap above the floor xxxxxxxx";
+    let sybil_ids: Vec<Vec<u8>> = (0..5u8).map(|i| format!("sybil{i}").into_bytes()).collect();
+    for (i, sid) in sybil_ids.iter().enumerate() {
+        let mut data = base.to_vec();
+        let n = data.len();
+        data[n - 1] = b'a' + i as u8; // single distinct tail byte → near-dup, not exact-dup
+        proposals.push((
+            cell(10 + i as u64, sid, 1, &data),
+            Committed { height: 1, secret: secret(50 + i as u8) },
+        ));
+    }
+
+    for (c, co) in &proposals {
+        a.submit(c.clone(), co.clone());
+        b.submit(c.clone(), co.clone());
+    }
+    let block = a.propose();
+    assert!(a.validate(&block) && b.validate(&block));
+    assert!(finalizes(&a.constitution, &vs, &vs, 1));
+    a.apply(&block);
+    b.apply(&block);
+    assert_eq!(a.ledger.state_digest(), b.ledger.state_digest(), "replicas diverged");
+
+    let pom = &a.ledger.pom;
+    let honest = pom.get(&b"honest".to_vec()).copied().unwrap_or(0);
+    assert!(honest > 0, "honest novel contribution earned no PoM");
+
+    // at most one identity banks the padding's coverage; every near-duplicate after it is floored.
+    let nonzero = sybil_ids.iter().filter(|k| pom.get(*k).copied().unwrap_or(0) > 0).count();
+    assert!(
+        nonzero <= 1,
+        "paraphrase-padding ring multiplied standing across {nonzero} identities — near-dup floor not applied at runtime"
+    );
+
+    // the whole ring's standing is bounded by a single cell's coverage: K near-copies == 1.
+    let sybil_total: u64 = sybil_ids.iter().map(|k| pom.get(k).copied().unwrap_or(0)).sum();
+    let max_single = sybil_ids.iter().map(|k| pom.get(k).copied().unwrap_or(0)).max().unwrap_or(0);
+    assert_eq!(
+        sybil_total, max_single,
+        "ring total exceeds one cell's coverage — paraphrase-padding farming possible"
+    );
+}
