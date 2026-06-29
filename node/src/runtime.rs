@@ -54,6 +54,16 @@ pub struct Constitution {
     /// near-identical cells; honest novel work (low overlap) is untouched. Lives here because it
     /// governs HOW value is measured (the measurement-amendment frame).
     pub theta_sim_q16: u64,
+    /// Resource-DoS bound A: the maximum number of pre-consensus proposals a replica
+    /// will admit into its local mempool. `Node::submit` rejects admission once the
+    /// pool is at this cap, giving a deterministic, economics-independent ceiling on
+    /// mempool memory and the downstream per-proposal compute (a flood of cheap,
+    /// well-formed-but-worthless cells can no longer exhaust the node). This is a
+    /// per-replica LIVENESS/RESOURCE guard, not a SAFETY one — it never enters
+    /// `validate`, so it does not change which blocks are valid or final. See
+    /// `docs/RESOURCE-DOS-BOUNDING.md` (Bound A); the commit-deposit (Bound B) is
+    /// the designed-not-built economic teeth.
+    pub max_mempool: usize,
 }
 
 impl Default for Constitution {
@@ -65,6 +75,7 @@ impl Default for Constitution {
             horizon: 0,
             decay_pos: false,
             theta_sim_q16: 62259, // floor(0.95 · 2^16) — only near-identical cells are cut
+            max_mempool: 10_000,  // resource-DoS bound A: per-replica mempool admission cap
         }
     }
 }
@@ -402,9 +413,20 @@ impl Node {
         }
     }
 
-    /// Gossip a proposal into the local mempool (pre-consensus).
-    pub fn submit(&mut self, cell: Cell, coord: Committed) {
+    /// Gossip a proposal into the local mempool (pre-consensus). Returns `true` if the
+    /// proposal was admitted, `false` if the mempool is at its `max_mempool` cap and the
+    /// proposal was rejected. The cap is resource-DoS bound A: it bounds mempool memory
+    /// and downstream per-proposal compute against a flood of cheap, well-formed-but-
+    /// worthless cells, deterministically and independently of any economic assumption.
+    /// Reject-when-full (not evict-by-quality) is the lean v1 rule — quality-prioritised
+    /// eviction needs an at-admission quality signal, which is Bound B's commit-deposit.
+    /// See `docs/RESOURCE-DOS-BOUNDING.md`.
+    pub fn submit(&mut self, cell: Cell, coord: Committed) -> bool {
+        if self.mempool.len() >= self.constitution.max_mempool {
+            return false;
+        }
         self.mempool.push((cell, coord));
+        true
     }
 
     /// Leader move: assemble the next block from the local mempool.
@@ -629,6 +651,76 @@ mod tests {
             last_heartbeat: 0,
             staked_balance: 0.0,
         }
+    }
+
+    // ---- resource-DoS bound A: bounded mempool admission cap ----
+
+    #[test]
+    fn resource_dos_flood_is_bounded_by_mempool_cap() {
+        // A flood of cheap, well-formed-but-worthless proposals cannot grow the mempool
+        // past the constitutional cap. This is the deterministic, economics-independent
+        // ceiling on mempool memory + downstream per-proposal compute (resource-DoS bound
+        // A; see docs/RESOURCE-DOS-BOUNDING.md). The economic gate already makes the flood
+        // unprofitable (it scores 0); this bounds the RESOURCE to evaluate it.
+        let mk = |i: u64| {
+            (
+                Cell {
+                    id: i,
+                    lock: Script {
+                        code_hash: [0u8; 32],
+                        args: vec![i as u8],
+                    },
+                    type_script: Script {
+                        code_hash: [1u8; 32],
+                        args: b"flooder".to_vec(),
+                    },
+                    parent: None,
+                    timestamp: i,
+                    data: vec![i as u8; 8], // distinct, well-formed payloads
+                },
+                Committed {
+                    height: 1,
+                    secret: [0u8; 32],
+                },
+            )
+        };
+
+        // Capped pool: the first `max_mempool` proposals admit, every one after is rejected.
+        let con = Constitution {
+            max_mempool: 4,
+            ..Constitution::default()
+        };
+        let mut node = Node::new(0, vec![v(0, 0.0, 100.0, 100.0)], con);
+        let admitted = (0..100u64)
+            .filter(|&i| {
+                let (c, co) = mk(i);
+                node.submit(c, co)
+            })
+            .count();
+        assert_eq!(admitted, 4, "exactly `max_mempool` proposals admitted out of 100 offered");
+        assert_eq!(
+            node.mempool.len(),
+            4,
+            "mempool memory bounded by the cap, not by attacker volume"
+        );
+
+        // ANTI-THEATER (break-on-purpose): lift the cap and the SAME flood all admits, so
+        // the cap is genuinely what bounds it — not a coincidental limit in the harness.
+        let uncapped = Constitution {
+            max_mempool: usize::MAX,
+            ..Constitution::default()
+        };
+        let mut open = Node::new(0, vec![v(0, 0.0, 100.0, 100.0)], uncapped);
+        let open_admitted = (0..100u64)
+            .filter(|&i| {
+                let (c, co) = mk(i);
+                open.submit(c, co)
+            })
+            .count();
+        assert_eq!(
+            open_admitted, 100,
+            "uncapped pool admits the whole flood — the cap is what bounds it"
+        );
     }
 
     // ---- block-level token-conservation gate (gap #4) ----

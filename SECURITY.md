@@ -67,11 +67,15 @@ to genuinely contribute.
   of eligible identities is bounded by `capital / MIN_STAKE` (`audit_a3_sybil_splitting_is_bounded_by_min_stake`).
 - **Dispute/escalation spam: ✅ bounded.** A griefer spamming challenges pays doubling bonds (`2^k·B`)
   — see `docs/DISPUTE-SLASHING.md`.
-- **🟡 Resource-DoS (the honest weak leg):** flooding the node with *cheap, well-formed-but-worthless*
-  submissions to exhaust mempool/compute is **unprofitable but not yet resource-bounded.** The economic
-  gate removes the *incentive*; a submission bond / rate-limit / commit-deposit that bounds the *resource
-  cost* of evaluating junk is **designed, not built.** This is the leg to harden next and the one a
-  serious reviewer should press on — we flag it rather than overclaim.
+- **🟡 Resource-DoS (the honest weak leg, now partially hardened):** flooding the node with *cheap,
+  well-formed-but-worthless* submissions to exhaust mempool/compute is **unprofitable** (the economic gate
+  scores it 0) and now **resource-bounded at the memory/compute layer** by a bounded mempool admission cap
+  (`Constitution.max_mempool`; `Node::submit` rejects admission once the pool is at the cap — a
+  deterministic, economics-independent ceiling, ✅ built & tested:
+  `runtime.rs::resource_dos_flood_is_bounded_by_mempool_cap`). The remaining 🟡 is the **economic teeth**:
+  a commit-deposit refunded on genuine contribution / forfeited on junk, which makes a K-junk flood cost
+  K·d — **designed, not built** (build contract in `docs/RESOURCE-DOS-BOUNDING.md` Bound B). A serious
+  reviewer should still press on the deposit leg; we flag it rather than overclaim.
 
 ### 3. Double-spend — ✅ built & tested (reference) / 🟡 deploy-coupled crypto
 - Single-use UTXO retirement: a consumed authority/value cell is retired on apply, so a later block's
@@ -95,8 +99,9 @@ to genuinely contribute.
   layer, the on-VM enforcement is the remaining build.
 
 > **Reviewer's shortcut:** the two legs to press hardest are **(1) the `v(S)` un-gameability proof**
-> (demonstrated for known vectors, isomorphism-invariance open) and **(2) resource-DoS bounding**
-> (incentive removed, resource cost not yet bounded). We name both as open on purpose.
+> (demonstrated for known vectors, isomorphism-invariance open) and **(2) the resource-DoS commit-deposit**
+> (incentive removed; memory/compute now bounded by the mempool cap; the economic-teeth deposit is
+> designed-not-built). We name both as open on purpose.
 
 ## Scope
 

@@ -2,7 +2,7 @@
 
 > Regenerated FROM the repo by `scripts/study-guide.py`, so it cannot lag the
 > code. Tick the boxes as you internalize each piece. Re-run to refresh.
-> Node test suite: **253 passing**.
+> Node test suite: **254 passing**.
 
 ## Read in this order
 
@@ -52,6 +52,7 @@
 - [ ] README.md — Start at the top and read down by how deep you want to go. Every mechanism doc marks **built vs designed vs open** honestly; the single source of truth for status is [`../ROADMAP.md`](../ROADMAP.md) and [`../STUDY-GUIDE.md`](../STUDY-GUIDE....
 - [ ] RELEASE-PLAN-VIBESWAP-ON-NOESIS.md — ---
 - [ ] RESEARCH-NETWORK-CONSENSUS.md — **Recommendation: build on `rust-libp2p`, LEAN profile** — QUIC + GossipSub v1.2 + Identify + a **custom Bitcoin-style addr-gossip discovery** (replicate CKB RFC0012 as a `NetworkBehaviour`) INSTEAD of enabling the Kademlia DHT. Gets modern...
+- [ ] RESOURCE-DOS-BOUNDING.md — `Node::submit(cell, coord)` (`node/src/runtime.rs`) pushes a proposal onto an unbounded `mempool: Vec<(Cell, Committed)>` at **zero admission cost**. A cell only has to be *well-formed* to be gossiped; it does not have to be *valuable*. So ...
 - [ ] ROADMAP-WILLS-EQUILIBRIUM.md — The **Contribution Consensus Problem** (descriptor: *Consensus Without Ground Truth*): decentralized agreement on contribution VALUE/attribution — not order — with NO ground-truth oracle, under SELF-INTERESTED (strategic, ¬ Byzantine) adver...
 - [ ] SECURITY-AUDIT-attacker-choosable-inputs.md — | Surface | Critical input | Source today | Attacker-choosable? | Status | |---|---|---|---|---| | Value gate | cell DATA (content) | tx-supplied | yes, BY DESIGN — content is the thing measured | ✅ OK: floors + flow + standing price the co...
 - [ ] SECURITY.md — noesis is a pre-launch protocol; there is no public network and no funds at risk. If you find a flaw in the consensus, value, dispute, or execution layers, please report it privately rather than opening a public issue. Open a

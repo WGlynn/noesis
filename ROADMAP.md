@@ -28,6 +28,20 @@
    proven economic calibration. Re-tune only on real data. Per [P·augmented-mechanism-design-paper].
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-06-29 (yy)** — BUILT ✅ (pom-roadmap-advance, the approved DoS leg) — **bounded the resource-DoS
+  weak leg (SECURITY.md §2) at the memory/compute layer.** The economic gate already makes a flood of cheap,
+  well-formed-but-worthless cells *unprofitable* (scores 0), but `Node::submit` pushed onto an UNBOUNDED
+  mempool at zero admission cost ⇒ the resource to evaluate the junk was spent before it scored 0. **Fix
+  (Bound A):** `Constitution.max_mempool` cap; `submit` now returns `bool` and rejects admission once the
+  pool is full — a deterministic, economics-independent ceiling on mempool memory + downstream per-proposal
+  compute. Per-replica liveness/resource guard, NOT consensus-affecting (never enters `validate`; does not
+  touch the PoM↔finality surface Will is deciding). **RED→GREEN:** `resource_dos_flood_is_bounded_by_mempool_cap`
+  (runtime.rs) — 100-cell flood admits exactly the cap (4); break-on-purpose (disable the gate) admits all
+  100 ⇒ RED, confirmed not theater; anti-theater also in-test (uncapped pool admits the whole flood). Full
+  node suite **318/318 green**, 0 new clippy. Design + the still-open economic teeth: `docs/RESOURCE-DOS-BOUNDING.md`.
+  **🟡 REMAINING (Bound B, designed-not-built, teed fresh):** the commit-deposit refunded on genuine
+  contribution / forfeited on junk (makes a K-junk flood cost K·d) — consensus-adjacent (forfeiture = value
+  movement), build cold per the build contract in that doc.
 - **2026-06-29 RESEARCH INPUT (not a build)** — literature sweep on loop-engineering / verifier-gaming
   (full synthesis off-repo: `~/Desktop/loop-engineering-self-improvement-synthesis-2026-06-29.md`).
   Headline (Helff et al. arXiv:2604.15149, controlled causal result): proxy/extensional verifiers are
