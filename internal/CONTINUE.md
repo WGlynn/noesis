@@ -4,6 +4,27 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## 🔝 RESUME HERE (2026-06-29 — APPROVED NEXT BUILDS, do in FRESH low-context) [Will recovering, full-auto]
+Will 2026-06-29: *"DoS bounding and isomorphism proofs confirmed his next build"* + *"loop synthesis build approved."*
+These are the moat / high-blast-radius builds — **do them in a FRESH session** per [[context-freshness-guard-for-build-crons]]
+(the approval landed at the tail of an ~19h session; teed clean, not half-started). Priority order:
+1. **Resource-DoS bounding** (SECURITY.md §2 weak leg): a submission bond / rate-limit / commit-deposit that bounds the
+   *cost* of evaluating worthless-but-well-formed submissions. The economic gate already removes the *incentive*; this bounds
+   the *resource*. Design-first — where does the cost gate live (mempool admission? a commit-deposit refunded on a genuine
+   reveal?) — then build + test.
+2. **Isomorphism-invariance gate for v(S)** (SECURITY.md §1 / ROADMAP cand-A): score v(S) invariant under structure-preserving
+   relabeling — a gaming vector breaks invariance, honest work doesn't. **OPEN RESEARCH for coalitional measures**; design pass
+   first (tie to the HodgeRank-residual = the relabel-invariant harmonic component), don't expect a clean port. THE moat-hardening.
+3. **Loop-synthesis components (approved):** TRP2 non-regression acceptance gate (Self-Harness) · Noesis solver/legitimacy guard
+   cand-B (auto-checks the theta_sim over-cut) · Story Mode fresh-zero-context evaluator (Kitchen Loop). Full synthesis:
+   `~/Desktop/loop-engineering-self-improvement-synthesis-2026-06-29.md`.
+
+**OPEN DESIGN Q (Will weighing 2026-06-29, NOT decided):** should Proof-of-Mind impact FINALITY (a safety property) at all?
+Jarvis lean = **decouple PoM from finality SAFETY** (keep PoM for rewards / standing / governance; bonded PoS carries BFT safety,
+PoM weights influence *within* the bonded set). Reason: coupling a not-yet-provably-un-gameable measure to the safety path welds
+gameability ↔ rollback — a gaming bug becomes a finality bug. If Will rules to decouple ⇒ real change to `finalizes_pos_pom` +
+SECURITY.md §4 + the NCI-mix framing. Until ruled, the built design (PoM in finality, anti-concentration hedge) stands.
+
 ## 🔝 RESUME HERE (2026-06-29 — adversarial loop (xx): runtime near-dup floor) [full-auto, Will recovering]
 - **BUILT ✅** closed a runtime gaming vector: the **paraphrase-padding sybil ring**. The live PoM path
   (`runtime.rs::apply` → `pom_scores` → plain `temporal_novelty`) was NOT using the near-dup similarity floor

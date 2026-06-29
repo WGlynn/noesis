@@ -32,6 +32,7 @@ Start at the top and read down by how deep you want to go. Every mechanism doc m
 | [SECURITY-AUDIT-attacker-choosable-inputs](SECURITY-AUDIT-attacker-choosable-inputs.md) | The "never let the attacker choose a security-critical input" audit, surface by surface. |
 | [CONSENSUS-REVIEW](CONSENSUS-REVIEW.md) | The adversarial fix-chain (each fix reveals the next attack) + the NCI verification table. |
 | [DISPUTE-SLASHING](DISPUTE-SLASHING.md) | Challenge/verdict, causal-share slash, escalation court, anti-griefing bonds. |
+| [POM-FINALITY-TEMPORALITY](POM-FINALITY-TEMPORALITY.md) | The hardest fair question: how a retroactive contribution score can carry consensus weight. Two-faces (stock vs flow), vest-before-franchise, the forward-only arrow. |
 
 ## Mechanism deep-dives
 | Doc | What it is |
