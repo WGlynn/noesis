@@ -50,7 +50,11 @@
   - 🔬 **(cand-A, P1, hard)** isomorphism-invariance gate for v(S): score v(S) under structure-preserving
     relabeling/permutation; a gaming vector breaks invariance, honest work doesn't. UNSOLVED for
     coalitional/Shapley measures (demonstrated only on symbolic reasoning); maps onto the HodgeRank-residual
-    certificate (relabel-invariance ≈ topology-only harmonic component). Design pass warranted, not a port.
+    certificate (relabel-invariance ≈ topology-only harmonic component). **DESIGN PASS DONE 2026-06-29**:
+    `docs/ISOMORPHISM-INVARIANCE-VS.md` — states the invariant as monoid quasi-invariance + content metric,
+    shows the built defenses (μ^m / λ^r / ρ^j / cycle-energy / θ_sim) are projections of ONE invariant, and
+    tees grain I-1 (a relabel-invariance probe: measure `v(σ·S)−v(S)` over canonical relabelings, pin gaps
+    RED-as-designed). General gate stays 🔬 open (graph-iso-hard, merge-monoid unconstrained).
   - 🟡 **(cand-B, P1, cheap)** solver/legitimacy guard (Hacker-Fixer-Solver, arXiv:2606.08960): every v(S)
     patch must keep a regression set of KNOWN-LEGIT contributions scoring. This is the auto-check for the
     (xx) Will-review flag — would catch the 0.95 floor over-cutting honest near-overlap work.

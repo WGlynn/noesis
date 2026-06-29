@@ -1,0 +1,161 @@
+# Isomorphism-invariance gate for `v(S)` — design pass (OPEN RESEARCH)
+
+> ROADMAP cand-A / CONTINUE.md priority #2. This is a **design pass, not a build**:
+> the strongest known hardening of the contribution measure, and an open research
+> problem for coalitional measures. The honest contribution of this doc is (a) to
+> state the invariant precisely, (b) to show that several already-built defenses are
+> point-instances of it, and (c) to specify the smallest measurement-first grain that
+> can be built next without claiming the general problem is solved.
+>
+> Scope note: this is a `v(S)` / gameability surface. It is **not** finality — it
+> changes how value/standing is *scored*, never the safety path. Independent of the
+> open PoM↔finality decision.
+
+## 1. The threat, stated as a symmetry
+
+Every known `v(S)` gaming vector this repo has closed has the same shape: the attacker
+**relabels** the contribution graph to manufacture score without adding value.
+
+- **Sybil identity split** (closed by cross-identity μ^m damping, ROADMAP (r)): take one
+  body of work under identity `A`, re-attribute it across `K` fresh identities
+  `A₁…A_K`. The *content and topology are unchanged*; only the identity labels on the
+  soulbound `type_script.args` changed.
+- **Volume padding** (closed by within-identity λ^r, (q)): the same identity re-posts
+  `M` children of one parent — a relabeling of one contribution into `M` near-copies.
+- **Citation ring** (detected by `attribution_cycle_energy` / `attribution_circulation`,
+  (aa)/(bb)/(dd)): `K` identities cross-cite each other's roots — a relabeling that
+  manufactures a *cyclic* provenance topology no honest "builds-upon" order produces.
+
+The common structure: an honest contribution's value is a property of **what was
+contributed and how it composes** — its position in the provenance DAG up to
+isomorphism — **not** of which identity-labels sit on the nodes. So:
+
+> **Invariant (target).** Let `σ` be a structure-preserving relabeling of the soulbound
+> identities of a contribution set `S` (a permutation of `type_script.args` that
+> preserves the content of every cell and the parent-edge topology). Then a sound
+> contribution measure should satisfy `v(σ·S) = v(S)`. A **gaming maneuver is a
+> relabeling-class action that changes `v`** — and the magnitude `|v(σ·S) − v(S)|` is
+> the *gaming energy* the gate must cap.
+
+A gaming vector breaks invariance; honest work doesn't. That is the whole gate in one
+line — and it is exactly the controlled result from the loop-engineering literature
+sweep (Helff et al., 2604.15149: proxy verifiers are gamed, the demonstrated fix is
+**invariance-based verification**). This doc applies that frame to a *coalitional*
+measure, which is where it stops being a clean port.
+
+## 2. Why this is a monoid, not a group (the honest hard part)
+
+Strict isomorphism-invariance assumes a **group** action: relabelings are permutations,
+invertible, and `v` is constant on each orbit. Two of our three vectors are **not**
+group actions:
+
+- **Split / merge is a monoid.** Splitting `A → A₁…A_K` has no inverse the attacker is
+  forced to take; merging `A₁…A_K → A` is a *different* map. The relevant algebraic
+  object is the **sybil monoid** of split/merge maps on the identity set, and the
+  property we actually want is **monotone quasi-invariance**: splitting must never
+  *increase* `v` (`v(split·S) ≤ v(S)`), and the honest baseline (no split) is the
+  supremum. This is strictly weaker than `v(σ·S) = v(S)` and is the right target —
+  μ^m damping already realizes it for the cross-identity axis (it makes K split
+  identities *saturate at* the single-identity bound, not exceed it).
+- **Content-vs-topology boundary is not clean.** `v` depends on coverage (content), not
+  only on graph shape. A relabeling that preserves content AND topology is a genuine
+  symmetry; one that preserves topology but *changes content* is not — and the attacker
+  lives in the gap (paraphrase-padding changes content slightly to dodge an
+  exact-content invariant, which is why the near-dup similarity floor θ_sim, loop (xx),
+  is the *content-metric* companion to the *topology* invariant). The gate is therefore
+  **two-sided**: invariance under identity-relabeling (topology) AND a content metric
+  that quotients near-duplicates (the θ_sim floor). Neither alone suffices.
+
+Stating these honestly is the point: for general coalitional/Shapley measures,
+isomorphism-invariance is **unsolved** (graph-iso has no known practical canonical form
+for our weighted, content-bearing DAGs; the sybil monoid's merge direction is
+adversary-unconstrained). We do **not** claim a general proof. We claim a *frame* that
+unifies the point-defenses and a *measurable* sub-invariant we can harden toward.
+
+## 3. HodgeRank is the natural carrier of the invariant we can compute
+
+The built `attribution_cycle_energy` (§ lib.rs) is already a **relabel-invariant
+functional** in the exact sense we want, for the cyclic sub-problem:
+
+- It is defined on the **net cross-identity flow graph** via the graph Laplacian. A
+  permutation `σ` of identities conjugates the Laplacian `L → PᵀLP` (a symmetric
+  reindexing); the divergence `b` permutes the same way; so the harmonic energy
+  `‖Y‖² − b·s` is **invariant under `σ`** — it is a function of the *graph up to
+  isomorphism*, not of the labels. This is a property, not a coincidence: the
+  Helmholtz–Hodge decomposition splits the flow into
+  - a **gradient** part `grad s` = the honest global "builds-upon" potential — the
+    component that *is* the isomorphism-meaningful ranking (invariant, and zero-energy:
+    honest work sits here), and
+  - a **harmonic residual** = the divergence-free cyclic component — precisely the
+    subspace a relabeling-attack (citation ring) injects energy into.
+
+So the harmonic residual **is** the gaming-energy of the cyclic relabeling class, and it
+is already computed, replica-deterministically, with no real-label data. The
+isomorphism-invariance gate is the **generalization of `attribution_cycle_energy` from
+the cycle class to all relabeling classes**: cycles are the harmonic subspace; sybil
+splits are the monoid-quasi-invariance μ^m already enforces; volume is λ^r. The gate
+names the union.
+
+## 4. The unifying view — the point-defenses are projections of one invariant
+
+| Relabeling class | Invariant required | Built mechanism | Status |
+|---|---|---|---|
+| Identity permutation (pure rename) | `v(σ·S) = v(S)` | inherent — `v` keys on consensus identity, never label order | ✅ (by construction) |
+| Sybil split (1→K identities) | `v(split·S) ≤ v(S)` (monotone quasi-inv.) | cross-identity μ^m damping | ✅ built (r), saturates |
+| Volume pad (1→M children) | `v(pad·S) ≤ v(S)` | within-identity λ^r damping | ✅ built (q) |
+| Hybrid split×pad (diagonal) | joint bound, not product of tails | single joint ρ^j geometric decay | ✅ built (u) |
+| Cyclic re-attribution (citation ring) | harmonic energy = 0 for honest | `attribution_cycle_energy` + circulation → `collusion_slash` | ✅ built (aa/bb/dd) |
+| Near-duplicate content relabel | content-metric quotient | θ_sim similarity floor | ✅ built (xx) |
+| **General structure-preserving relabel** | **`v(σ·S) = v(S)` over the full orbit** | **— (this gate)** | **🔬 open** |
+
+The contribution of the frame: each built defense is a *projection* of one invariant
+onto one relabeling axis. The open gate is the **completeness critic** — a single check
+that asks "is there *any* structure-preserving relabeling that moves `v`?" rather than
+enumerating known axes. Its value is catching the *next* vector before it is named (the
+axes above were each found and patched reactively; an invariance probe is the proactive
+form).
+
+## 5. Smallest buildable grain (measurement-first, teed fresh)
+
+Do **not** attempt the general gate first. The repo's pattern is measure-the-gap, pin it
+RED-as-designed, then close (the T3 matrix, the (aa) ring probe). The same here:
+
+**Grain I-1 — relabel-invariance PROBE (a test harness, not a consensus gate).**
+1. Fix an honest reference contribution set `S` (a small provenance DAG with real
+   coverage, the kind already used in the `value_v*` tests).
+2. Generate a canonical family of **structure-preserving relabelings** `{σ}`: identity
+   permutations (must be exactly invariant) and sybil splits (must be ≤ baseline).
+3. Compute `g(σ) = v(σ·S) − v(S)` for each, over the live `value_v8` path.
+4. **Assert** the invariance contract per class: permutations ⇒ `g = 0` exactly;
+   splits ⇒ `g ≤ 0` (monotone). Any class that violates is a *named, measured*
+   invariance gap, pinned RED-as-designed like (aa) — it becomes the next close.
+5. Anti-theater: a deliberately label-sensitive `v` (e.g. credit by label order) makes
+   the permutation assertion go RED; the real `v` keeps it green.
+
+This is deploy-independent, touches no consensus path, needs no real-label data, and
+turns "isomorphism-invariance" from a slogan into a number the suite tracks. It is the
+honest first step; the general orbit-search gate (and its cost — checking invariance
+over a relabeling orbit is potentially graph-iso-hard) stays explicitly open.
+
+**Grain I-2 (later, harder) — fold the harmonic residual into the score, not just the
+slash.** Today `attribution_cycle_energy` feeds a *slash* (`collusion_slash`). The
+invariance gate's stronger form *subtracts the relabel-variant energy from `v` at
+scoring time*, so a ring earns less rather than being caught-then-punished. This is
+consensus-affecting (it changes earned standing, which drives the franchise) ⇒ build
+cold, with the finality decision resolved first (it interacts with how much PoM weight a
+contribution carries). Flagged, not scheduled.
+
+## 6. Honest status line
+
+| Item | Status |
+|---|---|
+| Invariant stated for the coalitional setting (monoid quasi-invariance + content metric) | ✅ this doc |
+| Point-defenses unified as projections of the invariant | ✅ this doc (§4) |
+| HodgeRank residual shown to be a relabel-invariant functional | ✅ argued (§3); the energy is built |
+| General isomorphism-invariance gate for `v(S)` | 🔬 **open research** — graph-iso-hard, merge-monoid unconstrained, content/topology boundary |
+| Relabel-invariance probe (grain I-1) | 🟡 designed here, build contract above |
+
+We claim invariance for the *demonstrated* relabeling axes (the built table in §4), and
+a *frame + measurable probe* for the rest — not a finished proof. That is the same
+honesty line the whitepaper and SECURITY.md hold: demonstrated is not rounded up to
+solved.
