@@ -22,11 +22,14 @@ Full-auto session while Will decides PoM↔finality (that surface untouched). Pr
    solver/legitimacy guard cand-B (auto-checks the θ_sim over-cut) · Story Mode fresh-zero-context evaluator (Kitchen Loop).
    Full synthesis: `~/Desktop/loop-engineering-self-improvement-synthesis-2026-06-29.md`.
 
-**OPEN DESIGN Q (Will weighing 2026-06-29, NOT decided):** should Proof-of-Mind impact FINALITY (a safety property) at all?
-Jarvis lean = **decouple PoM from finality SAFETY** (keep PoM for rewards / standing / governance; bonded PoS carries BFT safety,
-PoM weights influence *within* the bonded set). Reason: coupling a not-yet-provably-un-gameable measure to the safety path welds
-gameability ↔ rollback — a gaming bug becomes a finality bug. If Will rules to decouple ⇒ real change to `finalizes_pos_pom` +
-SECURITY.md §4 + the NCI-mix framing. Until ruled, the built design (PoM in finality, anti-concentration hedge) stands.
+**RESOLVED 2026-06-29 (Will ruled, security-expert call): PoM STAYS COUPLED to finality.** Will: *"coupled is the
+only real answer here to be honest."* The built design stands — NO code change to `finalizes_pos_pom`. Rationale:
+full-decouple forfeits anti-plutocracy = the thesis; the anti-concentration floor converts the welding risk from
+"gaming OR capital" → "gaming AND capital" (conjunction). **The two real protections = anti-concentration floor +
+un-gameability moat.** **Standing-slash REJECTED as a finality-safety property (circular: gamed-standing collateral
+is fake; honest stakers co-signing a gamed checkpoint committed no objective fault).** Forward: keep PoW excluded
+(done); consider a higher `MIN_DIM_BPS` for the safety path; residual = severe-undetected-gaming + cleared-floor =
+exactly what the moat closes. Full record: `ARCHITECTURE.md` §Consensus DECISION + memory session-2026-06-29.
 
 ## 🔝 RESUME HERE (2026-06-29 — adversarial loop (xx): runtime near-dup floor) [full-auto, Will recovering]
 - **BUILT ✅** closed a runtime gaming vector: the **paraphrase-padding sybil ring**. The live PoM path

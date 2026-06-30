@@ -62,6 +62,18 @@ Two different weightings. Quoting one for the other is the 2026-06-29 hallucinat
   **voting-weight mix, not a reward distribution** — there is no separate `60/30/10` emission/reward
   constant; rewards come from PoM-standing-via-`v(S)`, JUL-via-PoW, and PoS returns.
 - `MIN_STAKE = 100.0` bounds validator Sybils (`lib.rs:3397`).
+- **DECISION — PoM stays coupled to finality (ruled by Will, 2026-06-29; security-expert call).** The
+  built design stands: PoM is load-bearing in finality, bounded by the anti-concentration floor.
+  Rationale: full-decouple (PoS-only safety) would forfeit anti-plutocracy, which is the thesis. The
+  floor converts the welding risk from "gaming OR capital" into "gaming AND capital" (a conjunction).
+  - **The two real protections are the anti-concentration floor + the un-gameability moat — nothing else.**
+  - **Standing-slash is NOT a finality-safety property (rejected as circular):** slashing gamed PoM
+    standing is slashing collateral the attacker gamed into existence; and an honest staker who co-signs
+    a gamed checkpoint committed no *objective* fault (unlike equivocation), so can't be fairly slashed.
+    Slashing deters equivocation, not the gaming case. Do not claim accountable-safety-via-standing-slash.
+  - Forward: keep PoW excluded from finality (done); consider whether `MIN_DIM_BPS` (50%) is conservative
+    enough for the safety path specifically; the residual (severe undetected gaming + cleared floor) is
+    exactly what the moat closes — coupling is the bet that the moat wins.
 
 ## Three tokens (orthogonal roles) — see `docs/TOKENOMICS.md`
 
