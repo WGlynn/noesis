@@ -13,11 +13,17 @@ Full-auto session while Will decides PoM↔finality (that surface untouched). Pr
    SECURITY.md §2 honest update + ROADMAP (yy). **🟡 Bound B (NEXT, build fresh, consensus-adjacent):** the commit-deposit
    refunded on genuine contribution / forfeited on junk (K-junk flood costs K·d) — full build contract in
    `docs/RESOURCE-DOS-BOUNDING.md` §Bound B. Touches the value path ⇒ build cold.
-2. **Isomorphism-invariance gate for v(S) — DESIGN PASS DONE ✅** (`docs/ISOMORPHISM-INVARIANCE-VS.md`). States the invariant as
-   a MONOID quasi-invariance (split must not increase v) + content metric; shows the built defenses (μ^m/λ^r/ρ^j/cycle-energy/
-   θ_sim) are projections of ONE invariant; HodgeRank residual = the relabel-invariant carrier. **NEXT grain (I-1, build fresh,
-   deploy-independent, non-finality):** a relabel-invariance PROBE measuring `v(σ·S)−v(S)` over canonical relabelings, pinning
-   gaps RED-as-designed. General gate stays 🔬 open (graph-iso-hard). Build contract in that doc §5.
+2. **Isomorphism-invariance gate for v(S) — I-1 PROBE BUILT ✅** (`d689ef9`, 2026-06-29 full-auto). `value::tests::
+   relabel_invariance_*` (3 tests): permutation leaves total `value_v8` BIT-EXACT (g=0.0); anti-theater teeth (label-sensitive v
+   caught variant by same σ); sybil-split **FOUND A NEW GAP**. 321/321, 0 new clippy. Design + finding writeup: `docs/
+   ISOMORPHISM-INVARIANCE-VS.md` §5 + §6.1. **★ FINDING — LINEAR SELF-FLOW-LAUNDERING (depth-axis):** peeling a self-built
+   linear lineage's child onto a fresh identity relabels the vertical edge internal→external (`flow::children_of_external` counts
+   only cross-identity edges) ⇒ `value_v8` pumps **+16.7** for identical work. The built BREADTH dampers (μ^m/λ^r/ρ^j) miss it
+   (one child/parent ⇒ μ⁰=1) and ring detectors miss it (acyclic); only barrier = per-identity standing FLOOR cost. **SCOPE
+   (calibrated):** value_v8 = moat-TARGET path; deployed runtime franchise = `pom_scores` (flow-free) ⇒ NOT exposed today.
+   **NEXT grains:** (I-1b) lift the probe to the `pom_scores` franchise layer to confirm flow-free ⇒ immune; (I-2, build COLD,
+   consensus-affecting) the structural close — subtract relabel-variant flow energy at scoring time so the same edge earns the
+   same whether labeled internal or external. General gate stays 🔬 open (graph-iso-hard).
 3. **Loop-synthesis components (approved, NOT yet started):** TRP2 non-regression acceptance gate (Self-Harness) · Noesis
    solver/legitimacy guard cand-B (auto-checks the θ_sim over-cut) · Story Mode fresh-zero-context evaluator (Kitchen Loop).
    Full synthesis: `~/Desktop/loop-engineering-self-improvement-synthesis-2026-06-29.md`.
