@@ -185,7 +185,13 @@ self-chain can out-earn.
 franchise is being built *toward*. The **currently-deployed runtime** franchise is `pom_scores`
 (temporal_novelty + θ_sim), which is **flow-free** and therefore **not exposed today**. It is a
 forward-design gap to **close before `value_v8` drives the franchise**, not a live exploit on the
-current node.
+current node. **Verified, not asserted (I-1b):**
+`value::tests::relabel_invariance_deployed_pom_scores_path_is_split_immune` runs the *same* split
+through `pom_scores_with_similarity_floor_q16` (the live runtime path) and confirms total standing
+is **exactly invariant** — per-cell temporal-novelty is identity-independent and summed by
+identity, with no per-identity damping to escape. The test is **regression-guarded**: if a future
+change adds split-escapable damping to the runtime path, it goes RED and surfaces the now-live
+exposure.
 
 **Close path.** (a) Price the split via the standing cost (make `N` sybils cost `> ` laundered
 flow — economic); or (b) **I-2**: subtract the relabel-variant flow energy at scoring time so the

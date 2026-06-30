@@ -2866,6 +2866,38 @@ pub mod value {
         }
 
         #[test]
+        fn relabel_invariance_deployed_pom_scores_path_is_split_immune() {
+            // I-1b — VERIFY (not assert) the calibrated severity of the v8 laundering gap: the
+            // DEPLOYED runtime franchise is pom_scores_with_similarity_floor_q16, which is
+            // FLOW-FREE (per-cell temporal-novelty summed by identity; no λ^r/μ^m, no external-
+            // edge flow). Per-cell novelty is identity-INDEPENDENT, so total standing = the sum
+            // of per-cell novelties regardless of identity assignment ⇒ a sybil split is exactly
+            // standing-neutral. This pins "not exposed today" as a REGRESSION-GUARDED number: if
+            // a future change adds split-escapable per-identity damping to the runtime path, this
+            // goes RED and surfaces the now-live exposure.
+            let total_pom = |o: &[Cell]| -> u64 {
+                crate::pom_scores_with_similarity_floor_q16(o, 62259) // θ_sim ≈ 0.95
+                    .values()
+                    .sum()
+            };
+            let order = vec![
+                cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta"),
+                cellc(1, 1, 1, Some(0), b"echo-foxtrot-golf-hotel-built-on-root"),
+                cellc(2, 2, 2, Some(1), b"india-juliet-kilo-lima-extends-lineage"),
+            ];
+            let st = standing_of(&[(1, FLOOR), (2, FLOOR)]);
+            let base = total_pom(&order);
+            assert!(base > 0, "honest cells earn standing in the deployed path (equality is meaningful)");
+            // The SAME split that pumps value_v8 by +16.7 is standing-NEUTRAL on the deployed path.
+            let (o2, _s2) = sybil_split(&order, &st, &[1], 3);
+            assert_eq!(
+                total_pom(&o2),
+                base,
+                "deployed pom_scores franchise is flow-free ⇒ the sybil split is exactly standing-neutral"
+            );
+        }
+
+        #[test]
         fn relabel_invariance_probe_has_teeth_label_sensitive_v_goes_red() {
             // Anti-theater (§5 step 5): the SAME σ that is exact for the real (label-invariant)
             // v must be DETECTED as variant by a deliberately label-sensitive functional — proof
