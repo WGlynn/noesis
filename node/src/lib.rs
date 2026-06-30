@@ -2742,6 +2742,169 @@ pub mod value {
                  gates upward certification, it does not directly zero a cell's own novelty"
             );
         }
+
+        // ============ Relabel-invariance probe (grain I-1) ============
+        // Per docs/ISOMORPHISM-INVARIANCE-VS.md §5: turn "isomorphism-invariance of v(S)"
+        // from a slogan into a number the suite tracks. Fix an honest reference set S, apply a
+        // canonical family of structure-preserving relabelings {σ}, and assert the contract
+        // PER CLASS: identity permutations ⇒ g(σ)=v(σ·S)−v(S)=0 EXACTLY; sybil splits ⇒ g≤0
+        // (monotone). A measured violation is a NAMED gap pinned RED-as-designed (the (aa)-ring
+        // pattern), never a silent hole. This is a test harness, NOT a consensus gate: it
+        // touches no finality path, needs no real-label data, and walks the LIVE value_v8 path.
+        // The general orbit-search gate (graph-iso-hard) stays explicitly open (I-2, deferred).
+
+        /// The relabel-invariant functional we track: the set's TOTAL earned v8 (the
+        /// franchise-driving quantity). Summed because a relabeling permutes WHICH identity
+        /// earns — the set total is what an isomorphism must preserve.
+        fn total_v8(order: &[Cell], st: &std::collections::HashMap<Vec<u8>, u64>) -> f64 {
+            value_v8(
+                order, st, FLOOR, &trained_outcome_w(), THETA, ENTROPY_THETA, THETA_Q16, DAMP,
+                ITERS, HALF,
+            )
+            .iter()
+            .sum()
+        }
+
+        /// σ as a pure RELABELING: rename the contributor identity (soulbound `type_script`
+        /// + `lock` owner) by a bijection on the identity byte, CONSISTENTLY across the cells
+        /// and the standing map. Structure (id / parent / order / data) is untouched.
+        fn relabel(
+            order: &[Cell],
+            st: &std::collections::HashMap<Vec<u8>, u64>,
+            sigma: impl Fn(u8) -> u8,
+        ) -> (Vec<Cell>, std::collections::HashMap<Vec<u8>, u64>) {
+            let cells = order
+                .iter()
+                .map(|c| {
+                    let mut c2 = c.clone();
+                    c2.type_script.args = vec![sigma(c.type_script.args[0])];
+                    c2.lock.args = vec![sigma(c.lock.args[0])];
+                    c2
+                })
+                .collect();
+            let stp = st.iter().map(|(k, &v)| (vec![sigma(k[0])], v)).collect();
+            (cells, stp)
+        }
+
+        /// σ as a SYBIL SPLIT: peel the cells at `idxs` off their identity onto a fresh
+        /// identity `new_id` (vested at FLOOR), structure otherwise untouched — the "one mind
+        /// masquerading as two" move the franchise must never reward.
+        fn sybil_split(
+            order: &[Cell],
+            st: &std::collections::HashMap<Vec<u8>, u64>,
+            idxs: &[usize],
+            new_id: u8,
+        ) -> (Vec<Cell>, std::collections::HashMap<Vec<u8>, u64>) {
+            let mut cells: Vec<Cell> = order.to_vec();
+            for &i in idxs {
+                cells[i].type_script.args = vec![new_id];
+                cells[i].lock.args = vec![new_id];
+            }
+            let mut stp = st.clone();
+            stp.insert(vec![new_id], FLOOR);
+            (cells, stp)
+        }
+
+        #[test]
+        fn relabel_invariance_permutation_is_exact_gap_zero() {
+            // Honest connected lineage spanning two distinct identities.
+            let order = vec![
+                cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta"),
+                cellc(1, 1, 1, Some(0), b"echo-foxtrot-golf-hotel-built-on-root"),
+                cellc(2, 2, 2, Some(1), b"india-juliet-kilo-lima-extends-lineage"),
+            ];
+            let st = standing_of(&[(1, FLOOR), (2, FLOOR)]);
+            let base = total_v8(&order, &st);
+            // σ = swap identities 1↔2 (a bijection on the soulbound axis). Identity enters v8
+            // ONLY through the standing-floor lookup; permuting the cells AND the standing keys
+            // together leaves every float op identical ⇒ the set total is bit-exact.
+            let (o2, s2) = relabel(&order, &st, |b| match b {
+                1 => 2,
+                2 => 1,
+                x => x,
+            });
+            let g = total_v8(&o2, &s2) - base;
+            assert_eq!(g, 0.0, "identity permutation must leave set value bit-exact: v(σ·S)=v(S)");
+        }
+
+        #[test]
+        fn relabel_invariance_sybil_split_pumps_v8_via_self_flow_laundering_gap_pinned() {
+            // MEASURED INVARIANCE GAP — pinned RED-as-designed (the (aa)-ring pattern). The
+            // sybil-split contract wants g≤0: splitting one mind into two identities must NOT
+            // mint value. value_v8 in ISOLATION VIOLATES it. Downstream flow counts only
+            // CROSS-identity ("external") edges (flow::children_of_external, ~lib.rs:3158 — the
+            // un-spoofable-by-content self-pump defense). A linear SELF-built lineage (id 1 built
+            // on id 1) has that edge classified INTERNAL ⇒ it pays the parent nothing. Peeling
+            // the child onto a fresh identity relabels the SAME structural edge as external ⇒ it
+            // now pays the parent: intra-mind self-flow LAUNDERED into apparently-external use.
+            // The set earns MORE for identical work. Named vector: LINEAR self-flow-laundering
+            // split — a DEPTH-axis relabel, orthogonal to the built BREADTH dampers. Every
+            // volume damper (λ^r / μ^m / ρ^j) operates on a parent's CHILDREN; here each parent
+            // has ONE child ⇒ μ^0=1, the cross-identity damping NEVER engages. Not a ring either,
+            // so cycle-energy / collusion_slash miss it. The only live barrier is the per-identity
+            // standing FLOOR (MIN_STAKE) cost. SCOPE: this is the value_v8 (moat-target) path; the
+            // currently-deployed runtime franchise is pom_scores (temporal_novelty + θ_sim), which
+            // is FLOW-FREE ⇒ not exposed today. Close before v8 drives the franchise.
+            let order = vec![
+                cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta"),
+                cellc(1, 1, 1, Some(0), b"echo-foxtrot-golf-hotel-built-on-root"),
+                cellc(2, 2, 2, Some(1), b"india-juliet-kilo-lima-extends-lineage"),
+            ];
+            let st = standing_of(&[(1, FLOOR), (2, FLOOR)]);
+            let base = total_v8(&order, &st);
+            // Identity 1 authored cells {0,1}; peel cell 1 onto a fresh sybil identity 3.
+            let (o2, s2) = sybil_split(&order, &st, &[1], 3);
+            let g = total_v8(&o2, &s2) - base;
+            // POSITIVE and large (~+16.7 at these params): the probe turns the slogan into a
+            // number. CLOSE = I-2 (subtract relabel-variant flow energy at scoring time) or
+            // price the split via standing cost. Flip this assertion to `g <= 0` when closed.
+            assert!(
+                g > 1.0,
+                "self-flow-laundering split is a KNOWN OPEN gap at the v8 layer (g={g}); pinned \
+                 RED-as-designed — flip to g<=0 when I-2 closes it"
+            );
+        }
+
+        #[test]
+        fn relabel_invariance_probe_has_teeth_label_sensitive_v_goes_red() {
+            // Anti-theater (§5 step 5): the SAME σ that is exact for the real (label-invariant)
+            // v must be DETECTED as variant by a deliberately label-sensitive functional — proof
+            // that the g=0 assertion above is a real test, not vacuously green.
+            let order = vec![
+                cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta"),
+                cellc(1, 2, 1, Some(0), b"echo-foxtrot-golf-hotel-built-on-root"),
+                cellc(2, 2, 2, Some(1), b"india-juliet-kilo-lima-extends-lineage"),
+            ];
+            let st = standing_of(&[(1, FLOOR), (2, FLOOR)]);
+            // Credit-by-label: weight each cell's v8 by its identity byte. Permuting identities
+            // moves the weights, so a label-sensitive v is NOT invariant under σ.
+            let weighted = |o: &[Cell], s: &std::collections::HashMap<Vec<u8>, u64>| -> f64 {
+                value_v8(
+                    o, s, FLOOR, &trained_outcome_w(), THETA, ENTROPY_THETA, THETA_Q16, DAMP,
+                    ITERS, HALF,
+                )
+                .iter()
+                .zip(o)
+                .map(|(v, c)| v * c.type_script.args[0] as f64)
+                .sum()
+            };
+            let base_inv = total_v8(&order, &st);
+            let base_lab = weighted(&order, &st);
+            let (o2, s2) = relabel(&order, &st, |b| match b {
+                1 => 2,
+                2 => 1,
+                x => x,
+            });
+            assert_eq!(
+                total_v8(&o2, &s2) - base_inv,
+                0.0,
+                "control: the real v stays exactly invariant under σ"
+            );
+            assert!(
+                (weighted(&o2, &s2) - base_lab).abs() > 1e-9,
+                "teeth: a label-sensitive v is caught as variant by the same σ — probe is not vacuous"
+            );
+        }
     }
 }
 

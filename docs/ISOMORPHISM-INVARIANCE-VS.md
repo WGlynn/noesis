@@ -106,6 +106,7 @@ names the union.
 | Hybrid split×pad (diagonal) | joint bound, not product of tails | single joint ρ^j geometric decay | ✅ built (u) |
 | Cyclic re-attribution (citation ring) | harmonic energy = 0 for honest | `attribution_cycle_energy` + circulation → `collusion_slash` | ✅ built (aa/bb/dd) |
 | Near-duplicate content relabel | content-metric quotient | θ_sim similarity floor | ✅ built (xx) |
+| **Linear self-flow laundering (DEPTH split)** | **`v(σ·S) ≤ v(S)` for a vertical-edge relabel** | **— breadth dampers blind (μ⁰=1, one child/parent)** | **🔬 open — measured by I-1, see below** |
 | **General structure-preserving relabel** | **`v(σ·S) = v(S)` over the full orbit** | **— (this gate)** | **🔬 open** |
 
 The contribution of the frame: each built defense is a *projection* of one invariant
@@ -153,7 +154,43 @@ contribution carries). Flagged, not scheduled.
 | Point-defenses unified as projections of the invariant | ✅ this doc (§4) |
 | HodgeRank residual shown to be a relabel-invariant functional | ✅ argued (§3); the energy is built |
 | General isomorphism-invariance gate for `v(S)` | 🔬 **open research** — graph-iso-hard, merge-monoid unconstrained, content/topology boundary |
-| Relabel-invariance probe (grain I-1) | 🟡 designed here, build contract above |
+| Relabel-invariance probe (grain I-1) | ✅ **built** — `node/src/lib.rs` `value::tests::relabel_invariance_*` (3 tests: exact-permutation, sybil-split, anti-theater teeth) |
+| Linear self-flow-laundering vector (DEPTH split) | 🔬 **open — FOUND by I-1 on first run.** `g = +16.7` measured (split pumps `value_v8`); pinned RED-as-designed |
+
+### 6.1 What the I-1 probe found (2026-06-29)
+
+The probe did its job on the first run: it surfaced a **new, un-named invariance gap** the
+reactive point-defenses do not cover.
+
+- **Permutation invariance — exact.** A consistent relabeling of identities (cells + standing)
+  leaves the set total `value_v8` **bit-identical** (`g = 0.0`). Identity enters `value_v8` only
+  through the standing-floor lookup, so a label bijection is a true symmetry. ✅
+- **Anti-theater — has teeth.** The same σ that is exact for the real `v` is detected as
+  *variant* by a deliberately label-sensitive `v` (credit-by-label-byte). The `g = 0` assertion
+  is a real test, not vacuously green. ✅
+- **Sybil split — VIOLATED (`g = +16.7`).** Peeling a self-built linear lineage's child onto a
+  fresh identity **increases** the set's earned value. Mechanism: downstream flow counts only
+  **cross-identity** edges (`flow::children_of_external`, the un-spoofable-by-content self-pump
+  defense). A vertical edge `id 1 → id 1` is internal (pays nothing); relabeling the child to a
+  fresh identity makes the *same edge* external, so intra-mind self-flow is **laundered** into
+  apparently-external use.
+
+**Why the built dampers miss it.** λ^r / μ^m / ρ^j all damp a *parent's children* (breadth /
+fan-out). This is a **depth-axis** relabel: one child per parent ⇒ `μ⁰ = 1`, the cross-identity
+damper never engages; it is not a ring ⇒ cycle-energy / `collusion_slash` miss it. The only live
+barrier is the per-identity standing **FLOOR (MIN_STAKE)** cost — which a sufficiently valuable
+self-chain can out-earn.
+
+**Severity (calibrated).** This is on the **`value_v8` moat-target path**, the value function the
+franchise is being built *toward*. The **currently-deployed runtime** franchise is `pom_scores`
+(temporal_novelty + θ_sim), which is **flow-free** and therefore **not exposed today**. It is a
+forward-design gap to **close before `value_v8` drives the franchise**, not a live exploit on the
+current node.
+
+**Close path.** (a) Price the split via the standing cost (make `N` sybils cost `> ` laundered
+flow — economic); or (b) **I-2**: subtract the relabel-variant flow energy at scoring time so the
+*same edge* earns the same whether it is labeled internal or external — the structural close. I-2
+is consensus-affecting (changes earned standing) ⇒ build cold.
 
 We claim invariance for the *demonstrated* relabeling axes (the built table in §4), and
 a *frame + measurable probe* for the rest — not a finished proof. That is the same
