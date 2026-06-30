@@ -53,6 +53,14 @@ Two different weightings. Quoting one for the other is the 2026-06-29 hallucinat
   - capital holding *all* stake controls only the PoS dimension, and the unbuyable PoM
     dimension must independently clear 50% — **capital cannot finalize without contribution's
     consent.** This is the anti-plutocracy property; it is a per-dimension floor, not a cap.
+- **WEIGHT ≠ EFFECTIVE POWER (do not conflate).** `60/30/10` (and finality's `1/3:2/3`) is how much
+  each axis *weighs* in the combined vote (`base_weight`/`effective_weight`, `lib.rs:3307/3321`). It is
+  NOT how much each axis *rules*: the anti-concentration floor + AND-composition make NCI a
+  **separation-of-powers** (rock-paper-scissors), where each axis is *independently necessary* and none
+  finalizes alone (`docs/CONSENSUS-REVIEW.md`, `docs/COHERENCE-LAWS.md`: "no dimension finalizes alone").
+  So effective finalization power is far more balanced than the headline weights imply. `60/30/10` is the
+  **voting-weight mix, not a reward distribution** — there is no separate `60/30/10` emission/reward
+  constant; rewards come from PoM-standing-via-`v(S)`, JUL-via-PoW, and PoS returns.
 - `MIN_STAKE = 100.0` bounds validator Sybils (`lib.rs:3397`).
 
 ## Three tokens (orthogonal roles) — see `docs/TOKENOMICS.md`
