@@ -1,0 +1,16 @@
+# Standalone (nested workspace) so it builds on the host stable toolchain without the
+# risc0 tooling — it never touches the zkVM, it only exercises the SAME core function the
+# guest will prove, and records the verdicts the proof must reproduce.
+[workspace]
+
+[package]
+name = "zk-finalize-parity"
+version = "0.0.1"
+edition = "2021"
+
+[[bin]]
+name = "parity"
+path = "src/main.rs"
+
+[dependencies]
+noesis-core = { path = "../../noesis-core" }

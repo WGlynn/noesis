@@ -1,0 +1,15 @@
+# The guest package name becomes the method const stem: `zk-finalize` -> ZK_FINALIZE_ELF / _ID.
+[package]
+name = "zk-finalize"
+version = "0.0.1"
+edition = "2021"
+
+[[bin]]
+name = "zk-finalize"
+path = "src/main.rs"
+
+[dependencies]
+risc0-zkvm = { version = "1.2", default-features = false, features = ["std"] }
+# The SAME verify-side core the node and the on-VM type-scripts share. The guest proves THIS
+# code, not a re-implementation — no_std + alloc, so it drops straight into the zkVM guest.
+noesis-core = { path = "../../../noesis-core" }

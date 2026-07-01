@@ -1,0 +1,14 @@
+[package]
+name = "zk-finalize-host"
+version = "0.0.1"
+edition = "2021"
+
+[[bin]]
+name = "prove-finalize"
+path = "src/main.rs"
+
+[dependencies]
+risc0-zkvm = "1.2"
+zk-finalize-methods = { path = "../methods" }
+# Host builds the cell with the core's OWN producer encoders — the exact bytes the guest decodes.
+noesis-core = { path = "../../noesis-core" }

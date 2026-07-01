@@ -1,0 +1,9 @@
+# zk-finalize — RISC Zero PoC: prove `noesis_core::finalization::finalizes_pos_pom_fixed`.
+# Own workspace (the parent node workspace excludes this whole dir). The guest crate and the
+# `parity` harness are their own build units and are NOT members here:
+#   - methods/guest is compiled by risc0_build (build.rs), not by this workspace.
+#   - parity carries its own [workspace] marker so it builds on host stable with no risc0 tooling.
+[workspace]
+resolver = "2"
+members = ["host", "methods"]
+exclude = ["parity", "methods/guest"]
