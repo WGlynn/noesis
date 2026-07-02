@@ -7174,6 +7174,109 @@ pub mod outcome {
                 "the coverage proxy is blind to lineage at equal coverage ⇒ a coin-flip (got {proxy})"
             );
         }
+
+        /// MOAT-1 obligation (1) — the ADVERSARIAL instrument the status ledger names as the
+        /// CORRECT test, and that the DeepFunding predictive pull (null twice) could not be.
+        ///
+        /// The honest-static-label pull was null because it measured predictive accuracy with NO
+        /// ADVERSARY present — nothing for a learned model to resist, so a tie with the proxy is
+        /// expected, not damning (`data/deepfunding/RESULTS-FAITHFUL.md §★`; `internal/STATUS-
+        /// LEDGER.md` MOAT-1). This test supplies the adversary the moat claim is actually about:
+        /// a GAMED coalition engineered to PAY THE PROXY. It floods raw coverage breadth (6 orphan
+        /// dumps of distinct compressible text) with no internal provenance — exactly what the
+        /// per-block coverage proxy rewards and what the connectedness/depth features expose as
+        /// hollow. Result: the fixed proxy is not a coin-flip here, it is WORSE than one — it ranks
+        /// the attacker's dump ABOVE genuine work-built-on-work — while the learned `v(S)` denies it.
+        ///
+        /// Distinct from the noise tests: the gamed content is COMPRESSIBLE, so the entropy floor
+        /// keeps it (its floored score is > 0). The denial is therefore the LEARNED STRUCTURE
+        /// measure's doing, not the floor's — this closes the proxy-gaming vector that noise-flooring
+        /// cannot touch. Held-out: the model never trains on the coalitions it is judged on.
+        #[test]
+        fn gamed_coalition_pays_the_proxy_but_the_learned_measure_denies_it() {
+            const THETA: u64 = 62259; // same entropy threshold as the on-VM intake floor
+            // Honest coalition: connected work-built-on-work, modest coverage.
+            fn honest(t: u64) -> Vec<Cell> {
+                let d = |n: u64| format!("proj{t} stage {n} refines the prior result line {n}").into_bytes();
+                vec![
+                    cellp(t * 100, 0, None, &d(0)),
+                    cellp(t * 100 + 1, 1, Some(t * 100), &d(1)),
+                    cellp(t * 100 + 2, 2, Some(t * 100 + 1), &d(2)),
+                ]
+            }
+            // Gamed coalition: 6 ORPHAN dumps of long, distinct, COMPRESSIBLE text — maximal union
+            // coverage (games the breadth proxy), zero internal provenance (connected = 0, shallow).
+            fn gamed(t: u64) -> Vec<Cell> {
+                let d = |n: u64| {
+                    format!(
+                        "orphan{t} block {n} lorem ipsum dolor sit amet {t}{n} consectetur \
+                         adipiscing elit {n}{t} sed do eiusmod tempor incididunt {t}-{n} ut \
+                         labore et dolore magna aliqua {n}-{t} enim ad minim veniam quis"
+                    )
+                    .into_bytes()
+                };
+                (0..6u64).map(|n| cellp(t * 100 + 50 + n, n, None, &d(n))).collect()
+            }
+            let idxs = |c: &[Cell]| -> Vec<usize> { (0..c.len()).collect() };
+
+            let templates: u64 = 14;
+            let mut feats: Vec<[f64; N_FEATS]> = Vec::new();
+            let mut store: Vec<Vec<Cell>> = Vec::new();
+            let mut prefs: Vec<(usize, usize)> = Vec::new(); // (winner = honest, loser = gamed)
+            for t in 0..templates {
+                let (h, g) = (honest(t), gamed(t));
+                let hi = feats.len();
+                feats.push(coalition_features(&h, &idxs(&h)));
+                store.push(h);
+                let gi = feats.len();
+                feats.push(coalition_features(&g, &idxs(&g)));
+                store.push(g);
+                prefs.push((hi, gi));
+            }
+            // Held-out: train on the first 9 templates, judge the model on the last 5 (never seen).
+            let split = 9usize;
+            let w = train(&feats, &prefs[..split], 5000, 0.5);
+            let test_prefs: Vec<(usize, usize)> = prefs[split..].to_vec();
+
+            let learned = pairwise_accuracy(|i| v_outcome(&w, &feats[i]), &test_prefs);
+            let proxy =
+                pairwise_accuracy(|i| proxy_value(&store[i], &idxs(&store[i])), &test_prefs);
+
+            // The proxy is WORSE than a coin-flip under the adversary: it pays every gamed dump
+            // above the honest work (accuracy → 0), because raw coverage is all it can see.
+            assert!(
+                proxy <= 0.1,
+                "the coverage proxy PAYS the gamed coalition (accuracy {proxy} — worse than a coin-flip)"
+            );
+            // The learned v(S) resists on UNSEEN coalitions: connectedness/depth expose the dump.
+            assert!(
+                learned >= 0.9,
+                "the learned v(S) DENIES the gamed coalition on held-out data (accuracy {learned})"
+            );
+
+            // Concrete held-out pair: proxy pays, learned denies, and the floor is NOT what denies.
+            let (hi, gi) = test_prefs[0];
+            let (h, g) = (&store[hi], &store[gi]);
+            assert!(
+                proxy_value(g, &idxs(g)) > proxy_value(h, &idxs(h)),
+                "proxy pays: the gamed dump out-scores honest work on raw coverage"
+            );
+            assert!(
+                v_outcome(&w, &feats[hi]) > v_outcome(&w, &feats[gi]),
+                "learned denies: honest work out-scores the gamed dump"
+            );
+            let h_floored = v_outcome_floored(&w, &feats[hi], h, &idxs(h), THETA);
+            let g_floored = v_outcome_floored(&w, &feats[gi], g, &idxs(g), THETA);
+            assert!(
+                g_floored > 0.0,
+                "the gamed content is COMPRESSIBLE — the entropy floor keeps it ({g_floored}); \
+                 so the structure measure, not the floor, is what denies the attack"
+            );
+            assert!(
+                h_floored > g_floored,
+                "floored honest ({h_floored}) still beats floored gamed ({g_floored})"
+            );
+        }
     }
 }
 
