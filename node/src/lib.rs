@@ -1208,8 +1208,10 @@ pub mod value {
     /// AUTHORITY BOUNDARY (the load-bearing discipline — same as the role-bounded evaluator,
     /// `OUTCOME-EVALUATOR.md` Role C): the outcome factor ∈ [0, 1] is MULTIPLIED into the
     /// seed, so it can only LOWER a seed, never raise one. A corrupt model scoring 1.0
-    /// everywhere reduces v8 to v7 exactly (it cannot mint above the flow+novelty the lower
-    /// layers already permit); a model scoring 0 floors the seed. The learned `v(S)` thus
+    /// everywhere reduces v8 to v7's seeds over the CANONICAL (identity-quotient) flow —
+    /// exactly v7 on graphs without same-identity parent-child edges (the corrupt-model
+    /// pin's graph; since the I-2 close v8 flows edges v7's external-only classifier
+    /// drops); a model scoring 0 floors the seed. The learned `v(S)` thus
     /// gains the power to DENY certification to valueless-but-legible work, and no more — it
     /// is never the gate that mints value, only one of the AND-composed floors that can zero
     /// a seed. This is why a corrupt outcome model is harmless by construction, the property
@@ -1221,7 +1223,7 @@ pub mod value {
     /// `floored_novelty × g(flow)`, untouched by the outcome model. So a coalition the model
     /// wrongly rates low still EARNS through realized downstream use (the backstop survives);
     /// it merely cannot CERTIFY others upward while the labels price its lineage as valueless.
-    /// On a graph the outcome model rates 1.0 everywhere, v8 ≡ v7 (in-test).
+    /// On a CROSS-IDENTITY graph the outcome model rates 1.0 everywhere, v8 ≡ v7 (in-test).
     #[allow(clippy::too_many_arguments)]
     pub fn value_v8(
         cells_in_commit_order: &[super::Cell],
@@ -1270,8 +1272,15 @@ pub mod value {
                 base * g_outcome
             })
             .collect();
+        // I-2 CLOSED: score the CANONICAL identity-quotient graph. The external-only
+        // classifier keyed edges on identity BYTE-equality (`flow::children_of_external`,
+        // decision at lib.rs:3317) — an invariant of the LABELING, not of the mind, hence
+        // the depth-split laundering surface: one FLOOR-vested peel flipped the SAME
+        // structural edge from dropped to paid (~+16.7 measured). v5–v7 keep the external
+        // classifier; v8 flows over ALL real parent edges and leaves identity authority
+        // to the standing-gated seeds above.
         let downstream =
-            super::flow::downstream_flow_external(cells_in_commit_order, &seed, d, iters);
+            super::flow::downstream_flow_canonical(cells_in_commit_order, &seed, d, iters);
         floored
             .iter()
             .zip(&downstream)
@@ -1936,9 +1945,10 @@ pub mod value {
             // was the actual vulnerability. (Numbers honest-numbered from the probe below.)
             //
             // Distinct from the closed vectors: the v6 sybil ring is UNVESTED (seed 0); identical
-            // content is deduped by novelty; self-certification is excluded by
-            // `children_of_external`'s same-identity skip. The mutually-dissimilar payloads below
-            // each clear the similarity floor, so that floor does NOT bound the attack.
+            // content is deduped by novelty; valueless self-certification is priced at the SEED
+            // (standing/entropy/outcome floors — since the I-2 close v8's flow is identity-blind;
+            // v5–v7 keep `children_of_external`'s same-identity skip). The mutually-dissimilar
+            // payloads below each clear the similarity floor, so that floor does NOT bound the attack.
             let w = trained_outcome_w();
             // mutually-DISSIMILAR valueless prose: distinct words ⇒ each clears the similarity
             // floor and is individually novel, yet none carries value — the worst case for the gate.
@@ -2208,9 +2218,10 @@ pub mod value {
             // measures whether that gate actually bounds the fan-out (vs. a linear-in-K pump).
             let w = trained_outcome_w();
             // REFERENCE — a root genuinely built upon (real EXTERNAL downstream flow): root identity 1,
-            // 4 children of a DISTINCT identity 2 building on it. (Same-identity children are self-flow
-            // and excluded — you do not earn value by building on your own work — so external is the
-            // honest baseline for "this root mattered to others".)
+            // 4 children of a DISTINCT identity 2 building on it. (External children are the honest
+            // baseline for "this root mattered to others"; since the I-2 close v8 counts edges
+            // identity-blind, with self-flow bounded by the seed floors + the unlock-only gate rather
+            // than by edge labels — on THIS cross-identity graph the two flows are bit-identical.)
             let built = {
                 let mut o = vec![cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta")];
                 for j in 0..4u64 {
@@ -2743,6 +2754,118 @@ pub mod value {
             );
         }
 
+        // ============ cand-B: legitimacy regression guard (the PRESERVE-half) ============
+        // Per docs/VS-AS-COMPLETION-PROCEDURE.md §3. The completion loop has two halves: the
+        // relabel-invariance probe below is the DETECT-half (it certifies a missing dimension);
+        // this is the PRESERVE-half. Every value version (v5→v6→v7→v8→…) closes a gaming vector
+        // the previous one could not see — differential incompleteness, visible in the commit
+        // history. This guard makes "a completion that closes an attack but silently stops paying
+        // HONEST work" a RED regression instead of an invisible loss: it keeps the compass pointed
+        // at truth while the loop walks. RED-trigger = a future completion cutting the corpus.
+        // Any future value_vN MUST be scored here and keep this set green.
+        //
+        // The corpus consolidates the repo's scattered legit backstops into ONE version-invariant
+        // set. Soundness: v8 ≤ v7 pointwise ON GRAPHS WITHOUT SAME-IDENTITY PARENT-CHILD EDGES
+        // (all corpus cases; the outcome gate ∈[0,1] can only lower). Since the I-2 close, v8's
+        // canonical flow deliberately pays a self-built lineage that v7's external-only flow
+        // drops, so the pointwise bound is graph-conditional, not global. On this corpus
+        // value_v8_pays_a_genuinely_useful_lineage still implies v7 pays the same cells —
+        // asserting both live versions is grounded, not hopeful. The value functions' ability to
+        // DENY noise (the other half of not-vacuous) is pinned by the sibling gaming tests
+        // (value_v8_fake_lineage_of_noise_seeds_nothing, value_v6_closes_the_sybil_identity_ring).
+        #[test]
+        fn legit_regression_guard_live_versions_pay_known_good_work() {
+            struct LegitCase {
+                name: &'static str,
+                order: Vec<Cell>,
+                standing: std::collections::HashMap<Vec<u8>, u64>,
+                /// indices that MUST earn > 0 under every live value version
+                must_earn: &'static [usize],
+            }
+
+            // Byte-identical to the keyish cell in
+            // value_v7_airgap_backstop_survives_keyish_cell_still_earns: the semantic floor's
+            // pinned false-positive shape (key/hash-shaped value).
+            let keyish: Vec<u8> = (0u8..32).map(|i| i.wrapping_mul(67).wrapping_add(29)).collect();
+
+            let corpus = vec![
+                // A genuinely useful lineage: a root, a child that builds on it, a grandchild
+                // that extends it. Real provenance depth — the honest baseline no completion may
+                // cut. (Shape lifted from value_v8_pays_a_genuinely_useful_lineage.)
+                LegitCase {
+                    name: "genuinely_useful_lineage",
+                    order: vec![
+                        cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta"),
+                        cellc(1, 2, 1, Some(0), b"echo-foxtrot-golf-hotel-built-on-the-root"),
+                        cellc(2, 3, 2, Some(1), b"india-juliet-kilo-lima-extends-the-lineage"),
+                    ],
+                    standing: standing_of(&[(1, FLOOR), (2, FLOOR), (3, FLOOR)]),
+                    must_earn: &[0, 1],
+                },
+                // A keyish/FOUNDATIONAL cell — high-entropy-but-valuable, the semantic floor's
+                // pinned false-positive — that a vested OTHER mind builds real content on. Its
+                // OWN value must survive every live version: the semantic (v7) and outcome (v8)
+                // floors gate what a cell certifies UPWARD (its seed), never the cell's own
+                // novelty × realized-use. NOTE the v8 assertion here is NEW coverage, NOT
+                // implied by v8 ≤ v7 (the source test pins v7 only): it holds because the
+                // building child's seed clears every AND-composed floor — standing ≥ FLOOR,
+                // compressible prose (semantic floor inert), and v_outcome_floored > 0 (the
+                // 2-cell coalition is half non-noise ⇒ factor 1/2; sigmoid is never 0).
+                // (Cells lifted EXACTLY from
+                // value_v7_airgap_backstop_survives_keyish_cell_still_earns.)
+                LegitCase {
+                    name: "keyish_foundational_cell_earns_via_realized_use",
+                    order: vec![
+                        cellc(0, 1, 0, None, &keyish),
+                        cellc(1, 2, 1, Some(0), b"library-built-on-the-published-key-material"),
+                    ],
+                    standing: standing_of(&[(1, FLOOR), (2, FLOOR)]),
+                    must_earn: &[0],
+                },
+                // A cell an outcome model may rate low but whose downstream use is REAL: its
+                // own value survives, because the model gates upward certification only.
+                // (Cells lifted EXACTLY from
+                // value_v8_backstop_a_low_rated_cell_still_earns_its_own_value; the zero_w
+                // separation contrast stays in that test — this entry pins the
+                // live-versions-must-keep-paying half, version-invariantly.)
+                LegitCase {
+                    name: "low_rated_but_really_used_root_still_earns",
+                    order: vec![
+                        cellc(0, 1, 0, None, b"root-alpha-bravo-charlie"),
+                        cellc(1, 2, 1, Some(0), b"useful-child-delta-echo-foxtrot"),
+                        cellc(2, 3, 2, Some(1), b"grandchild-golf-hotel-india-juliet"),
+                    ],
+                    standing: standing_of(&[(1, FLOOR), (2, FLOOR), (3, FLOOR)]),
+                    must_earn: &[0],
+                },
+            ];
+
+            let w = trained_outcome_w();
+            for case in &corpus {
+                let v7 = value_v7(
+                    &case.order, &case.standing, FLOOR, THETA, ENTROPY_THETA, DAMP, ITERS, HALF,
+                );
+                for &i in case.must_earn {
+                    assert!(
+                        v7[i] > 0.0,
+                        "REGRESSION (v7): legit case '{}' cell {} stopped earning — a completion cut honest work",
+                        case.name, i,
+                    );
+                }
+                let v8 = value_v8(
+                    &case.order, &case.standing, FLOOR, &w, THETA, ENTROPY_THETA, THETA_Q16, DAMP,
+                    ITERS, HALF,
+                );
+                for &i in case.must_earn {
+                    assert!(
+                        v8[i] > 0.0,
+                        "REGRESSION (v8): legit case '{}' cell {} stopped earning — a completion cut honest work",
+                        case.name, i,
+                    );
+                }
+            }
+        }
+
         // ============ Relabel-invariance probe (grain I-1) ============
         // Per docs/ISOMORPHISM-INVARIANCE-VS.md §5: turn "isomorphism-invariance of v(S)"
         // from a slogan into a number the suite tracks. Fix an honest reference set S, apply a
@@ -2751,7 +2874,8 @@ pub mod value {
         // (monotone). A measured violation is a NAMED gap pinned RED-as-designed (the (aa)-ring
         // pattern), never a silent hole. This is a test harness, NOT a consensus gate: it
         // touches no finality path, needs no real-label data, and walks the LIVE value_v8 path.
-        // The general orbit-search gate (graph-iso-hard) stays explicitly open (I-2, deferred).
+        // The DEPTH-SPLIT instance of I-2 is CLOSED (canonical identity-quotient flow in v8);
+        // the general orbit-search gate (graph-iso-hard) stays explicitly open.
 
         /// The relabel-invariant functional we track: the set's TOTAL earned v8 (the
         /// franchise-driving quantity). Summed because a relabeling permutes WHICH identity
@@ -2829,22 +2953,25 @@ pub mod value {
 
         #[test]
         fn relabel_invariance_sybil_split_pumps_v8_via_self_flow_laundering_gap_pinned() {
-            // MEASURED INVARIANCE GAP — pinned RED-as-designed (the (aa)-ring pattern). The
-            // sybil-split contract wants g≤0: splitting one mind into two identities must NOT
-            // mint value. value_v8 in ISOLATION VIOLATES it. Downstream flow counts only
-            // CROSS-identity ("external") edges (flow::children_of_external, ~lib.rs:3158 — the
-            // un-spoofable-by-content self-pump defense). A linear SELF-built lineage (id 1 built
-            // on id 1) has that edge classified INTERNAL ⇒ it pays the parent nothing. Peeling
-            // the child onto a fresh identity relabels the SAME structural edge as external ⇒ it
-            // now pays the parent: intra-mind self-flow LAUNDERED into apparently-external use.
-            // The set earns MORE for identical work. Named vector: LINEAR self-flow-laundering
-            // split — a DEPTH-axis relabel, orthogonal to the built BREADTH dampers. Every
-            // volume damper (λ^r / μ^m / ρ^j) operates on a parent's CHILDREN; here each parent
-            // has ONE child ⇒ μ^0=1, the cross-identity damping NEVER engages. Not a ring either,
-            // so cycle-energy / collusion_slash miss it. The only live barrier is the per-identity
-            // standing FLOOR (MIN_STAKE) cost. SCOPE: this is the value_v8 (moat-target) path; the
-            // currently-deployed runtime franchise is pom_scores (temporal_novelty + θ_sim), which
-            // is FLOW-FREE ⇒ not exposed today. Close before v8 drives the franchise.
+            // I-2 CLOSED (was pinned RED-as-designed at g≈+16.7). The vector: v8's downstream
+            // flow counted only CROSS-identity edges (flow::children_of_external — decision at
+            // lib.rs:3317, `type_script.args` byte-equality), so peeling a self-built child
+            // onto a fresh FLOOR-vested identity relabeled the SAME structural edge
+            // internal→external and MINTED set value — a DEPTH-axis relabel (one child per
+            // parent ⇒ every breadth damper λ^r/μ^m/ρ^j sits at 1; linear, so cycle-energy /
+            // collusion_slash are blind). CLOSE TAKEN: canonicalization — v8 scores the
+            // identity-QUOTIENT graph (flow::downstream_flow_canonical: ALL real parent
+            // edges, identity bytes never consulted), so base and split are the literally
+            // identical float program — the split buys NOTHING and still posts one FLOOR per
+            // fresh identity ⇒ strictly dominated. Why not price-the-split instead: the split
+            // OUTPUT is isomorphic to cand-B's honest lineage (legit_regression_guard), so any
+            // scoring-side penalty ≥ the gain zeroes the identical honest form —
+            // {g≤0} ∧ {cand-B green} ∧ {zero-use ⇒ zero-pay} is jointly unsatisfiable over
+            // (cells, standing). Identity authority stays in the standing-gated SEEDS;
+            // self-pump stays priced per-cell by WORK
+            // (canonical_flow_redundant_self_chain_pumps_nothing). SCOPE: value_v8
+            // (moat-target) path only; the deployed franchise is pom_scores, flow-free and
+            // split-immune (next test); v5–v7 keep the external classifier.
             let order = vec![
                 cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta"),
                 cellc(1, 1, 1, Some(0), b"echo-foxtrot-golf-hotel-built-on-root"),
@@ -2855,13 +2982,76 @@ pub mod value {
             // Identity 1 authored cells {0,1}; peel cell 1 onto a fresh sybil identity 3.
             let (o2, s2) = sybil_split(&order, &st, &[1], 3);
             let g = total_v8(&o2, &s2) - base;
-            // POSITIVE and large (~+16.7 at these params): the probe turns the slogan into a
-            // number. CLOSE = I-2 (subtract relabel-variant flow energy at scoring time) or
-            // price the split via standing cost. Flip this assertion to `g <= 0` when closed.
             assert!(
-                g > 1.0,
-                "self-flow-laundering split is a KNOWN OPEN gap at the v8 layer (g={g}); pinned \
-                 RED-as-designed — flip to g<=0 when I-2 closes it"
+                g <= 0.0,
+                "sybil split must not mint value (g={g}); I-2 canonical-flow closure regressed"
+            );
+            assert_eq!(g, 0.0, "split and base are the identical computation under the quotient");
+            // The differential the launderer sold is dead at the SOURCE: the self-built root
+            // is paid WITHOUT splitting (was 0.0 under the external-only classifier).
+            let v8_base = value_v8(
+                &order, &st, FLOOR, &trained_outcome_w(), THETA, ENTROPY_THETA, THETA_Q16, DAMP,
+                ITERS, HALF,
+            );
+            assert!(v8_base[0] > 0.0, "self-built root paid without splitting — differential dead");
+        }
+
+        #[test]
+        fn canonical_flow_redundant_self_chain_pumps_nothing() {
+            // The property external-only OVER-enforced, re-pinned at its real site: with
+            // identity quotiented out of the edge classifier (I-2), a vested mind chaining on
+            // its OWN root certifies it only through seeds that are themselves NOVEL, non-noise,
+            // outcome-admitted and vested. A redundant self-chain (duplicate bytes) seeds 0 via
+            // temporal novelty ⇒ the root's flow gate stays shut: the quotient did NOT reopen a
+            // free self-pump — the pump price moved from identity BYTES (forgeable at one FLOOR
+            // per peel) to per-cell WORK (unforgeable by relabeling).
+            let dup = b"alpha-bravo-charlie-delta";
+            let order = vec![
+                cellc(0, 1, 0, None, dup),
+                cellc(1, 1, 1, Some(0), dup), // same mind, same bytes: novelty 0 ⇒ seed 0
+                cellc(2, 1, 2, Some(1), dup),
+            ];
+            let st = standing_of(&[(1, FLOOR)]);
+            let w = trained_outcome_w();
+            let v8 = value_v8(
+                &order, &st, FLOOR, &w, THETA, ENTROPY_THETA, THETA_Q16, DAMP, ITERS, HALF,
+            );
+            assert_eq!(
+                v8[0], 0.0,
+                "redundant self-chain seeds nothing — canonical flow is not a self-pump"
+            );
+        }
+
+        #[test]
+        fn downstream_flow_canonical_is_identity_blind_bit_exact() {
+            // The quotient property at the flow layer itself: canonical flow never reads
+            // identity bytes, so ANY reassignment of type_script.args (not just bijections)
+            // leaves it bit-identical — the entire σ-orbit of a structure collapses to one
+            // canonical scoring. The old classifier keyed edges on args byte-equality; the
+            // laundering differential lived exactly in that read (control below).
+            let base = vec![
+                cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta"),
+                cellc(1, 1, 1, Some(0), b"echo-foxtrot-golf-hotel-built-on-root"),
+                cellc(2, 2, 2, Some(1), b"india-juliet-kilo-lima-extends-lineage"),
+            ];
+            let own = vec![3.0, 2.0, 1.0];
+            let a = crate::flow::downstream_flow_canonical(&base, &own, DAMP, ITERS);
+            let mut relabeled = base.clone();
+            for c in &mut relabeled {
+                c.type_script.args = vec![9]; // arbitrary NON-bijective relabel: one identity
+            }
+            let b = crate::flow::downstream_flow_canonical(&relabeled, &own, DAMP, ITERS);
+            for (x, y) in a.iter().zip(&b) {
+                assert_eq!(x.to_bits(), y.to_bits(), "canonical flow must not read identity bytes");
+            }
+            // teeth: the OLD external-only classifier is label-VARIANT on the same structure —
+            // the differential it exposes is the surface the canonical flow removes (v5–v7
+            // still consume it; the I-2 close is v8's reroute, not a vanished vector).
+            let a_old = crate::flow::downstream_flow_external(&base, &own, DAMP, ITERS);
+            let b_old = crate::flow::downstream_flow_external(&relabeled, &own, DAMP, ITERS);
+            assert!(
+                a_old.iter().zip(&b_old).any(|(x, y)| x != y),
+                "control: external-only flow reads identity bytes — probe has teeth"
             );
         }
 
@@ -3196,6 +3386,13 @@ pub mod flow {
     /// building on it itself. (A multi-identity sybil ring was the pinned residual gap;
     /// `value::value_v6` closes it by standing-gating the SEEDS — edges stay un-gated here
     /// so certification remains transitive through unvested intermediaries.)
+    ///
+    /// I-2 CAVEAT (why `value_v8` no longer consumes this): byte-equality is an invariant of
+    /// the LABELING, purchasable at one FLOOR per fresh identity — a sybil split flips the
+    /// same structural edge from dropped to paid (depth-split laundering, gain Θ(depth) at
+    /// constant price, measured ~+16.7 for one peel). v8 flows the identity-quotient instead
+    /// ([`downstream_flow_canonical`]); v5–v7 and the Q32 settlement mirror
+    /// (`settlement_fixed`) keep external-only semantics.
     pub(crate) fn children_of_external(
         cells: &[Cell],
         id_to_idx: &HashMap<u64, usize>,
@@ -3302,6 +3499,24 @@ pub mod flow {
     /// matter how novel its bytes are. Index-aligned with `cells`; clamped at 0.
     pub fn downstream_flow_external(cells: &[Cell], own: &[f64], d: f64, iters: usize) -> Vec<f64> {
         let flow = value_flow_with_own(cells, own, d, iters, true);
+        flow.iter().zip(own).map(|(f, o)| (f - o).max(0.0)).collect()
+    }
+
+    /// CANONICAL (identity-quotient) downstream flow — the I-2 depth-split closure.
+    /// Identity-blind: propagates over ALL real parent edges (`children_of`), never consulting
+    /// `type_script.args`. The internal/external byte-equality test (`children_of_external`)
+    /// is an invariant of the LABELING, not of the mind: a sybil split (peel a child onto a
+    /// fresh FLOOR-vested identity) flips the SAME structural edge from dropped to paid,
+    /// laundering self-flow at MIN_STAKE cost while taxing only the honest un-split form.
+    /// Scoring the identity-quotient — every split's pre-split canonical form — makes split
+    /// and base the literally identical float program (g = 0 bit-exact). Identity authority
+    /// stays where `value_v6` moved it: the standing-gated SEED (split-invariant by price);
+    /// self-pump stays priced per-cell — a child certifies nothing unless it is NOVEL
+    /// (temporal novelty), non-noise (entropy floor), outcome-admitted, and vested.
+    /// Self-loops (`parent == id`) are still dropped by `children_of`. Consumer: `value_v8`
+    /// ONLY; v5–v7 and the Q32 settlement mirror keep [`downstream_flow_external`].
+    pub fn downstream_flow_canonical(cells: &[Cell], own: &[f64], d: f64, iters: usize) -> Vec<f64> {
+        let flow = value_flow_with_own(cells, own, d, iters, false);
         flow.iter().zip(own).map(|(f, o)| (f - o).max(0.0)).collect()
     }
 

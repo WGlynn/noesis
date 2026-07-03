@@ -2,7 +2,7 @@
 
 > Regenerated FROM the repo by `scripts/study-guide.py`, so it cannot lag the
 > code. Tick the boxes as you internalize each piece. Re-run to refresh.
-> Node test suite: **259 passing**.
+> Node test suite: **262 passing**.
 
 ## Read in this order
 
@@ -23,6 +23,7 @@
 - [ ] ATTACK-DEFENSE.md — Adversarial self-review, 2026-07-01. Every claim grounded to `file:line`; every residual named. Status discipline: ✅ built (reference layer, tested) · 🟡 designed-not-built · 🔬 open frontier.
 - [ ] BUILD-NEXT-tx-digest.md — - `Script { code_hash: [u8;32], args: Vec<u8> }` (lib.rs:32). - `Cell { id: u64, lock: Script, type_script: Script, data: Vec<u8> }` (lib.rs:39, fields 43/49/55). - `TokenTx { standard: TokenStandard, code_hash: [u8;32], args: Vec<u8>, inpu...
 - [ ] CKB-VM-PORT.md — - `ckb_vm::run::<R, M>(program: &Bytes, args: &[Bytes], memory_size: usize) -> Result<i8, Error>` — simplest entry; i8 exit code, 0 = success. (`src/lib.rs:41`) - Default machine recipe used by `run` itself (`src/lib.rs`):
+- [ ] CLAWBACK-CASCADE-SELF-HEALING.md — ---
 - [ ] COMPETITIVE-POSITION.md — Every standard chain is a **possession chain**: it records *who holds which token*, orders blocks by an exogenous cost (burned energy in PoW, staked capital in PoS), and lets an off-chain market set worth. Bitcoin's "work" is hashing — deco...
 - [ ] CONSENSUS-REVIEW.md — The load-bearing question was *"does NCI's 60/30/10 break the rock-paper-scissors / separation-of-powers claim?"* The answer turns entirely on **composition**, not the numbers:
 - [ ] CONTINUE.md — Full-auto session while Will decides PoM↔finality (that surface untouched). Progress on the approved builds: 1. **Resource-DoS bounding — Bound A SHIPPED ✅** (`de59148`←`b80896e`). `Constitution.max_mempool` cap; `Node::submit`
@@ -45,6 +46,7 @@
 - [ ] JARVIS-ON-NOESIS.md — ---
 - [ ] LAUNCH-CHECKLIST.md — - [ ] 🟡→✅ **THE MOAT — un-gameable `v(S)` on REAL labels.** Seam is wired end-to-end (`load_prefs → train → v_outcome_floored → seed`); runs on SYNTHETIC labels today. Real closure = the DeepFunding-distill-over-sets outcome-label pull. **D...
 - [ ] MANIFESTO.md — ---
+- [ ] MVP-SCOPE-JULY-2026.md — **Status:** synthesis of 4 code-grounded status maps + anti-extraction ledger + 3 scope/sequencing views, 2026-07-03. **Test baseline:** 324 passed / 0 failed — measured this session via `cargo test --workspace` on the working tree (HEAD af...
 - [ ] NOESIS-FAQ.md — *Plain, honest answers to the questions people actually ask. Where something isn't built or isn't solved, this says so.*
 - [ ] NOESIS-FOR-DUMMIES.md — *Proof of Mind with no math and no jargon — the 5-minute version of the full paper, for the 99% who will never read it.*
 - [ ] NOESIS-LITEPAPER.md — *The short version of the full whitepaper — the whole idea, none of the heavy math. For builders, partners, and anyone deciding whether to look closer.*
@@ -66,7 +68,9 @@
 - [ ] T7-CROSS-CELL-SIMILARITY.md — Intake floors split by what they read: - **Content-local** (semantic floor): pure function of the cell's bytes — ON-VM since T4. - **History-dependent** (temporal novelty + similarity floor): need `seen` = the union of
 - [ ] TEMPORAL-ORDER-ONCHAIN.md — `temporal_novelty` and the index `valid_root_transition` assign shared novelty by ORDER: the earlier-committed cell wins the contested coverage, a later redundant cell earns 0. That is strategyproof ONLY if "earlier" is a relation the block...
 - [ ] TOKENOMICS.md — Noesis separates the three functions money systems usually fuse — **money, governance, capital** — into three distinct tokens, and keeps the one thing that must never be for sale, **consensus weight**, out of all of them. Consensus weight i...
+- [ ] VIBESWAP-THESIS-FIDELITY.md — ---
 - [ ] VISUALS.md — ---
+- [ ] VS-AS-COMPLETION-PROCEDURE.md — The whole frame reduces to one already-named idea, and it should be read before anything below it: **objectivity is a cardinal direction, not a destination.** The paper (§4, §11) does not promise a finished, un-gameable `v(S)`; it names a c...
 - [ ] ZK-INTEGRATION.md — Design doc, 2026-07-01. Maps the four ZK fits onto the ACTUAL core, with tooling, build order, and an honest tractable-vs-research split. Status: all 🟡 designed / 🔬 to-build — nothing ZK ships today. Grounded to `file:line`; verify before c...
 - [ ] ZK-SPEC.md — Four places zero-knowledge proofs earn their place in Noesis. Two use ZK for succinctness (make a verdict checkable by anyone, cheaply, without re-running it); three use it for privacy (prove a fact about hidden data). Fit 1 is pure succinc...
 - [ ] _RODNEY-FOUNDATION-COVER-2026-07-02.md — --- title: "Noesis — Foundation Package" subtitle: "CTO phase begins. For Rodney's AI, as systems architect." date: "2 July 2026" ---
