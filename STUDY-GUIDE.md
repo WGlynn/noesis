@@ -2,7 +2,7 @@
 
 > Regenerated FROM the repo by `scripts/study-guide.py`, so it cannot lag the
 > code. Tick the boxes as you internalize each piece. Re-run to refresh.
-> Node test suite: **262 passing**.
+> Node test suite: **275 passing**.
 
 ## Read in this order
 
@@ -38,6 +38,7 @@
 - [ ] EXTRACTION-AUDIT-2026-06-19.md — **NO live extraction vector.** Noesis is GEV-aligned by construction. The classic MEV preconditions (fees, block rewards, producer-chosen ordering, transferable franchise, slash payouts, oracles, liquidations) are **structurally absent**, n...
 - [ ] EXTRACTION-AUDIT-CHECKLIST.md — 1. **[Shapley invariant]** every value-paying path (`value_v5..v8`, `value_flow_with_own`) distributes strictly along the provenance DAG by Myerson share. FAIL if a cell can earn without realized external flow (`downstream_flow_external`).
 - [ ] EXTRACTION-AUDIT-LOG.md — audit | 2026-06-21 | PASS(12/12) | collusion_slash (gg) burns no counterparty + griefing-resistant (hh) + cross-path residual tracked (ii); 1-10 grep-clean, 11-12 reasoning-clean (slash surface: no rent/order/oracle/platform extraction); su...
+- [ ] FAQ.md — Short, shareable answers to real questions people ask. Grounded in the actual design (file:line where it matters), not marketing.
 - [ ] FOUNDATION-grace-made-mechanical.md — *A record. Will Glynn, with JARVIS. 2026-06-12. Captured in-flight, the moment the moral substrate beneath the whole project became explicit.*
 - [ ] HANDOFF.md — - **The thesis is set and honest.** Headline = the **non-zero-sum paradigm**: Noesis is the first blockchain whose competitive relationship to other chains is non-zero-sum. It absorbs rivals (reverse- fork = accretion) instead of competing;...
 - [ ] INDEX-DEP-CODEHASH-BINDING.md — `onchain/pom-typescript/src/main.rs:164` reads the index root with: ```rust match load_cell_data(0, Source::CellDep) { Ok(rd) if rd.len() == 32 => { /* accept as root */ } _ => return 20, } ``` Any cell-dep at slot 0 whose data is 32 bytes ...
@@ -46,6 +47,7 @@
 - [ ] JARVIS-ON-NOESIS.md — ---
 - [ ] LAUNCH-CHECKLIST.md — - [ ] 🟡→✅ **THE MOAT — un-gameable `v(S)` on REAL labels.** Seam is wired end-to-end (`load_prefs → train → v_outcome_floored → seed`); runs on SYNTHETIC labels today. Real closure = the DeepFunding-distill-over-sets outcome-label pull. **D...
 - [ ] MANIFESTO.md — ---
+- [ ] MINDCOIN-FOUNDING.md — --- title: "MindCoin ($MIND) — Founding Document" subtitle: "The Ethereum Cogcoin: a fair-launch proof-of-mind subsidy" date: "2026-07-03" ---
 - [ ] MVP-SCOPE-JULY-2026.md — **Status:** synthesis of 4 code-grounded status maps + anti-extraction ledger + 3 scope/sequencing views, 2026-07-03. **Test baseline:** 324 passed / 0 failed — measured this session via `cargo test --workspace` on the working tree (HEAD af...
 - [ ] NOESIS-FAQ.md — *Plain, honest answers to the questions people actually ask. Where something isn't built or isn't solved, this says so.*
 - [ ] NOESIS-FOR-DUMMIES.md — *Proof of Mind with no math and no jargon — the 5-minute version of the full paper, for the 99% who will never read it.*
@@ -68,6 +70,7 @@
 - [ ] T7-CROSS-CELL-SIMILARITY.md — Intake floors split by what they read: - **Content-local** (semantic floor): pure function of the cell's bytes — ON-VM since T4. - **History-dependent** (temporal novelty + similarity floor): need `seen` = the union of
 - [ ] TEMPORAL-ORDER-ONCHAIN.md — `temporal_novelty` and the index `valid_root_transition` assign shared novelty by ORDER: the earlier-committed cell wins the contested coverage, a later redundant cell earns 0. That is strategyproof ONLY if "earlier" is a relation the block...
 - [ ] TOKENOMICS.md — Noesis separates the three functions money systems usually fuse — **money, governance, capital** — into three distinct tokens, and keeps the one thing that must never be for sale, **consensus weight**, out of all of them. Consensus weight i...
+- [ ] VERIFIABLE-REDUCTION-AND-EXPORT-LAYER.md — *Design note. PRIVATE (front-run-sensitive; keep off public substrate). Origin 2026-07-03: Will (the reduction layer) + Tom Lindeman / Pragma (the cross-chain export). Status discipline: ✅ built · 🟡 designed · 🔬 open. Nothing here is built ...
 - [ ] VIBESWAP-THESIS-FIDELITY.md — ---
 - [ ] VISUALS.md — ---
 - [ ] VS-AS-COMPLETION-PROCEDURE.md — The whole frame reduces to one already-named idea, and it should be read before anything below it: **objectivity is a cardinal direction, not a destination.** The paper (§4, §11) does not promise a finished, un-gameable `v(S)`; it names a c...
@@ -80,6 +83,7 @@
 
 - [ ] `runtime` — Node runtime — the replicated state machine over the mechanism library (orchestration only; two nodes that finalize the same blocks converge...
 - [ ] `tokens` — Starter Rust analogs of the ERC token standards in the cell model (fungible/ERC-20, nft/ERC-721, multi/ERC-1155)
+- [ ] `pom_export` — Portable, re-derivable PoM export layer: emits the `v(S)` reduction output in a JSON form a foreign chain / L2 can consume and re-derive (`i...
 - [ ] `soulbound` — SOULBOUND in the cell/UTXO model
 - [ ] `ownership` — Bitcoin-shaped ownership (port of block-ownership.py): current owner = genesis folded over a signed transfer log
 - [ ] `value` — Capability layer (port of value-v4.py + reward-model Bradley-Terry)

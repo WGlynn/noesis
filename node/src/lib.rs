@@ -26,6 +26,12 @@ pub mod runtime;
 /// the airgap is closed so token accounting is fully on-chain.
 pub mod tokens;
 
+/// Portable, re-derivable PoM export layer: emits the `v(S)` reduction output in a JSON
+/// form a foreign chain / L2 can consume and re-derive (`internal/VERIFIABLE-REDUCTION-AND-
+/// EXPORT-LAYER.md`). Reuses the existing consensus reduction; verifiability = deterministic
+/// re-derivation (NOT ZK / proofs — that is the open frontier, not built here).
+pub mod pom_export;
+
 /// A CKB-style script: a RISC-V program (by code hash) + its arguments. VM success
 /// = valid. Lock scripts gate ownership; type scripts gate state transitions.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

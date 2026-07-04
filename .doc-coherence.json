@@ -1,5 +1,5 @@
 {
-  "reconciled_code_hash": "c618db3dbf1752290a0b900970d0a8fe3c0b48695cccc38577f60233ab92e7ef",
+  "reconciled_code_hash": "e3be56fb7d4a73899949464ebac0b86fa60f7d0af489583a4fbeea3f5e3b35af",
   "docs": [
     "ARCHITECTURE.md",
     "CONTRIBUTING.md",
@@ -21,9 +21,11 @@
     "docs/COORDINATION-SCHELLING.md",
     "docs/CRYPTOECONOMICS.md",
     "docs/DISPUTE-SLASHING.md",
+    "docs/FAQ.md",
     "docs/INDEX-DEP-CODEHASH-BINDING.md",
     "docs/ISOMORPHISM-INVARIANCE-VS.md",
     "docs/MANIFESTO.md",
+    "docs/MINDCOIN-FOUNDING.md",
     "docs/NOESIS-FAQ.md",
     "docs/NOESIS-FOR-DUMMIES.md",
     "docs/NOESIS-LITEPAPER.md",
@@ -51,7 +53,8 @@
     "node/README.md"
   ],
   "code_file_hashes": {
-    "node/src/lib.rs": "6595df6f32af62e64f44db5ca976de0c2cecae6865793828bcaf8a73dba3c62e",
+    "node/src/lib.rs": "86be4ac3d35d4b5005e507beb93c4ea4ac6d08347339bf47de8124a16fc84d2e",
+    "node/src/pom_export.rs": "704cbda954779ea10a01255cfdd517e497ea9b9e2926232dfc75f1351c6f8074",
     "node/src/runtime.rs": "ef15eb9a714f117c1d700cafd2e52a75f691488b6f15b37953cdd562d8b9bf28",
     "node/src/tokens.rs": "6846eb97c3b87fca1d16d5c0221b1f98006246e33d374eeed4407a89a3132d8f",
     "scripts/doc-coherence.py": "488c823b0cddd7d01b70d0316bbbd9d7128a8827e816f5aaa300ab7f6be4f1bf",

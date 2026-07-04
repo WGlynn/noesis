@@ -1572,3 +1572,6 @@ on un-gameable measurement, so a standing adversary against `v(S)` is the moat.
 Phase 1 (un-gameable `v(S)`) → Phase 2 (recursion/flow) → Phase 3 (consensus) → Phase 4
 (backwards-enforcement). Phase 1 is the gate: do not ship consensus on a measurement
 that can be gamed.
+
+## Backlog / design frontier — added 2026-07-03
+- **Verifiable reduction / export layer** (`internal/VERIFIABLE-REDUCTION-AND-EXPORT-LAYER.md`): the reducer between contribution and consensus, and PoM-as-a-consumed-layer for other chains. Origin Will + Tom/Pragma. One primitive (faithful-and-checkable makes PoM both computable AND exportable). Rests on the same open verifiability edge as learned v(S). Forks: reducer richness · standing-registry vs per-block · shared-security vs advisory-signal (lean: signal-first).

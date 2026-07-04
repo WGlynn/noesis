@@ -15,6 +15,15 @@ blake2b-ref = { version = "0.3", default-features = false }
 # Single source of truth for the on-VM cores (commit_order re-exported by the lib; smt/proven/
 # value_fixed/semantic drift-guarded in tests). The lib links it so there is ONE implementation.
 noesis-core = { path = "../onchain/noesis-core" }
+# pom_export layer (VERIFIABLE-REDUCTION-AND-EXPORT-LAYER.md): serialize the PoM v(S) output to
+# a portable, re-derivable JSON a foreign chain can consume. Host-side only (the export layer runs
+# off the RISC-V type-script), so std-serde is fine here.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# EVM-portable per-contributor Merkle root over the PoM scores. keccak256 (matching OZ
+# MerkleProof: double-hash leaf + commutative pairs) so an on-chain PoMExportHub consumer
+# can verify a contributor's value against the exported root. Host-side only.
+tiny-keccak = { version = "2.0", features = ["keccak"] }
 
 [dev-dependencies]
 ckb-vm = "0.24"
