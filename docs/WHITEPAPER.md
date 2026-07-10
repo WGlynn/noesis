@@ -1,6 +1,6 @@
 # Proof of Mind: A Value Chain for Verified Mental Contribution
 
-**Will Glynn, with JARVIS** · Draft v0.1 · 2026-06-11 · **PRIVATE — stealth, do not distribute**
+**Will Glynn, with JARVIS** · 2026-06-11, public since 2026-06-29 · **PUBLIC — Noesis is open source, built in the open. The canonical technical paper is [`whitepaper/noesis-whitepaper.tex`](whitepaper/noesis-whitepaper.tex) (v5.3); this is the earlier prose companion.**
 
 ---
 
