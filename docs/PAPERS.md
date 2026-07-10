@@ -12,6 +12,16 @@ Pick your depth. Each accessible doc is also available as PDF, TXT, and HTML in 
 
 All four accessible papers say the same true things at different depths, and all mark honestly what is built versus what is still designed. Start wherever you like and go deeper when you want.
 
+## Foundational research (the Glynn series)
+
+Independent research published under the author's own name for a dated, citable record, and absorbed into the whitepaper's argument (as sources, not inline citations). Tracked here with DOI so the series stays findable.
+
+| Paper | DOI | Published | Relevance to Noesis |
+|---|---|---|---|
+| **Differential Incompleteness: Value Disputes Are Missing Dimensions** (W. T. Glynn) | [`10.5281/zenodo.21150665`](https://zenodo.org/records/21150665) | 2026-07-03 | Grounds the whitepaper's claim that value measurement is *objective*: a value dispute is diagnostic (it points at a missing dimension), and the resolution is completion, not compromise. Absorbed into §"Measurement as a living mechanism" in whitepaper v5.3. |
+
+*Series discipline: further papers (the contribution-DAG / DAR paper, the security paper) get added here with their DOIs as they publish.*
+
 ## Design theses (forward-looking)
 
 These state where the protocol is headed and are marked as design theses, not built features. They sit behind the accessible papers and the whitepaper v5.3 capstone:
