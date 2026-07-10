@@ -40,7 +40,7 @@
 \large A Value Chain for Verified Mental Contribution}
 \author{Will Glynn\\
 \texttt{noesis}}
-\date{Version 5.2 \quad June 2026}
+\date{Version 5.3 \quad July 2026}
 
 \begin{document}
 \maketitle
@@ -486,6 +486,20 @@ within bounded ranges, and no real dimension can be zeroed. The measure is not f
 cannot be captured into a private one.
 \end{enumerate}
 
+\paragraph{Detecting and completing, not averaging.} The last two mechanisms are one loop. A
+persistent residual is not always noise or manipulation; often it is the signature of a genuine value
+dispute, and such a dispute is \emph{diagnostic} --- it points at a dimension the current basis leaves
+out. Each party weights what its position makes legible and drops the rest, so the disagreement is the
+interference between two partial instruments, not a clash of ultimate ends. The HodgeRank residual
+localizes that gap and the governance-gated admission of a new dimension closes it: the resolution is
+\emph{completion, not compromise}, since a basis that captures the dimensions participants actually
+track yields a measure more of them are stably satisfied by, where averaging a contested scalar only
+splits a difference that was never the real disagreement. This is the exact sense in which the measure
+can be called \emph{objective} without asserting what value ultimately is --- whether a basis omits a
+dimension its participants are already tracking is a fact of the matter, even where the weights inside
+the basis are not --- and so the loop is built to detect that incompleteness and complete it rather
+than to report a confident scalar the structure no longer supports.
+
 \noindent
 Put together, the loop is: measure, realize, dispute, retrain, decay, re-measure. A static rule loses to
 Goodhart on its first day; an adaptive measure with an un-gameable realized-value anchor, a dispute
@@ -745,6 +759,13 @@ is \textcolor{tr}{transferable}: a byte of state is a liquid commodity that trad
 is that you can buy storage but not consensus. A transferable franchise would let a rich actor buy
 consensus, which is proof-of-stake by another name; a soulbound franchise makes ``earned, not bought''
 and structural sybil-resistance real at once.
+
+Stated as one invariant: consensus authority is \emph{produced} by verified contribution and preserved
+by protocol rule --- never reassigned --- while economic ownership stays freely transferable, and the
+two classes remain independent across every valid state transition. So ``you cannot buy consensus'' is
+not a policy choice but a consequence: consensus weight is a function of the soulbound authority and
+never of the transferable balance, and the mint, the two decay-and-rent sinks, and structural
+sybil-resistance are what preserving that separation \emph{requires}, not features added on top.
 
 \section{Backwards-enforcement of the model}\label{sec:backwards}
 
