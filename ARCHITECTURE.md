@@ -37,8 +37,8 @@
 Two different weightings. Quoting one for the other is the 2026-06-29 hallucination.
 
 - **Overall consensus mix (NCI):** `pow 0.10 / pos 0.30 / pom 0.60`.
-  → `consensus::NCI` at `node/src/lib.rs:3289`. Supermajority `TWO_THIRDS_BPS = 6667`
-  (`lib.rs:3291`). This is the *whole-system* weight (production + ordering + finality inputs).
+  → `consensus::NCI` at `node/src/lib.rs:3705`. Supermajority `TWO_THIRDS_BPS = 6667`
+  (`lib.rs:3707`). This is the *whole-system* weight (production + ordering + finality inputs).
 - **Finality mix — PoW EXCLUDED:** `pow 0.0 / pos 1/3 / pom 2/3`, renormalized so PoS+PoM
   sum to 1. → `finality::FINALITY_MIX` at `node/src/runtime.rs:584`.
   - **Why PoW is out of finality:** PoW is probabilistic and reorgeable, so putting it on
