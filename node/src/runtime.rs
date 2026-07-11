@@ -94,6 +94,14 @@ pub struct Ledger {
     pub pom: HashMap<Vec<u8>, u64>,
     /// height of the last finalized block.
     pub height: u64,
+    /// cumulative-work clock — the canonical `now` for every time-denominated mechanism
+    /// (franchise decay / `horizon`, and forward: vesting `W`, dispute windows, the interval
+    /// controller). Monotone non-decreasing, advanced by [`block_work`] as each block finalizes.
+    /// PRE-POW per-block work is the constant [`WORK_PER_BLOCK`], so the clock degrades EXACTLY to
+    /// a height-clock (`work == height`); the interface already carries per-block work, so real
+    /// mined difficulty folds in with no change to any call site. Replica-deterministic: two nodes
+    /// finalizing the same blocks read the same clock (folded into [`Ledger::state_digest`]).
+    pub work: u64,
     /// finalized TOKEN cells — the value UTXO set, kept SEPARATE from `cells` so value movement
     /// never touches the novelty index or PoM attribution (both fold over `cells` only, so they
     /// stay token-blind). Token-tx input existence resolves HERE; [`Node::apply`] retires consumed
@@ -102,6 +110,11 @@ pub struct Ledger {
     pub token_cells: Vec<Cell>,
 }
 
+/// Comparable digest of a replica's state (see [`Ledger::state_digest`]): finalized cell-id
+/// sequence, novelty-index root, sorted PoM attribution, token-cell id sequence, and the
+/// cumulative-work clock. Two honest replicas that finalized the same blocks hold equal digests.
+type StateDigest = (Vec<u64>, Hash, Vec<(Vec<u8>, u64)>, Vec<u64>, u64);
+
 impl Ledger {
     pub fn new() -> Self {
         Ledger {
@@ -109,20 +122,30 @@ impl Ledger {
             index: NoveltyIndex::new(),
             pom: HashMap::new(),
             height: 0,
+            work: 0,
             token_cells: Vec::new(),
         }
     }
 
     /// Compact, comparable digest of replica state for convergence checks: the finalized
-    /// cell-id sequence, the novelty-index root, the sorted PoM attribution map, and the
-    /// finalized token-cell id sequence (deterministic apply order ⇒ replicas converge on
-    /// token state too, not just attribution).
-    pub fn state_digest(&self) -> (Vec<u64>, Hash, Vec<(Vec<u8>, u64)>, Vec<u64>) {
+    /// cell-id sequence, the novelty-index root, the sorted PoM attribution map, the finalized
+    /// token-cell id sequence (deterministic apply order ⇒ replicas converge on token state too,
+    /// not just attribution), and the cumulative-work clock (so a replica that diverged on the
+    /// `now` base is caught by the SAME convergence check the 2-node / gaming harnesses run).
+    pub fn state_digest(&self) -> StateDigest {
         let ids: Vec<u64> = self.cells.iter().map(|c| c.id).collect();
         let mut pom: Vec<(Vec<u8>, u64)> = self.pom.iter().map(|(k, v)| (k.clone(), *v)).collect();
         pom.sort();
         let token_ids: Vec<u64> = self.token_cells.iter().map(|c| c.id).collect();
-        (ids, self.index.root(), pom, token_ids)
+        (ids, self.index.root(), pom, token_ids, self.work)
+    }
+
+    /// Read the cumulative-work clock — the canonical `now`. Every time-denominated mechanism
+    /// (franchise decay, and forward vesting `W` / dispute windows / the interval controller)
+    /// measures elapsed time against THIS, not block-height or wall-clock. Monotone;
+    /// replica-deterministic. Pre-PoW `now() == height`.
+    pub fn now(&self) -> u64 {
+        self.work
     }
 }
 
@@ -389,6 +412,29 @@ impl Block {
     }
 }
 
+// ============ Cumulative-work clock — the canonical `now` ============
+//
+// Every time-denominated mechanism in Noesis measures elapsed time as CUMULATIVE WORK, not
+// block-height or wall-clock: franchise decay (`horizon`), and forward — vesting `W`, dispute
+// windows, the interval controller. Work is MONOTONE and REPLICA-DETERMINISTIC, so two honest
+// nodes finalizing the same blocks read the same clock (folded into `Ledger::state_digest`).
+//
+// PRE-POW, per-block work is the constant `WORK_PER_BLOCK`, so the clock degrades EXACTLY to a
+// height-clock (`work == height`). But `block_work` already takes the block, so when real PoW
+// lands it returns the block's mined difficulty and every call site keeps reading ONE monotone
+// clock with no change — the "right interface" the height-clock degenerate case hides behind.
+
+/// Work contributed by one finalized block. Pre-PoW: a constant ⇒ the cumulative clock == height.
+pub const WORK_PER_BLOCK: u64 = 1;
+
+/// The work a block adds to the cumulative-work clock. Pre-PoW this is `WORK_PER_BLOCK` for every
+/// block (the height-clock degenerate case); post-PoW, replace the body with the block's mined
+/// difficulty (a future `Block::difficulty`) and every reader of the clock is unchanged — the
+/// signature is already difficulty-ready. Single source of per-block work.
+pub fn block_work(_b: &Block) -> u64 {
+    WORK_PER_BLOCK
+}
+
 // ============ Node — a single replica ============
 
 /// One node: its validator identity is implicit in `validators`; it holds a [`Ledger`]
@@ -485,6 +531,15 @@ impl Node {
         self.validate(b)
     }
 
+    /// Does a proposed checkpoint finalize *at the current clock*? Sources `now` from the
+    /// cumulative-work clock ([`Ledger::now`]) rather than an externally-supplied counter — the
+    /// wiring that makes work the canonical time base for the finality/liveness decision (and,
+    /// forward, for every mechanism that reads `now`: vesting `W`, dispute windows, the interval
+    /// controller). `voters_for` are the validators supporting the checkpoint; `all` is the set.
+    pub fn checkpoint_finalizes(&self, voters_for: &[Validator], all: &[Validator]) -> bool {
+        finalizes(&self.constitution, voters_for, all, self.ledger.now())
+    }
+
     /// Apply a finalized block. DETERMINISTIC state transition: append the canonical-ordered
     /// cells, insert their coverage into the novelty index (idempotent — mirrors the on-chain
     /// index rule), advance the height, and recompute PoM attribution over the full chain.
@@ -521,6 +576,9 @@ impl Node {
             self.ledger.cells.push(cell.clone());
         }
         self.ledger.height = b.height;
+        // advance the cumulative-work clock (the canonical `now`). Monotone by construction
+        // (block_work ≥ 1 and saturating_add never wraps); pre-PoW this tracks height exactly.
+        self.ledger.work = self.ledger.work.saturating_add(block_work(b));
         self.ledger.pom =
             pom_scores_with_similarity_floor_q16(&self.ledger.cells, self.constitution.theta_sim_q16);
     }
@@ -636,7 +694,7 @@ pub mod finality {
 #[cfg(test)]
 mod tests {
     use super::finality::{finalizes_pos_pom, FINALITY_MIX, MIN_DIM_BPS};
-    use super::{Block, Constitution, Node, TokenStandard, TokenTx};
+    use super::{block_work, Block, Constitution, Node, TokenStandard, TokenTx, WORK_PER_BLOCK};
     use crate::commit_order::Committed;
     use crate::consensus::{Validator, TWO_THIRDS_BPS};
     use crate::tokens::fungible;
@@ -1466,12 +1524,12 @@ mod tests {
         };
         b.apply(&carrier.clone().with_token_txs(vec![xfer]));
 
-        let (a_ids, a_root, a_pom, a_tok) = a.ledger.state_digest();
-        let (b_ids, b_root, b_pom, b_tok) = b.ledger.state_digest();
+        let (a_ids, a_root, a_pom, a_tok, a_work) = a.ledger.state_digest();
+        let (b_ids, b_root, b_pom, b_tok, b_work) = b.ledger.state_digest();
         assert_eq!(
-            (&a_ids, &a_root, &a_pom),
-            (&b_ids, &b_root, &b_pom),
-            "token movement perturbed the attribution fold"
+            (&a_ids, &a_root, &a_pom, a_work),
+            (&b_ids, &b_root, &b_pom, b_work),
+            "token movement perturbed the attribution fold or the work clock"
         );
         assert_ne!(
             a_tok, b_tok,
@@ -1485,6 +1543,94 @@ mod tests {
         // two validators each carrying capital (pos) AND contribution (pom); both vote.
         let all = vec![v(0, 0.0, 100.0, 100.0), v(1, 0.0, 100.0, 100.0)];
         assert!(finalizes_pos_pom(&all, &all, 1, 0, false, TWO_THIRDS_BPS));
+    }
+
+    // ---- cumulative-work clock (the canonical `now`) ----
+
+    #[test]
+    fn cumulative_work_clock_is_monotone_and_degrades_to_height_pre_pow() {
+        // PRE-POW, WORK_PER_BLOCK == 1, so the cumulative-work clock is EXACTLY the height-clock:
+        // strictly monotone and replica-deterministic. When real PoW lands, `block_work` returns
+        // mined difficulty and this same clock keeps being the single `now` with no call-site
+        // change — the "right interface" the height-clock degenerate case hides behind.
+        assert_eq!(
+            block_work(&carrier_at(1, 1, 1, b"pre-pow degenerate")),
+            WORK_PER_BLOCK,
+            "pre-PoW every block contributes exactly WORK_PER_BLOCK"
+        );
+
+        let mut node = Node::new(0, vec![v(0, 0.0, 100.0, 100.0)], Constitution::default());
+        assert_eq!(node.ledger.now(), 0, "genesis clock is 0");
+        let mut prev = 0u64;
+        for h in 1..=5u64 {
+            node.apply(&carrier_at(h, h, h as u8, format!("clock filler {}", h).as_bytes()));
+            assert_eq!(node.ledger.now(), node.ledger.height, "clock must track height pre-PoW");
+            assert_eq!(node.ledger.now(), h, "clock must equal blocks finalized pre-PoW");
+            assert!(node.ledger.now() > prev, "clock must be strictly monotone");
+            prev = node.ledger.now();
+        }
+
+        // replica-determinism: a second node finalizing the SAME blocks reads the SAME clock (also
+        // folded into state_digest, so the 2-node / gaming convergence harnesses assert it too).
+        let mut other = Node::new(1, vec![v(0, 0.0, 100.0, 100.0)], Constitution::default());
+        for h in 1..=5u64 {
+            other.apply(&carrier_at(h, h, h as u8, format!("clock filler {}", h).as_bytes()));
+        }
+        assert_eq!(
+            node.ledger.now(),
+            other.ledger.now(),
+            "replicas diverged on the work clock"
+        );
+    }
+
+    #[test]
+    fn checkpoint_finalizes_sources_now_from_the_cumulative_work_clock() {
+        // ANTI-THEATER for the wiring: `Node::checkpoint_finalizes` must feed the LIVE clock into
+        // the finality decision, not a hardcoded `now`. We build a set whose outcome FLIPS with
+        // `now` via differential franchise decay — an abstaining validator that is fresh at now=0
+        // but fully decayed at now=horizon — then advance the clock by finalizing `horizon` blocks
+        // and assert the checkpoint tracks the now=clock branch. Hardcoding now=0 flips it RED.
+        let horizon = 4u64;
+        let mut c = Constitution::default();
+        c.horizon = horizon;
+        c.decay_pos = true; // symmetric decay ⇒ the abstainer's weight fully fades at the horizon
+
+        // A votes and stays fresh at now=horizon (heartbeat=horizon); the abstainer is fresh at
+        // now=0 but fully decayed at now=horizon. Both carry pos+pom so anti-concentration holds.
+        let mut a = v(0, 0.0, 1.0, 2.0);
+        a.last_heartbeat = horizon;
+        let abstainer = v(1, 0.0, 1.0, 2.0); // last_heartbeat = 0
+        let all = vec![a.clone(), abstainer];
+        let voters = vec![a];
+
+        // The discriminator is real: the SAME set is rejected at now=0, finalizes at now=horizon.
+        assert!(
+            !super::finalizes(&c, &voters, &all, 0),
+            "precondition: must NOT finalize at now=0 (else the test proves nothing)"
+        );
+        assert!(
+            super::finalizes(&c, &voters, &all, horizon),
+            "precondition: must finalize at now=horizon"
+        );
+
+        // A node whose clock has not advanced matches the now=0 branch (reject); after finalizing
+        // `horizon` blocks the clock reads `horizon` and the SAME checkpoint finalizes — proving
+        // `now` is sourced from the clock, not a constant.
+        let mut node = Node::new(0, all.clone(), c);
+        assert_eq!(node.ledger.now(), 0);
+        assert!(
+            !node.checkpoint_finalizes(&voters, &all),
+            "clock at 0 ⇒ must match the now=0 branch (reject)"
+        );
+        for h in 1..=horizon {
+            node.apply(&carrier_at(h, h, h as u8, format!("advance {}", h).as_bytes()));
+        }
+        assert_eq!(node.ledger.now(), horizon);
+        assert_eq!(node.ledger.now(), node.ledger.height, "pre-PoW the clock == height");
+        assert!(
+            node.checkpoint_finalizes(&voters, &all),
+            "clock at horizon ⇒ must match the now=horizon branch (finalize)"
+        );
     }
 
     #[test]
