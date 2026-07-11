@@ -28,6 +28,24 @@
    proven economic calibration. Re-tune only on real data. Per [P·augmented-mechanism-design-paper].
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-07-11 (zz)** — BUILT ✅ (Will-ratified) — **closed a dead-wire safety gap on the live finality
+  path: the quorum floor was inert.** `runtime::finality::finalizes_pos_pom` hardcoded the
+  `finalizes_hybrid` quorum arg to 0 and did not accept a floor, so `Constitution.quorum_floor_bps`
+  never reached the finality gate ⇒ the ratified deactivation→safe-halt composition
+  (`DESIGN-block-logistics-mechanism.md` §123) could not fire. With Q=0 the finality denominator
+  collapses to the *live* weight, so a thinned/partitioned minority (each dimension ≥50%, other half
+  decayed) can finalize a checkpoint the absent majority never saw. **Fix:** `finalizes_pos_pom` now
+  takes `quorum_floor_bps`; `finalizes` passes `c.quorum_floor_bps`; stale T3 comment corrected;
+  on-VM Q32.32 drift-guard passes 0 to stay faithful (on-VM Q-port = v2). **Default stays 0 ⇒
+  NON-BREAKING** (Q=0 ≡ prior rule exactly). **RED→GREEN:**
+  `quorum_floor_prevents_minority_finalization_safe_halt` (runtime.rs) — Q=0 lets the lone live
+  validator finalize (RED for the safety property), a high Q anchors the denominator to the full
+  registered base ⇒ safe halt, and full participation still finalizes under the floor (not a blanket
+  halt). Lib 277→278 green, integration all green, 0 new clippy. **Design ruling:** Q stays a
+  *governed constant* like `MIN_DIM_BPS`, never a self-regulating controller — a floor that reacts to
+  participation is reflexively gameable (the attacker induces the low-participation condition that
+  lowers it). Defensible v2 refinement = slow self-*scaling* to Sybil-discounted soulbound-PoM network
+  size. Commit `034ab06`; record in `internal/PIN-quorum-floor-decision.md`.
 - **2026-06-29 (yy)** — BUILT ✅ (pom-roadmap-advance, the approved DoS leg) — **bounded the resource-DoS
   weak leg (SECURITY.md §2) at the memory/compute layer.** The economic gate already makes a flood of cheap,
   well-formed-but-worthless cells *unprofitable* (scores 0), but `Node::submit` pushed onto an UNBOUNDED
