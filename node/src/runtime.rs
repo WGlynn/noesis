@@ -618,12 +618,22 @@ pub(crate) use noesis_core::lamport;
 /// participate, so PoM's 60% cannot unilaterally finalize (T11 capital-orthogonality, in code).
 ///
 /// `finalizes_pos_pom` REUSES `consensus::finalizes_hybrid` internally (with the PoW-free
-/// `FINALITY_MIX`), so the 235-test core rule is intact; the `c.mix`/`c.quorum_floor_bps` fields
-/// govern the production/ordering path, not this fast-final gate. Forward parity: when the on-VM
+/// `FINALITY_MIX`), so the 235-test core rule is intact; the `c.mix` field governs the
+/// production/ordering path, not this fast-final gate. `c.quorum_floor_bps` DOES govern this gate
+/// (wired 2026-07-11): it is the finality participation floor / safe-halt backstop, default 0.
+/// Forward parity: when the on-VM
 /// finalization mirror (🟡 `ON-VM-FINALIZATION.md`) is built, it must mirror THIS rule (PoW-out +
 /// anti-concentration), not bare `finalizes_hybrid`.
 pub fn finalizes(c: &Constitution, voters_for: &[Validator], all: &[Validator], now: u64) -> bool {
-    finality::finalizes_pos_pom(voters_for, all, now, c.horizon, c.decay_pos, c.threshold_bps)
+    finality::finalizes_pos_pom(
+        voters_for,
+        all,
+        now,
+        c.horizon,
+        c.decay_pos,
+        c.threshold_bps,
+        c.quorum_floor_bps,
+    )
 }
 
 // ============ PoS+PoM finality gadget (T3 — PoW out of finality) ============
@@ -670,7 +680,18 @@ pub mod finality {
         horizon: u64,
         decay_pos: bool,
         threshold_bps: u64,
+        quorum_floor_bps: u64,
     ) -> bool {
+        // `quorum_floor_bps` (from `Constitution.quorum_floor_bps`) floors the finalization
+        // denominator at that fraction of the FULL registered set's base weight, so a live set
+        // that thins below the floor cannot finalize a minority among itself — it SAFE-HALTS
+        // (no finality) instead of finalizing a checkpoint the absent majority never saw. This is
+        // the load-bearing backstop for the deactivation composition (block-logistics §123):
+        // withhold → stall ≤ grace → deactivated → finality resumes on the live set IFF it still
+        // clears the floor, else safe halt. Default 0 ⇒ no floor ⇒ liveness-favoring historical
+        // behavior (finalize on whoever is live). A SAFETY floor, kept a governed constant — never
+        // a controller output — because a floor that reacts to participation is reflexively
+        // gameable (an attacker induces the low-participation condition that lowers it).
         if !consensus::finalizes_hybrid(
             voters_for,
             all,
@@ -679,7 +700,7 @@ pub mod finality {
             horizon,
             decay_pos,
             threshold_bps,
-            0,
+            quorum_floor_bps,
         ) {
             return false;
         }
@@ -1542,7 +1563,7 @@ mod tests {
     fn pos_pom_both_dims_finalize() {
         // two validators each carrying capital (pos) AND contribution (pom); both vote.
         let all = vec![v(0, 0.0, 100.0, 100.0), v(1, 0.0, 100.0, 100.0)];
-        assert!(finalizes_pos_pom(&all, &all, 1, 0, false, TWO_THIRDS_BPS));
+        assert!(finalizes_pos_pom(&all, &all, 1, 0, false, TWO_THIRDS_BPS, 0));
     }
 
     // ---- cumulative-work clock (the canonical `now`) ----
@@ -1674,11 +1695,11 @@ mod tests {
         let all = vec![whale.clone(), capital.clone()];
         let pom_only = vec![whale];
         assert!(
-            !finalizes_pos_pom(&pom_only, &all, 1, 0, false, TWO_THIRDS_BPS),
+            !finalizes_pos_pom(&pom_only, &all, 1, 0, false, TWO_THIRDS_BPS, 0),
             "PoM unilaterally finalized — capital-orthogonality not enforced"
         );
         // but both axes participating DOES finalize.
-        assert!(finalizes_pos_pom(&all, &all, 1, 0, false, TWO_THIRDS_BPS));
+        assert!(finalizes_pos_pom(&all, &all, 1, 0, false, TWO_THIRDS_BPS, 0));
     }
 
     #[test]
@@ -1695,12 +1716,56 @@ mod tests {
             1,
             0,
             false,
-            TWO_THIRDS_BPS
+            TWO_THIRDS_BPS,
+            0
         ));
         // the two fast-final dimensions together finalize, PoW irrelevant.
-        assert!(finalizes_pos_pom(&[pos, pom], &all, 1, 0, false, TWO_THIRDS_BPS));
+        assert!(finalizes_pos_pom(&[pos, pom], &all, 1, 0, false, TWO_THIRDS_BPS, 0));
         // the mix really does exclude PoW.
         assert_eq!(FINALITY_MIX.pow, 0.0);
         assert_eq!(MIN_DIM_BPS, 5000);
+    }
+
+    #[test]
+    fn quorum_floor_prevents_minority_finalization_safe_halt() {
+        // SAFETY (quorum floor wired into the live finality gate, 2026-07-11). Two identically
+        // registered validators A,B, each holding exactly 50% of BOTH dimensions (so either passes
+        // anti-concentration). A stays live; B decays fully out (stale heartbeat at now=horizon,
+        // symmetric decay). The vector: with Q=0 the denominator collapses to the live weight, so
+        // A finalizes ALONE — a minority of the registered base finalizes a checkpoint the absent
+        // half never saw. A nonzero floor anchors the denominator to the FULL registered base, so
+        // A's 50% cannot clear the bar ⇒ SAFE HALT until participation returns. This is the
+        // block-logistics §123 backstop; it is INERT whenever the gate hardcodes 0.
+        let horizon = 100u64;
+        let now = horizon;
+        let mut a = v(0, 0.0, 100.0, 100.0);
+        a.last_heartbeat = horizon; // fresh ⇒ retention 1.0
+        let b = v(1, 0.0, 100.0, 100.0); // last_heartbeat 0 ⇒ fully decayed at now=horizon
+        let all = vec![a.clone(), b];
+        let voters = vec![a.clone()];
+
+        // Q = 0 (today's default): the sole live validator finalizes a minority checkpoint — the
+        // exact behavior we are making it possible to close.
+        assert!(
+            finalizes_pos_pom(&voters, &all, now, horizon, true, TWO_THIRDS_BPS, 0),
+            "precondition: with no floor, the live minority finalizes (else the test proves nothing)"
+        );
+
+        // A high floor keeps the denominator anchored to the full registered base ⇒ 50% < bar ⇒
+        // the checkpoint does NOT finalize (safe halt). This goes RED if the gate ignores the floor.
+        assert!(
+            !finalizes_pos_pom(&voters, &all, now, horizon, true, TWO_THIRDS_BPS, 9000),
+            "quorum floor not enforced on the finality gate — minority finalization still possible"
+        );
+
+        // The floor is not a blanket halt: with FULL participation (both fresh and voting) the same
+        // floor finalizes — it gates minority finalization, not honest liveness.
+        let mut b_live = v(1, 0.0, 100.0, 100.0);
+        b_live.last_heartbeat = horizon;
+        let all_live = vec![a, b_live];
+        assert!(
+            finalizes_pos_pom(&all_live, &all_live, now, horizon, true, TWO_THIRDS_BPS, 9000),
+            "quorum floor over-halts: full participation must still finalize under the floor"
+        );
     }
 }
