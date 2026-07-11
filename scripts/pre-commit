@@ -6,6 +6,26 @@ set -u
 repo="$(git rev-parse --show-toplevel)"
 fail=0
 
+# --- Relevance scope (fixes the "stale guide blocks an unrelated commit" misfire) ---
+# doc-coherence + study-guide are CODE<->doc/guide freshness gates: they only go stale
+# when CODE changes. A changeset that stages NO code cannot invalidate a code-vs-doc
+# reconciliation, so a docs-only commit is skipped. Any pre-existing staleness is still
+# enforced at the next code-touching commit, which is the correct enforcement point.
+# A staged file outside the doc set counts as code and runs the full gate.
+code_touched=0
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  case "$f" in
+    *.md|*.txt|*.rst|docs/*|internal/*|LICENSE*|*/LICENSE) : ;;  # documentation — ignore
+    *) code_touched=1 ;;                                         # code / substantive
+  esac
+done < <(git diff --cached --name-only)
+
+if [ "$code_touched" -eq 0 ]; then
+  echo "[pre-commit] docs-only changeset -> skipping code-freshness gates (nothing staged can drift from code)"
+  exit 0
+fi
+
 echo "[pre-commit] doc-coherence..."
 if ! python "$repo/scripts/doc-coherence.py" --check; then
   echo "[pre-commit] docs lag code -> run: python scripts/doc-coherence.py --stamp"
