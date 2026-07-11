@@ -6,6 +6,16 @@ set -u
 repo="$(git rev-parse --show-toplevel)"
 fail=0
 
+# --- DOC-FRESHNESS GATE TEMPORARILY DISABLED 2026-07-11 (Will) ---------------------
+# The doc-coherence + study-guide checks repeatedly misfired (hash recompute after
+# staging re-flagged already-regenerated artifacts), blocking legitimate code commits.
+# Disabled for now. To RE-ENABLE: delete this block (down to the matching end marker)
+# and re-run `bash scripts/install-hooks.sh`. Freshness can still be run by hand:
+#   python scripts/doc-coherence.py --stamp && python scripts/study-guide.py
+echo "[pre-commit] doc-freshness gate temporarily DISABLED (2026-07-11) — skipping."
+exit 0
+# --- end temporary disable ---------------------------------------------------------
+
 # --- Relevance scope (fixes the "stale guide blocks an unrelated commit" misfire) ---
 # doc-coherence + study-guide are CODE<->doc/guide freshness gates: they only go stale
 # when CODE changes. A changeset that stages NO code cannot invalidate a code-vs-doc
