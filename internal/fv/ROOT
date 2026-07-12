@@ -1,0 +1,9 @@
+session "Noesis_FV" = "HOL" +
+  description ‹
+    Phase-4 formal verification of the Noesis rulebook (value level).
+    Machine-checks the per-execution invariants: conservation (no inflation) and
+    no_double_spend, over an abstract (cid ⇀ value) state model. See README.md for the
+    theory→invariant map and the enumerated model-to-code gap.
+  ›
+  theories
+    Noesis_Rulebook
