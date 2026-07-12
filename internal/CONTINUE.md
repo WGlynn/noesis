@@ -36,12 +36,16 @@ number from code actually run (no mocked benchmarks). Docs: `docs/rulebook-map.m
   (no WSL2/Docker/r0vm/rzup — README-confirmed) ⇒ real receipt + benchmarks require Linux/WSL2/CI.
   Prereqs from Phase 0/1: std→no_std container swap (`HashMap`/`HashSet` → `BTreeMap`/sorted-`Vec`) and
   the O(chain) full-chain PoM recompute (`runtime.rs` `apply_transition` step g) → bounded per-block delta.
-  **⚑ OPEN (Will's call, 2026-07-12) — real receipts/numbers CANNOT be produced on this box** (no
-  prover, no C compiler). Fork: **(A)** build the guest + parity harness here now (extend `zk-finalize`
-  to the full `apply_block`; real code, honestly *unproven*, no numbers) · **(B)** set up WSL2/CI for a
-  real receipt + the go/no-go cost report the spec wants · **(C)** bank 0–2 as a self-contained
-  deliverable and pivot to Phase 4 (FV — runs here) or the parked memory-scalability build. Jarvis lean:
-  A now → B when a Linux env exists. Awaiting Will.
+  **DECISION = A (Will 2026-07-12).** Milestone-1 guest LOGIC built + **host-verified GREEN**:
+  `node/src/utxo_commitment.rs::{transition, verify_transition, TransitionWitness}` — one SMT
+  multi-proof verifies the touched keys at OLD values under `old_root` AND NEW values under `new_root`
+  ⇒ an inclusion proof doubles as a transition proof. Test rejects forged-root / corrupt-proof /
+  claim-spent-coin-survived (double-spend). This IS the zkVM guest program, host-proven.
+  **⚑ B DEFERRED to a Linux env (Will's dev note, 2026-07-12):** the real STARK receipt + proving-cost
+  numbers need Linux/WSL2/CI (this box has no prover + no C compiler). B plan + the `no_std` lift +
+  the `onchain/zk-utxo/` scaffold: **`docs/phase3-zk-plan.md`** + the DEV NOTE in `utxo_commitment.rs`.
+  Do NOT claim "ZK ships" until a receipt verifies. (RISC Zero accelerates SHA-256, not blake2b —
+  measure that cost.)
 - **Phase 4 — FV.** Property tests (conservation / no-double-spend / determinism-under-reserialize) →
   differential fuzz → Isabelle/HOL spec (owner reviews). **Pragma Coherence** if it fits cleanly — it is a
   rule-set confluence / axiom-preservation axis, COMPLEMENTARY to the UTXO-invariant theorems, not a

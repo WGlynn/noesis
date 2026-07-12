@@ -163,6 +163,97 @@ impl UtxoCommitment {
     pub fn verify_snapshot(cells: &[Cell], root: &[u8; 32]) -> bool {
         &Self::from_cells(cells).root() == root
     }
+
+    /// Apply a block's value movement (spend `spends`, create `creates`) and emit a
+    /// [`TransitionWitness`] — the compact object a Phase-3 zkVM guest verifies. Mutates the
+    /// commitment to the post-state. Only the touched keys + a compiled multi-proof are carried, so
+    /// the witness is O(touched · tree-depth), independent of |UTXO set|.
+    pub fn transition(&mut self, spends: &[Cell], creates: &[Cell]) -> TransitionWitness {
+        let old_root = self.root();
+        let mut touched: Vec<H256> = Vec::with_capacity(spends.len() + creates.len());
+        let mut old_leaves: Vec<([u8; 32], [u8; 32])> = Vec::new();
+        let mut new_leaves: Vec<([u8; 32], [u8; 32])> = Vec::new();
+        for c in spends {
+            let k = utxo_key(c);
+            touched.push(k);
+            old_leaves.push((k.into(), k.into())); // present before
+            new_leaves.push((k.into(), [0u8; 32])); // absent after (retired)
+        }
+        for c in creates {
+            let k = utxo_key(c);
+            touched.push(k);
+            old_leaves.push((k.into(), [0u8; 32])); // absent before
+            new_leaves.push((k.into(), k.into())); // present after
+        }
+        // the compiled multi-proof is taken from the PRE-state tree; the SMT co-path it captures is
+        // invariant under changing only the touched leaves, so the same proof recomputes both roots.
+        let compiled = self
+            .smt
+            .merkle_proof(touched.clone())
+            .and_then(|p| p.compile(touched))
+            .expect("compile transition multi-proof");
+        for c in spends {
+            self.remove(c);
+        }
+        for c in creates {
+            self.insert(c);
+        }
+        TransitionWitness {
+            old_root,
+            new_root: self.root(),
+            old_leaves,
+            new_leaves,
+            proof: compiled.0,
+        }
+    }
+}
+
+/// A witness that a block's spends/creates carry `old_root` into `new_root` — the object a Phase-3
+/// zkVM guest checks (spec milestone 1: "prove one block's transition against commitments"). It
+/// carries only the touched keys + a compiled SMT multi-proof, so the guest input is bounded
+/// regardless of |UTXO set|.
+#[derive(Clone, Debug)]
+pub struct TransitionWitness {
+    pub old_root: [u8; 32],
+    pub new_root: [u8; 32],
+    /// (key, value-before) for every touched cell.
+    pub old_leaves: Vec<([u8; 32], [u8; 32])>,
+    /// (key, value-after) for every touched cell.
+    pub new_leaves: Vec<([u8; 32], [u8; 32])>,
+    /// compiled multi-proof over the touched keys, taken from the pre-state tree.
+    pub proof: Vec<u8>,
+}
+
+/// **The Phase-3 guest logic** (pure re-hashing; `no_std`-portable as written): does `w` prove a
+/// valid UTXO transition against BOTH committed roots? A single compiled multi-proof verifies the
+/// touched keys at their OLD values under `old_root` AND at their NEW values under `new_root` — the
+/// SMT property that lets one inclusion proof double as a transition proof. This is exactly the
+/// check a RISC Zero guest runs over `(old_root, new_root, leaves, proof)` before committing to its
+/// journal; the only work to move it on-VM is compiling it `no_std` (the SMT + hasher already are).
+//
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// DEV NOTE (Will, 2026-07-12) — Phase 3 status & the B path.
+// `verify_transition` IS the zkVM guest program, and it is host-verified GREEN (see the test
+// `utxo_transition_is_zk_verifiable_against_both_roots`). What is NOT done: producing a real STARK
+// RECEIPT + honest proving-cost numbers. That is Phase-3 Option B, and it is DEFERRED UNTIL A LINUX
+// ENV EXISTS — this Windows box has no prover (no WSL2 / Docker / r0vm) and no C compiler.
+// When a Linux/WSL2/CI env is available, do B:
+//   1. Move `verify_transition` + `Blake2bRefHasher` into `noesis-core` (no_std) so host + guest
+//      share ONE definition (the vendored SMT + blake2b-ref are already no_std).
+//   2. Scaffold `onchain/zk-utxo/` mirroring `onchain/zk-finalize/` (parity / methods / methods-guest
+//      / host); the guest just calls `verify_transition` and commits (sha256(inputs), ok) to journal.
+//   3. Prove on Linux, assert `receipt.verify`, and record REAL proving time / cost / receipt size in
+//      `docs/phase3-zk-plan.md`. Do NOT claim "ZK ships" until a receipt verifies.
+// Footnote: RISC Zero accelerates SHA-256, not blake2b — measure that cost, don't assume it.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+pub fn verify_transition(w: &TransitionWitness) -> bool {
+    fn pairs(v: &[([u8; 32], [u8; 32])]) -> Vec<(H256, H256)> {
+        v.iter().map(|(k, val)| ((*k).into(), (*val).into())).collect()
+    }
+    let proof = CompiledMerkleProof(w.proof.clone());
+    let old_ok = proof.verify::<Blake2bRefHasher>(&w.old_root.into(), pairs(&w.old_leaves)).unwrap_or(false);
+    let new_ok = proof.verify::<Blake2bRefHasher>(&w.new_root.into(), pairs(&w.new_leaves)).unwrap_or(false);
+    old_ok && new_ok
 }
 
 impl Default for UtxoCommitment {
@@ -308,6 +399,41 @@ mod tests {
             *b ^= 0xFF; // corrupt the proof
         }
         assert!(!UtxoCommitment::verify(&root, &set[0], &proof, true), "a corrupted proof must not verify");
+    }
+
+    #[test]
+    fn utxo_transition_is_zk_verifiable_against_both_roots() {
+        // Phase-3 milestone 1, host-verified: prove one block's UTXO transition against commitments.
+        let mut c = UtxoCommitment::from_cells(&sample()); // alice(1), bob(2), carol(3)
+        let spend = cell(2, b"bob", b"250"); // spend bob (must match his live identity)
+        let create = cell(4, b"dave", b"1"); // create dave
+        let w = c.transition(&[spend.clone()], &[create.clone()]);
+
+        // the honest witness verifies — this is the guest's exact check.
+        assert!(verify_transition(&w), "honest transition must verify against BOTH roots");
+        assert_ne!(w.old_root, w.new_root, "a real movement must move the root");
+        assert_eq!(c.root(), w.new_root, "commitment is now at the post-state");
+
+        // post-state agrees: bob retired, dave live.
+        assert!(UtxoCommitment::verify(&w.new_root, &create, &c.prove(&create), true));
+        assert!(UtxoCommitment::verify(&w.new_root, &spend, &c.prove(&spend), false));
+
+        // tamper 1 — lie about the new root.
+        let mut t1 = w.clone();
+        t1.new_root[0] ^= 0x01;
+        assert!(!verify_transition(&t1));
+
+        // tamper 2 — corrupt the proof witness.
+        let mut t2 = w.clone();
+        if let Some(b) = t2.proof.last_mut() {
+            *b ^= 0xFF;
+        }
+        assert!(!verify_transition(&t2));
+
+        // tamper 3 — claim a spent coin survived (a double-spend attempt): must not verify.
+        let mut t3 = w.clone();
+        t3.new_leaves[0].1 = t3.new_leaves[0].0; // bob's key -> "present" after
+        assert!(!verify_transition(&t3), "must not be able to claim a spent coin survived");
     }
 
     /// Phase-2 measurement (NOT a correctness gate). Reproduce with:
