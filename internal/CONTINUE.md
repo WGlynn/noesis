@@ -22,13 +22,17 @@ number from code actually run (no mocked benchmarks). Docs: `docs/rulebook-map.m
   `Node::validate`/`apply` are now thin callers. Replay-parity GREEN (`node/tests/apply_block_parity.rs`,
   byte-identical `state_digest` vs old path over the two_node vectors). **351 tests green** (was 349+2),
   0 new clippy. Pushed `origin/master` @ `6541479`.
-- **▶ Phase 2 (NEXT) — Compact state (no ZK).** Audited-accumulator commitment over the UTXO set
-  (`token_cells: Vec<Cell>`, `runtime.rs:123`), per-block, KB membership proofs, assumeutxo-style
-  checkpoint bootstrap. **⚑ OPEN DECISION (Will):** reuse the in-repo hand-rolled SMT (`NoveltyIndex` —
-  incumbent, order-independent, consistent with `zk-finalize`) vs. pull an **audited external accumulator**
-  (satisfies the audited-libs rule cleanly, adds a dep + a 2nd Merkle construction). Trade-off = crypto-
-  honesty rule vs. codebase consistency. Surfaced; recommendation pending Will's call.
-- **Phase 3 — zkVM PoC + honest cost report (human go/no-go).** ⚠ **No STARK prover on this Windows box**
+- **Phase 2 ✅** (`78290ba`) — Compact state (no ZK). Audited UTXO-set commitment. **Decision resolved =
+  B (audited, vendored)** after Will interrogated A/B (crypto-agnosticism / trusted-3rd-party / purity):
+  the CKB `sparse-merkle-tree` won't build here (needs a C compiler — absent) and its C blake2b breaks the
+  RISC-V path, so we **VENDORED + STRIPPED** it to pure Rust (`onchain/vendor/sparse-merkle-tree` — C hasher
+  removed, Noesis's `blake2b-ref` plugged via the `Hasher` trait: audited algorithm, no C, RISC-V-clean, no
+  trusted 3rd party). `node/src/utxo_commitment.rs`: membership + non-membership proofs + assumeutxo
+  checkpoint. 358 green (+7), 0 new clippy. **Additive** (shadow-computed from `token_cells`; no consensus
+  touch) ⇒ Phase-1 parity intact. Measured (release): proofs ~300–470 B; incremental update ~80–120 µs;
+  shadow full-rebuild O(n)=2.02 s @10k ⇒ **incremental maintenance is the deploy step** (path exists,
+  unwired). Report: `docs/phase2-commitment-report.md`.
+- **▶ Phase 3 (NEXT) — zkVM PoC + honest cost report (human go/no-go).** ⚠ **No STARK prover on this Windows box**
   (no WSL2/Docker/r0vm/rzup — README-confirmed) ⇒ real receipt + benchmarks require Linux/WSL2/CI.
   Prereqs from Phase 0/1: std→no_std container swap (`HashMap`/`HashSet` → `BTreeMap`/sorted-`Vec`) and
   the O(chain) full-chain PoM recompute (`runtime.rs` `apply_transition` step g) → bounded per-block delta.
