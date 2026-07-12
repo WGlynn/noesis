@@ -69,8 +69,20 @@ stamp) and 2 (`Constitution.vesting_w` + `Node::finality_pom_weight` cliff bridg
 production source (cleared standing = v(S) that survived `W` of dispute exposure), where before it existed
 only in test constructors. RSAW log: `ROADMAP.md` (P2, newest-first).
 
-**▶ NEXT (build COLD, fresh low-context — consensus surgery): Phase 3 — dispute-during-`W`** (design
-§2.4 / §3 stage 3).
+**✅ BUILT 2026-07-12 (vesting-`W` Phase 3 — dispute-during-`W`, design §2.4 / §3 stage 3).** The
+finality rail now responds to a refutation. `runtime.rs`: `Ledger.refuted: HashSet<cell_id>` +
+`Node::record_refutation(target, &dispute::Settlement)` (records the target cell iff the settlement
+actually CANCELED unvested value — an upheld/acquitted challenge returns a zero/empty settlement and
+records NOTHING) + a 2nd filter in `finality_pom_weight` (`past_cliff && !refuted.contains(id)`).
+RED→GREEN: a refuted-while-pending cell contributes ZERO finality weight even after it ages past `W`;
+an un-refuted sibling still clears (no over-exclusion); forward-only (`record_refutation` leaves
+`state_digest`/height/cells byte-identical — no past block un-finalizes); anti-theater (drop the filter
+⇒ RED). Node lib 293→295 green, 0 new clippy.
+**🟡 REMAINING (deploy-coupled, designed-not-built):** `refuted` is populated out-of-band, so unlike
+`finalized_at` (block-replay-derivable) it is NOT yet history-derivable — embedding dispute resolutions
+into the replayable block/Op stream (so replicas converge on `refuted`) is the remaining wiring, same
+class as the crypto-nullifier / on-VM UTXO retirement. This build = the reference mechanism + its
+forward-only exclusion property, NOT cross-replica determinism. Grounding kept below for provenance.
 
 **GROUNDED 2026-07-12 (the sharpened gap — load-bearing, discovered while teeing this up):** `Op::Slash(d)`
 reduces only the **Standing SCALAR** (`st.pom.saturating_sub(d)`, `lib.rs:495`), but `Node::finality_pom_weight`

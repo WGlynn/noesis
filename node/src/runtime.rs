@@ -130,6 +130,22 @@ pub struct Ledger {
     /// DELIBERATELY excluded from [`Ledger::state_digest`] — additive + non-consensus-affecting
     /// until the cleared-score bridge (Phase 2) reads it.
     pub finalized_at: HashMap<u64, u64>,
+    /// Phase-3 dispute-during-`W` index (DESIGN-vesting-W §2.4): cell ids removed from FUTURE
+    /// finality-PoM weight by a LANDED refutation — a dispute whose settlement actually canceled
+    /// unvested value. Keyed by `cell.id` (the same id space as `finalized_at` and the dispute
+    /// layer's `Challenge.target`). [`Node::finality_pom_weight`] filters these out as a SECOND gate
+    /// beside the vesting cliff, so a cell gamed-in and refuted while still PENDING never ages into
+    /// finality weight. FORWARD-ONLY: past finalized checkpoints are never recomputed — a refutation
+    /// only strips the bad cell from finality decisions going forward. Written by
+    /// [`Node::record_refutation`].
+    ///
+    /// Also excluded from [`Ledger::state_digest`], but for a DIFFERENT reason than `finalized_at`:
+    /// `finalized_at` is derivable from block replay, whereas refutations are NOT yet block-embedded,
+    /// so `refuted` is populated out-of-band and is not history-derivable until dispute resolutions
+    /// enter the replayable block/Op stream (the deploy-coupled step, designed-not-built). Until that
+    /// lands, two replicas converge on `refuted` only if fed the same refutations — this build is the
+    /// reference mechanism + its forward-only exclusion property, NOT cross-replica determinism.
+    pub refuted: HashSet<u64>,
 }
 
 /// Comparable digest of a replica's state (see [`Ledger::state_digest`]): finalized cell-id
@@ -147,6 +163,7 @@ impl Ledger {
             work: 0,
             token_cells: Vec::new(),
             finalized_at: HashMap::new(),
+            refuted: HashSet::new(),
         }
     }
 
@@ -553,8 +570,10 @@ impl Node {
     /// clock ([`Ledger::now`]). Filtering preserves canonical commit order, so the similarity floor
     /// evaluates the cleared cells among themselves deterministically ⇒ replica-identical.
     ///
-    /// Phase 3 (dispute-during-`W`) is the remaining stage: a slash landing on a still-pending cell
-    /// removes it before it can age into this map (forward-only). Not built here.
+    /// Phase 3 (dispute-during-`W`, BUILT): a refutation that LANDS on a still-pending cell records
+    /// it in [`Ledger::refuted`] (via [`Node::record_refutation`]); this map filters those cells out
+    /// as a SECOND gate beside the cliff, so a gamed cell refuted before it ages past `W` never
+    /// contributes finality weight (forward-only — past checkpoints untouched).
     pub fn finality_pom_weight(&self) -> HashMap<Vec<u8>, u64> {
         // clearing frontier: a cell clears iff its finalization work-time is at least `W` old.
         // `saturating_sub` floors at 0 (pre-genesis / W > now ⇒ frontier 0 ⇒ nothing clears, since
@@ -565,14 +584,32 @@ impl Node {
             .cells
             .iter()
             .filter(|c| {
-                // fail closed on the safety input: a cell with no stamp (cannot occur — `cells` and
-                // `finalized_at` are written in the same `apply` pass — but do not assume) is treated
-                // as pending, never cleared.
-                self.ledger.finalized_at.get(&c.id).is_some_and(|&f| f <= frontier)
+                // (1) vesting cliff — fail closed on the safety input: a cell with no stamp (cannot
+                // occur — `cells` and `finalized_at` are written in the same `apply` pass — but do not
+                // assume) is treated as pending, never cleared.
+                let past_cliff = self.ledger.finalized_at.get(&c.id).is_some_and(|&f| f <= frontier);
+                // (2) Phase-3 dispute gate — a cell refuted while pending is stripped from finality
+                // weight forever (forward-only). AND-ed with the cliff so a refuted cell never clears
+                // here even once it ages past `W`.
+                past_cliff && !self.ledger.refuted.contains(&c.id)
             })
             .cloned()
             .collect();
         pom_scores_with_similarity_floor_q16(&cleared, self.constitution.theta_sim_q16)
+    }
+
+    /// Phase 3 (dispute-during-`W`): record a LANDED refutation so its target cell is excluded from
+    /// all FUTURE [`Node::finality_pom_weight`] (forward-only). A refutation "lands" iff the dispute
+    /// [`crate::dispute::Settlement`] actually CANCELED unvested value (`canceled > 0.0`) — an UPHELD
+    /// challenge or a guarded acquittal returns a zero/empty settlement and records NOTHING, so an
+    /// unrefuted cell is never excluded. Idempotent (a `HashSet`). Touches no finalized state
+    /// (`cells` / `finalized_at` / the digest) ⇒ no block un-finalizes; only future finality weight
+    /// loses the bad cell. `target` is the challenged cell id (the dispute layer's `Challenge.target`,
+    /// the same id space `finalized_at` / `finality_pom_weight` key on).
+    pub fn record_refutation(&mut self, target: u64, settlement: &crate::dispute::Settlement) {
+        if settlement.canceled > 0.0 {
+            self.ledger.refuted.insert(target);
+        }
     }
 
     /// Apply a finalized block: the in-place state transition. Delegates to the pure rulebook
@@ -1838,6 +1875,79 @@ mod tests {
         }
         // ANTI-THEATER: if the bridge did NOT filter (returned the full map), blocks 4/5 would be
         // non-zero and the PENDING asserts above would fail ⇒ the filter is load-bearing, not decor.
+    }
+
+    // ---- Phase-3 dispute-during-`W`: refuted-while-pending cells never age into finality ----
+
+    #[test]
+    fn refuted_pending_cell_never_ages_into_finality_weight() {
+        // Phase 3 (dispute-during-`W`): a cell gamed in and REFUTED while still pending must never
+        // contribute finality PoM weight, even after it ages past `W`. Its un-refuted sibling (an
+        // UPHELD challenge, which records nothing) still clears — no over-exclusion.
+        let w = 2u64;
+        let con = Constitution { vesting_w: w, ..Constitution::default() };
+        let mut node = Node::new(0, vec![v(0, 0.0, 100.0, 100.0)], con);
+        let who = |h: u64| format!("contrib{}", h).into_bytes();
+        // blocks 1 & 2 finalize (cell id == height). At now == 2, frontier = 2 − 2 = 0 ⇒ both PENDING.
+        node.apply(&carrier_for(1, &who(1)));
+        node.apply(&carrier_for(2, &who(2)));
+        assert_eq!(node.ledger.now(), 2, "pre-PoW clock == height");
+        // A dispute LANDS on cell 1 while it is still pending: the refuting settlement cancels its
+        // unvested value (canceled > 0) ⇒ record_refutation stamps cell 1 into `refuted`.
+        let refuting = crate::dispute::Settlement { canceled: 5.0, ..Default::default() };
+        node.record_refutation(1, &refuting);
+        // A challenge on cell 2 is UPHELD / acquitted: a zero/empty settlement records NOTHING.
+        node.record_refutation(2, &crate::dispute::Settlement::default());
+        assert!(node.ledger.refuted.contains(&1), "refuting settlement recorded cell 1");
+        assert!(!node.ledger.refuted.contains(&2), "upheld settlement recorded nothing for cell 2");
+        // advance the clock so BOTH cells age past `W` (finalized_at 1,2 would otherwise clear).
+        node.apply(&carrier_for(3, &who(3)));
+        node.apply(&carrier_for(4, &who(4)));
+        assert_eq!(node.ledger.now(), 4);
+        // now == 4, frontier = 4 − 2 = 2 ⇒ cells 1 and 2 both CLEARED the vesting cliff.
+        let weight = node.finality_pom_weight();
+        // (i) the REFUTED cell 1 contributes ZERO despite clearing the cliff — the dispute gate holds.
+        assert_eq!(
+            weight.get(&who(1)).copied().unwrap_or(0),
+            0,
+            "cell 1 cleared the cliff but was refuted while pending ⇒ filtered out of finality weight"
+        );
+        // (ii) the un-refuted sibling cell 2 clears normally — the gate does not over-exclude.
+        assert!(
+            weight.get(&who(2)).copied().unwrap_or(0) > 0,
+            "un-refuted cell 2 aged past W ⇒ contributes finality weight"
+        );
+        // reward is untouched: refutation gates FINALITY weight only; the (uncleared) attribution map
+        // still credits the contributor. The value-layer standing slash is the dispute mod's separate
+        // rail (`apply_slashes` / soulbound::Op::Slash) — the two rails, now BOTH responsive to a
+        // refutation (this build closed the finality rail; before, a slash did nothing here).
+        assert!(node.ledger.pom.get(&who(1)).copied().unwrap_or(0) > 0);
+        // ANTI-THEATER: drop `&& !self.ledger.refuted.contains(&c.id)` from finality_pom_weight and
+        // (i) flips to non-zero ⇒ the dispute gate is load-bearing, not decoration.
+    }
+
+    #[test]
+    fn refutation_is_forward_only_and_off_the_state_digest() {
+        // (iii) forward-only: recording a refutation changes only FUTURE finality weight. It never
+        // mutates a finalized cell, the height, or the digest of already-finalized blocks — no past
+        // block un-finalizes. This also pins the design decision that `refuted` is OFF the digest.
+        let w = 1u64;
+        let con = Constitution { vesting_w: w, ..Constitution::default() };
+        let mut node = Node::new(0, vec![v(0, 0.0, 100.0, 100.0)], con);
+        let who = |h: u64| format!("contrib{}", h).into_bytes();
+        node.apply(&carrier_for(1, &who(1)));
+        node.apply(&carrier_for(2, &who(2)));
+        let height_before = node.ledger.height;
+        let cells_before = node.ledger.cells.len();
+        let digest_before = node.ledger.state_digest();
+        node.record_refutation(1, &crate::dispute::Settlement { canceled: 3.0, ..Default::default() });
+        assert_eq!(node.ledger.height, height_before, "refutation does not roll back height");
+        assert_eq!(node.ledger.cells.len(), cells_before, "refutation removes no finalized cell");
+        assert_eq!(
+            node.ledger.state_digest(),
+            digest_before,
+            "`refuted` is off the digest ⇒ past finalized state is byte-identical (forward-only)"
+        );
     }
 
     #[test]
