@@ -4,6 +4,36 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## 🔝🔝🔝 NEXT SESSION (2026-07-12 rotate) — BUILD THE PRAGMA LAYER (the final axis)
+Will 2026-07-12: *"rotate and we build the Pragma layer to cover the final axis."* Per-execution FV is
+DONE + machine-checked (Phase 4 ✅ all 3 steps green — see the stateless-verification block below).
+The remaining axis = **rule-set-mutation coherence** (the 2nd line of defence): when governance AMENDS
+the Constitution, does it stay confluent AND keep the axioms (I1–I4 value + the Shapley 5-axiom
+attribution set)? Line-1 covers a FIXED rulebook; this covers the SPACE of governable rulebooks. Tom's
+danger quadrant = Confluent + Axiom-breaking ("nobody checks that today").
+
+**BUILD ORDER (socket-first; ours to build with no partner terms):**
+1. **The socket (ours, public, build-in-open):** make the Noesis Constitution-amendment surface an
+   EXPLICIT, inspectable rule-set mutation with the axiom obligations stated alongside it. TODAY the
+   amendment RULES are `pending` (a constitutional-cell + verifier-gate — see the 3-layer governance in
+   the `Constitution` struct doc, `node/src/runtime.rs`: physics near-immutable / constitutional
+   amendment-rules verifier-gated / weights governance-bounded). So: (a) define the amendment op as a
+   typed inspectable mutation of the measurement matrix; (b) state the per-amendment axiom obligations
+   (value I1–I4 + Shapley 5-axiom). START with a `docs/` design note (Will greenlit).
+2. **Confluence attach point:** where a pre-merge confluence + axiom-preservation check hooks the
+   amendment op (Tom's design = sub-second pre-merge CI hook, not an offline audit).
+3. **Actual Pragma integration = terms-in-writing-first** (business material; Will drives the
+   POC/relationship — Tom Lindeman + Bernhard Mueller, [[pragma-confluence-governance-fv]]). The socket
+   makes Will the POC ref-client (Noesis amendments + the VibeSwap audit-arsenal rule-mutation corpus =
+   their "real client data").
+
+**Anti-hallucination:** RE-VERIFY the `Constitution` 3-layer governance + the `pending` amendment-rule
+status at `node/src/runtime.rs` (Constitution struct doc) before building. Read `docs/phase4-fv-plan.md`
+(Pragma section) + `docs/Pragma Overlaps/noesis-pragma-overlap.md` first. ALSO STILL OPEN: the ρ/φ
+changeset (Will's commit-or-discard; see REPO STATE at the bottom of this file).
+
+---
+
 ## 🔝🔝 RESUME HERE (2026-07-12 PM — STATELESS-VERIFICATION ENGAGEMENT, Phase 0+1 shipped)
 **Separate track from the vesting-`W` work below.** Goal: nodes verify Noesis state+history trustlessly &
 cheaply via **UTXO ⊕ recursive-zkVM validity proofs ⊕ formal verification** (3 codependent axes — rules
