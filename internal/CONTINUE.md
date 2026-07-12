@@ -46,10 +46,17 @@ number from code actually run (no mocked benchmarks). Docs: `docs/rulebook-map.m
   the `onchain/zk-utxo/` scaffold: **`docs/phase3-zk-plan.md`** + the DEV NOTE in `utxo_commitment.rs`.
   Do NOT claim "ZK ships" until a receipt verifies. (RISC Zero accelerates SHA-256, not blake2b —
   measure that cost.)
-- **Phase 4 — FV.** Property tests (conservation / no-double-spend / determinism-under-reserialize) →
-  differential fuzz → Isabelle/HOL spec (owner reviews). **Pragma Coherence** if it fits cleanly — it is a
-  rule-set confluence / axiom-preservation axis, COMPLEMENTARY to the UTXO-invariant theorems, not a
-  substitute (use where it fits, don't force).
+- **▶ Phase 4 — FV (PLANNED 2026-07-12, ready to execute — runs on ANY machine, no prover).** Full plan:
+  **`docs/phase4-fv-plan.md`**. Ladder, cheapest-first: **(1)** `proptest` property tests over `apply_block`
+  in `node/tests/fv_invariants.rs` — I1 value-conservation · I2/I3 no-double-spend (in+cross-block) · I4
+  no-spend-of-nonexistent · I5 determinism-under-reserialization (each with an anti-theater RED check) →
+  **(2)** spec-oracle differential (`apply_block` vs a ~50-line `BTreeMap` reference model; note: old-vs-new
+  is ALREADY covered by `apply_block_parity` + `core_drift_guard`, so don't invent a legacy path) → **(3)**
+  Isabelle/HOL `internal/fv/Noesis_Rulebook.thy` proving `conservation` + `no_double_spend` over an abstract
+  value-model, **model-to-code gap enumerated** for Will's review. **Pragma Coherence** = a SEPARATE,
+  optional layer for the Constitution-amendment (rule-set-mutation) surface — complementary, do NOT force
+  onto the UTXO invariants (read `docs/Pragma Overlaps/noesis-pragma-overlap.md` first). **Start with Step 1**
+  (highest value; surfaces edge cases before any Isabelle).
 
 Task board (JARVIS-side): tasks #1-5. Memory: [[noesis-stateless-verification]]. The uncommitted
 ρ/φ-numerology working-tree changeset (background RSAW loop) is LEFT UNTOUCHED for Will's deliberate
