@@ -1,0 +1,21 @@
+# VENDORED + STRIPPED for Noesis (2026-07-12).
+# Upstream: nervosnetwork/sparse-merkle-tree v0.6.1 (MIT) — the audited SMT used on CKB mainnet.
+# We removed the C blake2b hasher (`blake2b-rs`), the C-backed `smtc` SMT (+ build.rs / cc), the
+# `trie` variant, and the crate's own tests/benches. What remains is the pure-Rust tree/merge/proof
+# core, which is `no_std`-compatible and cross-compiles to RISC-V with rustc alone (no C toolchain).
+# The consumer supplies the `Hasher` (Noesis uses pure-Rust `blake2b-ref`), so the commitment stays
+# byte-compatible with the rest of the chain while dropping the only C dependency.
+[package]
+name = "sparse-merkle-tree"
+version = "0.6.1"
+edition = "2018"
+description = "Vendored+stripped Nervos sparse-merkle-tree (pure-Rust core, C hasher removed) for Noesis"
+license = "MIT"
+repository = "https://github.com/nervosnetwork/sparse-merkle-tree"
+
+[dependencies]
+cfg-if = { version = "0.1", default-features = false }
+
+[features]
+default = ["std"]
+std = []

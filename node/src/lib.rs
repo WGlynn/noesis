@@ -32,6 +32,13 @@ pub mod tokens;
 /// re-derivation (NOT ZK / proofs — that is the open frontier, not built here).
 pub mod pom_export;
 
+/// Phase 2 (stateless verification): a compact, audited commitment to the UTXO (`token_cells`)
+/// set — a 32-byte root + ~KB membership / non-membership proofs, so a light node checks "is this
+/// coin unspent?" without the whole set. Built on the vendored, C-free Nervos SMT
+/// (`onchain/vendor/sparse-merkle-tree`) with Noesis's pure-Rust blake2b hasher. Additive: derives
+/// from state, touches no apply/consensus path. See `docs/phase2-commitment-report.md`.
+pub mod utxo_commitment;
+
 /// A CKB-style script: a RISC-V program (by code hash) + its arguments. VM success
 /// = valid. Lock scripts gate ownership; type scripts gate state transitions.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

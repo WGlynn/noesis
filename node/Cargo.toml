@@ -24,6 +24,10 @@ serde_json = "1"
 # MerkleProof: double-hash leaf + commutative pairs) so an on-chain PoMExportHub consumer
 # can verify a contributor's value against the exported root. Host-side only.
 tiny-keccak = { version = "2.0", features = ["keccak"] }
+# Phase 2 (stateless verification): UTXO-set commitment. VENDORED + STRIPPED Nervos
+# sparse-merkle-tree (audited on CKB mainnet) with its C blake2b removed — pure-Rust, so it
+# cross-compiles to RISC-V for the Phase-3 zkVM guest. Noesis plugs in `blake2b-ref` as the Hasher.
+sparse-merkle-tree = { path = "../onchain/vendor/sparse-merkle-tree" }
 
 [dev-dependencies]
 ckb-vm = "0.24"

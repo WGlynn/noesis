@@ -6,5 +6,5 @@
 # exactly like CKB keeps its on-chain scripts out of the node workspace.
 [workspace]
 resolver = "2"
-members = ["node", "onchain/noesis-core"]
+members = ["node", "onchain/noesis-core", "onchain/vendor/sparse-merkle-tree"]
 exclude = ["onchain/pom-typescript", "onchain/finalization-typescript", "onchain/commit-order-typescript", "onchain/locksig-typescript", "onchain/zk-finalize"]
