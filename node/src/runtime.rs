@@ -108,6 +108,15 @@ pub struct Ledger {
     /// inputs from and appends produced outputs to this set, enabling multi-hop token flow while
     /// preserving cross-block single-use. Issuance authority cells are seeded into it.
     pub token_cells: Vec<Cell>,
+    /// Phase-1 vesting index: the cumulative-work time ([`Ledger::now`]) at which each cell was
+    /// finalized, keyed by `cell.id`. The clearing rule (a cell is *cleared* at `now` iff
+    /// `finalized_at ≤ now − W`) reads this; a younger cell is *pending* — it still earns
+    /// reward/influence but contributes ZERO finality-safety weight (DESIGN-vesting-W §2.1–2.2).
+    /// Populated in [`Node::apply`] as each cell enters (first finalization wins). Replica-
+    /// deterministic (same blocks + order ⇒ same map) and fully derivable from history, so it is
+    /// DELIBERATELY excluded from [`Ledger::state_digest`] — additive + non-consensus-affecting
+    /// until the cleared-score bridge (Phase 2) reads it.
+    pub finalized_at: HashMap<u64, u64>,
 }
 
 /// Comparable digest of a replica's state (see [`Ledger::state_digest`]): finalized cell-id
@@ -124,6 +133,7 @@ impl Ledger {
             height: 0,
             work: 0,
             token_cells: Vec::new(),
+            finalized_at: HashMap::new(),
         }
     }
 
@@ -579,6 +589,15 @@ impl Node {
         // advance the cumulative-work clock (the canonical `now`). Monotone by construction
         // (block_work ≥ 1 and saturating_add never wraps); pre-PoW this tracks height exactly.
         self.ledger.work = self.ledger.work.saturating_add(block_work(b));
+        // Phase-1 vesting stamp: record the cumulative-work clock AS OF this finalized block for
+        // every cell it finalizes. `or_insert` ⇒ a cell's FIRST finalization wins (a cell enters
+        // the ledger exactly once; the guard makes an accidental re-apply idempotent). Node-side
+        // index, NOT folded into `state_digest` ⇒ additive + non-consensus-affecting until Phase 2's
+        // cleared-score bridge reads it. Same blocks + same order ⇒ same map (replica-deterministic).
+        let finalized_now = self.ledger.work;
+        for cell in &b.cells {
+            self.ledger.finalized_at.entry(cell.id).or_insert(finalized_now);
+        }
         self.ledger.pom =
             pom_scores_with_similarity_floor_q16(&self.ledger.cells, self.constitution.theta_sim_q16);
     }
@@ -1425,6 +1444,84 @@ mod tests {
                 },
             )],
         )
+    }
+
+    // ---- Phase-1 vesting: cell finalization stamp (DESIGN-vesting-W §2.1, build-stage §3.1) ----
+
+    #[test]
+    fn finalized_at_stamps_each_cell_with_its_blocks_work_time() {
+        // Each cell is stamped with the cumulative-work clock AS OF the block that finalized it.
+        // Pre-PoW the clock == height, and carrier_at(h, h, ..) makes cell.id == h, so the cell
+        // finalized by block h must carry finalized_at == h (== now() at that finalization).
+        let mut node = Node::new(0, vec![v(0, 0.0, 100.0, 100.0)], Constitution::default());
+        assert!(
+            node.ledger.finalized_at.is_empty(),
+            "genesis: nothing finalized ⇒ empty stamp map ⇒ nothing cleared (bootstrap §2.5)"
+        );
+        for h in 1..=3u64 {
+            node.apply(&carrier_at(h, h, h as u8, format!("phase1 stamp {}", h).as_bytes()));
+            assert_eq!(
+                node.ledger.finalized_at.get(&h).copied(),
+                Some(node.ledger.now()),
+                "cell {} stamped with the work-time of the block that finalized it",
+                h
+            );
+        }
+        // A cell's finalization time is fixed once set — earlier stamps do not move as the clock runs.
+        assert_eq!(node.ledger.finalized_at.get(&1).copied(), Some(1));
+        assert_eq!(node.ledger.finalized_at.get(&2).copied(), Some(2));
+        assert_eq!(node.ledger.finalized_at.get(&3).copied(), Some(3));
+    }
+
+    #[test]
+    fn finalized_at_is_replica_deterministic() {
+        // Two honest nodes finalizing the SAME blocks in the SAME order hold identical stamp maps —
+        // the property Phase 2's cleared-score bridge relies on (same cleared set on every replica).
+        let blocks: Vec<Block> = (1..=4u64)
+            .map(|h| carrier_at(h, h, h as u8, format!("replica det {}", h).as_bytes()))
+            .collect();
+        let mut a = Node::new(0, vec![v(0, 0.0, 100.0, 100.0)], Constitution::default());
+        let mut b = Node::new(1, vec![v(0, 0.0, 100.0, 100.0)], Constitution::default());
+        for blk in &blocks {
+            a.apply(blk);
+            b.apply(blk);
+        }
+        let mut am: Vec<(u64, u64)> = a.ledger.finalized_at.iter().map(|(k, v)| (*k, *v)).collect();
+        let mut bm: Vec<(u64, u64)> = b.ledger.finalized_at.iter().map(|(k, v)| (*k, *v)).collect();
+        am.sort();
+        bm.sort();
+        assert_eq!(am, bm, "same blocks ⇒ same finalized_at on every replica");
+    }
+
+    #[test]
+    fn finalized_at_stamps_every_cell_once_and_stays_off_the_digest() {
+        // Completeness + additivity: every finalized cell is stamped exactly once (map size ==
+        // finalized-cell count, every id present), and the stamp is NOT in the consensus digest —
+        // so it cannot perturb existing scoring/convergence (nothing reads it for finality yet).
+        let mut node = Node::new(0, vec![v(0, 0.0, 100.0, 100.0)], Constitution::default());
+        for h in 1..=5u64 {
+            node.apply(&carrier_at(h, h, h as u8, format!("completeness {}", h).as_bytes()));
+        }
+        assert_eq!(
+            node.ledger.finalized_at.len(),
+            node.ledger.cells.len(),
+            "exactly one stamp per finalized cell (no misses, no doubles)"
+        );
+        for c in &node.ledger.cells {
+            assert!(node.ledger.finalized_at.contains_key(&c.id), "cell {} is stamped", c.id);
+        }
+        // state_digest is the 5-tuple (ids, novelty-root, pom, token-ids, work); finalized_at is
+        // absent by construction, so a twin replica on the same blocks agrees on the digest
+        // regardless of the (non-hashed) stamp map — additive, non-consensus-affecting.
+        let mut twin = Node::new(9, vec![v(0, 0.0, 100.0, 100.0)], Constitution::default());
+        for h in 1..=5u64 {
+            twin.apply(&carrier_at(h, h, h as u8, format!("completeness {}", h).as_bytes()));
+        }
+        assert_eq!(
+            node.ledger.state_digest(),
+            twin.ledger.state_digest(),
+            "digest unchanged by the stamp — it is derived state, not consensus state"
+        );
     }
 
     #[test]
