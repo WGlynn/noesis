@@ -514,39 +514,9 @@ impl Node {
     /// the block (within-block double-spend; the cross-block half is enforced by [`apply`] retiring
     /// consumed inputs from the live set).
     pub fn validate(&self, b: &Block) -> bool {
-        b.height == self.ledger.height + 1
-            && b.cells.len() == b.coords.len()
-            && !b.cells.is_empty()
-            && is_canonical_order(&b.coords)
-            && b.coords.iter().all(|c| c.height == b.height)
-            && self.token_txs_conserve_and_single_use(b)
-    }
-
-    /// Checks (5)+(6) for a block's token movements: each tx is ledger-valid (conserves AND spends
-    /// only live inputs — [`TokenTx::is_valid_in_ledger`]), AND no input identity is consumed more
-    /// than once across the whole block. (6) closes the WITHIN-BLOCK double-spend the (h) existence
-    /// fix left open: `is_valid_in_ledger` proves each input EXISTS, but two txs (or two inputs of
-    /// one tx) could each consume the SAME live authority/value cell — minting or transferring off
-    /// one cell twice. We fold a consumed-identity set across `token_txs` in canonical order and
-    /// reject the first reuse. The identity is the SAME consensus-derived tuple the existence check
-    /// keys on — `(id, lock, type_script)` — not a producer-asserted nullifier, so it stays in the
-    /// `[P·dont-let-attacker-choose-critical-input]` class. The crypto nullifier / on-VM UTXO-set
-    /// retirement is the deploy-coupled layer; this reference set models both block scopes.
-    fn token_txs_conserve_and_single_use(&self, b: &Block) -> bool {
-        let mut consumed: HashSet<(u64, Script, Script)> = HashSet::new();
-        for tx in &b.token_txs {
-            if !tx.is_valid_in_ledger(&self.ledger.token_cells) {
-                return false;
-            }
-            for inp in &tx.inputs {
-                let identity = (inp.id, inp.lock.clone(), inp.type_script.clone());
-                // insert returns false iff this identity was already consumed in this block.
-                if !consumed.insert(identity) {
-                    return false;
-                }
-            }
-        }
-        true
+        // Thin caller of the rulebook's acceptance gate ([`validate_block`]). Block validity is
+        // now defined in exactly ONE place, shared with [`apply_block`] and its Phase 2-4 consumers.
+        validate_block(&self.ledger, b).is_ok()
     }
 
     /// A node's vote on a proposal is its honest local validation.
@@ -605,56 +575,13 @@ impl Node {
         pom_scores_with_similarity_floor_q16(&cleared, self.constitution.theta_sim_q16)
     }
 
-    /// Apply a finalized block. DETERMINISTIC state transition: append the canonical-ordered
-    /// cells, insert their coverage into the novelty index (idempotent — mirrors the on-chain
-    /// index rule), advance the height, and recompute PoM attribution over the full chain.
-    /// Identical inputs ⇒ identical (cells, index.root(), pom) ⇒ replicas converge.
+    /// Apply a finalized block: the in-place state transition. Delegates to the pure rulebook
+    /// [`apply_transition`] (the extracted body) so `Node::apply` and the value-returning
+    /// [`apply_block`] share ONE definition of the transition. Precondition (unchanged): `b` has
+    /// already passed [`Node::validate`] in the consensus flow — [`apply_transition`] performs no
+    /// validation, exactly as this method did before the extraction (byte-identical behaviour).
     pub fn apply(&mut self, b: &Block) {
-        // TOKEN STATE TRANSITION (over the SEPARATE `token_cells` set, never `cells`):
-        //   (a) CROSS-BLOCK single-use — retire each consumed token input, so a later block's
-        //       `is_valid_in_ledger` existence check fails for an already-spent cell (the same real
-        //       authority/value cell cannot be respent across blocks — UTXO retirement); then
-        //   (b) PERSIST OUTPUTS — append each tx's produced outputs, so a recipient can spend them
-        //       in a LATER block (multi-hop A→B→C flow). Without (b) every output was unspendable.
-        // Identity is the consensus-derived tuple the existence check keys on (`id + lock +
-        // type_script`), never producer-asserted. Retire BEFORE appending so a within-block reuse of
-        // a just-produced output can't be conjured (validation already snapshots the pre-block set;
-        // within-block chaining is intentionally out of scope in v1). `cells`/index/`pom` are left
-        // untouched here ⇒ value movement does not perturb attribution. (The crypto nullifier set +
-        // on-VM UTXO-set retirement are the deploy-coupled layer; this is the reference model.)
-        for tx in &b.token_txs {
-            for inp in &tx.inputs {
-                self.ledger
-                    .token_cells
-                    .retain(|c| !(c.id == inp.id && c.lock == inp.lock && c.type_script == inp.type_script));
-            }
-        }
-        for tx in &b.token_txs {
-            for out in &tx.outputs {
-                self.ledger.token_cells.push(out.clone());
-            }
-        }
-        for cell in &b.cells {
-            for key in coverage(&cell.data) {
-                self.ledger.index.insert(key);
-            }
-            self.ledger.cells.push(cell.clone());
-        }
-        self.ledger.height = b.height;
-        // advance the cumulative-work clock (the canonical `now`). Monotone by construction
-        // (block_work ≥ 1 and saturating_add never wraps); pre-PoW this tracks height exactly.
-        self.ledger.work = self.ledger.work.saturating_add(block_work(b));
-        // Phase-1 vesting stamp: record the cumulative-work clock AS OF this finalized block for
-        // every cell it finalizes. `or_insert` ⇒ a cell's FIRST finalization wins (a cell enters
-        // the ledger exactly once; the guard makes an accidental re-apply idempotent). Node-side
-        // index, NOT folded into `state_digest` ⇒ additive + non-consensus-affecting until Phase 2's
-        // cleared-score bridge reads it. Same blocks + same order ⇒ same map (replica-deterministic).
-        let finalized_now = self.ledger.work;
-        for cell in &b.cells {
-            self.ledger.finalized_at.entry(cell.id).or_insert(finalized_now);
-        }
-        self.ledger.pom =
-            pom_scores_with_similarity_floor_q16(&self.ledger.cells, self.constitution.theta_sim_q16);
+        apply_transition(&mut self.ledger, b, &self.constitution);
     }
 
     /// Drop mempool entries (called after a block finalizes; v1 clears the whole pool since
@@ -662,6 +589,139 @@ impl Node {
     pub fn clear_mempool(&mut self) {
         self.mempool.clear();
     }
+}
+
+// ============ apply_block — the single rulebook (pure, deterministic) ============
+//
+// The complete state transition, extracted as a pure function of (previous state, block):
+// same inputs ⇒ same output, byte-for-byte, forever. No I/O, no clock (only the derived
+// cumulative-work counter, which is itself part of the state), no randomness, no floats — the
+// purity verdict in `docs/rulebook-map.md` §4, verified at source. `Node::validate` and
+// `Node::apply` are now thin callers, so consensus behaviour is defined in exactly ONE place:
+// the function the commitment layer (Phase 2), the zkVM guest (Phase 3), and the formal spec
+// (Phase 4) all consume. Extraction preserves behaviour bit-identically — see the replay-parity
+// test `node/tests/apply_block_parity.rs`.
+
+/// Why a block was rejected by the rulebook — one variant per acceptance check in
+/// [`validate_block`]. Carrying the reason (vs a bare `bool`) is what the `Result` shape of
+/// [`apply_block`] gives the zkVM guest and the Phase-4 invariant proofs.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Violation {
+    /// (1) block does not extend the chain by exactly one.
+    HeightMismatch { expected: u64, got: u64 },
+    /// (2) cells and coords are not 1:1.
+    CellCoordCountMismatch { cells: usize, coords: usize },
+    /// (3) empty block.
+    EmptyBlock,
+    /// (4) coords are not in canonical commit order (a producer reorder).
+    NonCanonicalOrder,
+    /// (5) a coordinate's height does not equal the block height.
+    CoordHeightMismatch,
+    /// (6) a token movement is not ledger-valid, or an input identity is spent twice in-block.
+    TokenTxInvalidOrDoubleSpend,
+}
+
+/// The acceptance gate: the six conjoined checks of the old `Node::validate`, returning the typed
+/// [`Violation`] instead of a `bool`. Pure over `(&state, &block)` — no `Node`, no I/O, no clock.
+pub fn validate_block(ledger: &Ledger, b: &Block) -> Result<(), Violation> {
+    if b.height != ledger.height + 1 {
+        return Err(Violation::HeightMismatch { expected: ledger.height + 1, got: b.height });
+    }
+    if b.cells.len() != b.coords.len() {
+        return Err(Violation::CellCoordCountMismatch { cells: b.cells.len(), coords: b.coords.len() });
+    }
+    if b.cells.is_empty() {
+        return Err(Violation::EmptyBlock);
+    }
+    if !is_canonical_order(&b.coords) {
+        return Err(Violation::NonCanonicalOrder);
+    }
+    if !b.coords.iter().all(|c| c.height == b.height) {
+        return Err(Violation::CoordHeightMismatch);
+    }
+    if !token_txs_conserve_and_single_use(ledger, b) {
+        return Err(Violation::TokenTxInvalidOrDoubleSpend);
+    }
+    Ok(())
+}
+
+/// Checks (5)+(6) over the ledger's token-cell set: each tx is ledger-valid (conserves AND spends
+/// only live inputs — [`TokenTx::is_valid_in_ledger`]), AND no input identity is consumed more than
+/// once across the whole block. Extracted from the old `Node` method so it is callable without a
+/// `Node`. Identity is the consensus-derived tuple `(id, lock, type_script)`, not a producer-asserted
+/// nullifier — the crypto nullifier / on-VM UTXO-set retirement is the deploy-coupled layer; this
+/// reference set models both block scopes.
+fn token_txs_conserve_and_single_use(ledger: &Ledger, b: &Block) -> bool {
+    let mut consumed: HashSet<(u64, Script, Script)> = HashSet::new();
+    for tx in &b.token_txs {
+        if !tx.is_valid_in_ledger(&ledger.token_cells) {
+            return false;
+        }
+        for inp in &tx.inputs {
+            let identity = (inp.id, inp.lock.clone(), inp.type_script.clone());
+            // insert returns false iff this identity was already consumed in this block.
+            if !consumed.insert(identity) {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+/// The pure state transition (no validation) — the exact body of the old `Node::apply`, reshaped to
+/// thread the `Ledger` + measurement params explicitly instead of `&mut self`. DETERMINISTIC:
+/// identical `(state, block, params)` ⇒ identical next state. Uses `&mut` purely as a zero-copy impl
+/// detail of the owned-in/owned-out [`apply_block`]; it performs no I/O, reads no clock/rand/float.
+fn apply_transition(state: &mut Ledger, b: &Block, params: &Constitution) {
+    // TOKEN STATE TRANSITION (over the SEPARATE `token_cells` set, never `cells`):
+    //   (a) CROSS-BLOCK single-use — retire each consumed token input (UTXO retirement), so a later
+    //       block's existence check fails for an already-spent cell; then
+    //   (b) PERSIST OUTPUTS — append each tx's produced outputs (multi-hop A→B→C flow).
+    // Retire BEFORE appending; `cells`/index/`pom` are untouched here ⇒ value movement does not
+    // perturb attribution. (Crypto nullifier + on-VM UTXO-set retirement are the deploy-coupled layer.)
+    for tx in &b.token_txs {
+        for inp in &tx.inputs {
+            state
+                .token_cells
+                .retain(|c| !(c.id == inp.id && c.lock == inp.lock && c.type_script == inp.type_script));
+        }
+    }
+    for tx in &b.token_txs {
+        for out in &tx.outputs {
+            state.token_cells.push(out.clone());
+        }
+    }
+    for cell in &b.cells {
+        for key in coverage(&cell.data) {
+            state.index.insert(key);
+        }
+        state.cells.push(cell.clone());
+    }
+    state.height = b.height;
+    // advance the cumulative-work clock (the canonical `now`). Monotone by construction
+    // (block_work ≥ 1 and saturating_add never wraps); pre-PoW this tracks height exactly.
+    state.work = state.work.saturating_add(block_work(b));
+    // vesting stamp: `or_insert` ⇒ a cell's FIRST finalization wins (idempotent under re-apply).
+    // Not folded into `state_digest` ⇒ additive; same blocks + order ⇒ same map (replica-deterministic).
+    let finalized_now = state.work;
+    for cell in &b.cells {
+        state.finalized_at.entry(cell.id).or_insert(finalized_now);
+    }
+    // recompute PoM attribution over the full chain (integer Q16.16 similarity floor).
+    state.pom = pom_scores_with_similarity_floor_q16(&state.cells, params.theta_sim_q16);
+}
+
+/// THE RULEBOOK. Pure, deterministic `(prev_state, block) -> Result<next_state, violation>`:
+/// validate the block, then apply the transition. No I/O, clock, randomness, or floats — the single
+/// definition of Noesis's state transition that the commitment layer, the zkVM guest, and the formal
+/// spec all consume. `params` are genesis-fixed consensus constants (the measurement frame): a
+/// deterministic input, not mutable state. On rejection the (moved-in) state is dropped and the
+/// typed [`Violation`] returned — an invalid block produces no next state.
+pub fn apply_block(state: Ledger, b: &Block, params: &Constitution) -> Result<Ledger, Violation> {
+    validate_block(&state, b)?;
+    let mut next = state;
+    apply_transition(&mut next, b, params);
+    Ok(next)
 }
 
 // ============ Lock-sig verifier — post-quantum (hash-based Lamport) ============
