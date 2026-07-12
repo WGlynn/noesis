@@ -375,3 +375,152 @@ fn anti_theater_issuer_may_mint_nonissuer_may_not() {
         "no authority input ⇒ unauthorised mint rejected"
     );
 }
+
+// ============ Step 2 — spec-oracle differential ============
+//
+// Fuzz `apply_block` against a tiny INDEPENDENT reference model of the value invariants (a
+// `BTreeMap<cell_id, amount>` ledger with a naive apply). For every generated block: the two must
+// agree on the VERDICT (accept iff the oracle accepts) and, on accept, on the resulting value
+// multiset. A divergence is a real discrepancy between the abstract value-model and the concrete
+// rulebook — which is exactly the signal Step 2 exists to produce. This oracle also IS the bridge to
+// the Step-3 Isabelle model (the model, written in Rust).
+//
+// SCOPE (honest): the differential covers the FUNGIBLE value core — conservation-or-burn, input
+// existence (on the full identity, via unique ids + amount match), and in-block / cross-tx single
+// use — with NO mint authority in the generated set (all owners are non-issuers, so both sides treat
+// Σout>Σin as reject). Mint-authority, NFT, and multi are covered by the Step-1 tests, not re-fuzzed
+// here. Attribution-block validity is held fixed (`block_with` is always well-formed), so the only
+// variable driving `apply_block`'s verdict is `token_txs` — the exact surface the oracle mirrors.
+mod spec_oracle {
+    use super::*;
+    use std::collections::{BTreeMap, BTreeSet};
+
+    /// The independent value-level model: `cell_id -> amount` for THE token's live set.
+    type OracleState = BTreeMap<u64, u128>;
+    /// A tx as (inputs, outputs), each an `(id, amount)` list.
+    type OracleTx = (Vec<(u64, u128)>, Vec<(u64, u128)>);
+
+    /// Naive apply, mirroring production's VALIDATE-against-snapshot THEN apply: every input must be
+    /// live in the ORIGINAL state at its presented amount (existence + amount binding); no id consumed
+    /// twice across the block (single-use); `Σout ≤ Σin` per tx (conserve or burn; no mint path). On
+    /// full validity, retire inputs and add outputs. Returns `None` on any violation.
+    fn oracle_apply(state: &OracleState, txs: &[OracleTx]) -> Option<OracleState> {
+        let mut consumed: BTreeSet<u64> = BTreeSet::new();
+        for (ins, outs) in txs {
+            for (id, amt) in ins {
+                match state.get(id) {
+                    Some(&live) if live == *amt => {}
+                    _ => return None, // phantom, or amount-forgery
+                }
+            }
+            for (id, _) in ins {
+                if !consumed.insert(*id) {
+                    return None; // in-block / cross-tx double-spend
+                }
+            }
+            let sin: u128 = ins.iter().map(|(_, a)| *a).sum();
+            let sout: u128 = outs.iter().map(|(_, a)| *a).sum();
+            if sout > sin {
+                return None; // unauthorised supply increase
+            }
+        }
+        let mut next = state.clone();
+        for (ins, outs) in txs {
+            for (id, _) in ins {
+                next.remove(id);
+            }
+            for (id, amt) in outs {
+                next.insert(*id, *amt);
+            }
+        }
+        Some(next)
+    }
+
+    /// Production `token_cells` (of THE token) projected to the same `id -> amount` map, for the
+    /// value-multiset comparison. Cell ids are unique by construction, so id is a faithful key.
+    fn prod_state(l: &Ledger) -> OracleState {
+        l.token_cells
+            .iter()
+            .filter(|c| c.type_script.code_hash == FT && c.type_script.args == ISSUER)
+            .map(|c| (c.id, tokens::fungible::amount(c)))
+            .collect()
+    }
+
+    #[test]
+    fn apply_block_agrees_with_the_spec_oracle() {
+        let mut rng = Rng::new(0xD1FF_0001);
+        let (mut saw_accept, mut saw_reject) = (false, false);
+        for _ in 0..CASES_BLOCK {
+            // seed: 1..4 live cells with unique ids and small amounts.
+            let mut idc = 1u64;
+            let mut oracle: OracleState = BTreeMap::new();
+            let mut seed_cells: Vec<Cell> = Vec::new();
+            for _ in 0..(1 + rng.below(4)) {
+                let (id, amt) = (idc, rng.below128(500));
+                idc += 1;
+                oracle.insert(id, amt);
+                seed_cells.push(ft_cell(id, OWNERS[(id as usize) % 3], amt));
+            }
+            let live_ids: Vec<u64> = oracle.keys().copied().collect();
+
+            // build 1..3 random txs. inputs are drawn from the live set (correct amount) most of the
+            // time, else an INVALID input (a phantom id, or a live id with a FORGED amount) so the
+            // reject path is exercised too. outputs get fresh unique ids and random amounts.
+            let mut opairs: Vec<OracleTx> = Vec::new();
+            let mut ptxs: Vec<TokenTx> = Vec::new();
+            for _ in 0..(1 + rng.below(3)) {
+                let (mut ins_p, mut ins_c) = (Vec::new(), Vec::new());
+                for _ in 0..(1 + rng.below(3)) {
+                    if rng.below(10) < 7 {
+                        // valid live input
+                        let id = live_ids[rng.below(live_ids.len() as u64) as usize];
+                        let amt = *oracle.get(&id).unwrap();
+                        ins_p.push((id, amt));
+                        ins_c.push(ft_cell(id, OWNERS[(id as usize) % 3], amt));
+                    } else if rng.below(2) == 0 {
+                        // phantom id (never seeded)
+                        let (id, amt) = (900_000 + idc, rng.below128(500));
+                        idc += 1;
+                        ins_p.push((id, amt));
+                        ins_c.push(ft_cell(id, OWNERS[(id as usize) % 3], amt));
+                    } else {
+                        // live id with a FORGED amount (≠ the finalized amount) — value forgery
+                        let id = live_ids[rng.below(live_ids.len() as u64) as usize];
+                        let forged = oracle.get(&id).unwrap().wrapping_add(1 + rng.below128(10));
+                        ins_p.push((id, forged));
+                        ins_c.push(ft_cell(id, OWNERS[(id as usize) % 3], forged));
+                    }
+                }
+                let (mut out_p, mut out_c) = (Vec::new(), Vec::new());
+                for _ in 0..rng.below(3) {
+                    let (id, amt) = (idc, rng.below128(500));
+                    idc += 1;
+                    out_p.push((id, amt));
+                    out_c.push(ft_cell(id, OWNERS[(id as usize) % 3], amt));
+                }
+                opairs.push((ins_p, out_p));
+                ptxs.push(ft_tx(ins_c, out_c));
+            }
+
+            let oracle_res = oracle_apply(&oracle, &opairs);
+            let prod_res = apply_block(seeded(seed_cells), &block_with(1, ptxs), &con());
+
+            // (1) VERDICT agreement — accept iff the oracle accepts.
+            assert_eq!(
+                prod_res.is_ok(),
+                oracle_res.is_some(),
+                "verdict divergence: prod_err={:?}, oracle_accepts={}",
+                prod_res.as_ref().err(),
+                oracle_res.is_some()
+            );
+            // (2) VALUE-MULTISET agreement on accept.
+            if let (Ok(l), Some(o)) = (&prod_res, &oracle_res) {
+                assert_eq!(prod_state(l), *o, "value-multiset divergence after an accepted block");
+            }
+            saw_accept |= prod_res.is_ok();
+            saw_reject |= prod_res.is_err();
+        }
+        // anti-theater: the generator must exercise BOTH verdicts, or "agreement" is vacuous.
+        assert!(saw_accept && saw_reject, "differential exercised only one verdict — not a real test");
+    }
+}
