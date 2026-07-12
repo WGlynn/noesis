@@ -46,7 +46,7 @@ number from code actually run (no mocked benchmarks). Docs: `docs/rulebook-map.m
   the `onchain/zk-utxo/` scaffold: **`docs/phase3-zk-plan.md`** + the DEV NOTE in `utxo_commitment.rs`.
   Do NOT claim "ZK ships" until a receipt verifies. (RISC Zero accelerates SHA-256, not blake2b —
   measure that cost.)
-- **▶ Phase 4 — FV (PLANNED 2026-07-12, ready to execute — runs on ANY machine, no prover).** Full plan:
+- **Phase 4 — FV (2026-07-12): Step 1 ✅ + Step 2 ✅ SHIPPED & GREEN; Step 3 🟡 artifact written (proofs UNDISCHARGED — no Isabelle on this box, for Will's review).** Commits: `4fdc34b` (Step 1 — 11 `node/tests/fv_invariants.rs` property tests, no-dep xorshift to dodge the `dlltool` blocker) · `1eb0373` (Step 2 — spec-oracle differential vs an independent BTreeMap model, no divergence) · `6068168` (Step 3 — `internal/fv/Noesis_Rulebook.thy` + gap README, `sorry`-terminated, model-to-code gap enumerated). Remaining to CLOSE Phase 4: load the `.thy` under Isabelle and discharge the finite-sum leaves. Full plan:
   **`docs/phase4-fv-plan.md`**. Ladder, cheapest-first: **(1)** `proptest` property tests over `apply_block`
   in `node/tests/fv_invariants.rs` — I1 value-conservation · I2/I3 no-double-spend (in+cross-block) · I4
   no-spend-of-nonexistent · I5 determinism-under-reserialization (each with an anti-theater RED check) →
