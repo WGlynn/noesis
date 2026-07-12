@@ -3,7 +3,10 @@
 > **STATUS: design-first, build-cold, Will-gated.** Consensus-affecting (it defines what the PoM
 > finality input *is* in production). Grounded 2026-07-11 against `docs/POM-FINALITY-TEMPORALITY.md`,
 > `docs/VS-AS-COMPLETION-PROCEDURE.md` §Target-2, and the live code cited inline. This closes the
-> roadmap top-blocker (MVP-SCOPE §1.A.1–2). Nothing here is built yet.
+> roadmap top-blocker (MVP-SCOPE §1.A.1–2). **Phase 1 (§3.1, the `finalized_at` finalization stamp)
+> is BUILT** — commit `5f5c7e6`, 2026-07-12, node lib 278→281 green, additive / non-consensus (off
+> the state digest). Phases 2–3 (the consensus-affecting cleared-score bridge + dispute-during-`W`)
+> remain build-cold for a fresh low-context window.
 
 ## 0. Why this is the top blocker
 Two coupled facts, both verified in code:

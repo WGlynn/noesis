@@ -28,6 +28,19 @@
    proven economic calibration. Re-tune only on real data. Per [P·augmented-mechanism-design-paper].
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-07-12 (P1)** — BUILT ✅ — **vesting-`W` Phase 1: the cell finalization stamp (SAFE / additive).**
+  Per `DESIGN-vesting-W-and-standing-bridge.md` §2.1 / §3.1 — the first, non-consensus stage of the
+  roadmap top-blocker. Added `Ledger.finalized_at: HashMap<cell_id, u64>` (`runtime.rs`), stamped in
+  `Node::apply` with the cumulative-work clock (`Ledger::now`) AS OF the finalizing block; first
+  finalization wins (`or_insert`). **Deliberately EXCLUDED from `state_digest`** ⇒ additive +
+  non-consensus-affecting until Phase 2's cleared-score bridge reads it (the `finalized_at ≤ now − W`
+  clearing rule). **RED→GREEN, 3 tests:** (i) each cell stamped with its block's work-time; (ii)
+  replica-deterministic — two nodes, same blocks ⇒ identical map; (iii) every finalized cell stamped
+  exactly once AND the stamp stays off the consensus digest (twin-replica digest equality). Genesis ⇒
+  empty map ⇒ nothing cleared ⇒ PoS-only finality at block zero (bootstrap §2.5, asserted in test i).
+  Node lib **278→281 green, zero regressions**, commit `5f5c7e6`. **Phases 2–3 (cleared-score bridge +
+  dispute-during-`W`, both consensus-affecting) remain for a fresh cold-context window** per repo
+  convention for consensus surgery — Phase 1 lands the safe data-model half now.
 - **2026-07-11 (zz)** — BUILT ✅ (Will-ratified) — **closed a dead-wire safety gap on the live finality
   path: the quorum floor was inert.** `runtime::finality::finalizes_pos_pom` hardcoded the
   `finalizes_hybrid` quorum arg to 0 and did not accept a floor, so `Constitution.quorum_floor_bps`
