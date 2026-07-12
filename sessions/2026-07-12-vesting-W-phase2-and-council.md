@@ -98,6 +98,36 @@ was a false positive — the doc was accurate). The salvaged findings live at
 
 The most expensive mistakes are lessons in disguise, and this one bought the protocol.
 
+## Afternoon — acting on the council's findings (lean, verified, one real build)
+
+After the council, we turned its 13 findings into real work — but carefully, applying *don't trust
+verify*: each finding gets a deterministic check against the actual code before we believe it.
+
+**Built one thing (B — accountable safety).** The council's scariest finding was real: Noesis could
+detect a validator double-voting (`is_equivocation`) and could slash, but neither was wired to the live
+finality path — the code even labelled it a `[GAP]`. We built the missing mechanism: an equivocation
+*guard* that strips a double-voter's weight from the count entirely **before** it's tallied
+(slash-before-count) and reports them for slashing. It's deterministic (so every node agrees) and tested
+(node suite 285 green). Honest caveat: this builds and proves the mechanism, but it isn't yet the live
+finalize entry point — wiring it in needs per-epoch vote tracking, which is a cold-window job. So the gap
+is now *closable*, not *closed*. Committed as `5f76fa4`.
+
+**Verified four findings, changed zero in a panic.** Every one turned out real *and* already tracked as
+open in our own docs — no hidden surprises:
+- Accountable safety → real, self-labelled `[GAP]` (now has a built mechanism).
+- Deployed franchise is plain novelty, not the v5–v8 moat → real, already noted in CONTINUE.md.
+- Anti-concentration floor at 50% → real observation but by design (the floor is for participation; the
+  2/3 bar does intersection). Decided **keep `MIN_DIM_BPS` at 50%** — reaffirms ruling D5 (tune on data,
+  not raise blind).
+- MEV last-revealer grinding → the powerful half (secret-grinding) is already closed because our shuffle
+  *is* VibeSwap's DeterministicShuffle ported; the residual 1-bit withhold is the classic RANDAO issue,
+  closable by the commit-deposit ("Bound B") we already designed — i.e. lean on VibeSwap's slash-on-non-
+  reveal. Designed-not-built.
+
+**Process:** Story Mode is on (menu-driven, steer by number). Phase 3 (A) and B's live-wiring are both
+teed cold in `CONTINUE.md`. The council experiment, for all its cost, did its job: it found real gaps,
+and our honesty discipline had already named every one.
+
 ---
 
 ## Why today mattered
