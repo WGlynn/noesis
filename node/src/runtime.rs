@@ -784,11 +784,75 @@ pub mod finality {
         let pom_all: f64 = all.iter().map(|v| v.pom).sum();
         dim_ok(pos_for, pos_all) && dim_ok(pom_for, pom_all)
     }
+
+    /// A4 accountable-safety — closes the code's own `[GAP]` "Lifecycle omitted: equivocation
+    /// slashing" (`lib.rs`). An equivocator is a validator that supports two DISTINCT proposals in
+    /// one epoch (a double-vote). `ballots` = the `(validator_id, proposal_id)` pairs seen this
+    /// epoch. Deterministic (BTree-ordered ⇒ replicas agree on the same equivocator set). Reuses the
+    /// A4 primitive [`consensus::is_equivocation`] as the single source of the double-vote rule.
+    pub fn epoch_equivocators(ballots: &[(u64, u64)]) -> std::collections::BTreeSet<u64> {
+        use std::collections::{BTreeMap, BTreeSet};
+        let mut first_vote: BTreeMap<u64, u64> = BTreeMap::new();
+        let mut equivocators: BTreeSet<u64> = BTreeSet::new();
+        for &(validator, proposal) in ballots {
+            match first_vote.get(&validator) {
+                // a later ballot for a DIFFERENT proposal than this validator's first = equivocation.
+                Some(&prev) => {
+                    if consensus::is_equivocation(Some(prev), proposal) {
+                        equivocators.insert(validator);
+                    }
+                }
+                None => {
+                    first_vote.insert(validator, proposal);
+                }
+            }
+        }
+        equivocators
+    }
+
+    /// Finalize WITH the A4 equivocation guard — **slash-before-count**. Every equivocator's weight is
+    /// stripped from BOTH the supporting set AND the basis BEFORE any weight is summed, so a
+    /// double-signer's tainted weight can never contribute to ANY proposal's finalization (the property
+    /// bare [`finalizes_pos_pom`] — a stateless weight predicate with no vote history — structurally
+    /// cannot provide). Returns `(finalizes?, equivocator_ids)`; the caller applies the stake slash
+    /// ([`consensus::slash`]) to the equivocators on the persistent validator set (detection ⇒ the
+    /// offending vote is void AND the offender is accountable). Additive: the existing gate is unchanged.
+    #[allow(clippy::too_many_arguments)]
+    pub fn finalizes_with_equivocation_guard(
+        voters_for: &[Validator],
+        all: &[Validator],
+        ballots: &[(u64, u64)],
+        now: u64,
+        horizon: u64,
+        decay_pos: bool,
+        threshold_bps: u64,
+        quorum_floor_bps: u64,
+    ) -> (bool, Vec<u64>) {
+        let equivocators = epoch_equivocators(ballots);
+        // strip tainted weight before counting — from voters_for (their support is void) and from
+        // `all` (their weight leaves the basis too, so the honest remainder decides on its own total).
+        let strip = |set: &[Validator]| -> Vec<Validator> {
+            set.iter().filter(|v| !equivocators.contains(&v.id)).cloned().collect()
+        };
+        let ok = finalizes_pos_pom(
+            &strip(voters_for),
+            &strip(all),
+            now,
+            horizon,
+            decay_pos,
+            threshold_bps,
+            quorum_floor_bps,
+        );
+        (ok, equivocators.into_iter().collect())
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::finality::{finalizes_pos_pom, FINALITY_MIX, MIN_DIM_BPS};
+    use super::finality::{
+        epoch_equivocators, finalizes_pos_pom, finalizes_with_equivocation_guard, FINALITY_MIX,
+        MIN_DIM_BPS,
+    };
     use super::{block_work, Block, Constitution, Node, TokenStandard, TokenTx, WORK_PER_BLOCK};
     use crate::commit_order::Committed;
     use crate::consensus::{Validator, TWO_THIRDS_BPS};
@@ -804,6 +868,59 @@ mod tests {
             last_heartbeat: 0,
             staked_balance: 0.0,
         }
+    }
+
+    // ---- A4 accountable safety: equivocation guard (slash-before-count) — closes the [GAP] ----
+
+    #[test]
+    fn equivocation_guard_excludes_tainted_weight_and_reports_the_double_voter() {
+        // A validator supporting TWO different proposals in one epoch is an equivocator; its weight
+        // must be void for finalization (slash-before-count) and it must be reported so its stake is
+        // slashed. Balanced validators (pos==pom) so every check reduces to a clean weight fraction.
+        // Cohort: v0 is the PIVOTAL big validator (weight 200); v1,v2 weigh 100 each ⇒ total 400.
+        let bal = |id, w: f64| Validator {
+            id,
+            pow: 0.0,
+            pos: w,
+            pom: w,
+            last_heartbeat: 0,
+            staked_balance: w,
+        };
+        let all = vec![bal(0, 200.0), bal(1, 100.0), bal(2, 100.0)];
+        let for_7 = vec![all[0].clone(), all[1].clone()]; // v0 (200) + v1 (100) support proposal 7 = 300/400
+
+        // HONEST baseline: v0 and v1 each vote ONLY for 7 ⇒ 300 of 400 = 75% ≥ 2/3 ⇒ finalizes.
+        let honest = vec![(0u64, 7u64), (1u64, 7u64)];
+        let (ok, eq) =
+            finalizes_with_equivocation_guard(&for_7, &all, &honest, 1, 0, false, TWO_THIRDS_BPS, 0);
+        assert!(ok, "honest support (300 of 400 = 75%) finalizes");
+        assert!(eq.is_empty(), "no equivocators in the honest epoch");
+
+        // ATTACK: the PIVOTAL v0 ALSO casts a conflicting vote for proposal 8 ⇒ it equivocates and is
+        // stripped BEFORE counting ⇒ only v1 (100) genuinely supports 7, out of the honest remainder
+        // {v1,v2}=200 ⇒ 50% < 2/3 ⇒ NOT final. Its tainted 200 could not carry the proposal.
+        let attack = vec![(0u64, 7u64), (1u64, 7u64), (0u64, 8u64)];
+        let (ok2, eq2) =
+            finalizes_with_equivocation_guard(&for_7, &all, &attack, 1, 0, false, TWO_THIRDS_BPS, 0);
+        assert!(!ok2, "an equivocator's tainted weight cannot finalize (slash-before-count)");
+        assert_eq!(eq2, vec![0], "the double-voter is reported for slashing");
+
+        // ANTI-THEATER: WITHOUT the guard the SAME support (300 of 400) finalizes — so the strip is
+        // what changed the outcome, not a coincidence of the cohort.
+        assert!(
+            finalizes_pos_pom(&for_7, &all, 1, 0, false, TWO_THIRDS_BPS, 0),
+            "control: the same support finalizes when the equivocator is NOT stripped"
+        );
+
+        // ACCOUNTABILITY: a reported equivocator is slashable to zero (composes with A5), so the
+        // lifecycle is detect -> void the vote -> slash the offender, not detection alone.
+        let mut offender = all[0].clone();
+        crate::consensus::slash(&mut offender, 200.0);
+        assert_eq!(offender.staked_balance, 0.0, "reported equivocator slashed to zero stake");
+        assert_eq!(offender.pom, 0.0, "and its franchise is revoked");
+
+        // determinism: the equivocator set is BTree-ordered ⇒ identical across replicas/runs.
+        assert_eq!(epoch_equivocators(&attack).into_iter().collect::<Vec<_>>(), vec![0]);
     }
 
     // ---- resource-DoS bound A: bounded mempool admission cap ----

@@ -37,7 +37,16 @@ VERIFIED this session — `FINALITY_MIX` `runtime.rs:726`, `MIN_DIM_BPS 5000` `:
 `pub fn finality_pom_weight`, and the dispute resolution path (`resolve_refuted` / `dispute` mod, `lib.rs
 ~4299`). The learned-v(S)-on-real-labels mile is still THE moat (data-blocked); `W` is only its launch stand-in.
 
-**▶ ALSO COLD-WINDOW (item B — accountable safety / equivocation slashing; council-confirmed 2026-07-12).**
+**▶ ITEM B — accountable safety / equivocation slashing (council-confirmed 2026-07-12). GUARD BUILT
+2026-07-12 (B1); only LIVE-WIRING remains.** The mechanism half is shipped: `runtime::finality::
+epoch_equivocators` + `finalizes_with_equivocation_guard` (slash-before-count, BTree-deterministic,
+reuses `is_equivocation`; node lib 285 green, RSAW B1). **REMAINING (build COLD):** thread a per-epoch
+ballot list `(validator_id, proposal_id)` into the LIVE finality path so `runtime::finalizes` /
+`Node::checkpoint_finalizes` call the guard instead of bare `finalizes_pos_pom`, and apply
+`consensus::slash` to the returned equivocator ids on the persistent validator set. That live-wiring is
+what actually CLOSES the `[GAP]` in production (the guard alone makes it closable, not closed). Original
+grounding kept below.
+
 Real + self-labeled open: `A4 [GAP] Lifecycle omitted: equivocation slashing` (`lib.rs:4118`). Primitives
 EXIST but are test-only-wired — `is_equivocation(prev_vote_this_epoch, this_proposal)` (`lib.rs:3876`) +
 validator `slash()` (`lib.rs:3840`). `finality::finalizes_pos_pom` is STATELESS (`voters_for` + `all`, no

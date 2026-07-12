@@ -25,10 +25,30 @@
    Makes #1 true (PoW out of finality, in code).
 4. **Ergon decay geometry** — **Keep Ergon's calibrated constants** (≈2.3yr anchor half-life, 120d PI,
    5% band, lag 10). SubstrateGeometryMatch is mechanism-shape (Ergon already IS power-law energy
-   economics); φ belongs to *our* designed dampings (value-layer λ=1/φ), not as an override of a
-   proven economic calibration. Re-tune only on real data. Per [P·augmented-mechanism-design-paper].
+   economics); φ belongs to *our* designed dampings (value-layer joint-decay ρ), not as an override
+   of a proven economic calibration. Re-tune only on real data. Per [P·augmented-mechanism-design-paper].
+   NOTE (2026-07-12, RSAW): even the value-layer ρ=1/φ is a *tunable default*, NOT a derived
+   structural constant — the only load-bearing property is 0<ρ<1 (contraction + tail 1/(1-ρ)); the
+   break-on-purpose tests certify that range, never 1/φ. Full record + framing rule:
+   `internal/DESIGN-joint-decay-damping-rate.md`. Code comments + patent line 233 relabeled to match.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-07-12 (B1)** — BUILT ✅ — **accountable-safety equivocation guard (slash-before-count).** Closes
+  the MECHANISM half of the code's own self-labeled `A4 [GAP]` ("Lifecycle omitted: equivocation slashing",
+  `lib.rs`), which the 2026-07-12 architect-council flagged (Vitalik + BFT, critical). Two additive fns in
+  `runtime::finality`: `epoch_equivocators(ballots) -> BTreeSet<u64>` (BTree-DETERMINISTIC ⇒ replicas agree;
+  reuses `consensus::is_equivocation` as the single-source double-vote rule) + `finalizes_with_equivocation_guard(...)`
+  which strips every double-voter's weight from BOTH `voters_for` AND the basis BEFORE counting (**slash-before-count**)
+  and returns `(finalizes?, equivocator_ids)` for the caller to slash. **RED→GREEN** (`equivocation_guard_excludes_
+  tainted_weight_and_reports_the_double_voter`): honest 300/400 = 75% clears; the PIVOTAL equivocator (weight 200)
+  is stripped ⇒ honest remainder = 50% < 2/3 ⇒ NOT final (its tainted weight could not carry the proposal);
+  anti-theater (the same support finalizes via bare `finalizes_pos_pom` WITHOUT the guard ⇒ the strip changed the
+  outcome); accountability (reported id slashable to zero via `consensus::slash`, composes with A5); determinism.
+  Node lib **284→285**, 0 new clippy. **HONEST SCOPE — additive, NOT live-wired:** `runtime::finalizes` /
+  `Node::checkpoint_finalizes` do NOT yet call the guard (needs per-epoch ballot tracking threaded into the finality
+  path — the remaining COLD step). ⇒ the `[GAP]` is now CLOSABLE (lifecycle built + proven), not yet closed-in-production;
+  a real safety mechanism, not a live-exploit fix until wired. First RED bug was in the TEST (`TWO_THIRDS_BPS 6667`
+  ⇒ exact 2-of-3 = 66.666% just misses the bar), fixed with a pivotal-weight cohort — the harness caught it.
 - **2026-07-12 (P2)** — BUILT ✅ — **vesting-`W` Phase 2: the cleared-score bridge (CONSENSUS-AFFECTING).**
   Per `DESIGN-vesting-W-and-standing-bridge.md` §2.3 / §3.2 — the production `Standing → Validator.pom`
   source that Phase 1's stamp was laid for, and the missing bridge the whole coupled-PoM finality property
