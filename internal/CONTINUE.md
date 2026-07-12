@@ -37,6 +37,20 @@ VERIFIED this session — `FINALITY_MIX` `runtime.rs:726`, `MIN_DIM_BPS 5000` `:
 `pub fn finality_pom_weight`, and the dispute resolution path (`resolve_refuted` / `dispute` mod, `lib.rs
 ~4299`). The learned-v(S)-on-real-labels mile is still THE moat (data-blocked); `W` is only its launch stand-in.
 
+**▶ ALSO COLD-WINDOW (item B — accountable safety / equivocation slashing; council-confirmed 2026-07-12).**
+Real + self-labeled open: `A4 [GAP] Lifecycle omitted: equivocation slashing` (`lib.rs:4118`). Primitives
+EXIST but are test-only-wired — `is_equivocation(prev_vote_this_epoch, this_proposal)` (`lib.rs:3876`) +
+validator `slash()` (`lib.rs:3840`). `finality::finalizes_pos_pom` is STATELESS (`voters_for` + `all`, no
+vote history) ⇒ structurally cannot detect a double-vote. **Fix = slash-before-count** ([[slash-before-count]]):
+thread a per-epoch vote-ledger (validator→proposal) into the finality path; BEFORE summing weight, run
+`is_equivocation` per validator; a detected equivocator's vote is EXCLUDED (counted for neither proposal)
+AND slashed. **RED→GREEN:** (i) a validator voting 2 different proposals in one epoch ⇒ weight excluded from
+BOTH ⇒ its tainted weight never finalizes; (ii) the equivocator's stake slashed; (iii) an honest single vote
+is unaffected; (iv) anti-theater: skip the check ⇒ tainted weight counts ⇒ (i) RED. Consensus-affecting +
+adds vote-state ⇒ build COLD. Severity honest: a real OPEN item, NOT a live exploit (the anti-concentration
+floor + PoW-out-of-finality carry other safety meanwhile). Re-verify the `is_equivocation`/`slash`/`[GAP]`
+lines at source before building (Phase-2 shifted numbers).
+
 ## 🔝 RESUME HERE (2026-06-29 PM — #1 DONE, #2 design-pass DONE; #3 + two grains teed) [Will deciding finality, full-auto]
 Full-auto session while Will decides PoM↔finality (that surface untouched). Progress on the approved builds:
 1. **Resource-DoS bounding — Bound A SHIPPED ✅** (`de59148`←`b80896e`). `Constitution.max_mempool` cap; `Node::submit`
