@@ -1,7 +1,8 @@
-# Roadmap — Proof of Mind value chain (PRIVATE)
+# Roadmap — Proof of Mind value chain (PUBLIC)
 
-> Stealth. Release when matured. Phases are dependency-ordered; the load-bearing
-> risk (un-gameable `v(S)`) gates everything downstream, so it comes early.
+> PUBLIC since 2026-06-29 — stealth phase over; build and share in the open, honesty is the moat.
+> Phases are dependency-ordered; the load-bearing risk (un-gameable `v(S)`) gates everything
+> downstream, so it comes early.
 
 ## Consensus + money-layer decisions — LOCKED 2026-06-20 (Will-ruled)
 1. **PoW #5 (does energy vote?)** — **No to the token, yes to mining-for-liveness.** The JUL
