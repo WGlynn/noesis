@@ -78,8 +78,25 @@ This run is **iteration 1** (my domain — the technical and hard-science counci
 biologists, ethicists, ordinary people the system is meant to serve. The council improving itself, round
 over round, is its own recursive loop.
 
-Results (the confirmed issues, the fixes, and the "is roleplay effective / who to keep" scorecard) land
-in a report on the Desktop when the run finishes.
+**How it actually went (the honest part).** The first council was built too big — 14 personas over two
+rounds, which multiplies into ~170 agents. It burned a large chunk of the day's token budget in half an
+hour before we caught it and killed it. That was a real, expensive mistake. But it wasn't wasted: we
+salvaged 13 code-grounded findings from the partial run, and — the important part — computed the Shapley
+attribution retroactively (it's just cheap arithmetic, which is exactly why stopping before it ran was the
+avoidable loss). The result was honest and a little humbling: **Jan Xie (the Nervos lens) earned 42% of the
+credit** because Nervos is the actual substrate Noesis forks, while the abstract outsider lenses (physicist,
+philosopher) scored zero — their findings *sounded* sharp but didn't survive verification. The no-persona
+control also scored zero.
+
+Out of that we banked three durable things: a **Council Protocol v1** (size lean, do the multiplication
+before launching, hard budget ceiling, Shapley is mandatory and runs even on a kill), a **persistent roster**
+that adds/prunes seats by measured Shapley credit, and a sharper rule Will named — *don't trust verify* (an
+LLM checking an LLM isn't verification; real confirmation is a deterministic check against the code). Applied
+that rule immediately: the "easy" findings mostly evaporated on inspection (the top one, a claimed doc drift,
+was a false positive — the doc was accurate). The salvaged findings live at
+`~/Desktop/noesis-council-salvage-2026-07-12.md`.
+
+The most expensive mistakes are lessons in disguise, and this one bought the protocol.
 
 ---
 

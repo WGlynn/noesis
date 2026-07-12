@@ -11,16 +11,31 @@ stamp) and 2 (`Constitution.vesting_w` + `Node::finality_pom_weight` cliff bridg
 production source (cleared standing = v(S) that survived `W` of dispute exposure), where before it existed
 only in test constructors. RSAW log: `ROADMAP.md` (P2, newest-first).
 
-**▶ NEXT (build COLD, fresh low-context — consensus surgery):** **Phase 3 — dispute-during-`W`** (design
-§2.4 / §3 stage 3). A slash/refutation (`Op::Slash`, `lib.rs:474–475,489`) landing on a cell while it is
-still *pending* (< `W` old) must remove its contribution before it ages into `finality_pom_weight`;
-forward-only (a past finalized block is never un-finalized). Tests: finalize-then-slash within `W` ⇒ never
-reaches finality weight; a cell that survives `W` clears; past finalized blocks untouched by a later slash.
-Uses the dispute `window` (D1) as the exposure clock. This is what makes the bridge non-circular in code.
-**Anti-hallucination:** re-read at source before relying — `FINALITY_MIX {pow 0, pos 1/3, pom 2/3}`
-`runtime.rs:671`; `MIN_DIM_BPS 5000` `:683`; `finalized_at` stamp in `apply()` `runtime.rs:599`; the
-cleared-score cliff `finalized_at ≤ now − W` in `Node::finality_pom_weight`. The learned-v(S)-on-real-labels
-mile is still THE moat (data-blocked); `W` is only its launch stand-in.
+**▶ NEXT (build COLD, fresh low-context — consensus surgery): Phase 3 — dispute-during-`W`** (design
+§2.4 / §3 stage 3).
+
+**GROUNDED 2026-07-12 (the sharpened gap — load-bearing, discovered while teeing this up):** `Op::Slash(d)`
+reduces only the **Standing SCALAR** (`st.pom.saturating_sub(d)`, `lib.rs:495`), but `Node::finality_pom_weight`
+recomputes finality PoM **from the cleared CELL set** (`pom_scores_with_similarity_floor_q16` over cells with
+`finalized_at ≤ now − W`) and NEVER reads the Standing scalar or any slash state. ⇒ **the two are on different
+rails: a slash today does NOTHING to finality weight** — so a gamed cell refuted while pending would still age
+into finality. THAT is exactly what Phase 3 must close (and it makes the bridge non-circular in code).
+
+**Mechanism (contained; mirrors the `finalized_at` pattern):** add node-side `Ledger.refuted: HashSet<cell_id>`
+→ `finality_pom_weight` excludes refuted cells (2nd filter alongside the cliff) → wire the dispute resolution
+to record the refuted cell id when a refutation lands. Forward-only (past finalized checkpoints never
+un-finalize; only FUTURE finality weight loses the bad cell). Uses the dispute `window` (D1) as the exposure clock.
+
+**RED→GREEN tests:** (i) finalize a cell, slash/refute it while pending (< `W`), advance past `W` ⇒ it
+contributes ZERO to `finality_pom_weight` (a would-clear cell never clears); (ii) an un-refuted cell that
+survives `W` still clears (no over-exclusion); (iii) refuting a cell does NOT un-finalize a past block
+(forward-only); (iv) anti-theater: remove the refuted-filter ⇒ (i) goes RED.
+
+**Anti-hallucination — RE-VERIFY at source (do NOT trust these or memory; Phase-2 shifted line numbers):**
+VERIFIED this session — `FINALITY_MIX` `runtime.rs:726`, `MIN_DIM_BPS 5000` `:738`, `dim_ok` `:740`,
+`finalizes_pos_pom` `:750`. RE-GREP before relying — the `finalized_at.entry(...)` stamp in `apply()`,
+`pub fn finality_pom_weight`, and the dispute resolution path (`resolve_refuted` / `dispute` mod, `lib.rs
+~4299`). The learned-v(S)-on-real-labels mile is still THE moat (data-blocked); `W` is only its launch stand-in.
 
 ## 🔝 RESUME HERE (2026-06-29 PM — #1 DONE, #2 design-pass DONE; #3 + two grains teed) [Will deciding finality, full-auto]
 Full-auto session while Will decides PoM↔finality (that surface untouched). Progress on the approved builds:
