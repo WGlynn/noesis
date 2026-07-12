@@ -4,6 +4,43 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## 🔝🔝 RESUME HERE (2026-07-12 PM — STATELESS-VERIFICATION ENGAGEMENT, Phase 0+1 shipped)
+**Separate track from the vesting-`W` work below.** Goal: nodes verify Noesis state+history trustlessly &
+cheaply via **UTXO ⊕ recursive-zkVM validity proofs ⊕ formal verification** (3 codependent axes — rules
+easy to STATE / FOLLOWED / RIGHT). Boundaries named in every report: NOT canonicality, NOT data
+availability (both stay with consensus). Constraint: **engineer, not cryptographer** — no novel crypto;
+zkVM = RISC Zero (already wired in `onchain/zk-finalize`) or SP1; accumulators = audited libs; every perf
+number from code actually run (no mocked benchmarks). Docs: `docs/rulebook-map.md` (Phase 0),
+`docs/phase1-extraction-report.md` (Phase 1).
+
+- **Phase 0 ✅** (`771a1ee`) — `docs/rulebook-map.md`. Verdict: `Node::apply` (`runtime.rs:612-658`) is
+  ALREADY pure/deterministic/integer (verified at source, incl. q16 PoM float-freeness `lib.rs:6514` +
+  SMT root order-invariance `lib.rs:8070`). Hash = blake2b+sha256 on-path (zkVM-ok); keccak only in host
+  JSON export. No secp256k1/BLS on the Rust path.
+- **Phase 1 ✅** (`592d66e`) — extracted the pure rulebook `runtime::apply_block(state, block, params)
+  -> Result<Ledger, Violation>` (= `validate_block` + `apply_transition` + typed `Violation`);
+  `Node::validate`/`apply` are now thin callers. Replay-parity GREEN (`node/tests/apply_block_parity.rs`,
+  byte-identical `state_digest` vs old path over the two_node vectors). **351 tests green** (was 349+2),
+  0 new clippy. Pushed `origin/master` @ `6541479`.
+- **▶ Phase 2 (NEXT) — Compact state (no ZK).** Audited-accumulator commitment over the UTXO set
+  (`token_cells: Vec<Cell>`, `runtime.rs:123`), per-block, KB membership proofs, assumeutxo-style
+  checkpoint bootstrap. **⚑ OPEN DECISION (Will):** reuse the in-repo hand-rolled SMT (`NoveltyIndex` —
+  incumbent, order-independent, consistent with `zk-finalize`) vs. pull an **audited external accumulator**
+  (satisfies the audited-libs rule cleanly, adds a dep + a 2nd Merkle construction). Trade-off = crypto-
+  honesty rule vs. codebase consistency. Surfaced; recommendation pending Will's call.
+- **Phase 3 — zkVM PoC + honest cost report (human go/no-go).** ⚠ **No STARK prover on this Windows box**
+  (no WSL2/Docker/r0vm/rzup — README-confirmed) ⇒ real receipt + benchmarks require Linux/WSL2/CI.
+  Prereqs from Phase 0/1: std→no_std container swap (`HashMap`/`HashSet` → `BTreeMap`/sorted-`Vec`) and
+  the O(chain) full-chain PoM recompute (`runtime.rs` `apply_transition` step g) → bounded per-block delta.
+- **Phase 4 — FV.** Property tests (conservation / no-double-spend / determinism-under-reserialize) →
+  differential fuzz → Isabelle/HOL spec (owner reviews). **Pragma Coherence** if it fits cleanly — it is a
+  rule-set confluence / axiom-preservation axis, COMPLEMENTARY to the UTXO-invariant theorems, not a
+  substitute (use where it fits, don't force).
+
+Task board (JARVIS-side): tasks #1-5. Memory: [[noesis-stateless-verification]]. The uncommitted
+ρ/φ-numerology working-tree changeset (background RSAW loop) is LEFT UNTOUCHED for Will's deliberate
+commit-or-discard decision.
+
 ## 🔝 RESUME HERE (2026-07-12 — vesting-`W` Phase 2 BUILT; Phase 3 is the last consensus-affecting stage)
 The cleared-score bridge is shipped. `DESIGN-vesting-W-and-standing-bridge.md` Phases 1 (`finalized_at`
 stamp) and 2 (`Constitution.vesting_w` + `Node::finality_pom_weight` cliff bridge) are BUILT; node lib
