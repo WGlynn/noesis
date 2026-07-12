@@ -29,6 +29,32 @@
    proven economic calibration. Re-tune only on real data. Per [P·augmented-mechanism-design-paper].
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-07-12 (P2)** — BUILT ✅ — **vesting-`W` Phase 2: the cleared-score bridge (CONSENSUS-AFFECTING).**
+  Per `DESIGN-vesting-W-and-standing-bridge.md` §2.3 / §3.2 — the production `Standing → Validator.pom`
+  source that Phase 1's stamp was laid for, and the missing bridge the whole coupled-PoM finality property
+  assumes (before this, `Validator.pom` was set ONLY in test constructors + the slash-to-zero path — no
+  production ledger→validator map existed). Two changes, `runtime.rs`: (1) `Constitution.vesting_w: u64`
+  — the governed vesting window in cumulative-work units, anchored to (≥) the dispute `window` (D1),
+  **default 0 = inert** (mirrors `quorum_floor_bps`/`horizon`); (2) `Node::finality_pom_weight() ->
+  HashMap<contributor, u64>` = `pom_scores_with_similarity_floor_q16` over ONLY the cells that CLEARED the
+  cliff (`finalized_at ≤ now − W`, D2). A pending cell (younger than `W`) still earns reward/influence via
+  the full `Ledger.pom` but contributes **zero** finality-safety weight ⇒ gamed value gets a full
+  `W`-window of dispute exposure before it can vote its own finalization (§2.4). **Correctness note
+  (load-bearing):** `finalized_at` is monotone non-decreasing along `ledger.cells` (canonical (height,slot)
+  order), so the cleared set is always a PREFIX, and `temporal_novelty` is a left-to-right causal scan ⇒
+  `pom_scores(prefix) ≡ pom_scores(full)` restricted to the prefix — no re-scoring surprise; a cleared
+  contributor's weight equals its full-attribution weight, pending cells simply not yet counted.
+  **RED→GREEN, 3 tests:** (i) cliff — distinct contributor per block, blocks 1–3 cleared / 4–5 pending at
+  `W=2, now=5`, exact boundary pinned (block 3 clears, block 4 does not), pending still earns standing
+  (usable-vs-gameable split); (ii) genesis — `W=4`, nothing aged ⇒ empty map ⇒ validators sourced from it
+  have `pom=0` ⇒ bonded PoS quorum still finalizes via `checkpoint_finalizes` (§2.5, no special-case code);
+  (iii) `W=0` inert — bridge byte-identical to the full attribution map (BTreeMap equality). **Anti-theater:**
+  a non-filtering bridge reddens (i)'s pending asserts. First-pass test bug caught + fixed by the harness
+  itself: one-char-apart payloads tripped the θ=0.95 similarity floor (>95% shingle overlap → 0 novelty),
+  masking clearing; fixed with disjoint-4-gram payloads (per-height-unique byte run) to isolate the vesting
+  cliff from the floor. Node lib **281→284 green, 0 regressions, 0 new clippy.** **Phase 3 (dispute-during-`W`:
+  a slash on a still-pending cell removes it before it ages into the cleared score, forward-only) remains** —
+  the last consensus-affecting stage, build-cold.
 - **2026-07-12 (P1)** — BUILT ✅ — **vesting-`W` Phase 1: the cell finalization stamp (SAFE / additive).**
   Per `DESIGN-vesting-W-and-standing-bridge.md` §2.1 / §3.1 — the first, non-consensus stage of the
   roadmap top-blocker. Added `Ledger.finalized_at: HashMap<cell_id, u64>` (`runtime.rs`), stamped in

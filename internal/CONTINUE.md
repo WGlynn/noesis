@@ -1,8 +1,26 @@
-# CONTINUE — Noesis handoff (PRIVATE, stealth)
+# CONTINUE — Noesis handoff (PUBLIC since 2026-06-29 — build in the open, honesty is the moat)
 
 > **DESIGN CONSTRAINT (Will 2026-06-13):** keep noesis CODE-LEAN, simplicity like Bitcoin. No
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
+
+## 🔝 RESUME HERE (2026-07-12 — vesting-`W` Phase 2 BUILT; Phase 3 is the last consensus-affecting stage)
+The cleared-score bridge is shipped. `DESIGN-vesting-W-and-standing-bridge.md` Phases 1 (`finalized_at`
+stamp) and 2 (`Constitution.vesting_w` + `Node::finality_pom_weight` cliff bridge) are BUILT; node lib
+**284 green**. This closed the roadmap top-blocker's data-model + bridge halves — `Validator.pom` now has a
+production source (cleared standing = v(S) that survived `W` of dispute exposure), where before it existed
+only in test constructors. RSAW log: `ROADMAP.md` (P2, newest-first).
+
+**▶ NEXT (build COLD, fresh low-context — consensus surgery):** **Phase 3 — dispute-during-`W`** (design
+§2.4 / §3 stage 3). A slash/refutation (`Op::Slash`, `lib.rs:474–475,489`) landing on a cell while it is
+still *pending* (< `W` old) must remove its contribution before it ages into `finality_pom_weight`;
+forward-only (a past finalized block is never un-finalized). Tests: finalize-then-slash within `W` ⇒ never
+reaches finality weight; a cell that survives `W` clears; past finalized blocks untouched by a later slash.
+Uses the dispute `window` (D1) as the exposure clock. This is what makes the bridge non-circular in code.
+**Anti-hallucination:** re-read at source before relying — `FINALITY_MIX {pow 0, pos 1/3, pom 2/3}`
+`runtime.rs:671`; `MIN_DIM_BPS 5000` `:683`; `finalized_at` stamp in `apply()` `runtime.rs:599`; the
+cleared-score cliff `finalized_at ≤ now − W` in `Node::finality_pom_weight`. The learned-v(S)-on-real-labels
+mile is still THE moat (data-blocked); `W` is only its launch stand-in.
 
 ## 🔝 RESUME HERE (2026-06-29 PM — #1 DONE, #2 design-pass DONE; #3 + two grains teed) [Will deciding finality, full-auto]
 Full-auto session while Will decides PoM↔finality (that surface untouched). Progress on the approved builds:

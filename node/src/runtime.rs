@@ -54,6 +54,18 @@ pub struct Constitution {
     /// near-identical cells; honest novel work (low overlap) is untouched. Lives here because it
     /// governs HOW value is measured (the measurement-amendment frame).
     pub theta_sim_q16: u64,
+    /// Vesting window `W` (DESIGN-vesting-W §2.2, D1/D2) in cumulative-work units ([`Ledger::now`]).
+    /// A finalized cell contributes ZERO finality-safety PoM weight until it has aged past `W`
+    /// (cliff: cleared iff `finalized_at ≤ now − W`); a younger cell still earns reward/influence
+    /// via the full attribution map, it just cannot vote its OWN finalization. `W` buys a dispute
+    /// window: gamed value must survive `W` of challenge exposure before it clears into usable
+    /// finality weight (the moat's stand-in at launch). Governed constant — NOT a controller output
+    /// (a window that reacts to participation is reflexively gameable). Anchored to (≥) the dispute
+    /// window (`dispute::Params.window`, one dispute clock). Default `0` ⇒ every finalized cell is
+    /// already cleared ⇒ the finality bridge is byte-identical to the full attribution map ⇒ the
+    /// feature is INERT until governance sets `W` (mirrors `quorum_floor_bps`/`horizon` defaulting
+    /// to 0). Read by [`Node::finality_pom_weight`] (the cleared-score bridge), nowhere else.
+    pub vesting_w: u64,
     /// Resource-DoS bound A: the maximum number of pre-consensus proposals a replica
     /// will admit into its local mempool. `Node::submit` rejects admission once the
     /// pool is at this cap, giving a deterministic, economics-independent ceiling on
@@ -75,6 +87,7 @@ impl Default for Constitution {
             horizon: 0,
             decay_pos: false,
             theta_sim_q16: 62259, // floor(0.95 · 2^16) — only near-identical cells are cut
+            vesting_w: 0,         // inert: every finalized cell already cleared ⇒ full attribution
             max_mempool: 10_000,  // resource-DoS bound A: per-replica mempool admission cap
         }
     }
@@ -548,6 +561,48 @@ impl Node {
     /// controller). `voters_for` are the validators supporting the checkpoint; `all` is the set.
     pub fn checkpoint_finalizes(&self, voters_for: &[Validator], all: &[Validator]) -> bool {
         finalizes(&self.constitution, voters_for, all, self.ledger.now())
+    }
+
+    /// The cleared-score bridge (DESIGN-vesting-W §2.3, build-stage §3.2) — the production
+    /// `Standing → Validator.pom` source on the finality path. Returns PoM finality weight per
+    /// contributor (`type_script.args`) computed over ONLY the cells that have CLEARED the vesting
+    /// window: `finalized_at ≤ now − W` (cliff, D2). A cell younger than `W` is *pending* — it
+    /// still earns reward/influence via [`Ledger::pom`] (the full, uncleared attribution), but
+    /// contributes ZERO here, so gamed value gets a full `W`-window of dispute exposure before it
+    /// can vote its own finalization (§2.4). Callers assembling the validator set source each
+    /// `Validator.pom` from this map (absent contributor ⇒ 0), replacing the test-constructor value.
+    ///
+    /// CONSENSUS-AFFECTING: unlike [`Ledger::pom`] (all finalized cells), this is what feeds the
+    /// finality decision. Properties that fall out of the definition:
+    ///   * **Genesis** (§2.5): nothing has aged ⇒ the map is empty ⇒ every sourced `Validator.pom`
+    ///     is 0 ⇒ bonded PoS carries finality from block zero. No special-case code.
+    ///   * **`W == 0`** (the inert default): `now − 0 = now`, and every finalized cell has
+    ///     `finalized_at ≤ now`, so ALL clear ⇒ this equals the full attribution map exactly.
+    ///
+    /// Sources `W` and the similarity floor from the [`Constitution`]. `now` is the cumulative-work
+    /// clock ([`Ledger::now`]). Filtering preserves canonical commit order, so the similarity floor
+    /// evaluates the cleared cells among themselves deterministically ⇒ replica-identical.
+    ///
+    /// Phase 3 (dispute-during-`W`) is the remaining stage: a slash landing on a still-pending cell
+    /// removes it before it can age into this map (forward-only). Not built here.
+    pub fn finality_pom_weight(&self) -> HashMap<Vec<u8>, u64> {
+        // clearing frontier: a cell clears iff its finalization work-time is at least `W` old.
+        // `saturating_sub` floors at 0 (pre-genesis / W > now ⇒ frontier 0 ⇒ nothing clears, since
+        // every stamp is ≥ 1: `block_work ≥ 1` so the first block advances the clock past 0).
+        let frontier = self.ledger.now().saturating_sub(self.constitution.vesting_w);
+        let cleared: Vec<Cell> = self
+            .ledger
+            .cells
+            .iter()
+            .filter(|c| {
+                // fail closed on the safety input: a cell with no stamp (cannot occur — `cells` and
+                // `finalized_at` are written in the same `apply` pass — but do not assume) is treated
+                // as pending, never cleared.
+                self.ledger.finalized_at.get(&c.id).is_some_and(|&f| f <= frontier)
+            })
+            .cloned()
+            .collect();
+        pom_scores_with_similarity_floor_q16(&cleared, self.constitution.theta_sim_q16)
     }
 
     /// Apply a finalized block. DETERMINISTIC state transition: append the canonical-ordered
@@ -1522,6 +1577,130 @@ mod tests {
             twin.ledger.state_digest(),
             "digest unchanged by the stamp — it is derived state, not consensus state"
         );
+    }
+
+    // ---- Phase-2 vesting: the cleared-score bridge (DESIGN-vesting-W §2.3, build-stage §3.2) ----
+
+    /// A carrier block at `height` (id == height ⇒ pre-PoW `finalized_at == height`) whose single
+    /// attribution cell is owned by `contributor` (its `type_script.args` — the PoM key), with a
+    /// distinct payload so the similarity floor never zeroes it. Lets a test give each block a
+    /// different contributor and observe per-contributor clearing.
+    fn carrier_for(height: u64, contributor: &[u8]) -> Block {
+        let c = Cell {
+            id: height,
+            lock: Script {
+                code_hash: [0u8; 32],
+                args: b"lk".to_vec(),
+            },
+            type_script: Script {
+                code_hash: [1u8; 32],
+                args: contributor.to_vec(),
+            },
+            parent: None,
+            timestamp: height,
+            // payload = a run of a per-height-unique byte ⇒ each block's coverage is a DISJOINT
+            // 4-gram set (no cross-block overlap) ⇒ every contributor earns novelty independently.
+            // This isolates the VESTING cliff under test from the near-duplicate similarity floor
+            // (θ=0.95), which would otherwise zero later near-identical payloads and MASK clearing
+            // (a one-char-apart payload overlaps >95% and earns 0 novelty regardless of vesting).
+            // 64 bytes ≫ the 4-byte shingle floor in `coverage`.
+            data: vec![b'A' + (height % 26) as u8; 64],
+        };
+        Block::assemble(
+            height,
+            &[(
+                c,
+                Committed {
+                    height,
+                    secret: [height as u8; 32],
+                },
+            )],
+        )
+    }
+
+    #[test]
+    fn finality_pom_weight_clears_on_the_cliff_pending_contributes_zero() {
+        // §2.2/D2 cliff: a cell contributes finality PoM weight iff finalized_at ≤ now − W. Distinct
+        // contributor per block ⇒ per-contributor clearing is directly observable, and the exact
+        // cliff boundary (block 3 cleared, block 4 pending) is pinned.
+        let w = 2u64;
+        let con = Constitution { vesting_w: w, ..Constitution::default() };
+        let mut node = Node::new(0, vec![v(0, 0.0, 100.0, 100.0)], con);
+        let who = |h: u64| format!("contrib{}", h).into_bytes();
+        for h in 1..=5u64 {
+            node.apply(&carrier_for(h, &who(h)));
+        }
+        assert_eq!(node.ledger.now(), 5, "pre-PoW clock == height after 5 blocks");
+        // now == 5, frontier = now − W = 3 ⇒ blocks 1..=3 CLEARED, 4..=5 PENDING.
+        let cleared = node.finality_pom_weight();
+        for h in 1..=3u64 {
+            assert!(
+                cleared.get(&who(h)).copied().unwrap_or(0) > 0,
+                "block {} finalized_at {} ≤ frontier 3 ⇒ CLEARED ⇒ contributes finality weight",
+                h,
+                h
+            );
+        }
+        for h in 4..=5u64 {
+            assert_eq!(
+                cleared.get(&who(h)).copied().unwrap_or(0),
+                0,
+                "block {} finalized_at {} > frontier 3 ⇒ PENDING ⇒ ZERO finality weight",
+                h,
+                h
+            );
+        }
+        // the PENDING work still earns full standing/reward via the (uncleared) attribution map —
+        // vesting gates FINALITY weight only, not reward (§2.2). This is the usable-vs-gameable split.
+        for h in 4..=5u64 {
+            assert!(
+                node.ledger.pom.get(&who(h)).copied().unwrap_or(0) > 0,
+                "pending block {} still earns standing — only its FINALITY weight is withheld",
+                h
+            );
+        }
+        // ANTI-THEATER: if the bridge did NOT filter (returned the full map), blocks 4/5 would be
+        // non-zero and the PENDING asserts above would fail ⇒ the filter is load-bearing, not decor.
+    }
+
+    #[test]
+    fn genesis_clears_nothing_so_bonded_pos_carries_finality() {
+        // §2.5 bootstrap: at genesis nothing has aged past W ⇒ the finality PoM map is empty ⇒ every
+        // Validator.pom sourced from it is 0 ⇒ bonded PoS carries finality from block zero, with NO
+        // special-case code — it falls out of the definition.
+        let con = Constitution { vesting_w: 4, ..Constitution::default() };
+        let node = Node::new(0, vec![v(0, 0.0, 100.0, 100.0)], con);
+        let cleared = node.finality_pom_weight();
+        assert!(cleared.is_empty(), "genesis: no finalized cells ⇒ nothing cleared ⇒ empty PoM map");
+        // Assemble the validator set the production way: each Validator.pom sourced from the cleared
+        // map (0 here). A full PoS quorum still finalizes; the PoM dimension is simply absent.
+        let pom_of = |who: &[u8]| cleared.get(who).copied().unwrap_or(0) as f64;
+        let all = vec![
+            Validator { pom: pom_of(b"a"), ..v(0, 0.0, 100.0, 0.0) },
+            Validator { pom: pom_of(b"b"), ..v(1, 0.0, 100.0, 0.0) },
+        ];
+        assert!(
+            node.checkpoint_finalizes(&all, &all),
+            "genesis ⇒ PoS-only finality: bonded stake finalizes with zero cleared PoM weight"
+        );
+    }
+
+    #[test]
+    fn vesting_w_zero_is_inert_bridge_equals_full_attribution() {
+        // Additive default (§4 D-note): W == 0 ⇒ every finalized cell is already cleared ⇒ the
+        // finality bridge is byte-identical to the full attribution map. The feature is inert until
+        // governance sets W, mirroring quorum_floor_bps/horizon defaulting to 0.
+        let mut node = Node::new(0, vec![v(0, 0.0, 100.0, 100.0)], Constitution::default());
+        assert_eq!(node.constitution.vesting_w, 0, "default W is inert (0)");
+        for h in 1..=5u64 {
+            node.apply(&carrier_for(h, format!("c{}", h).as_bytes()));
+        }
+        let bridge: std::collections::BTreeMap<Vec<u8>, u64> =
+            node.finality_pom_weight().into_iter().collect();
+        let full: std::collections::BTreeMap<Vec<u8>, u64> =
+            node.ledger.pom.iter().map(|(k, v)| (k.clone(), *v)).collect();
+        assert!(!bridge.is_empty(), "sanity: five distinct contributors earned standing");
+        assert_eq!(bridge, full, "W=0 ⇒ cleared score == full attribution (inert bridge)");
     }
 
     #[test]
