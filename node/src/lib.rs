@@ -51,6 +51,10 @@ pub mod wire;
 /// The wire that carries encoded blocks between nodes; see the module doc for scope.
 pub mod net;
 
+/// T1 slice-3: gossip — fan-out broadcast + a blake2b seen-set for loop-prevention over slice-2
+/// transport. See the module doc for scope.
+pub mod gossip;
+
 /// A CKB-style script: a RISC-V program (by code hash) + its arguments. VM success
 /// = valid. Lock scripts gate ownership; type scripts gate state transitions.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
