@@ -42,16 +42,24 @@
 - ✅ **Required and present (design/reference layer):** honest empty genesis (PoM earned, never
   pre-minted), standing-mint + state-byte rules, consensus mix + finality gate, Lamport lock verifier,
   the rulebook + `validate`. `noesisd` already boots this honest genesis.
-- 🟡 **Designed, NOT required for a minimal genesis:** JUL (money/PoW) and VIBE (governance). Per
-  `docs/TOKENOMICS.md` the minimal core (soulbound PoM + state-bytes) needs **no PoW** to secure
-  consensus or mint — so a minimal honest chain can launch without them; they layer in later.
+- ⚠ **OPEN — the genesis bootstrap paradox (Will 2026-07-13; corrects an earlier "no PoW" claim):**
+  PoS needs stake (= state-bytes, minted by PoM); PoM = 0 at genesis; no ICO / no pre-mint ⇒ nothing
+  is allocated ⇒ neither PoS nor PoM can secure or mint block zero. The **only allocation-free**
+  primitive is **PoW** (energy → blocks + coins, permissionless, Bitcoin-style), so PoW is the likely
+  genesis bootstrap scaffold: it secures the earliest blocks while the first contributions finalize →
+  first PoM → first state-bytes → PoS becomes possible → finality shifts to PoS+PoM → PoW recedes to
+  production + the JUL money layer. The mix is **dynamic** (PoW-heavy @ genesis → PoM-dominant steady
+  state). "No PoW" holds only for *steady-state finality*, NOT genesis. **A genuine open founding
+  decision, not pinned in docs:** PoW-bootstrap (ethos-pure) vs a founding bonded-set (small
+  pre-allocation). JUL/VIBE remain designed, not required for the steady state.
 - 🔬 **The real gate is QUALITY, not presence:** the learned value-oracle (8). A chain can *start* on
   the honest heuristic v0; the un-gameable measure is the moat and is open (inconclusive first test).
 - 🔌 **Deploy-coupled before a public testnet:** the on-VM type-script ports (Lamport, finalization,
   UTXO retirement), a real zkVM receipt (Linux), the persistent validator registry (T1), and T1 slice-5
   + a hosted seed node.
 
-**Synthesis:** a *minimal honest chain is genesis-ready in design* — every required core piece exists at
-the reference layer. The distance to a *real* launch is: (a) the on-VM/deploy ports, (b) JUL/VIBE
-integration, (c) the value-oracle quality (the moat), (d) T1 slice-5 + a seed node. None of those are
-"missing design"; they are build/deploy/data work with honest labels above.
+**Synthesis:** the *steady-state* design is largely built at the reference layer, but **genesis is NOT
+fully pinned** — the bootstrap decision above (PoW-scaffold vs founding bonded-set) is an open founding
+call, and without it "who wins block zero" has no answer. Distance to a *real* launch: **(0) pin the
+genesis bootstrap**, (a) on-VM/deploy ports, (b) JUL/VIBE integration, (c) the value-oracle quality (the
+moat), (d) T1 slice-5 + a seed node.
