@@ -44,13 +44,17 @@ today it is the same empty box Ethereum has (❌).**
 
 These are latent advantages — real, but **none is wired to infrastructure today.**
 
-1. **The funding source already exists: state-rent.** Ethereum charges one-time gas then stores
-   state free forever (the bloat externality, no revenue to pay storers). The Nervos-CKB lineage
-   Noesis inherits prices state *occupation* as an ongoing rent (state-bytes, mint↔decay,
-   `SYSTEM-MAP.md` layer 7). That means the money to pay storage providers is *already flowing in
-   the system*; the missing half is **routing** rent to the actual storers. Ethereum cannot do
-   this cleanly because it never metered occupation. (Mechanism-level claim; specific CKB
-   secondary-issuance parameters are not asserted here — read them before quoting any number.)
+1. **The demand-side pricing signal already exists (but the value is currently burned, not
+   pooled).** Ethereum charges one-time gas then stores state free forever (the bloat externality,
+   no revenue to pay storers). The Nervos-CKB lineage Noesis inherits prices state *occupation*:
+   capacity/standing decays on a rent/decay schedule (`soulbound::Op::Decay`, `node/src/lib.rs:571`,
+   described in-code as *"the supply sink"*; state-bytes mint↔decay, `SYSTEM-MAP.md` layer 7). So the
+   occupation-cost *signal* exists, which Ethereum never had. **But today that decay is a pure sink:
+   the value is destroyed, not collected** (verified — no treasury / rent-pool collects it). Funding
+   storers therefore takes *two* steps, not one: (a) convert the decay-sink into a collectable rent
+   pool, then (b) route that pool to proven storers. Step (a) is the part Ethereum cannot even reach
+   (it never metered occupation); step (b) is the routing. (Mechanism-level; specific CKB
+   secondary-issuance parameters not asserted here — read them before quoting any number.)
 2. **Infra-provision can be a first-class contribution type.** The whole thesis is *measure and
    reward contribution*, and running reliable infrastructure **is** a contribution. Ethereum's
    value function only scores "did you attest correctly"; Noesis's `v(S)` value-oracle
@@ -112,8 +116,10 @@ honest contribution, and reuses the existing dispute/slash machinery for the un-
 ## 6. The constraint this puts on M3 (the actionable output)
 
 M3 (`LOOP-PLAN` — JUL economics: issuance split, rent routing, retarget numbers) **must reserve a
-routable slice for the infra subsidy** rather than allocating 100% of issuance to production
-(miners) and 100% of rent to the treasury/decay sink. Concretely, before M3 pins numbers:
+routable slice for the infra subsidy** rather than allocating 100% of JUL issuance to the block
+producer (verified: the coinbase mints the full reward to a single recipient, no split,
+`runtime.rs:822`) and letting 100% of state-decay burn as a pure sink (`lib.rs:571`). Concretely,
+before M3 pins numbers:
 1. decide whether the infra subsidy draws from rent, issuance, or both (§5 FUND);
 2. leave a governable `Constitution` parameter for the split, defaulting to a safe/inert value
    (⚑ number — do not invent it here);
