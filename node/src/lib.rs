@@ -43,6 +43,10 @@ pub mod pom_export;
 /// from state, touches no apply/consensus path. See `docs/phase2-commitment-report.md`.
 pub mod utxo_commitment;
 
+/// T1 slice-1: wire codec + append-only block-log persistence (node-layer serialization of a
+/// finalized `Block`; the consensus/core types stay serde-free). See the module doc for scope.
+pub mod wire;
+
 /// A CKB-style script: a RISC-V program (by code hash) + its arguments. VM success
 /// = valid. Lock scripts gate ownership; type scripts gate state transitions.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
