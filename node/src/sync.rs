@@ -2,9 +2,12 @@
 //!
 //! THE join. A fresh (genesis) node connects to a seed, requests its block log, receives the blocks
 //! as frames, decodes each via slice-1 `wire::decode_block`, applies them via `Node::apply`, and
-//! converges to a byte-identical `state_digest`. State is derived by replaying the canonical blocks
-//! (Bitcoin-style), so the joiner trusts the *rules*, not the peer — a lying seed can only send blocks
-//! that `apply` accepts, and the digest either matches or it doesn't.
+//! converges to a byte-identical `state_digest`. The joiner RE-VALIDATES each block against the
+//! rulebook before applying (rules FOLLOWED — reusing `Node::validate`), so it trusts the *rules*, not
+//! the peer: a lying seed can only serve blocks the joiner's own validation accepts, and the digest
+//! either matches or it doesn't. (The rules being RIGHT is the Phase-4 formal-verification track; a
+//! *cheap* stateless join that verifies a zkVM recursion proof instead of replaying the whole log is
+//! the Phase-3 zkVM track — sync could carry a proof in place of the full replay later.)
 //!
 //! Wire protocol (over slice-2 framed transport): each frame is `[tag byte][payload]`.
 //!   * joiner -> seed: `[GET_BLOCKS]`
@@ -80,6 +83,13 @@ pub fn sync_from(peer: &mut Peer, node: &mut Node) -> Result<usize, SyncError> {
         match frame.first().copied() {
             Some(TAG_BLOCK) => {
                 let block = decode_block(&frame[1..])?;
+                // Re-verify against the rulebook (rules FOLLOWED) BEFORE applying: the joiner trusts
+                // the RULES, not the peer. A seed cannot make us apply a block our own validate rejects.
+                if !node.validate(&block) {
+                    return Err(SyncError::Protocol(
+                        "peer served a block that fails the rulebook (validation)".into(),
+                    ));
+                }
                 node.apply(&block);
                 applied += 1;
             }
