@@ -163,6 +163,66 @@ fn jul_cannot_be_minted_through_the_token_path() {
     );
 }
 
+/// SMUGGLE DEFENSE (Pragma-confluence finding): the conserve-only check keys on the CELLS' actual JUL
+/// identity (`is_jul`), not the tx's DECLARED one. A tx declaring a benign token but OUTPUTTING a JUL
+/// cell (no JUL input) would mint JUL from nothing under the declaration — must be REJECTED.
+/// RED break: key the clause on `tx.code_hash`/`tx.args` instead of `is_jul` (the original bug).
+#[test]
+fn jul_cannot_be_smuggled_under_a_foreign_token_identity() {
+    let mut node = genesis();
+    node.submit(cell(1, b"alice", 1, b"carrier for the smuggle-defense block"), committed(1, 1));
+    let carrier = node.propose();
+
+    // declared identity = a benign non-JUL token ("USD"); output = a real JUL cell; no JUL input.
+    let smuggle = TokenTx {
+        standard: TokenStandard::Fungible,
+        auths: vec![],
+        code_hash: [20u8; 32],
+        args: b"USD".to_vec(),
+        inputs: vec![],
+        outputs: vec![jul_cell(11, b"attacker", 1000)],
+    };
+    assert!(
+        !node.validate(&carrier.with_token_txs(vec![smuggle])),
+        "JUL SMUGGLE: a JUL output under a foreign token declaration must be rejected (mint-from-nothing)"
+    );
+}
+
+/// Conservation under BURN (Council monetary finding: the no-burn case was tested, the burn case was
+/// not). A JUL tx that outputs LESS than it inputs (a burn) validates, and afterward
+/// `jul_supply.issued == live JUL + burned` — issued is cumulative (unchanged), live drops by the burn.
+/// RED break: decrement jul_supply on a burn in `apply_transition` (issued must stay cumulative).
+#[test]
+fn conservation_holds_across_a_jul_burn() {
+    let mut node = genesis();
+    produce(&mut node, 1, b"a novel contribution earning a coinbase", Some(recipient(b"miner")));
+    let issued = node.ledger.jul_supply.issued();
+    assert!(issued > 0, "the coinbase issued real JUL");
+
+    let coinbase_cell = node.ledger.token_cells.iter().find(|c| jul::is_jul(c)).cloned().unwrap();
+    let in_amt = fungible::amount(&coinbase_cell);
+    let keep = in_amt / 4; // burn three-quarters
+    node.submit(cell(2, b"alice", 2, b"a second carrier so the burn block is valid"), committed(2, 2));
+    let carrier = node.propose();
+    let burn = TokenTx {
+        standard: TokenStandard::Fungible,
+        auths: vec![],
+        code_hash: JUL_CODE_HASH,
+        args: JUL_ISSUER.to_vec(),
+        inputs: vec![coinbase_cell],
+        outputs: vec![jul_cell(500, b"miner", keep)], // plain id (not reserved), non-colliding
+    };
+    let block = carrier.with_token_txs(vec![burn]);
+    assert!(node.validate(&block), "a JUL burn (out<in) must validate");
+    node.apply(&block);
+
+    let live = fungible::total(&node.ledger.token_cells, &JUL_CODE_HASH, JUL_ISSUER);
+    let burned = in_amt - keep;
+    assert_eq!(node.ledger.jul_supply.issued(), issued, "issued is cumulative — a burn does NOT reduce it");
+    assert_eq!(live, keep, "live JUL == the kept amount");
+    assert_eq!(node.ledger.jul_supply.issued(), live + burned, "conservation: issued == live + burned");
+}
+
 /// A token-tx output may not squat a reserved coinbase id (retirement matches `(id,lock,type)`, so a
 /// collision could grief a real reward).
 /// RED break: drop the `out.id & COINBASE_ID_BIT` check.

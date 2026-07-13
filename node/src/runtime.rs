@@ -744,16 +744,27 @@ fn token_txs_conserve_and_single_use(ledger: &Ledger, b: &Block) -> bool {
             return false;
         }
         // JUL SECURITY (increment 2): JUL is conserve-or-burn-ONLY through the token path ⇒ the block
-        // coinbase is the structurally unique JUL inflation channel. Without this, a holder could pay
-        // JUL to a cell with `lock.args == JUL_ISSUER`, then consume it as an "authority input" and mint
-        // unbounded JUL (both Fable-5 planners found this hole independently). Also keeps the FV
-        // spec-oracle (`Σout > Σin ⇒ reject`) honest for JUL.
-        if tx.code_hash == crate::jul::JUL_CODE_HASH && tx.args.as_slice() == crate::jul::JUL_ISSUER {
-            let out = crate::tokens::fungible::total(&tx.outputs, &tx.code_hash, &tx.args);
-            let inp = crate::tokens::fungible::total(&tx.inputs, &tx.code_hash, &tx.args);
-            if out > inp {
-                return false;
+        // coinbase is the structurally unique JUL inflation channel. Measured by the CELLS' ACTUAL JUL
+        // identity (`is_jul`), NEVER the tx's DECLARED `(code_hash, args)`: `is_valid_in_ledger` only
+        // conserves the declared token and `apply_transition` pushes ALL outputs regardless of type, so
+        // keying on the declaration would let an attacker declare a benign token and SMUGGLE JUL output
+        // cells past this check (mint JUL from nothing). Keying on the real cells closes that bypass.
+        // (The pay-to-issuer-lock → consume-as-authority vector both planners found is subsumed: that
+        // path is also just `jul_out > jul_in`.) Coinbase mints are NOT token_txs, so they are unaffected.
+        let mut jul_out: u128 = 0;
+        for c in &tx.outputs {
+            if crate::jul::is_jul(c) {
+                jul_out = jul_out.saturating_add(crate::tokens::fungible::amount(c));
             }
+        }
+        let mut jul_in: u128 = 0;
+        for c in &tx.inputs {
+            if crate::jul::is_jul(c) {
+                jul_in = jul_in.saturating_add(crate::tokens::fungible::amount(c));
+            }
+        }
+        if jul_out > jul_in {
+            return false;
         }
         // The reserved coinbase id space is protocol-only: a token-tx output may not squat a coinbase
         // id (retirement matches `(id, lock, type_script)`, so a collision could grief a real reward).
@@ -786,9 +797,17 @@ fn apply_transition(state: &mut Ledger, b: &Block, params: &Constitution) {
     // perturb attribution. (Crypto nullifier + on-VM UTXO-set retirement are the deploy-coupled layer.)
     for tx in &b.token_txs {
         for inp in &tx.inputs {
-            state
-                .token_cells
-                .retain(|c| !(c.id == inp.id && c.lock == inp.lock && c.type_script == inp.type_script));
+            // Retire the EXACT validated cell — match the full identity INCLUDING `data`. `is_valid_in_ledger`
+            // binds the input to a live cell on `(id, lock, type_script, data)`, so retirement must remove
+            // precisely that cell; without the `data` clause, two cells sharing `(id, lock, type_script)` but
+            // differing in `data` would BOTH retire on a single spend (Council red-team + rust-safety, high:
+            // a single-use / value-loss vector). Retire == validate.
+            state.token_cells.retain(|c| {
+                !(c.id == inp.id
+                    && c.lock == inp.lock
+                    && c.type_script == inp.type_script
+                    && c.data == inp.data)
+            });
         }
     }
     for tx in &b.token_txs {
