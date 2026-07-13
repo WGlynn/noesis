@@ -248,7 +248,7 @@ their engine to discharge them.
 | Three-layer Constitution governance model | ✅ documented in code (`runtime.rs:28-38`) |
 | Constitutional-layer dimension-matrix amendment rules | 🟡 `pending` — not in code yet |
 | The socket (typed amendment + obligations + gate) | **governance slice ✅ built** — `node/src/amendment.rs` (typed `Amendment` + `obligations()` checklist + `verify_amendment`; 13 tests w/ RED twins, full lib suite green, 0 new clippy). Constitutional/physics layers = reject/pending. |
-| Family-B attribution obligations, formalized | 🔬 open — properties now pinned to named `lib.rs` regressions (§5b); the amendment-preservation *check* over them is unbuilt |
+| Family-B attribution obligations, formalized | **✅ built** — `attribution_verdicts()` in `node/src/amendment.rs`: per-property verdict (PreservedByConstruction / AtRisk / DeferredToPragma), grounded in `runtime.rs:748` (only `theta_sim_q16` reaches `pom_scores`). A `theta_sim` RAISE = AtRisk on null-player; all else preserved-by-construction. The full preservation *proof* stays Pragma's. |
 | Confluence engine integration | 🟡 terms-first, Will-driven (Tom + Bernhard) |
 
 **Next grains, cheapest-first:**
@@ -264,8 +264,13 @@ their engine to discharge them.
    `max_mempool` ≥ 1) + stale-base rejection + Family-A trivial-by-construction; physics→immutable,
    constitutional dimension moves→`ConstitutionalPending`. `obligations()` tags each row
    `Socket` vs `Pragma`; `Ok(())` = no socket-detectable breach, NOT proven-coherent.
-   **Next grain**: encode the Family-B attribution-preservation obligations (§5b) as evaluable checks
-   (the remaining `Discharger::Pragma` rows), then confluence discharge stays terms-first (Tom + Bernhard).
+   **Family-B ✅ DONE** (`18b7c28`): `attribution_verdicts()` + `family_b_at_risk()` give per-property
+   verdicts grounded in `runtime.rs:748` (only `theta_sim_q16` reaches `pom_scores`). Anti-theater:
+   the sole non-trivial case is a `theta_sim` RAISE → AtRisk on null-player; mix + finalization params
+   preserved-by-construction; constitutional moves deferred to the confluence engine. **What remains is
+   NOT ours to build:** the confluence discharge + full attribution-preservation *proof* are Pragma's
+   (terms-first, Will drives Tom + Bernhard), and the constitutional dimension-set surface is `pending`
+   upstream. The socket is feature-complete for the deploy-independent, no-partner-terms slice.
 4. **The joint-paper question** (`noesis-pragma-overlap.md:38-42`): is there a single fixed-point theorem
    under which observer-overlap consistency (OPH) and contribution-overlap finalization (PoM) are both
    instances? That is the research half; it does not block the socket build.

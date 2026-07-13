@@ -13,12 +13,16 @@ DONE + machine-checked (Phase 4 ✅ all 3 steps green — see the stateless-veri
 `threshold_bps` floor, `theta_sim_q16` ≤ 1.0, `mix` normalized, `max_mempool` ≥ 1 — + stale-base
 rejection; physics→reject, constitutional dimension moves→`ConstitutionalPending`; 13 tests w/ RED twins,
 full lib suite 308 green, 0 new clippy). Design note §9 grains 2+3 = DONE.
-**▶ NEXT GRAIN (deploy-independent):** encode the Family-B attribution-preservation obligations (§5b — the
-named `lib.rs` regressions: efficiency / null-player / synergy / Myerson-restriction / determinism, plus the
-deliberately-relaxed anonymity axiom) as evaluable `Discharger::Socket` checks inside `verify_amendment`, so
-the gate discharges more than the trivial-by-construction rows. Confluence discharge + any Pragma integration
-stay TERMS-FIRST (Will drives Tom Lindeman + Bernhard). Constitutional dimension-set amendments remain
-`pending` upstream (the `Constitution` dimension matrix).
+**✅ FAMILY-B DONE 2026-07-13 (`18b7c28`, pushed)** — `attribution_verdicts()` + `family_b_at_risk()` in
+`node/src/amendment.rs`: per-property verdict (PreservedByConstruction / AtRisk / DeferredToPragma) grounded
+in `runtime.rs:748` (only `theta_sim_q16` reaches `pom_scores`). Anti-theater: the sole non-trivial case is a
+`theta_sim` RAISE → AtRisk on null-player; mix + finalization params preserved-by-construction; constitutional
+moves deferred. +5 tests, amendment 18 green, full lib suite 313 green, 0 new clippy.
+**▶ SOCKET NOW FEATURE-COMPLETE for the deploy-independent, no-partner-terms slice.** What remains is NOT ours
+to build alone: (1) the confluence discharge + full attribution-preservation *proof* = Pragma's engine
+(TERMS-FIRST — Will drives Tom Lindeman + Bernhard); (2) the constitutional dimension-set amendment surface is
+`pending` upstream (`Constitution` dimension matrix) — build that first if we want `AddDimension`/`RetireDimension`
+to do more than `ConstitutionalPending`. Other deploy-independent Noesis grains continue per the RESUME blocks below.
 The remaining axis = **rule-set-mutation coherence** (the 2nd line of defence): when governance AMENDS
 the Constitution, does it stay confluent AND keep the axioms (I1–I4 value + the Shapley 5-axiom
 attribution set)? Line-1 covers a FIXED rulebook; this covers the SPACE of governable rulebooks. Tom's
