@@ -185,6 +185,61 @@ pub fn pom_scores(cells_in_commit_order: &[Cell]) -> HashMap<Vec<u8>, u64> {
     pom
 }
 
+// ============ v(S) VALUE ORACLE SEAM (the blockchain <-> AI boundary) ============
+//
+// Consensus consumes ONE thing from the value layer: a deterministic integer value per finalized
+// cell, aggregated per contributor into PoM standing (which weights finality via
+// `Node::finality_pom_weight`). Everything downstream (aggregation, the anti-concentration floor,
+// the finality gadget) is agnostic to HOW that per-cell value is produced. This trait names that
+// boundary so the value function v(S) is swappable WITHOUT touching consensus.
+//
+// v0 (BUILT, honest label): `NoveltyOracleV0` — a transparent temporal-novelty heuristic with the
+// Q16.16 near-duplicate similarity floor. It is *designed*, NOT a model learned on real value labels.
+// The learned-v(S)-on-real-labels upgrade (OPEN, data-gated — THE moat) implements this SAME trait
+// and drops in behind it; the swap is a governance-gated protocol version bump (the canonical
+// value-function version rides the Constitution's measurement-amendment frame, like `theta_sim_q16`),
+// NOT a runtime plugin — the whole network must agree on ONE canonical v(S). See
+// `docs/DESIGN-value-oracle-seam.md`.
+//
+// CONTRACT a replacement MUST preserve (else it breaks consensus determinism):
+//   * pure + deterministic: same (cells, theta) => bit-identical output on every replica (no floats
+//     on the consensus path, no wall-clock, no map-iteration-order dependence);
+//   * integer output, exactly one value per input cell, in the SAME commit order as the input;
+//   * per-cell value is attributed to `cell.type_script.args` (the contributor key) by the aggregator.
+pub trait ValueOracle {
+    /// Per-cell value in commit order (`out.len() == cells_in_commit_order.len()`). Must satisfy the
+    /// seam contract above: pure, deterministic, integer, replica-identical.
+    fn cell_values(&self, cells_in_commit_order: &[Cell], theta_sim_q16: u64) -> Vec<u64>;
+}
+
+/// v0 value oracle (BUILT): the temporal-novelty heuristic + the deterministic Q16.16 similarity
+/// floor. HONEST STATUS: designed, not learned-on-real-labels — it rewards first-appearance coverage
+/// and zeroes near-duplicates, but does not yet model *value* beyond novelty. The learned v(S) is the
+/// open moat (`docs/DESIGN-value-oracle-seam.md`).
+pub struct NoveltyOracleV0;
+
+impl ValueOracle for NoveltyOracleV0 {
+    fn cell_values(&self, cells_in_commit_order: &[Cell], theta_sim_q16: u64) -> Vec<u64> {
+        value_fixed::temporal_novelty_with_similarity_floor_q16(cells_in_commit_order, theta_sim_q16)
+    }
+}
+
+/// Aggregate any [`ValueOracle`]'s per-cell values into per-contributor PoM standing. This is the
+/// consensus-facing attribution step and is oracle-agnostic: swap the oracle, keep this. Generic (not
+/// `dyn`) => static dispatch, zero-cost, no_std-friendly for the eventual on-VM port.
+pub fn pom_scores_with_oracle<O: ValueOracle>(
+    oracle: &O,
+    cells_in_commit_order: &[Cell],
+    theta_sim_q16: u64,
+) -> HashMap<Vec<u8>, u64> {
+    let vals = oracle.cell_values(cells_in_commit_order, theta_sim_q16);
+    let mut pom: HashMap<Vec<u8>, u64> = HashMap::new();
+    for (c, v) in cells_in_commit_order.iter().zip(vals) {
+        *pom.entry(c.type_script.args.clone()).or_insert(0) += v;
+    }
+    pom
+}
+
 /// PoM score per contributor WITH the near-duplicate similarity floor — the runtime / consensus
 /// attribution path. Mirrors [`pom_scores`] but routes novelty through the deterministic Q16.16
 /// floor ([`value_fixed::temporal_novelty_with_similarity_floor_q16`]) instead of plain
@@ -200,13 +255,10 @@ pub fn pom_scores_with_similarity_floor_q16(
     cells_in_commit_order: &[Cell],
     theta_sim_q16: u64,
 ) -> HashMap<Vec<u8>, u64> {
-    let vals =
-        value_fixed::temporal_novelty_with_similarity_floor_q16(cells_in_commit_order, theta_sim_q16);
-    let mut pom: HashMap<Vec<u8>, u64> = HashMap::new();
-    for (c, v) in cells_in_commit_order.iter().zip(vals) {
-        *pom.entry(c.type_script.args.clone()).or_insert(0) += v;
-    }
-    pom
+    // The consensus attribution path = the v0 novelty oracle through the shared aggregator. Kept as a
+    // named entry for every existing caller; byte-identical to the pre-seam inline body (parity-tested
+    // in node/tests/value_oracle_seam.rs), so no consensus change — only the swap point is now explicit.
+    pom_scores_with_oracle(&NoveltyOracleV0, cells_in_commit_order, theta_sim_q16)
 }
 
 /// Shardability: cells partition by id; no cross-shard state dependency in the cell
