@@ -4,6 +4,32 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## 🔝🔝🔝 NEXT SESSION (2026-07-13 PM-3) — JUL inc-3 ✅ SHIPPED + LOOP-PLAN-to-golive + the BIG reconciliation: docs badly LAG code, the #1 finality blocker is already DONE
+
+**Method = THE LOOP (Will's standing method, he loves it):** plan (2 Fable-5 planners: mechanism + build-safety) → build (RED-first) → Council v1 (adversarial personas) → Pragma-confluence (code ≡ docs) → commit. Will 2026-07-13: *"plan loops ahead that complete the roadmap... to execute and go live... so I can stop telling people I don't know when it'll happen."*
+
+**✅ JUL inc-3 SHIPPED (`bf781fc`)** — counter-cyclical reserve (Lever B), `node/src/reserve.rs` + `node/tests/jul_reserve.rs`. Pure consensus-isolated SHADOW module (TreasuryStabilizer.sol mechanism port): `trend_bps` over a work-series `Signal`, bear classification, bounded `release` (rate + period-cap + cooldown) on the work-clock, funded by a coinbase skim. Ships provably OFF (all-zero default). AMM/oracle/owner/wall-clock/LP-withdraw all DISSOLVED (documented re-derivations, not omissions). Keyless reserve CELL deferred to inc-3b (`CONTROL_BINDING_ACTIVE == false`, runtime.rs:411). **Council caught + fixed 2 REAL bugs:** `trend_bps` `as i64` sign-inversion on large `Signal` (→ saturate), and `-(bear_threshold_bps as i64)` debug-panic at `1<<63` (→ i128 compare). Pragma confluent (C1-C9). 14 anti-theater tests, lib 323 green.
+
+**✅ LOOP-PLAN-to-golive.md** (`internal/`, `ee9a87d` + refines) — the discrete loop-sequenced path. Two "done"s: GO-LIVE-FLOOR (contribution ledger + PoS+PoM finality + **JUL money live**) vs FULL-THESIS (+ moat + HCE, research-gated/undatable). Will corrections baked in: (1) JUL is launch-REQUIRED (THE e-cash); consensus-deferrable ≠ launch-deferrable. (2) All 3 NCI axes (`pow 0.10 / pos 0.30 / pom 0.60`, lib.rs:3806) ship at genesis — can't launch 2-of-3 + fork in the 3rd; PoW excluded ONLY from `FINALITY_MIX` (runtime.rs:956, reorgeable). Doc-coherence fix owed (L4): MVP-SCOPE §2 + TOKENOMICS over-state JUL as launch-deferrable.
+
+**🔑 THE BIG RECONCILIATION (L0 + L2 this session): docs SYSTEMATICALLY LAG code — much is already built.**
+- **L0** (reconcile MVP-SCOPE §1 vs HEAD): SHIPPED-since-07-03 → L1 finalization ELF ✅ (`df8f05e`, twinned to `finalizes_pos_pom_fixed`), A2 Standing→Validator.pom bridge ✅ (runtime.rs:626), A3 θ_sim=0.95 ratified ✅, A5 I-2 depth-split closed ✅ (lib.rs:2976), T1 slice-5 network ✅ (`noesisd --listen/--connect`), cand-B guard ✅, ARCHITECTURE stamps ✅.
+- **L2** (vesting-W Phase 3): ALREADY BUILT ✅ (`11d5785`) — `Ledger.refuted` set + `record_refutation` (guarded `canceled>0`) + AND-gate `finalized_at≤now-W && !refuted` (runtime.rs:643). **The #1 blocker (PoM-finality circularity, MVP-SCOPE §1.A) is CLOSED at the reference layer.** ⚑-D RATIFIED (D1-D5, 2026-07-11, DESIGN-vesting-W §4); ⚑-G finality-genesis settled (bonded PoS carries block zero).
+- **L2 closeout committed (`6f61d3b`)**: extraction-audit tick (PASS 12/12 for the Phase-3 diff) + DESIGN-vesting-W header flipped ("build-cold" → BUILT). 3 residuals registered: **R1** out-of-band `refuted` determinism → deploy-coupled (block-embed dispute Ops); **R2** cleared-set similarity-floor uplift; **R3-FLAG** D1 `W≥dispute-window` is convention, not amendment-enforced (amendment.rs:245).
+
+**▶ RECONCILED COUNT: ~4-5 real build loops to GO-LIVE-FLOOR (down from ~10).** Spine + finality essentially COMPLETE at reference layer. What's GENUINELY left:
+- **M2** — PoW layer: `block_work` still the `=1` stub (runtime.rs:495); build `Block::difficulty` + real mined difficulty + issue JUL from block 0. COLD, gated ⚑-G. Makes JUL Lever-A live.
+- **M3** — JUL economics: governable Constitution JUL params + Ergon difficulty-retarget + reserve activation numbers + miner-reflexivity game-theory pass (the inc-3 Council gate). ⚑ numbers (propose from Ergon/AMD, Will ratifies).
+- **L5** — Bound B commit-deposit: ZERO code (runtime.rs:76-77 comment only). COLD, rubric-gated, ⚑ floor-or-defer.
+- **Deploy-coupled**: L6 flips (`CONTROL_BINDING_ACTIVE`/`REGISTRY_BINDING_ACTIVE` still false) + block-embed-refutations (R1) + on-VM similarity/soulbound + nullifier crypto. **L7** genesis/P2P public network (long pole; T1 slice-5 built, not a public chain-spec yet).
+- **Hardening / L4 doc-coherence**: D1 amendment-floor when W first set nonzero; fix POM-FINALITY-TEMPORALITY staleness (E14a still says "audit recommends decoupling" vs the coupled ruling), MVP-SCOPE/TOKENOMICS JUL bug (E14c), ROADMAP :85/:99 Phase-3 stale.
+
+**Genuine remaining ⚑ (small):** ⚑-G money-in-genesis-bonded-set (recommended: moneyless + decaying, SYSTEM-MAP) + ⚑ M3 Ergon/JUL numbers. Everything else is decision-UNBLOCKED build.
+
+**STANDING LESSON (load-bearing):** RECONCILE-VS-HEAD BEFORE BUILDING OR QUOTING STATUS. Noesis docs systematically understate progress (L0 + L2 both found "already built"). Run a reconcile sweep first; never re-plan/rebuild a landed mechanism. (Also: use CronList, not a scheduled_tasks.json hand-parse, for cron-survival checks.)
+
+---
+
 ## 🔝🔝🔝 NEXT SESSION (2026-07-13 PM-2) — JUL MONEY LAYER inc-1 ✅ + inc-2 ✅ (full plan→build→Council→Pragma loop) · GENESIS DECISION SETTLED · next = JUL inc-3 (Lever B reserve) ∨ inc-4 (genesis wiring)
 
 **THE LOOP (Will 2026-07-13, standing method for completing the SYSTEM-MAP):** for each build piece —
