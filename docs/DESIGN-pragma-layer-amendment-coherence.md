@@ -247,7 +247,7 @@ their engine to discharge them.
 | Per-execution value axioms I1–I5 (line 1) | ✅ machine-checked (`Noesis_Rulebook.thy`, `fv_invariants.rs`) |
 | Three-layer Constitution governance model | ✅ documented in code (`runtime.rs:28-38`) |
 | Constitutional-layer dimension-matrix amendment rules | 🟡 `pending` — not in code yet |
-| The socket (typed amendment + obligations + gate) | 🔬 designed here, unbuilt |
+| The socket (typed amendment + obligations + gate) | **governance slice ✅ built** — `node/src/amendment.rs` (typed `Amendment` + `obligations()` checklist + `verify_amendment`; 13 tests w/ RED twins, full lib suite green, 0 new clippy). Constitutional/physics layers = reject/pending. |
 | Family-B attribution obligations, formalized | 🔬 open — properties now pinned to named `lib.rs` regressions (§5b); the amendment-preservation *check* over them is unbuilt |
 | Confluence engine integration | 🟡 terms-first, Will-driven (Tom + Bernhard) |
 
@@ -256,11 +256,16 @@ their engine to discharge them.
    deliberately-relaxed anonymity axiom (Cheng-Friedman). Family B is no longer a placeholder; the
    remaining work is a *build*: encode each property as an amendment-preservation obligation the
    `verify_amendment` gate can evaluate.
-2. **Draft the minimal typed `Amendment` enum** against the real `Constitution` fields — smallest set
-   that covers every param we have actually amended.
-3. **`verify_amendment` for the governance layer only** (bounded-weight + Family-A-trivial), as the first
-   buildable slice — governance amendments are the ones that happen; the constitutional-layer
-   dimension-set amendments are still `pending` upstream.
+2. **Draft the minimal typed `Amendment` enum** — ✅ DONE (`node/src/amendment.rs`): governance
+   `AmendParam`/`AmendMix` over the real `Constitution` fields, constitutional dimension moves
+   (`Add`/`Retire`/`ReweightDimension`), physics (`AmendPhysics`, present only to say WHY it is refused).
+3. **`verify_amendment` for the governance layer only** — ✅ DONE (`node/src/amendment.rs`): real safety
+   bounds (2/3 `threshold_bps` floor, `theta_sim_q16` ≤ 1.0, `mix` non-negative & normalized,
+   `max_mempool` ≥ 1) + stale-base rejection + Family-A trivial-by-construction; physics→immutable,
+   constitutional dimension moves→`ConstitutionalPending`. `obligations()` tags each row
+   `Socket` vs `Pragma`; `Ok(())` = no socket-detectable breach, NOT proven-coherent.
+   **Next grain**: encode the Family-B attribution-preservation obligations (§5b) as evaluable checks
+   (the remaining `Discharger::Pragma` rows), then confluence discharge stays terms-first (Tom + Bernhard).
 4. **The joint-paper question** (`noesis-pragma-overlap.md:38-42`): is there a single fixed-point theorem
    under which observer-overlap consistency (OPH) and contribution-overlap finalization (PoM) are both
    instances? That is the research half; it does not block the socket build.

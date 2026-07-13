@@ -4,9 +4,21 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
-## 🔝🔝🔝 NEXT SESSION (2026-07-12 rotate) — BUILD THE PRAGMA LAYER (the final axis)
+## 🔝🔝🔝 NEXT SESSION (2026-07-13) — PRAGMA LAYER: governance socket ✅ BUILT · next = Family-B checks
 Will 2026-07-12: *"rotate and we build the Pragma layer to cover the final axis."* Per-execution FV is
 DONE + machine-checked (Phase 4 ✅ all 3 steps green — see the stateless-verification block below).
+
+**✅ BUILT 2026-07-13 (`6ce3976`, pushed)** — the socket's GOVERNANCE-LAYER slice: `node/src/amendment.rs`
+(typed `Amendment` + `obligations()` checklist + `verify_amendment` gate; REAL safety bounds — 2/3
+`threshold_bps` floor, `theta_sim_q16` ≤ 1.0, `mix` normalized, `max_mempool` ≥ 1 — + stale-base
+rejection; physics→reject, constitutional dimension moves→`ConstitutionalPending`; 13 tests w/ RED twins,
+full lib suite 308 green, 0 new clippy). Design note §9 grains 2+3 = DONE.
+**▶ NEXT GRAIN (deploy-independent):** encode the Family-B attribution-preservation obligations (§5b — the
+named `lib.rs` regressions: efficiency / null-player / synergy / Myerson-restriction / determinism, plus the
+deliberately-relaxed anonymity axiom) as evaluable `Discharger::Socket` checks inside `verify_amendment`, so
+the gate discharges more than the trivial-by-construction rows. Confluence discharge + any Pragma integration
+stay TERMS-FIRST (Will drives Tom Lindeman + Bernhard). Constitutional dimension-set amendments remain
+`pending` upstream (the `Constitution` dimension matrix).
 The remaining axis = **rule-set-mutation coherence** (the 2nd line of defence): when governance AMENDS
 the Constitution, does it stay confluent AND keep the axioms (I1–I4 value + the Shapley 5-axiom
 attribution set)? Line-1 covers a FIXED rulebook; this covers the SPACE of governable rulebooks. Tom's
