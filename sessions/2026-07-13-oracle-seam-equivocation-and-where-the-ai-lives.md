@@ -74,13 +74,16 @@ a downgrade). One thing left for you: add a second mirror of the repo somewhere 
 | Where-the-AI-lives (CRPC + node-oracles) | 🔬 designed/sketched — non-interference proof is the open safety piece |
 | Constitutional dimension-set amendments | ⛔ blocked — needs a dimension matrix that doesn't exist yet, and its coherence is partner-deferred |
 | Learned v(S) (the real moat) | 🔬 open — data-gated, not effort-gated |
-| T1 network layer (nodes can join) | scoped, not built |
+| T1 slice-1 (persistence + wire codec) | ✅ built — restart from disk → byte-identical state |
+| T1 slices 2-5 (transport / gossip / sync / join) | next |
 
 ## What's next
 
-- **T1 slice 1 — persistence + wire codec** is teed up and ready to build: save the block log to disk,
-  reload it, and prove the chain comes back byte-identical. That's the foundation for a network others
-  can join, and it's fully doable on this machine.
+- **T1 slice-1 (persistence + wire codec) shipped** (`621c2d3`): a node restarted purely from its
+  on-disk block log comes back byte-identical (proven by test). State is replayed from the canonical
+  blocks, Bitcoin-style. **Next is slice-2 (transport)** — the first real network I/O, which adds a
+  networking dependency (leaning `std::net` + threads to keep it minimal). Then gossip, sync, and a
+  two-node local-join demo.
 - The dimension-set amendment surface is genuinely blocked; don't spend effort there yet.
 - The learned v(S) is still the moat, and it's waiting on real data, not more code.
 
