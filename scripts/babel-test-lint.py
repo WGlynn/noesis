@@ -78,8 +78,8 @@ def main():
                     hits.append((rel, i, label, line.strip()[:120]))
 
     if hits:
-        print("BABEL-TEST LINT: FAIL — faith-frame token(s) leaked into a formal/public surface.")
-        print("The frame belongs in THRONE.md / the calibration note, flagged frame-not-result — not here.")
+        print("BABEL-TEST LINT: FAIL - faith-frame token(s) leaked into a formal/public surface.")
+        print("The frame belongs in THRONE.md / the calibration note, flagged frame-not-result - not here.")
         print("(To legitimately reference it, move the text to the allowlisted philosophy tier.)\n")
         for rel, ln, label, snippet in hits:
             print(f"  {rel}:{ln}  [{label}]  {snippet}")
