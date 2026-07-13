@@ -4,7 +4,7 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
-## 🔝🔝🔝 NEXT SESSION (2026-07-13 PM) — v(S) SEAM ✅ · EQUIVOCATION ✅ · T1 SLICE-1/2/3 (persist+codec · transport · gossip) ✅ · next = slice-4 (sync = the join)
+## 🔝🔝🔝 NEXT SESSION (2026-07-13 PM) — v(S) SEAM ✅ · EQUIVOCATION ✅ · T1 SLICE-1..4 (persist · transport · gossip · sync+revalidate) ✅ · SYSTEM-MAP ✅ · next = slice-5 (noesisd wire + 2-node demo)
 
 Human recap: `sessions/2026-07-13-oracle-seam-equivocation-and-where-the-ai-lives.md`. All pushed, HEAD == origin @ `f862431`.
 
@@ -20,7 +20,11 @@ Human recap: `sessions/2026-07-13-oracle-seam-equivocation-and-where-the-ai-live
 
 **✅ T1 slice-2 (transport) BUILT `55bd8be` · slice-3 (gossip) BUILT `9aa02e0`** — pushed. `node/src/net.rs` (`write_frame`/`read_frame` u32-length frames, `Peer`, `Listener`; std::net + threads, ZERO deps, `MAX_FRAME` 16 MiB DoS bound) + `node/src/gossip.rs` (`Gossip` seen-set dedup via domain-separated blake2b + `broadcast` fan-out; flood TERMINATES via dedup). Tests: `node/tests/transport_framing.rs`, `node/tests/gossip_flood.rs`.
 
-**▶ NEXT — T1 slice-4 (sync = THE join payoff):** a joining node connects to a peer, requests its block log, receives the blocks as frames, decodes each via slice-1 `wire::decode_block`, replays via `Node::apply` on a fresh genesis → converges to a byte-identical `state_digest`. Reuses slice-1 (`BlockLog` / `decode_block` / `Ledger::state_digest`) + slice-2 (`Peer` / frames). Needs a tiny request/response protocol: a `GET_BLOCKS` request frame → a stream of block frames → a done marker. Then slice-5: wire into `noesisd` (`--listen` / `--connect` mode) + a two-node local-join integration test (two processes, one joins the other, converge to identical state = the demoable payoff). Public testnet = deploy one seed node (Will infra) once code works.
+**✅ T1 slice-4 (sync) BUILT `13f8025` + re-validate fix `32c500f`** — `node/src/sync.rs`: `GET_BLOCKS`→block-frames→`DONE` (`serve` / `sync_from`); the joiner runs `Node::validate` BEFORE apply (trusts the RULES, not the peer). Test `node/tests/sync_join.rs` (a fresh node joins a peer over TCP → byte-identical state). **✅ SYSTEM-MAP `f9f6923`** — `internal/SYSTEM-MAP.md`, the 9-layer connection graph + genesis-readiness; crypto = Lamport PQ; maintain per [[connect-the-pieces-proactively]].
+
+**▶ NEXT — T1 slice-5 (the demoable payoff):** wire `net`/`gossip`/`sync` into `noesisd` as a `--listen` / `--connect <addr>` mode (one process seeds a chain + listens; another boots fresh, connects, `sync_from`, converges) + a two-node local-join integration test proving two OS processes converge to identical state. Reuses slices 1-4 wholesale. Then public testnet = deploy one seed node (Will infra).
+
+**CONSENSUS NOTE (Will 2026-07-13, genesis liveness):** who moves the chain before/without PoM = **bonded PoS**, NOT PoW. At genesis PoM=0 ⇒ `finality_pom_weight` empty ⇒ finality rests 100% on the genesis bonded-PoS set (noesisd honest genesis). PoW is EXCLUDED from finality (reorgeable, `FINALITY_MIX`); its designed roles = production/ordering + Sybil-cost + the JUL money layer (designed-not-built). So "core needs no PoW" = PoS bootstraps liveness+finality; PoW/JUL is a later money layer, not a genesis liveness prereq.
 
 **Survivability (session theme):** Software Heritage permanent archive ACCEPTED (id 2390230). Will-action: add ONE mirror remote (2nd host) — last gap. New standing priority: free-tier JARVIS = anti-capture defense (`memory/feedback_free-tier-jarvis-as-anti-capture-defense.md`).
 
