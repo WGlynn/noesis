@@ -19,7 +19,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use crate::commit_order::Committed;
-use crate::runtime::{Block, TokenStandard, TokenTx};
+use crate::runtime::{Block, PowSeal, TokenStandard, TokenTx};
 use crate::{Cell, Script};
 
 // ============ wire mirror structs (the only serde in the block path) ============
@@ -57,6 +57,12 @@ struct WTokenTx {
 }
 
 #[derive(Serialize, Deserialize)]
+struct WPowSeal {
+    bits: u32,
+    nonce: u64,
+}
+
+#[derive(Serialize, Deserialize)]
 struct WBlock {
     height: u64,
     cells: Vec<WCell>,
@@ -66,6 +72,10 @@ struct WBlock {
     /// field) decode as `None`, preserving restart/replay compatibility.
     #[serde(default)]
     coinbase: Option<WScript>,
+    /// PoW seal (M2). `#[serde(default)]` ⇒ pre-M2 block logs (no field) decode as `None`, preserving
+    /// the byte-identical restart/replay contract — the same additive precedent as `coinbase`.
+    #[serde(default)]
+    pow: Option<WPowSeal>,
 }
 
 // ============ conversions (real type -> wire) ============
@@ -110,6 +120,7 @@ fn w_block(b: &Block) -> WBlock {
         coords: b.coords.iter().map(w_committed).collect(),
         token_txs: b.token_txs.iter().map(w_tokentx).collect(),
         coinbase: b.coinbase.as_ref().map(w_script),
+        pow: b.pow.map(|s| WPowSeal { bits: s.bits, nonce: s.nonce }),
     }
 }
 
@@ -156,6 +167,7 @@ fn r_block(b: WBlock) -> Result<Block, WireError> {
         coords: b.coords.into_iter().map(r_committed).collect(),
         token_txs: b.token_txs.into_iter().map(r_tokentx).collect::<Result<_, _>>()?,
         coinbase: b.coinbase.map(r_script),
+        pow: b.pow.map(|s| PowSeal { bits: s.bits, nonce: s.nonce }),
     })
 }
 

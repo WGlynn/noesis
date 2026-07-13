@@ -428,6 +428,19 @@ impl TokenTx {
 
 // ============ Block — a commit-reveal batch in canonical order ============
 
+/// The proof-of-work seal on a block (M2 — the work dimension). `bits` is the Bitcoin-style compact
+/// target the block was mined against; the VALIDATED work is DERIVED from it via
+/// [`noesis_core::pow::work_from_target`], never a producer-asserted work number — the same
+/// don't-carry-what-you-can-derive discipline as the constructed coinbase amount and `TokenTx`'s
+/// dropped `minter`. `nonce` is the mined solution. **M2a-1 scope: DATA MODEL ONLY** — no consensus
+/// path reads this yet. The header commitment + `pow_valid` + the `block_work` wiring are M2a-2
+/// (flag-gated on `Constitution.pow_enforced`), where the seal becomes a verified work *proof*.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PowSeal {
+    pub bits: u32,
+    pub nonce: u64,
+}
+
 /// A proposed block: cells paired with their consensus-sourced ordering coordinates,
 /// already in canonical commit order. Assembly is presentation-independent — no producer
 /// can bias which cell lands in which slot (the temporal-order strategyproofness guarantee).
@@ -445,6 +458,11 @@ pub struct Block {
     /// forged amount is unrepresentable. RECIPIENT POLICY (Will-gated): producer-named (Bitcoin-style);
     /// the amount is protocol-fixed, so recipient choice can only direct the subsidy, never enlarge it.
     pub coinbase: Option<Script>,
+    /// PoW seal (M2 — the work dimension). `None` ⇒ no work claimed (every pre-M2 block ⇒
+    /// replay-parity preserved, exactly like `coinbase: None`). M2a-1: additive data model only, no
+    /// consensus path reads it. Under enforcement (M2a-2) the mined difficulty flows from here into
+    /// `block_work` (issuance + the monotone work-clock), after `validate_block` proves the seal.
+    pub pow: Option<PowSeal>,
 }
 
 impl Block {
@@ -461,6 +479,7 @@ impl Block {
             coords,
             token_txs: Vec::new(),
             coinbase: None,
+            pow: None,
         }
     }
 
@@ -475,6 +494,13 @@ impl Block {
     /// is constructed at apply time, not carried here — this only names who is paid.
     pub fn with_coinbase(mut self, recipient: Script) -> Block {
         self.coinbase = Some(recipient);
+        self
+    }
+
+    /// Attach a PoW seal (M2a-1 builder; `None` by default). Records the compact target `bits` +
+    /// mined `nonce`; the work it represents is derived at validation/apply (M2a-2), never carried.
+    pub fn with_pow(mut self, bits: u32, nonce: u64) -> Block {
+        self.pow = Some(PowSeal { bits, nonce });
         self
     }
 }

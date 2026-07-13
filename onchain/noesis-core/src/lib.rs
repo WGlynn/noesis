@@ -956,3 +956,167 @@ pub mod tx {
         Some(OwnedCellView { id, lock_code_hash, lock_args, type_code_hash, type_args, data: cell_data })
     }
 }
+
+// ============ PoW work dimension (M2) — target math + header hasher ============
+//
+// The verify-side arithmetic the node (host) and a future on-VM PoW check must AGREE on, kept here
+// (no_std) so the on-VM mirror is a move, not a rewrite — the same single-source discipline as `tx`
+// and `lamport`. M2a-1 SCOPE: the pure math + the domain-separated hasher + the length-prefix framer
+// ONLY. Nothing here is wired into `validate_block` / `block_work` yet (that is M2a-2, flag-gated).
+// The RETARGET rule and EVERY numeric constant (genesis bits, block interval, Ergon params) are ⚑ M3
+// (Will-gated) and are deliberately absent — asserting one would violate no-assert-from-memory.
+/// PoW target arithmetic + the header-preimage hasher. Pure, integer-only, no clock / rand / float.
+pub mod pow {
+    use alloc::vec::Vec;
+
+    /// Domain-separated 32-byte blake2b over a caller-assembled preimage. The node builds the block
+    /// header preimage (its `Block`-specific field layout); a future on-VM check builds the same
+    /// preimage from cell syscalls. The personalization keeps PoW hashes disjoint from tx/smt/lamport.
+    pub fn hash(preimage: &[u8]) -> [u8; 32] {
+        let mut h = blake2b_ref::Blake2bBuilder::new(32)
+            .personal(b"noesis-pow-v1\0\0\0")
+            .build();
+        h.update(preimage);
+        let mut out = [0u8; 32];
+        h.finalize(&mut out);
+        out
+    }
+
+    /// Injective length-prefix framing (mirrors `tx::put`) so a caller assembles an unambiguous
+    /// header preimage from variable-length fields — one home for the framing both worlds use.
+    pub fn put(buf: &mut Vec<u8>, bytes: &[u8]) {
+        buf.extend_from_slice(&(bytes.len() as u64).to_le_bytes());
+        buf.extend_from_slice(bytes);
+    }
+
+    /// Decode a Bitcoin-style compact target ("nBits", `(exponent << 24) | mantissa24`) into a
+    /// 256-bit big-endian target, with STRICT validation: the sign bit is rejected (no negative
+    /// target), a zero mantissa is rejected (unmeetable), and any encoding whose non-zero bytes would
+    /// overflow 32 bytes is rejected. Returns `None` on any malformed input — never panics.
+    pub fn compact_to_target(bits: u32) -> Option<[u8; 32]> {
+        let exponent = (bits >> 24) as usize;
+        let mantissa = bits & 0x00ff_ffff;
+        if mantissa & 0x0080_0000 != 0 {
+            return None; // sign bit set ⇒ "negative" ⇒ reject
+        }
+        if mantissa == 0 {
+            return None; // zero target ⇒ unmeetable ⇒ reject
+        }
+        let mut target = [0u8; 32];
+        // most-significant mantissa byte first
+        let mant_bytes = [
+            ((mantissa >> 16) & 0xff) as u8,
+            ((mantissa >> 8) & 0xff) as u8,
+            (mantissa & 0xff) as u8,
+        ];
+        if exponent <= 3 {
+            // Bitcoin defines exp<=3 as target = mantissa >> 8*(3-exponent): keep the top `exponent`
+            // mantissa bytes, placed at the very low end. exp==0 keeps nothing ⇒ target 0 (rejected below).
+            let keep = exponent.min(3);
+            for k in 0..keep {
+                target[31 - (keep - 1 - k)] = mant_bytes[k];
+            }
+        } else {
+            // shift left by (exponent - 3) bytes: the mantissa's low byte sits at index 31-(exp-3).
+            let shift = exponent - 3;
+            for (k, &b) in mant_bytes.iter().rev().enumerate() {
+                // k = 0 is the mantissa LSB (index 31-shift); k grows toward the MSB (index decreases).
+                let idx = 31isize - shift as isize - k as isize;
+                if b != 0 && idx < 0 {
+                    return None; // a non-zero byte overflows the 32-byte target
+                }
+                if (0..32).contains(&idx) {
+                    target[idx as usize] = b;
+                }
+            }
+        }
+        if target == [0u8; 32] {
+            return None; // degenerate (e.g. exponent 0) ⇒ unmeetable zero target ⇒ reject
+        }
+        Some(target)
+    }
+
+    /// Chainwork of a target: `floor((2^256 - 1) / (target + 1))`, saturated to `u64`. Every valid
+    /// block advances the monotone work-clock by >= 1: the all-ones (easiest) target returns the
+    /// minimum 1 via the `target + 1` overflow branch, and the quotient is >= 1 for every other
+    /// representable target. Monotone NON-INCREASING in target — a smaller (harder) target yields AT
+    /// LEAST as much work; strictly more only across sufficiently separated targets, since floor
+    /// division and u64 saturation tie adjacent and extreme targets. That weak monotonicity is exactly
+    /// right for a cumulative work-clock (and for equal-difficulty blocks contributing equal weight).
+    /// Pure integer 256-bit long division — no float, no clock, no rand (the transition-purity
+    /// contract, `runtime::apply_transition`). This is the value `block_work` returns under enforcement
+    /// (M2a-2), by which point `validate_block` has already proven the seal.
+    pub fn work_from_target(target: &[u8; 32]) -> u64 {
+        // divisor = target + 1 (256-bit, big-endian). If target == 2^256-1, target+1 overflows ⇒ the
+        // dividend (2^256-1) < divisor (2^256) ⇒ quotient 0 ⇒ clamp to the minimum work of 1.
+        let mut divisor = *target;
+        let mut carry = 1u16;
+        let mut i = 32;
+        while i > 0 && carry > 0 {
+            i -= 1;
+            let s = divisor[i] as u16 + carry;
+            divisor[i] = (s & 0xff) as u8;
+            carry = s >> 8;
+        }
+        if carry != 0 {
+            return 1; // target + 1 == 2^256 ⇒ quotient 0 ⇒ minimum work
+        }
+        let dividend = [0xffu8; 32]; // 2^256 - 1
+        let mut rem = [0u8; 32];
+        let mut q: u64 = 0;
+        for bit in 0..256usize {
+            // rem <<= 1
+            let mut c = 0u8;
+            let mut j = 32;
+            while j > 0 {
+                j -= 1;
+                let v = ((rem[j] as u16) << 1) | c as u16;
+                rem[j] = (v & 0xff) as u8;
+                c = (v >> 8) as u8;
+            }
+            // bring in the next dividend bit, MSB-first
+            let byte = bit / 8;
+            let off = 7 - (bit % 8);
+            rem[31] |= (dividend[byte] >> off) & 1;
+            let ge = cmp256(&rem, &divisor) != core::cmp::Ordering::Less;
+            if ge {
+                sub256(&mut rem, &divisor);
+            }
+            if q > (u64::MAX >> 1) {
+                return u64::MAX; // any further growth stays saturated
+            }
+            q = (q << 1) | ge as u64;
+        }
+        // Defensive floor only: for every representable target the loop already yields q >= 1 (the
+        // sole q == 0 case is target == all-ones, handled by the carry-overflow `return 1` above), so
+        // `.max(1)` never fires today — it guards a future change to the division, it is not the
+        // all-ones guarantee (that is the overflow branch). See pow_arithmetic anti-theater note.
+        q.max(1)
+    }
+
+    fn cmp256(a: &[u8; 32], b: &[u8; 32]) -> core::cmp::Ordering {
+        for i in 0..32 {
+            match a[i].cmp(&b[i]) {
+                core::cmp::Ordering::Equal => continue,
+                ord => return ord,
+            }
+        }
+        core::cmp::Ordering::Equal
+    }
+
+    fn sub256(a: &mut [u8; 32], b: &[u8; 32]) {
+        let mut borrow = 0i16;
+        let mut i = 32;
+        while i > 0 {
+            i -= 1;
+            let d = a[i] as i16 - b[i] as i16 - borrow;
+            if d < 0 {
+                a[i] = (d + 256) as u8;
+                borrow = 1;
+            } else {
+                a[i] = d as u8;
+                borrow = 0;
+            }
+        }
+    }
+}
