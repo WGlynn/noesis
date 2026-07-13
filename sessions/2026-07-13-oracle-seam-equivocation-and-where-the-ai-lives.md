@@ -75,15 +75,16 @@ a downgrade). One thing left for you: add a second mirror of the repo somewhere 
 | Constitutional dimension-set amendments | ⛔ blocked — needs a dimension matrix that doesn't exist yet, and its coherence is partner-deferred |
 | Learned v(S) (the real moat) | 🔬 open — data-gated, not effort-gated |
 | T1 slice-1 (persistence + wire codec) | ✅ built — restart from disk → byte-identical state |
-| T1 slices 2-5 (transport / gossip / sync / join) | next |
+| T1 slice-2 (transport) + slice-3 (gossip) | ✅ built — framed TCP + dedup broadcast |
+| T1 slice-4 (sync = the join) + slice-5 (demo) | next |
 
 ## What's next
 
-- **T1 slice-1 (persistence + wire codec) shipped** (`621c2d3`): a node restarted purely from its
-  on-disk block log comes back byte-identical (proven by test). State is replayed from the canonical
-  blocks, Bitcoin-style. **Next is slice-2 (transport)** — the first real network I/O, which adds a
-  networking dependency (leaning `std::net` + threads to keep it minimal). Then gossip, sync, and a
-  two-node local-join demo.
+- **T1 slices 1-3 shipped** (persistence+codec `621c2d3`, transport `55bd8be`, gossip `9aa02e0`): a
+  node restarts from its on-disk block log to byte-identical state; two peers exchange framed messages
+  over TCP; gossip broadcast + dedup makes a mesh flood terminate. **Next is slice-4 (sync = the join)**:
+  a fresh node pulls a peer's block log, decodes + replays, and converges — then slice-5 is the
+  two-node local-join demo wired into noesisd.
 - The dimension-set amendment surface is genuinely blocked; don't spend effort there yet.
 - The learned v(S) is still the moat, and it's waiting on real data, not more code.
 
