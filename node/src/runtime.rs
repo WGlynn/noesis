@@ -80,6 +80,14 @@ pub struct Constitution {
     /// coinbase = `jul::reward_for_work(block_work(b), jul)`. v0 default `JulParams::default()` (1 JUL
     /// per unit of work); governance-BOUNDING it (an amendment GovField) is increment 4.
     pub jul: crate::jul::JulParams,
+    /// PoW enforcement (M2a-2). When `true`, `validate_block` requires every block to carry a PoW
+    /// seal whose header hash meets its claimed compact target, and `block_work` returns the seal's
+    /// DERIVED chainwork ([`noesis_core::pow::work_from_target`]) — making JUL Lever-A live. Default
+    /// `false` ⇒ the seal is inert data, `block_work` returns `WORK_PER_BLOCK`, and behavior is
+    /// byte-identical to pre-M2 (the additive precedent: `quorum_floor_bps`/`horizon`/`vesting_w` all
+    /// default to their inert value). The difficulty RETARGET rule + genesis bits + the work-clock
+    /// ceiling are ⚑ M3 (Will-gated), deliberately absent here.
+    pub pow_enforced: bool,
 }
 
 impl Default for Constitution {
@@ -94,6 +102,7 @@ impl Default for Constitution {
             vesting_w: 0,         // inert: every finalized cell already cleared ⇒ full attribution
             max_mempool: 10_000,  // resource-DoS bound A: per-replica mempool admission cap
             jul: crate::jul::JulParams::default(), // 1 JUL per unit of work (v0 unit-definition)
+            pow_enforced: false,  // inert: block_work == WORK_PER_BLOCK ⇒ byte-identical to pre-M2
         }
     }
 }
@@ -520,12 +529,126 @@ impl Block {
 /// Work contributed by one finalized block. Pre-PoW: a constant ⇒ the cumulative clock == height.
 pub const WORK_PER_BLOCK: u64 = 1;
 
-/// The work a block adds to the cumulative-work clock. Pre-PoW this is `WORK_PER_BLOCK` for every
-/// block (the height-clock degenerate case); post-PoW, replace the body with the block's mined
-/// difficulty (a future `Block::difficulty`) and every reader of the clock is unchanged — the
-/// signature is already difficulty-ready. Single source of per-block work.
-pub fn block_work(_b: &Block) -> u64 {
+/// The work a block adds to the cumulative-work clock. When `pow_enforced` and the block carries a
+/// seal with a valid compact target, this is the seal's DERIVED chainwork
+/// ([`noesis_core::pow::work_from_target`]) — a verified work PROOF, since [`validate_block`] has
+/// already rejected any block whose header does not meet its claimed target, so by the time this
+/// runs the `bits` are proven, never a producer-asserted number. Otherwise (flag off / pre-M2 / no
+/// seal) it returns the constant `WORK_PER_BLOCK`, so the cumulative clock degrades to a height-clock
+/// and issuance + parity are byte-identical to pre-M2. Single source of per-block work; both call
+/// sites (coinbase reward + work-clock advance) already hold `params`.
+pub fn block_work(b: &Block, c: &Constitution) -> u64 {
+    if c.pow_enforced {
+        if let Some(seal) = &b.pow {
+            if let Some(target) = noesis_core::pow::compact_to_target(seal.bits) {
+                return noesis_core::pow::work_from_target(&target);
+            }
+        }
+    }
     WORK_PER_BLOCK
+}
+
+/// The canonical 32-byte PoW header commitment (M2a-2). Binds the seal to THIS block's consensus
+/// content so a solved hash cannot be replayed onto a different body: it commits to `height`, the
+/// canonically-ordered `cells` (full identity + data), the `coords`, the `token_txs` (their
+/// consensus-consumed bytes in PRESENTED order — standard/code_hash/args/inputs/outputs/auths — NOT
+/// the canonicalized auth-free `TokenTx::digest`), the `coinbase` recipient, and the seal's `bits` +
+/// `nonce`.
+/// It deliberately does NOT commit a prev-block-hash (Will 2026-07-13): unlike Bitcoin, PoW here is
+/// finality-EXCLUDED (reorgeable, `FINALITY_MIX`), so its job is issuance of ELASTIC energy-money
+/// (JUL) + liveness + per-block Sybil-cost, NOT securing chain ordering (that is PoS+PoM finality +
+/// coord-sourced canonical order). A prev-hash would be vestigial to PoW's actual role here. See
+/// `docs/DESIGN-pow-work-dimension.md`. Length-prefixed + domain-separated via `noesis_core::pow`
+/// so the future on-VM mirror is a move, not a rewrite.
+/// Commit one cell's FULL consensus identity into a PoW-header preimage: id, lock, type_script,
+/// parent (0=none / 1+u64), timestamp, data — the exact fields `apply` writes. Every variable-length
+/// field is length-prefixed so the framing is injective. Shared by the block's own cells AND each
+/// token_tx's inputs/outputs, so the PoW binds the precise bytes consensus consumes.
+fn commit_cell_identity(buf: &mut Vec<u8>, cell: &Cell) {
+    use noesis_core::pow::put;
+    buf.extend_from_slice(&cell.id.to_le_bytes());
+    buf.extend_from_slice(&cell.lock.code_hash);
+    put(buf, &cell.lock.args);
+    buf.extend_from_slice(&cell.type_script.code_hash);
+    put(buf, &cell.type_script.args);
+    match cell.parent {
+        None => buf.push(0),
+        Some(p) => {
+            buf.push(1);
+            buf.extend_from_slice(&p.to_le_bytes());
+        }
+    }
+    buf.extend_from_slice(&cell.timestamp.to_le_bytes());
+    put(buf, &cell.data);
+}
+
+pub fn header_digest(b: &Block) -> [u8; 32] {
+    use noesis_core::pow::put;
+    let mut buf: Vec<u8> = Vec::new();
+    buf.extend_from_slice(b"noesis-pow-hdr-v1");
+    buf.extend_from_slice(&b.height.to_le_bytes());
+    buf.extend_from_slice(&(b.cells.len() as u64).to_le_bytes());
+    for cell in &b.cells {
+        commit_cell_identity(&mut buf, cell);
+    }
+    buf.extend_from_slice(&(b.coords.len() as u64).to_le_bytes());
+    for coord in &b.coords {
+        buf.extend_from_slice(&coord.height.to_le_bytes());
+        buf.extend_from_slice(&coord.secret);
+    }
+    // Token movements: commit the CONSENSUS-CONSUMED bytes in PRESENTED order — NOT `tx.digest()`,
+    // which is a canonicalized (input/output-SORTED), auth-free SIGNING view. `apply_transition`
+    // appends outputs in SLICE order and per-input validity depends on `auths`, so a header that
+    // committed only tx.digest would let a solved PoW replay onto a block with reordered outputs
+    // (state-divergent) or swapped auths (differently-authorized at deploy). Bind the real bytes.
+    buf.extend_from_slice(&(b.token_txs.len() as u64).to_le_bytes());
+    for tx in &b.token_txs {
+        buf.push(tx.standard as u8);
+        buf.extend_from_slice(&tx.code_hash);
+        put(&mut buf, &tx.args);
+        buf.extend_from_slice(&(tx.inputs.len() as u64).to_le_bytes());
+        for inp in &tx.inputs {
+            commit_cell_identity(&mut buf, inp);
+        }
+        buf.extend_from_slice(&(tx.outputs.len() as u64).to_le_bytes());
+        for out in &tx.outputs {
+            commit_cell_identity(&mut buf, out);
+        }
+        buf.extend_from_slice(&(tx.auths.len() as u64).to_le_bytes());
+        for auth in &tx.auths {
+            put(&mut buf, auth);
+        }
+    }
+    match &b.coinbase {
+        None => buf.push(0),
+        Some(s) => {
+            buf.push(1);
+            buf.extend_from_slice(&s.code_hash);
+            put(&mut buf, &s.args);
+        }
+    }
+    let (bits, nonce) = b.pow.as_ref().map(|s| (s.bits, s.nonce)).unwrap_or((0, 0));
+    buf.extend_from_slice(&bits.to_le_bytes());
+    buf.extend_from_slice(&nonce.to_le_bytes());
+    noesis_core::pow::hash(&buf)
+}
+
+/// PoW seal validity under enforcement. When `Constitution.pow_enforced`, the block MUST carry a
+/// seal whose [`header_digest`] meets its claimed compact target — a verified work PROOF: you cannot
+/// claim target `T` without a nonce whose `header_digest <= target(T)` (~`T` expected hashes), so
+/// difficulty is not attacker-choosable-for-free ([P.dont-let-attacker-choose-critical-input]). When
+/// not enforced, the seal is inert data and this is a no-op (byte-identical to pre-M2).
+fn pow_check(b: &Block, c: &Constitution) -> Result<(), Violation> {
+    if !c.pow_enforced {
+        return Ok(());
+    }
+    let seal = b.pow.as_ref().ok_or(Violation::PowMissing)?;
+    let target = noesis_core::pow::compact_to_target(seal.bits).ok_or(Violation::PowUnmet)?;
+    if header_digest(b) <= target {
+        Ok(())
+    } else {
+        Err(Violation::PowUnmet)
+    }
 }
 
 // ============ Node — a single replica ============
@@ -586,7 +709,7 @@ impl Node {
     pub fn validate(&self, b: &Block) -> bool {
         // Thin caller of the rulebook's acceptance gate ([`validate_block`]). Block validity is
         // now defined in exactly ONE place, shared with [`apply_block`] and its Phase 2-4 consumers.
-        validate_block(&self.ledger, b).is_ok()
+        validate_block(&self.ledger, b, &self.constitution).is_ok()
     }
 
     /// A node's vote on a proposal is its honest local validation.
@@ -731,11 +854,16 @@ pub enum Violation {
     CoordHeightMismatch,
     /// (6) a token movement is not ledger-valid, or an input identity is spent twice in-block.
     TokenTxInvalidOrDoubleSpend,
+    /// (7) PoW is enforced (`Constitution.pow_enforced`) but the block carries no seal.
+    PowMissing,
+    /// (8) PoW is enforced but the seal's header hash does not meet its claimed compact target (or
+    /// the target is malformed) — the claimed work is not backed by a valid proof.
+    PowUnmet,
 }
 
 /// The acceptance gate: the six conjoined checks of the old `Node::validate`, returning the typed
 /// [`Violation`] instead of a `bool`. Pure over `(&state, &block)` — no `Node`, no I/O, no clock.
-pub fn validate_block(ledger: &Ledger, b: &Block) -> Result<(), Violation> {
+pub fn validate_block(ledger: &Ledger, b: &Block, c: &Constitution) -> Result<(), Violation> {
     if b.height != ledger.height + 1 {
         return Err(Violation::HeightMismatch { expected: ledger.height + 1, got: b.height });
     }
@@ -754,6 +882,7 @@ pub fn validate_block(ledger: &Ledger, b: &Block) -> Result<(), Violation> {
     if !token_txs_conserve_and_single_use(ledger, b) {
         return Err(Violation::TokenTxInvalidOrDoubleSpend);
     }
+    pow_check(b, c)?;
     Ok(())
 }
 
@@ -846,7 +975,7 @@ fn apply_transition(state: &mut Ledger, b: &Block, params: &Constitution) {
     // unrepresentable, and it is the ONLY authorized JUL inflation (token_txs are JUL-conserve-only).
     // Touches `token_cells` only — never `cells`/index/pom — so PoW/JUL stays finality-excluded by construction.
     if let Some(recipient) = &b.coinbase {
-        let reward = crate::jul::reward_for_work(block_work(b), params.jul);
+        let reward = crate::jul::reward_for_work(block_work(b, params), params.jul);
         if reward > 0 {
             state.token_cells.push(Cell {
                 id: crate::jul::coinbase_id(b.height),
@@ -871,7 +1000,7 @@ fn apply_transition(state: &mut Ledger, b: &Block, params: &Constitution) {
     state.height = b.height;
     // advance the cumulative-work clock (the canonical `now`). Monotone by construction
     // (block_work ≥ 1 and saturating_add never wraps); pre-PoW this tracks height exactly.
-    state.work = state.work.saturating_add(block_work(b));
+    state.work = state.work.saturating_add(block_work(b, params));
     // vesting stamp: `or_insert` ⇒ a cell's FIRST finalization wins (idempotent under re-apply).
     // Not folded into `state_digest` ⇒ additive; same blocks + order ⇒ same map (replica-deterministic).
     let finalized_now = state.work;
@@ -889,7 +1018,7 @@ fn apply_transition(state: &mut Ledger, b: &Block, params: &Constitution) {
 /// deterministic input, not mutable state. On rejection the (moved-in) state is dropped and the
 /// typed [`Violation`] returned — an invalid block produces no next state.
 pub fn apply_block(state: Ledger, b: &Block, params: &Constitution) -> Result<Ledger, Violation> {
-    validate_block(&state, b)?;
+    validate_block(&state, b, params)?;
     let mut next = state;
     apply_transition(&mut next, b, params);
     Ok(next)
@@ -2297,7 +2426,7 @@ mod tests {
         // mined difficulty and this same clock keeps being the single `now` with no call-site
         // change — the "right interface" the height-clock degenerate case hides behind.
         assert_eq!(
-            block_work(&carrier_at(1, 1, 1, b"pre-pow degenerate")),
+            block_work(&carrier_at(1, 1, 1, b"pre-pow degenerate"), &Constitution::default()),
             WORK_PER_BLOCK,
             "pre-PoW every block contributes exactly WORK_PER_BLOCK"
         );

@@ -83,7 +83,7 @@ fn apply_block_matches_node_apply_over_vectors() {
         // both acceptance gates agree the block is valid.
         assert!(node.validate(&block), "Node::validate rejected a valid block at height {height}");
         assert!(
-            validate_block(&state, &block).is_ok(),
+            validate_block(&state, &block, &con).is_ok(),
             "validate_block rejected a valid block at height {height}"
         );
 
@@ -118,7 +118,7 @@ fn apply_block_surfaces_typed_violations() {
         Committed { height: 2, secret: secret(1) },
     )];
     let bad_height = Block::assemble(2, &p2);
-    match validate_block(&Ledger::new(), &bad_height) {
+    match validate_block(&Ledger::new(), &bad_height, &con) {
         Err(Violation::HeightMismatch { expected, got }) => {
             assert_eq!(expected, 1);
             assert_eq!(got, 2);
@@ -132,7 +132,7 @@ fn apply_block_surfaces_typed_violations() {
 
     // (3) empty block.
     let empty = Block::assemble(1, &[]);
-    assert!(matches!(validate_block(&Ledger::new(), &empty), Err(Violation::EmptyBlock)));
+    assert!(matches!(validate_block(&Ledger::new(), &empty, &con), Err(Violation::EmptyBlock)));
 
     // (4) non-canonical order — a producer reorder of a valid block.
     let p1 = vec![
@@ -148,6 +148,6 @@ fn apply_block_surfaces_typed_violations() {
     let mut nc = Block::assemble(1, &p1);
     nc.cells.swap(0, 1);
     nc.coords.swap(0, 1);
-    assert!(matches!(validate_block(&Ledger::new(), &nc), Err(Violation::NonCanonicalOrder)));
+    assert!(matches!(validate_block(&Ledger::new(), &nc, &con), Err(Violation::NonCanonicalOrder)));
     assert!(matches!(apply_block(Ledger::new(), &nc, &con), Err(Violation::NonCanonicalOrder)));
 }
