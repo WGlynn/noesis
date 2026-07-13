@@ -86,7 +86,7 @@ def main():
         return 1
 
     n = sum(1 for _ in scanned_files())
-    print(f"BABEL-TEST LINT: PASS — {n} formal/public file(s) scanned, no faith-frame leak.")
+    print(f"BABEL-TEST LINT: PASS - {n} formal/public file(s) scanned, no faith-frame leak.")
     return 0
 
 
