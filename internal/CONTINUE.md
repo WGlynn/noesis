@@ -4,7 +4,7 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
-## 🔝🔝🔝 NEXT SESSION (2026-07-13 PM) — v(S) SEAM ✅ · EQUIVOCATION ✅ · T1 SLICE-1 (persistence+codec) ✅ · next = T1 slice-2 (transport)
+## 🔝🔝🔝 NEXT SESSION (2026-07-13 PM) — v(S) SEAM ✅ · EQUIVOCATION ✅ · T1 SLICE-1 (persist+codec) ✅ · SLICE-2 (transport) ✅ · next = slice-3 (gossip)
 
 Human recap: `sessions/2026-07-13-oracle-seam-equivocation-and-where-the-ai-lives.md`. All pushed, HEAD == origin @ `f862431`.
 
@@ -18,7 +18,9 @@ Human recap: `sessions/2026-07-13-oracle-seam-equivocation-and-where-the-ai-live
 
 **✅ T1 slice-1 BUILT (`621c2d3`, pushed)** — `node/src/wire.rs`: `encode_block`/`decode_block` + an append-only `BlockLog`, via SELF-CONTAINED serde mirror structs (`W*`) + conversions — NO serde on any consensus type, and `noesis-core` (no_std, RISC-V) stays serde-free (serialization kept a node-layer concern). Registered `pub mod wire` in `lib.rs`. Tests `node/tests/persistence_roundtrip.rs`: restart-from-log → **byte-identical `state_digest`** ✅ + codec byte-stability + corrupt-log-fails-loud. State = replay(canonical blocks), Bitcoin-style (reuses `Node::apply` + `Ledger::state_digest`).
 
-**▶ NEXT — T1 slice-2 (transport):** async TCP peer connect + length-framed message send/recv. INTRODUCES A NETWORKING DEP (`std::net` or tokio) — first real I/O, worth Will's awareness before adding. Then: slice-3 gossip (broadcast/relay blocks), slice-4 sync (a joining node requests the block log from a peer and replays to converge — reuses slice-1's `BlockLog`/`decode_block`), slice-5 wire into `noesisd` + a two-node local-join integration test (the demoable payoff: two processes on localhost, one joins the other, converge to byte-identical state). Public testnet = deploy one seed node (Will infra) once the code works.
+**✅ T1 slice-2 BUILT (`55bd8be`, pushed)** — `node/src/net.rs`: `write_frame`/`read_frame` (u32 big-endian length prefix), `Peer` (connect/send/recv), `Listener` (bind/accept). std::net + threads, ZERO new deps, codec-agnostic opaque byte frames, `MAX_FRAME` 16 MiB DoS bound (oversized header rejected before alloc). Tests `node/tests/transport_framing.rs` (two peers over localhost + framing-survives-rechunk + oversized-reject).
+
+**▶ NEXT — T1 slice-3 (gossip):** broadcast/relay a frame (an announced block) to connected peers. Then slice-4 sync (a joining node requests the peer's block log → receives frames → decodes via slice-1 `wire::decode_block` → replays via `Node::apply` → converges to byte-identical `state_digest`, reusing slice-1's `BlockLog`), slice-5 wire both into `noesisd` (a `--listen`/`--connect` mode) + the two-node local-join integration test (THE demoable payoff: two processes, one joins the other, converge). Public testnet = deploy one seed node (Will infra) once the code works.
 
 **Survivability (session theme):** Software Heritage permanent archive ACCEPTED (id 2390230). Will-action: add ONE mirror remote (2nd host) — last gap. New standing priority: free-tier JARVIS = anti-capture defense (`memory/feedback_free-tier-jarvis-as-anti-capture-defense.md`).
 
