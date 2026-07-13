@@ -34,6 +34,8 @@
 
 use std::collections::HashMap;
 use std::io::{self, Write};
+use std::sync::Arc;
+use std::thread;
 
 use noesis::commit_order::Committed;
 use noesis::consensus::Validator;
@@ -235,22 +237,27 @@ fn run_listen(addr: &str) {
     // Emit the resolved address AFTER binding so `:0` (ephemeral) is usable by a joiner/test.
     println!("LISTENING {bound}");
 
-    // Serve joiners sequentially: each gets the full canonical block log (read-only; no state change,
-    // so any number of joiners converge to the same digest). A per-joiner failure is logged, not fatal.
-    // Diagnostics use `let _ = writeln!` (never `println!`): a daemon must not crash because its stdout
-    // was closed (e.g. a supervisor that only wanted the LISTENING line and dropped the pipe).
+    // Serve each joiner on its OWN thread (Council C2): a slow or stalled peer can no longer starve
+    // the others, because it no longer blocks the accept loop. Combined with per-socket I/O deadlines
+    // (`net::IO_TIMEOUT`, Council C1), a hung peer's serve thread simply times out and dies. `blocks`
+    // is read-only ⇒ shared via `Arc`, no per-joiner copy. Diagnostics use `let _ = writeln!` (never
+    // `println!`): a daemon must not crash because its stdout was closed.
+    // Residual (honest): thread-per-connection is unbounded — a connection flood spawns unbounded
+    // threads. A bounded pool / connection cap is the next hardening if a public seed needs it.
+    let blocks = Arc::new(blocks);
     loop {
         match listener.accept() {
             Ok(mut peer) => {
                 let who = peer.peer_addr().map(|a| a.to_string()).unwrap_or_else(|_| "?".into());
-                match serve(&mut peer, &blocks) {
+                let blocks = Arc::clone(&blocks);
+                thread::spawn(move || match serve(&mut peer, &blocks) {
                     Ok(()) => {
                         let _ = writeln!(io::stdout(), "served block log to joiner {who} ({} blocks)", blocks.len());
                     }
                     Err(e) => {
                         let _ = writeln!(io::stderr(), "noesisd: serve to {who} failed: {e}");
                     }
-                }
+                });
             }
             Err(e) => {
                 let _ = writeln!(io::stderr(), "noesisd: accept failed: {e}");

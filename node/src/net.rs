@@ -12,11 +12,25 @@
 
 use std::io::{self, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
+use std::time::Duration;
 
 /// Resource-DoS bound: reject a length header claiming more than this before allocating. A peer
 /// cannot make us allocate gigabytes by lying in the 4-byte header. 16 MiB is far above any real
 /// block; slice-4 can lower it to a block-size ceiling once blocks have a known bound.
 pub const MAX_FRAME: u32 = 16 * 1024 * 1024;
+
+/// Per-socket I/O deadline. A `read`/`write` that makes no progress for this long fails with a
+/// timeout error instead of blocking the thread forever — closing the "peer sends a length header
+/// then stalls" hang (a joiner never converges; a seed's serve thread never returns). 30s is far
+/// above any honest frame's transit time on a local/testnet link; a real WAN deploy can tune it.
+pub const IO_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Apply the read+write deadlines to a stream (best-effort: a platform that rejects the call leaves
+/// the socket blocking rather than failing the connection outright).
+fn arm_timeouts(stream: &TcpStream) {
+    let _ = stream.set_read_timeout(Some(IO_TIMEOUT));
+    let _ = stream.set_write_timeout(Some(IO_TIMEOUT));
+}
 
 /// Write one length-prefixed frame: u32 big-endian length, then the payload. Flushes so the peer
 /// sees the whole frame promptly.
@@ -53,13 +67,17 @@ pub struct Peer {
 }
 
 impl Peer {
-    /// Dial a remote peer.
+    /// Dial a remote peer. The connection is armed with [`IO_TIMEOUT`] so a stalled peer can never
+    /// hang this side forever.
     pub fn connect(addr: impl ToSocketAddrs) -> io::Result<Self> {
-        Ok(Self { stream: TcpStream::connect(addr)? })
+        let stream = TcpStream::connect(addr)?;
+        arm_timeouts(&stream);
+        Ok(Self { stream })
     }
 
-    /// Wrap an already-accepted stream (from [`Listener::accept`]).
+    /// Wrap an already-accepted stream (from [`Listener::accept`]), armed with [`IO_TIMEOUT`].
     pub fn from_stream(stream: TcpStream) -> Self {
+        arm_timeouts(&stream);
         Self { stream }
     }
 
