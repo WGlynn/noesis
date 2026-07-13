@@ -4,7 +4,27 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
-## 🔝🔝🔝 NEXT SESSION (2026-07-13) — PRAGMA LAYER: governance socket ✅ BUILT · next = Family-B checks
+## 🔝🔝🔝 NEXT SESSION (2026-07-13 PM) — v(S) ORACLE SEAM ✅ · EQUIVOCATION LIVE-WIRING ✅ · next = T1 slice-1
+
+Human recap: `sessions/2026-07-13-oracle-seam-equivocation-and-where-the-ai-lives.md`. All pushed, HEAD == origin @ `f862431`.
+
+**✅ BUILT this session (PM):**
+- **v(S) ValueOracle seam** (`6fe4552`) — `node/src/lib.rs`: `trait ValueOracle` + `NoveltyOracleV0` (v0, honest designed-not-learned) + `pom_scores_with_oracle`; `pom_scores_with_similarity_floor_q16` delegates (byte-identical). Tests `node/tests/value_oracle_seam.rs` (parity + real-swap). Contract + governance-gated upgrade path: `docs/DESIGN-value-oracle-seam.md`. THE swap point where a learned v(S) drops in later, no rebuild.
+- **Equivocation slashing on the LIVE path** (`536d6e2`) — `node/src/runtime.rs`: `finalizes_guarded` + `Node::checkpoint_finalizes_guarded` run the A4 guard (slash-before-count) on the finality decision. Tests `node/tests/equivocation_live_path.rs` (honest-parity + flip + slash). HONEST: decision protected + offender reported; PERSISTENT slash across epochs still needs the T1 validator registry.
+- **Honesty pre-commit gate** (`815cbdf`) — babel-test-lint wired fail-closed into `scripts/pre-commit`.
+- **CRPC / where-the-AI-lives synthesis** (`7181969`, designed/sketch) — `docs/research/crpc-second-meta-consensus-sketch.md`: SLMs = node-oracles disciplined by Tim Cotten's CRPC over sharded UTXO; chain = harness; PoM v(S) = value-instance of CRPC's graded-agreement; non-interference = the load-bearing open proof. Tim Cotten credited (his spec, deleted/404, Wayback-archived).
+
+**⛔ BLOCKED — verified this session, do NOT build:** the constitutional dimension-set amendment surface. `amendment.rs` already has AddDimension/RetireDimension/ReweightDimension variants that correctly reject with `ConstitutionalPending` (`amendment.rs:210-212`) because `Constitution` has NO dimension matrix (only scalars). Making them real needs building the dimension matrix first (big, not code-lean) AND its coherence is partner-deferred to the Pragma confluence engine (`amendment.rs:369-372`). Don't spend effort here.
+
+**▶ NEXT deploy-independent grain — T1 slice-1 (persistence + wire codec). Will chose T1 foundation. SCOUTED, ready to build:** core wire types (`Block` runtime.rs:422, `Cell` lib.rs:56, `Script` lib.rs:49, `Op` lib.rs:538) derive only Clone-family, NO serde. `Block` also carries `coords: Vec<Committed>` + `token_txs: Vec<TokenTx>`. PLAN: add `Serialize/Deserialize` derives (additive) to Block + constituents (incl `Committed`, `TokenTx`, `TokenStandard`); write a lean `node/src/wire.rs` (encode/decode Block via serde_json — already a dep — + block-log append/load); register `pub mod wire`. PROVE: replay a persisted block-log on a fresh genesis Node → byte-identical `state_digest` (restart survives). Reuses `Node::apply` (runtime.rs:642) + `Ledger::state_digest` (runtime.rs:175). Test: `node/tests/persistence_roundtrip.rs`.
+
+**Survivability (session theme):** Software Heritage permanent archive ACCEPTED (id 2390230). Will-action: add ONE mirror remote (2nd host) — last gap. New standing priority: free-tier JARVIS = anti-capture defense (`memory/feedback_free-tier-jarvis-as-anti-capture-defense.md`).
+
+**NOTE:** the Pragma-socket block immediately below is DONE (built AM `6ce3976`/`18b7c28`); kept for reference.
+
+---
+
+## NEXT SESSION (2026-07-13 AM, DONE) — PRAGMA LAYER: governance socket ✅ BUILT · next = Family-B checks
 Will 2026-07-12: *"rotate and we build the Pragma layer to cover the final axis."* Per-execution FV is
 DONE + machine-checked (Phase 4 ✅ all 3 steps green — see the stateless-verification block below).
 
