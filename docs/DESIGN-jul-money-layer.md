@@ -90,9 +90,30 @@ Increment order, cheapest-first, each shippable and testable on its own:
    a named anti-theater break; clippy-clean; `apply_block_parity`/`two_node_join` unregressed. Numbers
    are v0 unit-definitions, NOT pinned economics (§5). Two Fable-5 planners scoped it (mechanism +
    build-safety); the leaner "no difficulty-retarget until real PoW inputs exist" scope was taken.
-2. **JUL as a transferable token** — settle JUL balances through the existing token-tx path
-   (`TokenStandard::Fungible`, conservation-gated), so JUL moves like any fungible without a new
-   consensus surface.
+2. **JUL as a transferable token — 🔨 DESIGNED (two-planner-vetted), building.** Settle each block's
+   issuance as a `Fungible` coinbase. CONSENSUS-AFFECTING (mints into `token_cells` → changes state), so
+   NOT additive-shadow. Converged design:
+   - **Coinbase = a `Block.coinbase: Option<Script>` field carrying ONLY the recipient lock** (Bitcoin
+     "coinbase in the block"). The amount is CONSTRUCTED in `apply_transition` as
+     `reward_for_work(block_work(b), constitution.jul)` — a forged amount is *unrepresentable*, not merely
+     rejected (construct-don't-validate). `None` ⇒ no mint ⇒ all pre-existing blocks/tests unchanged.
+   - **⚠ SECURITY FINDING (both planners, independently): JUL mint-via-token-tx hole.** The token model
+     derives mint authority from a consumed input whose `lock.args == issuer`. A holder could pay JUL to a
+     cell with `lock.args == JUL_ISSUER`, then consume it next block as an "authority input" and mint
+     UNBOUNDED JUL through the ordinary token path — making the coinbase decorative. **Fix (load-bearing):
+     a JUL-conserve-only clause in `token_txs_conserve_and_single_use` — any JUL-identity tx must have
+     `Σ outputs ≤ Σ inputs`, regardless of authority.** ⇒ the coinbase is the *structurally unique* JUL
+     inflation channel; also keeps the FV spec-oracle (`Σout>Σin ⇒ reject`) honest. Plus a reserved
+     coinbase-id space (`1<<63 | height`) barred from token-tx outputs (prevents retirement-collision griefing).
+   - **`Ledger.jul_supply` (u128) EXCLUDED from `state_digest`** (finalized_at precedent — replay-derivable;
+     keeps the digest tuple unchanged ⇒ zero churn in noesisd/sync/parity tests). Conservation
+     (`jul_issued == Σ live JUL + replay-derived burns`) is a theorem of the transition, proven by test, not a runtime check.
+   - **Recipient = producer-named** (the field a real miner fills at the PoW increment; amount is
+     protocol-fixed so recipient choice can only direct the fixed subsidy, never enlarge it). One-line
+     Will-gated seam for alternatives (treasury / burn).
+   - **JUL never touches finality** — it lives in `token_cells`, finality weight folds only over `cells`.
+   - `Constitution.jul: JulParams` added now (the "wiring" jul.rs anticipated; governance-*bounding* it
+     stays increment 4). v0 identity constants are placeholders until the on-VM type-script hash lands.
 3. **Counter-cyclical reserve (Lever B)** — port the `TreasuryStabilizer` mechanism to the node: TWAP +
    volatility assessment, bounded reserve deployment/withdrawal, the 1h/7d guardrails, pause/emergency.
    Ported as a *node module*, not a Solidity contract, but the mechanism and its guardrails carry over.
