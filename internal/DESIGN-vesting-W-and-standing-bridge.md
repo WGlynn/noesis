@@ -1,14 +1,23 @@
 # DESIGN — Vesting window `W` + the Standing→Validator.pom finality bridge
 
-> **STATUS: design-first, build-cold, Will-gated.** Consensus-affecting (it defines what the PoM
-> finality input *is* in production). Grounded 2026-07-11 against `docs/POM-FINALITY-TEMPORALITY.md`,
+> **STATUS: BUILT (Phases 1-3, reference layer) — 2026-07-12.** One deploy-coupled residual remains:
+> block-embedding dispute resolutions so the `refuted` set is replay-derivable / cross-replica
+> deterministic (until then hold `vesting_w = 0` in any multi-replica deployment). Consensus-affecting
+> (it defines what the PoM finality input *is* in production). Grounded 2026-07-11 against `docs/POM-FINALITY-TEMPORALITY.md`,
 > `docs/VS-AS-COMPLETION-PROCEDURE.md` §Target-2, and the live code cited inline. This closes the
 > roadmap top-blocker (MVP-SCOPE §1.A.1–2). **Phase 1 (§3.1, the `finalized_at` finalization stamp)
 > is BUILT** — commit `5f5c7e6`, 2026-07-12, node lib 278→281 green, additive / non-consensus (off
 > the state digest). **Phase 2 (§3.2, the consensus-affecting cleared-score bridge —
 > `Constitution.vesting_w` + `Node::finality_pom_weight`) is BUILT** — 2026-07-12, node lib 281→284
 > green, 3 tests (cliff / genesis-PoS-only / W=0-inert), 0 regressions. **Phase 3 (dispute-during-`W`)
-> remains build-cold** for a fresh low-context window.
+> is BUILT** — commit `11d5785`, 2026-07-12: `Ledger.refuted: HashSet<u64>` (runtime.rs:153) +
+> `Node::record_refutation` (guarded on `Settlement.canceled > 0`, runtime.rs:658) + the AND-gate
+> `finalized_at ≤ now−W && !refuted.contains(id)` in `finality_pom_weight` (runtime.rs:643). A cell
+> refuted while pending never ages into finality weight; forward-only + off the state-digest (parity
+> intact, node lib 323 green). **Honest scope:** reference mechanism + forward-only property, NOT
+> cross-replica determinism — `refuted` is populated out-of-band until dispute Ops are block-embedded
+> (the deploy-coupled residual above). Closes the PoM-direction circularity *at launch* (gamed v(S) must
+> survive `W` of dispute before it can vote), NOT v(S) un-gameability (the separate open moat).
 
 ## 0. Why this is the top blocker
 Two coupled facts, both verified in code:
