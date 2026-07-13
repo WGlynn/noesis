@@ -66,6 +66,13 @@ pub mod sync;
 /// the consensus-wiring increment, not this one.
 pub mod jul;
 
+/// JUL money layer, increment 3 — the counter-cyclical reserve (Lever B, the short-run smoother;
+/// `docs/DESIGN-jul-money-layer.md` §3). ADDITIVE/SHADOW and even leaner than `jul`: a pure integer
+/// state machine importing NOTHING and called from NO consensus path (no `Ledger` field, `state_digest`
+/// byte-identical). The mechanism port of `TreasuryStabilizer.sol`; the skim/top-up consensus wiring +
+/// a protocol-spend-only reserve cell are the later increments (3b/4), not this one.
+pub mod reserve;
+
 /// A CKB-style script: a RISC-V program (by code hash) + its arguments. VM success
 /// = valid. Lock scripts gate ownership; type scripts gate state transitions.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

@@ -114,9 +114,23 @@ Increment order, cheapest-first, each shippable and testable on its own:
    - **JUL never touches finality** — it lives in `token_cells`, finality weight folds only over `cells`.
    - `Constitution.jul: JulParams` added now (the "wiring" jul.rs anticipated; governance-*bounding* it
      stays increment 4). v0 identity constants are placeholders until the on-VM type-script hash lands.
-3. **Counter-cyclical reserve (Lever B)** — port the `TreasuryStabilizer` mechanism to the node: TWAP +
-   volatility assessment, bounded reserve deployment/withdrawal, the 1h/7d guardrails, pause/emergency.
-   Ported as a *node module*, not a Solidity contract, but the mechanism and its guardrails carry over.
+3. **Counter-cyclical reserve (Lever B) — ✅ MECHANISM BUILT, SHADOW (inc-3, `node/src/reserve.rs`).** The
+   `TreasuryStabilizer` POLICY ported to a pure, integer-only, consensus-isolated node module: `trend_bps`
+   (the exact `_calculateTrend` shape over a work-series `Signal`), bear classification, and bounded
+   `release` with per-release-rate + per-period caps + cooldown, all on the cumulative-work clock
+   (`Ledger::now`), NEVER wall-clock. Funded by a coinbase skim (`accrue`). What DISSOLVED from the
+   Solidity original (documented, not omitted): the AMM/TWAP/volatility-oracle (Noesis has no on-chain
+   price — the work-trend proxy replaces it, and it is a swappable seam), the DAOTreasury/owner/pause/UUPS
+   (all-zero fail-closed params ARE the pause), and `withdrawDeployment`+retry (no reversible LP position ⇒
+   release is irreversible subsidy and "rebuild" is the ongoing skim ⇒ an ASYMMETRIC accumulate-then-
+   subsidize smoother). Additive/shadow: no `Ledger` field, `state_digest` byte-identical, replay-parity
+   untouched — proven (full lib suite + `apply_block_parity`/`two_node_join`/`jul_settlement` green; 11
+   anti-theater tests incl. the shadow-parity + `money_never_buys_standing` theorems in
+   `node/tests/jul_reserve.rs`). Ships provably OFF (`ReserveParams::default()` all-zero). **NOT YET a live
+   lever:** the consensus wiring (skim/top-up at the coinbase-mint site + a protocol-spend-only reserve
+   cell — required because `CONTROL_BINDING_ACTIVE == false`, runtime.rs:411, makes a keyless reserve cell
+   anyone-spendable today) is **inc-3b**; governance-bounding all params + the miner-reflexivity
+   game-theory pass is **inc-4**. Both gated on real numbers Will has not set.
 4. **Genesis wiring** — issue JUL from block zero on the PoW path; keep it out of `FINALITY_MIX`.
 5. **Honest tests** — issuance responds to difficulty in the modeled direction; the backstop deploys in a
    simulated drawdown and withdraws on recovery, always within bounds; JUL never enters the finality
@@ -130,9 +144,24 @@ Increment order, cheapest-first, each shippable and testable on its own:
   capital/compute/cognition framing puts JUL/PoW as one leg of the cycle. Reconciling the fixed weights
   with the framing is a tracked open item (`CRYPTOECONOMICS.md` "DIVERGES from implemented NCI";
   `CONSENSUS-REVIEW.md`).
-- **Reserve funding source.** Lever B needs a reserve; where it is funded from (a slice of issuance? fees?)
-  is a design choice not yet made — and it must not create a plutocratic backdoor into consensus weight
-  (the load-bearing invariant: money never buys standing).
+- **Reserve funding source — MECHANISM DECIDED (coinbase skim), rate/activation OWED (inc-3).** Lever B is
+  funded ONLY by a protocol-fixed slice (`skim_bps`) of newly-constructed coinbase issuance — the sole
+  non-plutocratic source that exists (fees are unbuilt; external funding IS the forbidden backdoor). It is
+  new energy money that was never any participant's property, so funding buys NOTHING: no PoM standing, no
+  PoS weight, no governance voice — enforced structurally (JUL lives in `token_cells`; PoM folds over
+  `cells` only; `FINALITY_MIX` excludes PoW) and made executable by the `money_never_buys_standing` test.
+  The RATE (`skim_bps`) and turn-on remain owed economics: `skim_bps` defaults to 0 ⇒ zero funding until
+  Will sets it; at wiring it becomes one `Constitution` field beside `Constitution.jul`. Any issuance-slice
+  must fold INTO the coinbase (never a second mint channel) so the coinbase stays the structurally unique
+  inflation channel (runtime.rs:746-768).
+- **Signal is a manipulable, sign-ambiguous proxy (inc-4 game-theory gate).** The work-trend is (a)
+  ENDOGENOUS — a producer can throttle hashrate to trip bear and harvest a release (reflexivity, a
+  manipulation, not a passive confounder like energy shocks / hardware jumps / lag); (b) SIGN-AMBIGUOUS —
+  it cannot separate a JUL-price drawdown (release is correctly counter-cyclical) from an input-cost shock
+  (release is mis-targeted, mildly pro-cyclical); (c) it needs `bear_threshold_bps` set as a NOISE DEADBAND
+  (a post-PoW difficulty random walk trips a 0 threshold ~half the time). All three are why the signal
+  SOURCE is a swappable seam and why any nonzero params await the inc-4 miner-reflexivity pass. Ships OFF
+  until then.
 - **Ergon fidelity.** "Ergon-style" is the target; the exact difficulty→issuance proportionality to adopt
   should be pinned against Ergon's actual public design before Lever A is finalized.
 
