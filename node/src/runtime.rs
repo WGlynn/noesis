@@ -550,6 +550,28 @@ impl Node {
         finalizes(&self.constitution, voters_for, all, self.ledger.now())
     }
 
+    /// The A4-accountable [`Node::checkpoint_finalizes`] — sources `now` from the work clock exactly
+    /// like [`Node::checkpoint_finalizes`], but runs the equivocation guard (slash-before-count) over
+    /// the epoch `ballots` = `(validator_id, proposal_id)` pairs. Returns `(finalizes?,
+    /// equivocator_ids)`: a double-signer's weight is stripped from BOTH the supporting set and the
+    /// basis before any weight is summed, so a tainted vote can never contribute to finalization — the
+    /// property bare [`Node::checkpoint_finalizes`] (a stateless weight predicate with no vote history)
+    /// structurally cannot provide. This wires the built A4 guard onto the LIVE finality path, closing
+    /// the finality-SAFETY half of the code's own `[GAP]` "Lifecycle omitted: equivocation slashing".
+    ///
+    /// HONEST SCOPE: the tainted vote is void on the DECISION here. Making the slash PERSIST — durably
+    /// reducing a validator's stake across epochs via [`crate::consensus::slash`] — needs a persistent
+    /// validator registry (the T1 network build); the single-process devnet rebuilds its set each
+    /// round, so this returns the equivocator ids for a persistent caller to slash.
+    pub fn checkpoint_finalizes_guarded(
+        &self,
+        voters_for: &[Validator],
+        all: &[Validator],
+        ballots: &[(u64, u64)],
+    ) -> (bool, Vec<u64>) {
+        finalizes_guarded(&self.constitution, voters_for, all, ballots, self.ledger.now())
+    }
+
     /// The cleared-score bridge (DESIGN-vesting-W §2.3, build-stage §3.2) — the production
     /// `Standing → Validator.pom` source on the finality path. Returns PoM finality weight per
     /// contributor (`type_script.args`) computed over ONLY the cells that have CLEARED the vesting
@@ -799,6 +821,31 @@ pub fn finalizes(c: &Constitution, voters_for: &[Validator], all: &[Validator], 
     finality::finalizes_pos_pom(
         voters_for,
         all,
+        now,
+        c.horizon,
+        c.decay_pos,
+        c.threshold_bps,
+        c.quorum_floor_bps,
+    )
+}
+
+/// The A4-accountable variant of [`finalizes`] — the same PoW-out + anti-concentration rule, run
+/// through the equivocation guard (slash-before-count). `ballots` = the `(validator_id, proposal_id)`
+/// pairs seen this epoch. Returns `(finalizes?, equivocator_ids)`; a double-signer's weight is stripped
+/// from BOTH the supporting set and the basis before any weight is counted, so a tainted vote can never
+/// contribute to finalization. With no double-vote in `ballots` this is identical to [`finalizes`] and
+/// the id list is empty. The caller slashes the returned ids on its persistent validator set.
+pub fn finalizes_guarded(
+    c: &Constitution,
+    voters_for: &[Validator],
+    all: &[Validator],
+    ballots: &[(u64, u64)],
+    now: u64,
+) -> (bool, Vec<u64>) {
+    finality::finalizes_with_equivocation_guard(
+        voters_for,
+        all,
+        ballots,
         now,
         c.horizon,
         c.decay_pos,
