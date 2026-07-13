@@ -190,13 +190,27 @@ Two honesty corrections from the verdicts:
 
 - **Fixpoint, not walk.** The one place iteration is real: the `standing_floor` seed gate
   (`lib.rs:1090-1096`) is discontinuous — a re-fold that drops a certifier below floor
-  zeroes their OTHER seeds, a second-order effect one pass misses. Iterate
-  (standing → value → standing) to the fixed point: the tombstone/taint set only grows,
-  the value vector only decreases (every gate is an AND-composed floor that can only
-  lower: outcome factor ∈[0,1] `lib.rs:1208-1217`), bounded below by v' ≥ 0 ⇒ monotone
-  fixpoint on a finite lattice, reached in ≤ provenance-depth iterations. Inner
-  convergence: damped Jacobi contraction d<1 + ρ=1/φ rank decay (`lib.rs:3434`, break
-  `:3463`). ⚠ The floor cliff needs **materiality/hysteresis** (zero a seed only when the
+  zeroes their OTHER seeds, a second-order effect one pass misses. Iterate (standing → value → standing) to the fixed point. The carrier is the
+  tombstone/taint set under subset-inclusion, a finite (hence complete) lattice; the
+  re-fold is ONE monotone self-map — more taint zeroes more non-negative seeds, which can
+  only lower downstream flow through the monotone gate `g=f/(f+half)` (`lib.rs:1011-1016`)
+  and the AND-composed factors ∈[0,1] (`lib.rs:1208-1217`), so no value rises when taint
+  grows. By **Knaster–Tarski** the fixed points form a complete lattice (existence); the
+  Kleene ascent from empty-taint reaches the **least** fixed point. ⚠ HONEST BOUND: the
+  order-theory bounds termination by the lattice HEIGHT (≤ number of cells). The tighter
+  "≤ provenance-depth iterations" claimed earlier needs a one-hop-per-layer propagation
+  lemma (a cell drops below floor at step k only if a provenance-ancestor dropped at k−1)
+  that is 🔬 **neither proved here nor enforced in code** — a conjecture, not a guarantee.
+  Inner convergence (the value-flow map, `lib.rs:3434`) is by **NILPOTENCY** on the
+  well-formed provenance DAG: every path strictly descends the id order, so the Jacobi
+  series terminates exactly in ≤ depth+1 for ANY `d` — DAG convergence is structural, NOT
+  a consequence of `d<1`. The damping (`d<1`, `ρ=1/φ` default, break `:3463`) is
+  load-bearing instead for (a) bounding magnitude — the joint tail Σ_j ρ^j ≤ 1/(1−ρ)
+  closes the volume-gaming pump — and (b) keeping a MALFORMED off-DAG cycle bounded (a
+  **Banach** contraction), which matters because the code drops only self-loops
+  (`p≠c.id`, `lib.rs:3392`), so acyclicity is a construction convention, not a runtime
+  guard. (ρ=1/φ is a tunable default; the only load-bearing property is 0<ρ<1,
+  `lib.rs:3469-3476`.) Full grounded statement + citations: `internal/DESIGN-convergence-fixed-point.md`. ⚠ The floor cliff needs **materiality/hysteresis** (zero a seed only when the
   shortfall attributable to refuted value exceeds a bound) — otherwise an attacker who
   fake-inflates a rival's standing just above floor pre-certification weaponizes the
   discontinuity as grief (blast radius > the fraud's cone).
