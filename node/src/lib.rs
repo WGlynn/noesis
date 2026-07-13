@@ -55,6 +55,10 @@ pub mod net;
 /// transport. See the module doc for scope.
 pub mod gossip;
 
+/// T1 slice-4: sync — a joining node pulls a peer's block log and replays it to converge to a
+/// byte-identical state. THE join. See the module doc for scope.
+pub mod sync;
+
 /// A CKB-style script: a RISC-V program (by code hash) + its arguments. VM success
 /// = valid. Lock scripts gate ownership; type scripts gate state transitions.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
