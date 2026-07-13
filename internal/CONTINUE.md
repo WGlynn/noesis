@@ -4,7 +4,7 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
-## 🔝🔝🔝 NEXT SESSION (2026-07-13 PM) — v(S) SEAM ✅ · EQUIVOCATION ✅ · T1 SLICE-1 (persist+codec) ✅ · SLICE-2 (transport) ✅ · next = slice-3 (gossip)
+## 🔝🔝🔝 NEXT SESSION (2026-07-13 PM) — v(S) SEAM ✅ · EQUIVOCATION ✅ · T1 SLICE-1/2/3 (persist+codec · transport · gossip) ✅ · next = slice-4 (sync = the join)
 
 Human recap: `sessions/2026-07-13-oracle-seam-equivocation-and-where-the-ai-lives.md`. All pushed, HEAD == origin @ `f862431`.
 
@@ -18,9 +18,9 @@ Human recap: `sessions/2026-07-13-oracle-seam-equivocation-and-where-the-ai-live
 
 **✅ T1 slice-1 BUILT (`621c2d3`, pushed)** — `node/src/wire.rs`: `encode_block`/`decode_block` + an append-only `BlockLog`, via SELF-CONTAINED serde mirror structs (`W*`) + conversions — NO serde on any consensus type, and `noesis-core` (no_std, RISC-V) stays serde-free (serialization kept a node-layer concern). Registered `pub mod wire` in `lib.rs`. Tests `node/tests/persistence_roundtrip.rs`: restart-from-log → **byte-identical `state_digest`** ✅ + codec byte-stability + corrupt-log-fails-loud. State = replay(canonical blocks), Bitcoin-style (reuses `Node::apply` + `Ledger::state_digest`).
 
-**✅ T1 slice-2 BUILT (`55bd8be`, pushed)** — `node/src/net.rs`: `write_frame`/`read_frame` (u32 big-endian length prefix), `Peer` (connect/send/recv), `Listener` (bind/accept). std::net + threads, ZERO new deps, codec-agnostic opaque byte frames, `MAX_FRAME` 16 MiB DoS bound (oversized header rejected before alloc). Tests `node/tests/transport_framing.rs` (two peers over localhost + framing-survives-rechunk + oversized-reject).
+**✅ T1 slice-2 (transport) BUILT `55bd8be` · slice-3 (gossip) BUILT `9aa02e0`** — pushed. `node/src/net.rs` (`write_frame`/`read_frame` u32-length frames, `Peer`, `Listener`; std::net + threads, ZERO deps, `MAX_FRAME` 16 MiB DoS bound) + `node/src/gossip.rs` (`Gossip` seen-set dedup via domain-separated blake2b + `broadcast` fan-out; flood TERMINATES via dedup). Tests: `node/tests/transport_framing.rs`, `node/tests/gossip_flood.rs`.
 
-**▶ NEXT — T1 slice-3 (gossip):** broadcast/relay a frame (an announced block) to connected peers. Then slice-4 sync (a joining node requests the peer's block log → receives frames → decodes via slice-1 `wire::decode_block` → replays via `Node::apply` → converges to byte-identical `state_digest`, reusing slice-1's `BlockLog`), slice-5 wire both into `noesisd` (a `--listen`/`--connect` mode) + the two-node local-join integration test (THE demoable payoff: two processes, one joins the other, converge). Public testnet = deploy one seed node (Will infra) once the code works.
+**▶ NEXT — T1 slice-4 (sync = THE join payoff):** a joining node connects to a peer, requests its block log, receives the blocks as frames, decodes each via slice-1 `wire::decode_block`, replays via `Node::apply` on a fresh genesis → converges to a byte-identical `state_digest`. Reuses slice-1 (`BlockLog` / `decode_block` / `Ledger::state_digest`) + slice-2 (`Peer` / frames). Needs a tiny request/response protocol: a `GET_BLOCKS` request frame → a stream of block frames → a done marker. Then slice-5: wire into `noesisd` (`--listen` / `--connect` mode) + a two-node local-join integration test (two processes, one joins the other, converge to identical state = the demoable payoff). Public testnet = deploy one seed node (Will infra) once code works.
 
 **Survivability (session theme):** Software Heritage permanent archive ACCEPTED (id 2390230). Will-action: add ONE mirror remote (2nd host) — last gap. New standing priority: free-tier JARVIS = anti-capture defense (`memory/feedback_free-tier-jarvis-as-anti-capture-defense.md`).
 
