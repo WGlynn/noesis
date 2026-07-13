@@ -4,11 +4,25 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
-## 🔝🔝🔝 NEXT SESSION (2026-07-13 PM) — v(S) SEAM ✅ · EQUIVOCATION ✅ · T1 SLICE-1..4 (persist · transport · gossip · sync+revalidate) ✅ · SYSTEM-MAP ✅ · next = slice-5 (noesisd wire + 2-node demo)
+## 🔝🔝🔝 NEXT SESSION — v(S) SEAM ✅ · EQUIVOCATION ✅ · T1 SLICE-1..5 (persist · transport · gossip · sync+revalidate · **noesisd join**) ✅ · SYSTEM-MAP ✅ · next = slice-5b (live gossip reader-loop) ∨ public testnet deploy
 
 Human recap: `sessions/2026-07-13-oracle-seam-equivocation-and-where-the-ai-lives.md`. All pushed, HEAD == origin @ `f862431`.
 
-**✅ BUILT this session (PM):**
+**✅ T1 slice-5 BUILT (2026-07-13 PM) — the two-node join, across two real OS PROCESSES.** `node/src/bin/noesisd.rs`
+gains `--listen [addr]` (SEED: build the honest chain, bind an OS-ephemeral port, announce `LISTENING <addr>` + its
+`DIGEST`, then `sync::serve` the canonical block log to any joiner) and `--connect <addr>` (JOINER: fresh genesis →
+`net::Peer::connect` → `sync::sync_from` → converge, print `DIGEST`). No-arg devnet unchanged. NO new consensus
+mechanism — reuses slices 1-4 wholesale (`wire`+`net`+`sync`). Test `node/tests/two_node_join.rs`: spawns two real
+`noesisd` processes via `CARGO_BIN_EXE_noesisd`; the joiner syncs the seed over localhost TCP and prints the
+**byte-identical full-`state_digest` string** (root+height+work+cells+pom) — real process isolation, only channel is
+the socket. clippy-clean; `two_node_join`+`sync_join`+`persistence_roundtrip` green. Live demo: seed & joiner both
+print `root=1ae681882c00…ef51a height=4 cells=[1..6] pom=[alice=97,bob=62,carol=40]`. Also hardened the seed to
+tolerate a closed stdout pipe (a daemon must not crash if a supervisor drops the pipe).
+**🟡 SLICE-5b (deferred, honest):** wiring `gossip`'s live reader-loop into a RUNNING node so blocks produced *after*
+a peer joins propagate live (slice-3's header flagged this as slice-5). slice-5 is HISTORICAL join only; live-gossip
+risks per-connection state divergence if rushed ⇒ built separately. Acceptance met: two processes converge via join.
+
+**✅ BUILT earlier this session (PM):**
 - **v(S) ValueOracle seam** (`6fe4552`) — `node/src/lib.rs`: `trait ValueOracle` + `NoveltyOracleV0` (v0, honest designed-not-learned) + `pom_scores_with_oracle`; `pom_scores_with_similarity_floor_q16` delegates (byte-identical). Tests `node/tests/value_oracle_seam.rs` (parity + real-swap). Contract + governance-gated upgrade path: `docs/DESIGN-value-oracle-seam.md`. THE swap point where a learned v(S) drops in later, no rebuild.
 - **Equivocation slashing on the LIVE path** (`536d6e2`) — `node/src/runtime.rs`: `finalizes_guarded` + `Node::checkpoint_finalizes_guarded` run the A4 guard (slash-before-count) on the finality decision. Tests `node/tests/equivocation_live_path.rs` (honest-parity + flip + slash). HONEST: decision protected + offender reported; PERSISTENT slash across epochs still needs the T1 validator registry.
 - **Honesty pre-commit gate** (`815cbdf`) — babel-test-lint wired fail-closed into `scripts/pre-commit`.
