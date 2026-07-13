@@ -82,9 +82,14 @@ money layer that is both anchored and calm.
 
 Increment order, cheapest-first, each shippable and testable on its own:
 
-1. **JUL issuance core** — a `jul` module in the node: PoW-gated issuance with difficulty adjustment, the
-   production-cost anchor (Lever A). Deterministic, replica-checkable, no float on the consensus path
-   (match the existing runtime discipline). This is the minimum viable money layer.
+1. **JUL issuance core — ✅ BUILT (`e51e164`).** `node/src/jul.rs`: the pure integer issuance rule
+   `reward_for_work(work, num/den)` (Lever A; pre-PoW degrades to a flat per-block subsidy, becomes
+   difficulty-proportional when `block_work` returns mined difficulty — no rule change) + `JulSupply`
+   (monotone, no cap by design). Built ADDITIVE/SHADOW — imports nothing from consensus, called from no
+   consensus path, so replay-parity is provably unaffected. 9 tests (6 integration + 3 unit), each with
+   a named anti-theater break; clippy-clean; `apply_block_parity`/`two_node_join` unregressed. Numbers
+   are v0 unit-definitions, NOT pinned economics (§5). Two Fable-5 planners scoped it (mechanism +
+   build-safety); the leaner "no difficulty-retarget until real PoW inputs exist" scope was taken.
 2. **JUL as a transferable token** — settle JUL balances through the existing token-tx path
    (`TokenStandard::Fungible`, conservation-gated), so JUL moves like any fungible without a new
    consensus surface.
