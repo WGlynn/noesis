@@ -62,6 +62,10 @@ struct WBlock {
     cells: Vec<WCell>,
     coords: Vec<WCommitted>,
     token_txs: Vec<WTokenTx>,
+    /// JUL coinbase recipient (increment 2). `#[serde(default)]` ⇒ pre-increment-2 block logs (no
+    /// field) decode as `None`, preserving restart/replay compatibility.
+    #[serde(default)]
+    coinbase: Option<WScript>,
 }
 
 // ============ conversions (real type -> wire) ============
@@ -105,6 +109,7 @@ fn w_block(b: &Block) -> WBlock {
         cells: b.cells.iter().map(w_cell).collect(),
         coords: b.coords.iter().map(w_committed).collect(),
         token_txs: b.token_txs.iter().map(w_tokentx).collect(),
+        coinbase: b.coinbase.as_ref().map(w_script),
     }
 }
 
@@ -150,6 +155,7 @@ fn r_block(b: WBlock) -> Result<Block, WireError> {
         cells: b.cells.into_iter().map(r_cell).collect(),
         coords: b.coords.into_iter().map(r_committed).collect(),
         token_txs: b.token_txs.into_iter().map(r_tokentx).collect::<Result<_, _>>()?,
+        coinbase: b.coinbase.map(r_script),
     })
 }
 

@@ -102,6 +102,6 @@ fn empty_block_is_rejected() {
     // a proposer cannot finalize an empty block (nothing to order, no contribution).
     let vs = vec![validator(0, 100.0), validator(1, 100.0)];
     let node = new_node(0, &vs);
-    let empty = Block { height: 1, cells: vec![], coords: vec![], token_txs: vec![] };
+    let empty = Block { height: 1, cells: vec![], coords: vec![], token_txs: vec![], coinbase: None };
     assert!(!node.validate(&empty), "honest node accepted an empty block");
 }

@@ -1,9 +1,10 @@
 //! JUL money layer, increment 1 — the issuance core (Lever A: the production-cost anchor).
 //!
-//! HONEST SCOPE: a deterministic, integer-only JUL issuance primitive, built in ISOLATION. It imports
-//! NOTHING from `runtime` / consensus and is called from no consensus function, so it is provably
-//! incapable of affecting replay-parity (the same additive/shadow discipline as `utxo_commitment`). It
-//! ships the issuance RULE, not the economics: pre-PoW the work signal is a constant
+//! HONEST SCOPE: a deterministic, integer-only JUL issuance primitive. It imports only the root
+//! `Cell`/`Script` types, never runtime's consensus internals, and the dependency arrow is ONE-WAY:
+//! runtime's `apply_transition` calls into jul (increment 2 wires the coinbase mint via
+//! `reward_for_work` + the identity constants below); jul never calls runtime. It ships the issuance
+//! RULE, not the economics: pre-PoW the work signal is a constant
 //! (`runtime::WORK_PER_BLOCK == 1`), so the anchor is economically INERT until real mined difficulty
 //! flows through `runtime::block_work` — a later increment. Settling JUL as a transferable `Fungible`
 //! token (increment 2), the counter-cyclical reserve (increment 3), and consensus/genesis wiring +
@@ -19,6 +20,8 @@
 //! This reuses the codebase's own "right interface, degenerate constant" pattern: pre-PoW the work
 //! clock degrades to a height clock, and here JUL issuance degrades to a flat per-block subsidy.
 
+use crate::Cell;
+
 // ============ Denomination ============
 
 /// Sub-unit resolution: 1 JUL = 10^8 base units. HARDCODED (never governable) — changing decimals
@@ -26,6 +29,34 @@
 /// single block's reward well inside `u64` even at large mined difficulties, with `u128` cumulative
 /// supply then carrying ~10^21 JUL of headroom.
 pub const JUL_BASE_UNITS: u128 = 100_000_000;
+
+// ============ JUL token identity + coinbase id space (increment 2) ============
+
+/// The fungible type-script PROGRAM id for JUL cells. v0 PLACEHOLDER — a reserved, nothing-up-my-sleeve
+/// tag; becomes the hash of the real on-VM RISC-V type-script when that port lands. Stable identity,
+/// program hash owed.
+pub const JUL_CODE_HASH: [u8; 32] = *b"NOESIS-JUL-FUNGIBLE-TYPESCRIPT-0";
+
+/// The JUL issuer identity (`type_script.args`). A reserved constant that is NOBODY's key: no Lamport
+/// keypair with this root is known, and no cell with `lock.args == JUL_ISSUER` is ever seeded. Combined
+/// with the JUL-conserve-only clause in `runtime::token_txs_conserve_and_single_use`, the block coinbase
+/// is the STRUCTURALLY UNIQUE JUL inflation channel (closes the pay-to-issuer-lock → mint hole).
+pub const JUL_ISSUER: &[u8] = b"NOESIS-JUL-ISSUER-v0-nobody-holds-this-key";
+
+/// Reserved id space for coinbase cells: top bit set, low bits = height ⇒ one deterministic id per
+/// height, forever. Token-tx outputs are barred from this space, so no producer-chosen output can
+/// collide with a coinbase identity and grief its retirement.
+pub const COINBASE_ID_BIT: u64 = 1 << 63;
+
+/// The deterministic coinbase cell id for a block at `height`.
+pub fn coinbase_id(height: u64) -> u64 {
+    COINBASE_ID_BIT | height
+}
+
+/// Is this cell a JUL cell (matches the JUL type-script program + issuer)?
+pub fn is_jul(cell: &Cell) -> bool {
+    cell.type_script.code_hash == JUL_CODE_HASH && cell.type_script.args.as_slice() == JUL_ISSUER
+}
 
 // ============ Issuance parameters (v0; migrate to a governable Constitution field at wiring) ============
 

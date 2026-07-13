@@ -76,6 +76,10 @@ pub struct Constitution {
     /// `docs/RESOURCE-DOS-BOUNDING.md` (Bound A); the commit-deposit (Bound B) is
     /// the designed-not-built economic teeth.
     pub max_mempool: usize,
+    /// JUL money-layer issuance rate (increment 2 wiring). `apply_transition` reads this to size the
+    /// coinbase = `jul::reward_for_work(block_work(b), jul)`. v0 default `JulParams::default()` (1 JUL
+    /// per unit of work); governance-BOUNDING it (an amendment GovField) is increment 4.
+    pub jul: crate::jul::JulParams,
 }
 
 impl Default for Constitution {
@@ -89,6 +93,7 @@ impl Default for Constitution {
             theta_sim_q16: 62259, // floor(0.95 · 2^16) — only near-identical cells are cut
             vesting_w: 0,         // inert: every finalized cell already cleared ⇒ full attribution
             max_mempool: 10_000,  // resource-DoS bound A: per-replica mempool admission cap
+            jul: crate::jul::JulParams::default(), // 1 JUL per unit of work (v0 unit-definition)
         }
     }
 }
@@ -146,6 +151,13 @@ pub struct Ledger {
     /// lands, two replicas converge on `refuted` only if fed the same refutations — this build is the
     /// reference mechanism + its forward-only exclusion property, NOT cross-replica determinism.
     pub refuted: HashSet<u64>,
+    /// Cumulative JUL issued via block coinbases (increment 2). Monotone; the ONLY writer is
+    /// `apply_transition`'s coinbase mint. DELIBERATELY excluded from [`Ledger::state_digest`] (the
+    /// `finalized_at` precedent): a pure fold over the replayed blocks' coinbase amounts —
+    /// history-derivable and replica-deterministic — so re-hashing it adds only tuple churn with no
+    /// divergence-detection power (a supply divergence implies a `token_ids`/`work` divergence the
+    /// digest already catches). Conservation (`jul_supply == Σ live JUL + burns`) is proven by test.
+    pub jul_supply: crate::jul::JulSupply,
 }
 
 /// Comparable digest of a replica's state (see [`Ledger::state_digest`]): finalized cell-id
@@ -164,6 +176,7 @@ impl Ledger {
             token_cells: Vec::new(),
             finalized_at: HashMap::new(),
             refuted: HashSet::new(),
+            jul_supply: crate::jul::JulSupply::new(),
         }
     }
 
@@ -426,6 +439,12 @@ pub struct Block {
     /// token value-movements settled by this block; each must conserve (see [`Node::validate`]).
     /// Empty for a pure attribution block — existing blocks are unaffected by the gate.
     pub token_txs: Vec<TokenTx>,
+    /// JUL coinbase recipient (increment 2): the lock paid this block's issuance. `None` ⇒ no mint
+    /// (all pre-increment-2 blocks ⇒ replay-parity preserved). The AMOUNT is NOT carried — it is
+    /// CONSTRUCTED in `apply_transition` as `jul::reward_for_work(block_work(b), params.jul)`, so a
+    /// forged amount is unrepresentable. RECIPIENT POLICY (Will-gated): producer-named (Bitcoin-style);
+    /// the amount is protocol-fixed, so recipient choice can only direct the subsidy, never enlarge it.
+    pub coinbase: Option<Script>,
 }
 
 impl Block {
@@ -441,6 +460,7 @@ impl Block {
             cells,
             coords,
             token_txs: Vec::new(),
+            coinbase: None,
         }
     }
 
@@ -448,6 +468,13 @@ impl Block {
     /// gated by [`Node::validate`] — one non-conserving movement makes the whole block invalid.
     pub fn with_token_txs(mut self, txs: Vec<TokenTx>) -> Block {
         self.token_txs = txs;
+        self
+    }
+
+    /// Attach a JUL coinbase recipient (increment 2; builder, `None` by default). The issuance amount
+    /// is constructed at apply time, not carried here — this only names who is paid.
+    pub fn with_coinbase(mut self, recipient: Script) -> Block {
+        self.coinbase = Some(recipient);
         self
     }
 }
@@ -716,6 +743,25 @@ fn token_txs_conserve_and_single_use(ledger: &Ledger, b: &Block) -> bool {
         if !tx.is_valid_in_ledger(&ledger.token_cells) {
             return false;
         }
+        // JUL SECURITY (increment 2): JUL is conserve-or-burn-ONLY through the token path ⇒ the block
+        // coinbase is the structurally unique JUL inflation channel. Without this, a holder could pay
+        // JUL to a cell with `lock.args == JUL_ISSUER`, then consume it as an "authority input" and mint
+        // unbounded JUL (both Fable-5 planners found this hole independently). Also keeps the FV
+        // spec-oracle (`Σout > Σin ⇒ reject`) honest for JUL.
+        if tx.code_hash == crate::jul::JUL_CODE_HASH && tx.args.as_slice() == crate::jul::JUL_ISSUER {
+            let out = crate::tokens::fungible::total(&tx.outputs, &tx.code_hash, &tx.args);
+            let inp = crate::tokens::fungible::total(&tx.inputs, &tx.code_hash, &tx.args);
+            if out > inp {
+                return false;
+            }
+        }
+        // The reserved coinbase id space is protocol-only: a token-tx output may not squat a coinbase
+        // id (retirement matches `(id, lock, type_script)`, so a collision could grief a real reward).
+        for out in &tx.outputs {
+            if out.id & crate::jul::COINBASE_ID_BIT != 0 {
+                return false;
+            }
+        }
         for inp in &tx.inputs {
             let identity = (inp.id, inp.lock.clone(), inp.type_script.clone());
             // insert returns false iff this identity was already consumed in this block.
@@ -748,6 +794,27 @@ fn apply_transition(state: &mut Ledger, b: &Block, params: &Constitution) {
     for tx in &b.token_txs {
         for out in &tx.outputs {
             state.token_cells.push(out.clone());
+        }
+    }
+    // JUL COINBASE (increment 2): settle this block's issuance as a Fungible cell to the producer-named
+    // recipient. The amount is CONSTRUCTED here (never carried on the block), so a forged amount is
+    // unrepresentable, and it is the ONLY authorized JUL inflation (token_txs are JUL-conserve-only).
+    // Touches `token_cells` only — never `cells`/index/pom — so PoW/JUL stays finality-excluded by construction.
+    if let Some(recipient) = &b.coinbase {
+        let reward = crate::jul::reward_for_work(block_work(b), params.jul);
+        if reward > 0 {
+            state.token_cells.push(Cell {
+                id: crate::jul::coinbase_id(b.height),
+                lock: recipient.clone(),
+                type_script: Script {
+                    code_hash: crate::jul::JUL_CODE_HASH,
+                    args: crate::jul::JUL_ISSUER.to_vec(),
+                },
+                parent: None,
+                timestamp: 0,
+                data: crate::tokens::fungible::encode(reward),
+            });
+            state.jul_supply.credit(reward);
         }
     }
     for cell in &b.cells {
