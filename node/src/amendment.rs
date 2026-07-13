@@ -173,7 +173,7 @@ impl Amendment {
                 Obligation {
                     name: "FamilyB: attribution-map preservation (Myerson-restricted Shapley)",
                     by: Discharger::Pragma,
-                    note: "weights reshape credit; full preservation proof is the confluence engine's",
+                    note: "evaluated per-property by attribution_verdicts(): most preserved-by-construction here (only theta_sim reaches pom_scores); a theta_sim RAISE is AtRisk on null-player ⇒ needs this Pragma discharge",
                 },
                 Obligation {
                     name: "Confluence of the amended rulebook (Newman: local confluence + termination)",
@@ -264,6 +264,124 @@ fn check_mix(m: &Mix) -> Result<(), ObligationBreach> {
 /// Component-wise mix equality within Q-float tolerance (stale-base comparison).
 fn mix_eq(a: &Mix, b: &Mix) -> bool {
     (a.pow - b.pow).abs() < 1e-9 && (a.pos - b.pos).abs() < 1e-9 && (a.pom - b.pom).abs() < 1e-9
+}
+
+// ============ Family-B: attribution-preservation obligations (DESIGN note §5b) ============
+//
+// GROUND TRUTH (`node/src/runtime.rs:748`): the PoM attribution map is
+// `pom_scores_with_similarity_floor_q16(&state.cells, params.theta_sim_q16)`. Among the governance
+// fields of [`Constitution`], ONLY `theta_sim_q16` reaches the attribution map — every other param
+// (`mix`, `threshold_bps`, `quorum_floor_bps`, `horizon`, `decay_pos`, `vesting_w`, `max_mempool`) is
+// finalization/liveness and never enters `pom_scores`. That single fact is what lets the socket
+// discharge most Family-B obligations *by construction* instead of deferring the whole family to Pragma.
+
+/// A Family-B attribution property the amendment must preserve. Each is pinned to a live regression in
+/// `node/src/lib.rs` (re-verify line numbers at source): the coalition value is a Myerson graph-restricted,
+/// seeded Data-Shapley value over the provenance graph.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AttributionProperty {
+    /// Credited shares sum to the coalition value (the split creates/destroys no value).
+    Efficiency,
+    /// A redundant / no-value contribution earns ~0 marginal (`redundant_cell_gets_low_shapley_marginal`).
+    NullPlayer,
+    /// Value stays a cooperative Shapley split, never a naive additive win-share
+    /// (`synergy_shapley_differs_from_additive_copeland`).
+    Synergy,
+    /// Provenance edges gate credit; disconnected coalitions cannot pool value
+    /// (`myerson_restricts_value_to_provenance`).
+    MyersonRestriction,
+    /// The seeded Data-Shapley estimate is bit-identical across replicas (`sampled_value`, seeded PRNG).
+    Determinism,
+    /// The **deliberately-relaxed** anonymity axiom (Cheng-Friedman): a fresh identity is worth zero by
+    /// construction. The obligation is to PRESERVE the relaxation — an amendment that quietly re-introduces
+    /// symmetry/anonymity re-opens the Sybil hole while staying confluent (DESIGN note §5b caution box).
+    AnonymityRelaxation,
+}
+
+impl AttributionProperty {
+    /// All six, in declaration order.
+    pub const ALL: [AttributionProperty; 6] = [
+        AttributionProperty::Efficiency,
+        AttributionProperty::NullPlayer,
+        AttributionProperty::Synergy,
+        AttributionProperty::MyersonRestriction,
+        AttributionProperty::Determinism,
+        AttributionProperty::AnonymityRelaxation,
+    ];
+}
+
+/// The socket's per-property verdict on an amendment. Honest three-way split: what we can clear here,
+/// what trades off (needs the Pragma discharge), and what genuinely reshapes credit (Pragma's proof).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PropertyVerdict {
+    /// The amendment cannot reach the mechanism that implements this property ⇒ discharged HERE.
+    PreservedByConstruction { why: &'static str },
+    /// The amendment touches a param that trades off against this property. NOT a hard breach (it may be
+    /// a legitimate governance choice), but NOT discharged here either — it needs the Pragma confluence +
+    /// attribution-preservation discharge, or an explicit governance acknowledgment, before merge.
+    AtRisk { why: &'static str },
+    /// A genuine reshaping of the measurement matrix whose full preservation proof is the confluence
+    /// engine's (the constitutional dimension-set surface).
+    DeferredToPragma { why: &'static str },
+}
+
+/// Evaluate every Family-B attribution property for `a` (DESIGN note §5b/§9). This is the socket
+/// *discharging* the obligations it can and *stating* the ones it cannot — never rounding a trade-off
+/// up to "preserved". See [`family_b_at_risk`] for the one-bit summary.
+pub fn attribution_verdicts(a: &Amendment) -> Vec<(AttributionProperty, PropertyVerdict)> {
+    use AttributionProperty::*;
+    use PropertyVerdict::*;
+
+    let uniform = |v: PropertyVerdict| AttributionProperty::ALL.iter().map(|p| (*p, v.clone())).collect();
+
+    match a {
+        // theta_sim_q16 is the ONLY governance param that reshapes credit. Raising it (more permissive
+        // near-duplicate floor) lets near-duplicate cells earn novelty ⇒ weakens the null/dummy
+        // paraphrase-padding defense. Lowering/holding it is strictly stronger dedup. Everything else the
+        // attribution map computes (the Shapley split, Myerson restriction, determinism, and the identity-
+        // anchored anonymity relaxation) is structural and untouched by a scalar novelty-floor move.
+        Amendment::AmendParam { field: GovField::ThetaSimQ16, old, new } => AttributionProperty::ALL
+            .iter()
+            .map(|p| {
+                let v = match p {
+                    NullPlayer if new > old => AtRisk {
+                        why: "raising the similarity floor lets near-duplicate cells earn novelty, weakening the null/dummy dedup — needs the Pragma preservation discharge",
+                    },
+                    NullPlayer => PreservedByConstruction {
+                        why: "lowering/holding the similarity floor is strictly stronger dedup",
+                    },
+                    _ => PreservedByConstruction {
+                        why: "theta_sim reshapes only the novelty/dedup floor; the Shapley split, Myerson restriction, determinism and anonymity-relaxation are structural",
+                    },
+                };
+                (*p, v)
+            })
+            .collect(),
+
+        // Every other governance param never enters pom_scores (runtime.rs:748) ⇒ it cannot reach the
+        // attribution map at all. Full Family-B discharge, by construction.
+        Amendment::AmendParam { .. } | Amendment::AmendMix { .. } => uniform(PreservedByConstruction {
+            why: "finalization/liveness/mix param; never enters pom_scores ⇒ cannot reach the attribution map",
+        }),
+
+        // Constitutional dimension-set moves genuinely reshape the measurement matrix; the full
+        // preservation proof is the confluence engine's (and the surface is pending upstream anyway).
+        Amendment::AddDimension { .. }
+        | Amendment::RetireDimension { .. }
+        | Amendment::ReweightDimension { .. } => uniform(DeferredToPragma {
+            why: "dimension-set change reshapes the attribution matrix; preservation is the confluence engine's discharge",
+        }),
+
+        // Physics amendments are refused outright by the gate; no attribution evaluation applies.
+        Amendment::AmendPhysics { .. } => vec![],
+    }
+}
+
+/// One-bit summary: does any Family-B property trade off (needs the Pragma discharge before merge)?
+/// A governance amendment can be `verify_amendment`-Ok (in bounds) yet `family_b_at_risk` — the two
+/// answer different questions (safety-bounds vs attribution-preservation).
+pub fn family_b_at_risk(a: &Amendment) -> bool {
+    attribution_verdicts(a).iter().any(|(_, v)| matches!(v, PropertyVerdict::AtRisk { .. }))
 }
 
 #[cfg(test)]
@@ -397,5 +515,72 @@ mod tests {
         assert_eq!(Amendment::AmendMix { old: NCI, new: NCI }.layer(), Layer::Governance);
         assert_eq!(Amendment::AddDimension { id: 0 }.layer(), Layer::Constitutional);
         assert_eq!(Amendment::AmendPhysics { what: "x" }.layer(), Layer::Physics);
+    }
+
+    // --- Family-B attribution verdicts ---
+
+    fn verdict_for(a: &Amendment, p: AttributionProperty) -> PropertyVerdict {
+        attribution_verdicts(a).into_iter().find(|(q, _)| *q == p).unwrap().1
+    }
+
+    #[test]
+    fn theta_sim_raise_flags_null_player_atrisk_but_passes_bounds() {
+        let c = base(); // theta_sim_q16 == 62259
+        // a RAISE (more permissive dedup) is within bounds (<= 1<<16) so the gate is Ok ...
+        let raise = Amendment::AmendParam { field: GovField::ThetaSimQ16, old: 62259, new: 63000 };
+        assert!(verify_amendment(&c, &raise).is_ok());
+        // ... yet Family-B flags the null/dummy trade-off (the two gates answer different questions).
+        assert!(family_b_at_risk(&raise));
+        assert!(matches!(verdict_for(&raise, AttributionProperty::NullPlayer), PropertyVerdict::AtRisk { .. }));
+        // the other five properties are untouched by a novelty-floor move.
+        for p in [
+            AttributionProperty::Efficiency,
+            AttributionProperty::Synergy,
+            AttributionProperty::MyersonRestriction,
+            AttributionProperty::Determinism,
+            AttributionProperty::AnonymityRelaxation,
+        ] {
+            assert!(matches!(verdict_for(&raise, p), PropertyVerdict::PreservedByConstruction { .. }));
+        }
+    }
+
+    #[test]
+    fn theta_sim_lower_preserves_all() {
+        let lower = Amendment::AmendParam { field: GovField::ThetaSimQ16, old: 62259, new: 60000 };
+        assert!(!family_b_at_risk(&lower));
+        assert!(matches!(verdict_for(&lower, AttributionProperty::NullPlayer), PropertyVerdict::PreservedByConstruction { .. }));
+    }
+
+    #[test]
+    fn mix_and_finalization_params_preserve_all_attribution() {
+        // mix never enters pom_scores ...
+        let mix = Amendment::AmendMix { old: NCI, new: Mix { pow: 0.05, pos: 0.35, pom: 0.60 } };
+        // ... nor does a finalization threshold move.
+        let thr = Amendment::AmendParam { field: GovField::ThresholdBps, old: 6667, new: 8000 };
+        for a in [&mix, &thr] {
+            assert!(!family_b_at_risk(a));
+            for (_, v) in attribution_verdicts(a) {
+                assert!(matches!(v, PropertyVerdict::PreservedByConstruction { .. }));
+            }
+        }
+    }
+
+    #[test]
+    fn constitutional_amendment_defers_attribution_to_pragma() {
+        let a = Amendment::AddDimension { id: 1 };
+        assert!(!family_b_at_risk(&a)); // deferred is not a trade-off flag
+        for (_, v) in attribution_verdicts(&a) {
+            assert!(matches!(v, PropertyVerdict::DeferredToPragma { .. }));
+        }
+    }
+
+    #[test]
+    fn every_governable_amendment_covers_all_six_properties() {
+        let gov = Amendment::AmendParam { field: GovField::VestingW, old: 0, new: 5 };
+        let con = Amendment::RetireDimension { id: 2 };
+        assert_eq!(attribution_verdicts(&gov).len(), 6);
+        assert_eq!(attribution_verdicts(&con).len(), 6);
+        // physics is refused outright ⇒ no attribution evaluation.
+        assert!(attribution_verdicts(&Amendment::AmendPhysics { what: "x" }).is_empty());
     }
 }
