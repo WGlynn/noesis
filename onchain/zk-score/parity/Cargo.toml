@@ -1,0 +1,19 @@
+# Standalone (nested workspace) so it builds on the host stable toolchain without the risc0
+# tooling — it never touches the zkVM, it only exercises the SAME core function the guest will
+# prove (`proven_floored_novelty_q16`) over a PRIVATE-witness content + proof set, and records the
+# public journal the proof must reproduce. blake2b-ref is pinned to the core's exact version so the
+# host-side corpus index hashes bit-identically to `noesis_core`'s SMT fold (drift-guarded in-code).
+[workspace]
+
+[package]
+name = "zk-score-parity"
+version = "0.0.1"
+edition = "2021"
+
+[[bin]]
+name = "parity"
+path = "src/main.rs"
+
+[dependencies]
+noesis-core = { path = "../../noesis-core" }
+blake2b-ref = { version = "0.3", default-features = false }

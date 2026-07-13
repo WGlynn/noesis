@@ -1,0 +1,10 @@
+# zk-score — RISC Zero PoC: prove `noesis_core::proven_floored_novelty_q16` on PRIVATE content.
+# Fit 2 of `docs/ZK-INTEGRATION.md` — private/confidential contribution scoring (the zkML mile).
+# Own workspace (the parent node workspace excludes this whole dir). The guest crate and the
+# `parity` harness are their own build units and are NOT members here:
+#   - methods/guest is compiled by risc0_build (build.rs), not by this workspace.
+#   - parity carries its own [workspace] marker so it builds on host stable with no risc0 tooling.
+[workspace]
+resolver = "2"
+members = ["host", "methods"]
+exclude = ["parity", "methods/guest"]

@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 blake2b-ref = { version = "0.3", default-features = false }
+sha2 = { version = "0.10", default-features = false }
 
 [features]
 default = []

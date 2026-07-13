@@ -1,0 +1,12 @@
+[package]
+name = "zk-score-methods"
+version = "0.0.1"
+edition = "2021"
+
+[build-dependencies]
+# Version pinned against the risc0 1.2 line. Under `rzup` the installed toolchain may pull a
+# newer point release; bump here + in guest/host together if `cargo risczero --version` differs.
+risc0-build = "1.2"
+
+[package.metadata.risc0]
+methods = ["guest"]

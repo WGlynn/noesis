@@ -223,6 +223,111 @@ pub fn proven_floored_novelty_q16(
     Some(floored_from_counts(novelty, overlap, total, data, theta_sim_q16, theta_ent_q16))
 }
 
+// ============ zk-score (Fit 2) single-source: floor, wire, digest, nullifier, verdict ============
+// One home for the pieces the zk-score guest + host + parity must agree on, so the private-scoring
+// path cannot drift between the prover and the ground-truth harness. The BYTE LAYOUT of the digest,
+// nullifier and proof-wire lives here, matching the codec discipline of the other cross-VM wires
+// (commit_order / finalization / tx). sha256 (sha2 crate, no_std) is used for the public bindings so
+// the values match the guest's commitment exactly.
+
+/// Protocol floor a private contribution must clear to earn standing. BAKED here (and thus into the
+/// guest image id) so the bar is NOT a prover-chosen input — closes the `v_min=0` forgery and the
+/// cross-receipt score-disclosure (a receipt proves only `value >= ZK_SCORE_V_FLOOR`; the exact score
+/// cannot be binary-searched by re-proving at attacker-chosen bounds, because there is no bound to choose).
+pub const ZK_SCORE_V_FLOOR: u64 = 5;
+
+/// PUBLIC-input digest bound into the journal: sha256(domain ‖ root ‖ theta_sim_le ‖ theta_ent_le ‖
+/// V_FLOOR_le). The verifier MUST recompute this from the CANONICAL corpus root + policy thetas and
+/// reject any receipt whose digest differs — that comparison is what pins `root` (an otherwise
+/// prover-chosen input) to the real corpus. Binding-into-a-hash only pins the value; the verifier's
+/// comparison AUTHENTICATES it.
+pub fn zk_score_public_digest(root: Hash, theta_sim_q16: u64, theta_ent_q16: u64) -> Hash {
+    use sha2::{Digest, Sha256};
+    let mut h = Sha256::new();
+    h.update(b"noesis-zkscore-digest-v1");
+    h.update(root);
+    h.update(theta_sim_q16.to_le_bytes());
+    h.update(theta_ent_q16.to_le_bytes());
+    h.update(ZK_SCORE_V_FLOOR.to_le_bytes());
+    let mut out = [0u8; 32];
+    out.copy_from_slice(&h.finalize());
+    out
+}
+
+/// Content nullifier: sha256(domain ‖ each sorted-unique shingle key ‖ its multiplicity). It commits
+/// the shingle REPRESENTATION of the content (keys + occurrence counts — the same object the score
+/// consumes), NOT the raw bytes and NOT identity (that is Fit 4). Preimage-resistant, so it reveals
+/// nothing about the content. Scope, stated honestly: it dedups EXACT-content (same shingle multiset)
+/// resubmission only — a near-duplicate (a one-byte edit) yields a DIFFERENT nullifier, so near-dup /
+/// work-splitting double-claim is NOT closed here; that needs a fuzzy / overlap-against-prior-grants
+/// accumulator at the ledger layer. Multiplicities are folded in so two genuinely-distinct contents
+/// that merely share a unique-key set do not collide to one nullifier.
+pub fn zk_score_nullifier(data: &[u8]) -> Hash {
+    use sha2::{Digest, Sha256};
+    let mut h = Sha256::new();
+    h.update(b"noesis-zkscore-nullifier-v2");
+    for (k, m) in unique_shingles(data) {
+        h.update(k.to_le_bytes());
+        h.update(m.to_le_bytes());
+    }
+    let mut out = [0u8; 32];
+    out.copy_from_slice(&h.finalize());
+    out
+}
+
+/// Flat proof wire — the guest cannot serde a `[[u8; 32]; DEPTH]` array directly, so proofs cross the
+/// boundary as bytes. SINGLE SOURCE for guest + host + parity so the one wire unique to Fit 2 cannot
+/// drift between the prover and the harness that validates it.
+pub fn flatten_proofs(proofs: &[[Hash; DEPTH]]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(proofs.len() * DEPTH * 32);
+    for p in proofs {
+        for h in p {
+            out.extend_from_slice(h);
+        }
+    }
+    out
+}
+
+/// Inverse of `flatten_proofs`. `None` on any length that is not `n * DEPTH * 32` (malformed witness).
+pub fn unflatten_proofs(flat: &[u8], n: usize) -> Option<Vec<[Hash; DEPTH]>> {
+    if flat.len() != n * DEPTH * 32 {
+        return None;
+    }
+    let mut out = Vec::with_capacity(n);
+    let mut i = 0;
+    while i < n {
+        let base = i * DEPTH * 32;
+        let mut p = [[0u8; 32]; DEPTH];
+        for (j, slot) in p.iter_mut().enumerate() {
+            let off = base + j * 32;
+            slot.copy_from_slice(&flat[off..off + 32]);
+        }
+        out.push(p);
+        i += 1;
+    }
+    Some(out)
+}
+
+/// The full zk-score verdict over PRIVATE content — the SINGLE definition guest + host + parity run.
+/// Returns `None` (=> reject, `accepted = false`) for an EMPTY / sub-shingle cell (no vacuous accept)
+/// OR a malformed / forged proof witness (a path proving neither polarity rejects the whole cell);
+/// else `(nullifier, floored_value)`. The caller commits `(public_digest, nullifier, accepted,
+/// value >= ZK_SCORE_V_FLOOR)`. `accepted` attests witness-internal consistency against the SUPPLIED
+/// `root`; its trust is conditional on the verifier pinning `public_digest` to the canonical root.
+pub fn zk_score_eval(
+    data: &[u8],
+    root: Hash,
+    proofs: &[[Hash; DEPTH]],
+    theta_sim_q16: u64,
+    theta_ent_q16: u64,
+) -> Option<(Hash, u64)> {
+    if unique_shingles(data).is_empty() {
+        return None; // empty / sub-shingle content is not a well-formed contribution
+    }
+    let value = proven_floored_novelty_q16(data, root, proofs, theta_sim_q16, theta_ent_q16)?;
+    Some((zk_score_nullifier(data), value))
+}
+
 // ============ Consensus-sourced commit ordering (on-VM port of node::commit_order) ============
 // The no_std half of the temporal-order fix, so the index-cell type-script can verify ordering
 // ON-VM. Logic is bit-identical to node::commit_order (drift-guarded in node/tests). On-VM the

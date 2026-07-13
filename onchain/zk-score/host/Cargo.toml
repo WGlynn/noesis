@@ -1,0 +1,15 @@
+[package]
+name = "zk-score-host"
+version = "0.0.1"
+edition = "2021"
+
+[[bin]]
+name = "prove-score"
+path = "src/main.rs"
+
+[dependencies]
+risc0-zkvm = "1.2"
+zk-score-methods = { path = "../methods" }
+# Host builds the corpus + proofs, then feeds the guest the content as a PRIVATE input.
+noesis-core = { path = "../../noesis-core" }
+blake2b-ref = { version = "0.3", default-features = false }
