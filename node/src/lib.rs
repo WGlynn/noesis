@@ -20,6 +20,10 @@ use std::collections::{HashMap, HashSet};
 /// only; two nodes that finalize the same blocks converge byte-for-byte). Transport-agnostic
 /// by design: peer discovery / gossip layer plugs in above the `Node` API.
 pub mod runtime;
+/// Pragma layer — Constitution-amendment coherence (the socket). Second line of defence over the
+/// SPACE of governable rulebooks (line 1 = per-execution FV of a fixed rulebook). See
+/// `docs/DESIGN-pragma-layer-amendment-coherence.md`.
+pub mod amendment;
 
 /// Starter Rust analogs of the ERC token standards in the cell model (fungible/ERC-20,
 /// nft/ERC-721, multi/ERC-1155). Conservation is a pure function of the tx — no oracle layer,
