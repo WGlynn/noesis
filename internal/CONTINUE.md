@@ -4,6 +4,37 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## 🔝🔝🔝 NEXT SESSION (2026-07-13 PM-2) — JUL MONEY LAYER inc-1 ✅ + inc-2 ✅ (full plan→build→Council→Pragma loop) · GENESIS DECISION SETTLED · next = JUL inc-3 (Lever B reserve) ∨ inc-4 (genesis wiring)
+
+**THE LOOP (Will 2026-07-13, standing method for completing the SYSTEM-MAP):** for each build piece —
+(1) **2 Fable-5 planners** (mechanism + build-safety lenses) → synthesize · (2) **build** lean/test-guarded ·
+(3) **Council v1** (persona review, DON'T-TRUST-VERIFY, Shapley) · (4) **Pragma-confluence** (code vs the
+documented properties). The 3 verification layers are COMPLEMENTARY — proven on inc-2 (Pragma caught the
+smuggle the Council missed; Council caught the retire/data bug + burn-gap Pragma wasn't hunting).
+
+**✅ JUL inc-1 (`e51e164`)** — issuance core `node/src/jul.rs`: pure integer `reward_for_work(work,num/den)`
+(Lever A; pre-PoW flat, difficulty-proportional when `block_work` returns real difficulty) + `JulSupply`.
+Additive/shadow. 9 tests.
+**✅ JUL inc-2 (`56d506f` + hardening `afe14e7`)** — coinbase settlement (consensus-wired). `Block.coinbase:
+Option<Script>` (recipient only; amount CONSTRUCTED in `apply_transition` = `reward_for_work(block_work,
+constitution.jul)` ⇒ forged amount unrepresentable). **SECURITY: JUL is conserve-or-burn-ONLY via token_txs,
+measured by the CELLS' actual `is_jul` identity** (NOT the tx's declared identity — the Pragma smuggle fix) ⇒
+coinbase is the structurally unique inflation channel. Reserved coinbase-id space. `jul_supply` EXCLUDED
+from `state_digest`. Retire now matches full identity incl. `data` (Council fix). 10 settlement tests +
+316 lib green + all parity (apply_block_parity/two_node/two_node_join/sync_join/fv_invariants) green.
+Design: `docs/DESIGN-jul-money-layer.md` (inc-1/2 marked BUILT; 5-increment plan).
+
+**GENESIS SETTLED (Will 2026-07-13):** PoW STARTS genesis (issuance/liveness), bonded PoS FINALIZES,
+handoff to PoM. Memory `[[project_noesis-genesis-bootstrap-decision]]`. Also shipped this session:
+crypto-economics whitepaper v1 (`docs/whitepaper/noesis-cryptoeconomics.md`, `ca0e0db`).
+
+**▶ NEXT — continue the map via THE LOOP:** JUL inc-3 (Lever B counter-cyclical reserve, ported
+`TreasuryStabilizer`) ∨ inc-4 (genesis wiring: issue coinbase from block 0, `Block::difficulty`, keep JUL
+out of `FINALITY_MIX`). Open honest gaps (design note §5): v0 identity constants = placeholders (real =
+on-VM type-script hash); numbers = v0 unit-definitions; Ergon fidelity + real difficulty-retarget owed.
+
+---
+
 ## 🔝🔝🔝 NEXT SESSION — v(S) SEAM ✅ · EQUIVOCATION ✅ · T1 SLICE-1..5 (persist · transport · gossip · sync+revalidate · **noesisd join**) ✅ · SYSTEM-MAP ✅ · next = slice-5b (live gossip reader-loop) ∨ public testnet deploy
 
 Human recap: `sessions/2026-07-13-oracle-seam-equivocation-and-where-the-ai-lives.md`. All pushed, HEAD == origin @ `f862431`.
