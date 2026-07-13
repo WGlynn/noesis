@@ -84,7 +84,8 @@
   masking clearing; fixed with disjoint-4-gram payloads (per-height-unique byte run) to isolate the vesting
   cliff from the floor. Node lib **281→284 green, 0 regressions, 0 new clippy.** **Phase 3 (dispute-during-`W`:
   a slash on a still-pending cell removes it before it ages into the cleared score, forward-only) remains** —
-  the last consensus-affecting stage, build-cold.
+  the last consensus-affecting stage, build-cold. **⟶ SUPERSEDED 2026-07-12: Phase 3 BUILT (`6f61d3b`) —
+  `Ledger.refuted` + `record_refutation` + the `finalized_at ≤ now − W && !refuted` finality filter (`runtime.rs`).**
 - **2026-07-12 (P1)** — BUILT ✅ — **vesting-`W` Phase 1: the cell finalization stamp (SAFE / additive).**
   Per `DESIGN-vesting-W-and-standing-bridge.md` §2.1 / §3.1 — the first, non-consensus stage of the
   roadmap top-blocker. Added `Ledger.finalized_at: HashMap<cell_id, u64>` (`runtime.rs`), stamped in
@@ -98,6 +99,7 @@
   Node lib **278→281 green, zero regressions**, commit `5f5c7e6`. **Phases 2–3 (cleared-score bridge +
   dispute-during-`W`, both consensus-affecting) remain for a fresh cold-context window** per repo
   convention for consensus surgery — Phase 1 lands the safe data-model half now.
+  **⟶ SUPERSEDED 2026-07-12: Phase 2 (bridge) + Phase 3 (dispute-during-`W`) BOTH BUILT (`6f61d3b`); L2 CLOSED.**
 - **2026-07-11 (zz)** — BUILT ✅ (Will-ratified) — **closed a dead-wire safety gap on the live finality
   path: the quorum floor was inert.** `runtime::finality::finalizes_pos_pom` hardcoded the
   `finalizes_hybrid` quorum arg to 0 and did not accept a floor, so `Constitution.quorum_floor_bps`

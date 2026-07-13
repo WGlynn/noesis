@@ -87,11 +87,20 @@ roughly stable and to be **spent, not hoarded**. It is deliberately the opposite
 standing: standing is scarce, inelastic, and unbuyable; the energy money is elastic and
 made to circulate.
 
-> **Honest status: JUL is not integrated yet.** It is a planned dependency, not a present
-> component. The minimal core today is **soulbound PoM + transferable state-bytes**, and
-> that core needs *no* Proof of Work to secure consensus or mint state. PoW returns only
-> with the money layer, where it does the one job it does better than anything: turning
-> real energy into sound money. Don't claim the money layer ships today — it doesn't.
+> **Honest status: JUL is designed and partially built, not yet integrated at genesis.**
+> The issuance core, coinbase settlement, and counter-cyclical reserve exist as shadow
+> modules (`node/src/jul.rs`, `reserve.rs`, coinbase-mint in `runtime.rs`); genesis issuance
+> and live economics are not wired. Don't claim the money layer ships today — it doesn't.
+>
+> **What PoW is — and is NOT — deferrable for (Will-ratified 2026-07-13).** The precise,
+> narrow claim: PoW is excluded from the *finality-safety* mix (`FINALITY_MIX`, `runtime.rs`)
+> because PoW is reorgeable, so *steady-state finality* runs on PoS+PoM, and state is minted
+> by PoM, not PoW. That is the ONLY sense in which "the core needs no PoW." It does **not**
+> make PoW/JUL launch-deferrable: all three NCI axes (`pow 0.10 / pos 0.30 / pom 0.60`) ship
+> at genesis — you cannot launch two axes and fork in the third — JUL is the e-cash a *value
+> chain* cannot launch without, and PoW is the allocation-free genesis bootstrap (first coins
+> from energy, no premine). PoW therefore matters MORE at launch than in steady state, then
+> recedes as PoM accrues. Build track: `internal/LOOP-PLAN-to-golive.md` (M1–M3).
 
 ### VIBE — governance
 

@@ -89,7 +89,7 @@ The coupling ruling itself is DONE (coupled, 2026-06-29). What remains Will-gate
 
 | Deferred | Status | Guard condition |
 |---|---|---|
-| **JUL PoW money layer** | 🟡 designed, zero code (grep hits = NATO-phonetic test strings only) | Deferred **by design**: TOKENOMICS.md — the minimal core "needs no Proof of Work to secure consensus or mint state." Will decisions LOCKED 2026-06-20 ("energy circulates, does not vote"; Ergon constants kept) — build is decision-unblocked, just not July. |
+| **JUL PoW money layer** | 🟡 designed, **partially built** — inc-1 issuance core (`e51e164`), inc-2 coinbase settlement (`56d506f`), inc-3 counter-cyclical reserve (`bf781fc`), all shadow; genesis issuance + live economics remain | **RECLASSIFIED launch-required (Will 2026-07-13)** — JUL is the e-cash + PoW is the genesis bootstrap; this row is retained only to CORRECT the earlier "deferrable" label. The ONLY deferrable sense is PoW's exclusion from `FINALITY_MIX` (steady-state finality-safety). Build track `internal/LOOP-PLAN-to-golive.md` (M1–M3); Will 2026-06-20 constants ("energy circulates, does not vote"; Ergon) still hold. |
 | **VIBE governance token** | 🟡 designed, no code | Orthogonal to the capture-resistant cycle; only naming-confirm outstanding. |
 | **Learned v(S) moat** | 🔬 open — NULL twice (round 1 + faithful port: 95/115 ancestor coalitions singleton ⇒ "untestable here for lack of ANCESTRY, not labels"); adversarial instrument ✅ 2026-07-02 (constructed fixture, not real-outcome data) | Launch copy = **floor only**, never "un-gameable value chain." W substitutes temporally for the moat on the finality path. Data hunt (deep-ancestry outcome-labelled dataset) runs all month in background — calendar-bound, not effort-bound. |
 | **HCE full three properties (M2/C4)** | 🔬 open conjecture; Will's OFFICIAL TOP PRIORITY ("you cannot have noesis if you dont have wills equilibrium on the contribution problem") | Blocks the **thesis**, not the floor launch. Claim IC for demonstrated vectors only — the property-(1) scope marker is already in-code at nash_honesty. Research runs parallel, unscheduled. |
@@ -176,7 +176,8 @@ Queue = 4 cold-class builds + 1 on-VM build in 4 weeks = **zero slack** at the h
 - 🔬 HCE M2/C4 (open research; Will's own "solution-defining" bar — blocks the thesis, not the floor).
 - 🔬 Genesis / chain-spec / P2P (Track B; a July "launch" claim would be false).
 - 🟡 Lock-sig GO-LIVE flip (deploy step — do at deploy, not before).
-- 🟡 JUL / VIBE builds (decision-unblocked, deferred by design — the core needs no PoW to secure consensus or mint state).
+- 🟡 VIBE governance token (genuinely deferrable — governance, not money; naming-confirm only).
+- 🟡 JUL money layer is **launch-required, not deferrable** (Will 2026-07-13): the e-cash + PoW genesis bootstrap; inc-1/2/3 built, genesis-issuance + economics remain (LOOP-PLAN M-track). The only "deferrable" sense is PoW's exclusion from `FINALITY_MIX` (steady-state safety).
 
 ---
 

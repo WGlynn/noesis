@@ -73,11 +73,18 @@ Both point the same way:
 This is a complete closed loop: no self-reference (keystone), no infinite-horizon settlement
 (account framing), no gameable input on the safety path (face split), and it bootstraps (PoS-first).
 
-## The one open decision (Will's call to ratify)
+## The one open decision — ⟶ RULED 2026-06-29 by Will: PoM stays COUPLED to finality
+
+> **RESOLVED (not open).** Will ruled 2026-06-29 (security-expert call): PoM stays COUPLED to
+> finality with the anti-concentration floor — full decoupling forfeits anti-plutocracy (the
+> thesis), and the floor converts the risk from "gaming OR capital" to "gaming AND capital."
+> The audit's decoupling *recommendation* below is kept as the analysis that INFORMED the
+> ruling, not the live position. See `ARCHITECTURE.md` §Consensus DECISION.
+
 **Should PoM weight finality *safety* at all, or only influence/reward + governance?** The audit
-*recommends decoupling PoM from finality safety* — both independent results above land there, and it
-removes the gameability↔rollback coupling entirely. The current *built* design keeps PoM in finality
-with an anti-concentration hedge.
+*recommended decoupling PoM from finality safety* — both independent results above land there, and it
+removes the gameability↔rollback coupling entirely. **Will ruled the other way: the built design
+keeps PoM in finality with an anti-concentration hedge.**
 
 - **If ratified (decouple):** `finalizes_pos_pom` changes so PoS carries the BFT safety threshold and
   PoM weights influence *within* the bonded set; update [SECURITY.md](../SECURITY.md) §4 and the
