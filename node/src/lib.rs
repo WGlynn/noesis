@@ -59,6 +59,13 @@ pub mod gossip;
 /// byte-identical state. THE join. See the module doc for scope.
 pub mod sync;
 
+/// JUL money layer, increment 1 — the PoW-issuance core (Lever A, the production-cost anchor;
+/// `docs/DESIGN-jul-money-layer.md`). ADDITIVE/SHADOW: a self-contained integer state machine called
+/// from NO consensus path — `validate` / `apply` / `state_digest` are untouched, the same discipline
+/// as `utxo_commitment`. Governable `Constitution` params + issue-on-apply + `Block::difficulty` are
+/// the consensus-wiring increment, not this one.
+pub mod jul;
+
 /// A CKB-style script: a RISC-V program (by code hash) + its arguments. VM success
 /// = valid. Lock scripts gate ownership; type scripts gate state transitions.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
