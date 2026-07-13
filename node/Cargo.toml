@@ -39,3 +39,10 @@ noesis-core = { path = "../onchain/noesis-core" }
 [lib]
 name = "noesis"
 path = "src/lib.rs"
+
+# The T0 local-devnet node driver: boots from an honest genesis, produces + finality-gates +
+# applies blocks, exposes state. The first runnable node (until now the state machine ran only
+# under `cargo test`). See src/bin/noesisd.rs for honest scope (single process, no P2P/persistence).
+[[bin]]
+name = "noesisd"
+path = "src/bin/noesisd.rs"
