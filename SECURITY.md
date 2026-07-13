@@ -91,9 +91,20 @@ to genuinely contribute.
   so finality routes through `finalizes_pos_pom` (PoS + PoM only). PoW still secures production/ordering.
 - **2/3 supermajority + anti-concentration:** both the PoS and PoM axes must clear a floor; no single
   axis (e.g. a PoM whale) can finalize unilaterally.
-- **Equivocation + stale-state:** double-votes detected (`is_equivocation`), early-reject for invalid
-  reveals, retention-decay on liveness. A Byzantine minority cannot finalize; wrong-height / reordered /
-  empty blocks are rejected. Verify: `node/tests/byzantine.rs`, `two_node.rs`.
+- **Stale-state + Byzantine-minority:** early-reject for invalid reveals, retention-decay on liveness.
+  A Byzantine minority cannot finalize; wrong-height / reordered / empty blocks are rejected. Verify:
+  `node/tests/byzantine.rs`, `two_node.rs`.
+- **🔬 Equivocation accountability — predicate built, ON-FINALITY-PATH slashing NOT wired.** The
+  double-vote *predicate* (`consensus::is_equivocation`) and the `slash` primitive exist and are tested,
+  but the live finality gate (`runtime::finalizes_pos_pom`) is a **stateless weight predicate**: it takes
+  `voters_for` at face value with no cross-checkpoint vote-history, so it cannot itself detect that a
+  voter for checkpoint A also signed conflicting B, and nothing on the finality path calls `slash`. This
+  is by design for the reference stage — accountable safety in the Casper/Tendermint sense (identify +
+  burn the ≥1/3 provably-faulty on a conflicting finalization) requires the round loop / multi-node vote
+  aggregation that are themselves unbuilt (see gaps below), so the accountability layer follows them, it
+  cannot precede them. The stated finality-safety thesis rests on the **anti-concentration floor** + the
+  **un-gameability moat**, NOT on slashing (see `ARCHITECTURE.md:69-73`). Tracked open: `internal/CONTINUE.md`
+  gap #6, `node/src/lib.rs:4110` (A4 GAP), `docs/CONSENSUS-REVIEW.md:92`.
 - **🟡 on-VM:** the finalization rule is recomputed in pure fixed-point and the on-VM type-script mirror
   is specified (`docs/ON-VM-FINALIZATION.md`); the live wrapper is wired and tested at the reference
   layer, the on-VM enforcement is the remaining build.

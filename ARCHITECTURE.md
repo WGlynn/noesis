@@ -40,28 +40,28 @@ Two different weightings. Quoting one for the other is the 2026-06-29 hallucinat
   → `consensus::NCI` at `node/src/lib.rs:3705`. Supermajority `TWO_THIRDS_BPS = 6667`
   (`lib.rs:3707`). This is the *whole-system* weight (production + ordering + finality inputs).
 - **Finality mix — PoW EXCLUDED:** `pow 0.0 / pos 1/3 / pom 2/3`, renormalized so PoS+PoM
-  sum to 1. → `finality::FINALITY_MIX` at `node/src/runtime.rs:584`.
+  sum to 1. → `finality::FINALITY_MIX` at `node/src/runtime.rs:726`.
   - **Why PoW is out of finality:** PoW is probabilistic and reorgeable, so putting it on
     the *safety* path would itself be the hazard. PoW secures block production, ordering, and
     Sybil-cost (and is the money layer, JUL) — not safety. Finality routes through
-    `finality::finalizes_pos_pom` (`runtime.rs:608`).
+    `finality::finalizes_pos_pom` (`runtime.rs:750`).
   - **2/3 bar is over the PoS+PoM fast-final set**, not a global total.
 - **Anti-concentration floor:** each dimension (PoS and PoM) must *independently* supply
-  ≥ **50%** of its own dimension's total to finalize. → `MIN_DIM_BPS = 5000` (`runtime.rs:596`),
-  `dim_ok` (`runtime.rs:598`). This is what makes neither axis sufficient alone:
+  ≥ **50%** of its own dimension's total to finalize. → `MIN_DIM_BPS = 5000` (`runtime.rs:738`),
+  `dim_ok` (`runtime.rs:740`). This is what makes neither axis sufficient alone:
   - a gamed PoM (the 2/3 share) cannot finalize without the PoS dimension also clearing 50%;
   - capital holding *all* stake controls only the PoS dimension, and the unbuyable PoM
     dimension must independently clear 50% — **capital cannot finalize without contribution's
     consent.** This is the anti-plutocracy property; it is a per-dimension floor, not a cap.
 - **WEIGHT ≠ EFFECTIVE POWER (do not conflate).** `60/30/10` (and finality's `1/3:2/3`) is how much
-  each axis *weighs* in the combined vote (`base_weight`/`effective_weight`, `lib.rs:3307/3321`). It is
+  each axis *weighs* in the combined vote (`base_weight`/`effective_weight`, `lib.rs:3723/3737`). It is
   NOT how much each axis *rules*: the anti-concentration floor + AND-composition make NCI a
   **separation-of-powers** (rock-paper-scissors), where each axis is *independently necessary* and none
   finalizes alone (`docs/CONSENSUS-REVIEW.md`, `docs/COHERENCE-LAWS.md`: "no dimension finalizes alone").
   So effective finalization power is far more balanced than the headline weights imply. `60/30/10` is the
   **voting-weight mix, not a reward distribution** — there is no separate `60/30/10` emission/reward
   constant; rewards come from PoM-standing-via-`v(S)`, JUL-via-PoW, and PoS returns.
-- `MIN_STAKE = 100.0` bounds validator Sybils (`lib.rs:3397`).
+- `MIN_STAKE = 100.0` bounds validator Sybils (`lib.rs:3813`).
 - **DECISION — PoM stays coupled to finality (ruled by Will, 2026-06-29; security-expert call).** The
   built design stands: PoM is load-bearing in finality, bounded by the anti-concentration floor.
   Rationale: full-decouple (PoS-only safety) would forfeit anti-plutocracy, which is the thesis. The

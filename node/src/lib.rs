@@ -3462,7 +3462,15 @@ pub mod flow {
         // Deterministic: canonical flatten key = (contribution/flow desc, identity args asc,
         // child index asc) ⇒ on-VM replicas converge regardless of HashMap iteration order. The
         // child-index tiebreak makes the order total even when flow and args both tie.
-        const RHO: f64 = 0.618_033_988_749_894_9; // 1/φ joint rank decay
+        // Joint-rank decay rate. The ONLY load-bearing property is 0 < RHO < 1: it makes the
+        // backward flow a contraction and gives a convergent geometric tail Σ_j RHO^j = 1/(1-RHO).
+        // The pump-closure is robust across that whole open interval (break-on-purpose:
+        // RHO:=1.0 reopens the diagonal ⇒ T3 RED; RHO:=0.05 also closes it — ROADMAP.md:762,
+        // CONTINUE.md:303). RHO does NOT fall out of the coverage/provenance geometry and nothing
+        // here exercises φ's defining identity (φ²=φ+1) or any Fibonacci/low-discrepancy property;
+        // 1/φ is a chosen DEFAULT damping rate (bound ≈2.618), not a derived structural constant.
+        // Retune on real data. See internal/DESIGN-joint-decay-damping-rate.md.
+        const RHO: f64 = 0.618_033_988_749_894_9; // default damping rate = 1/φ (tunable, 0<RHO<1)
         for _ in 0..iters {
             let mut next = own.to_vec();
             for (pid, kids) in &children {
@@ -8217,11 +8225,13 @@ pub mod settlement_fixed {
         // Fixed-point mirror of the SINGLE JOINT geometric damping in
         // `flow::value_flow_with_own`: for a parent, FLATTEN every external child into one
         // canonical order (contribution/flow desc, identity args asc, child index asc) and weight
-        // the j-th by ρ^j (ρ=1/φ). One tail, not a per-axis product ⇒ the hybrid K×M diagonal
-        // draws from the same geometric budget as a single axis (T3 closed). round(2^32/φ) is the
-        // Fibonacci-hashing constant; the f64 side uses the same 1/φ, and the drift-guard
-        // `v7_q32_tracks_f64_v7_*` / `t6_*` holds them within band.
-        const RHO_Q32: u128 = 2_654_435_769; // round(2^32 / φ) = (1/φ) at Q32.32, joint rank decay
+        // the j-th by ρ^j. One tail, not a per-axis product ⇒ the hybrid K×M diagonal draws from
+        // the same geometric budget as a single axis (T3 closed). ρ is a tunable damping rate whose
+        // only load-bearing property is 0<ρ<1 (contraction + convergent tail); see the f64 twin at
+        // the `RHO` def above. This must equal the f64 RHO in value (Q32.32 fixed-point image of the
+        // same default 1/φ) so the drift-guard `v7_q32_tracks_f64_v7_*` / `t6_*` holds within band —
+        // a parity constraint on the two ports, NOT a claim that 1/φ is structurally derived.
+        const RHO_Q32: u128 = 2_654_435_769; // Q32.32 image of the f64 RHO default (round(2^32/φ))
         for _ in 0..iters {
             let mut next = own.to_vec();
             for (pid, kids) in &children {

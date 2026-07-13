@@ -33,6 +33,16 @@
    `internal/DESIGN-joint-decay-damping-rate.md`. Code comments + patent line 233 relabeled to match.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-07-12 (ρ)** — FRAMING-CORRECTED ✅ (**in-flight, UNCOMMITTED — pending Will review**) — **ρ/φ
+  numerology honesty-fix.** Council (Holland lens) flagged `RHO = 1/φ` as numerology. A background RSAW
+  loop relabeled it across code + docs: `flow::RHO` + `settlement_fixed::RHO_Q32` comments now state the
+  ONLY load-bearing property is `0 < RHO < 1` (contraction + convergent tail `1/(1−RHO)`); `1/φ` is a
+  chosen DEFAULT damping rate, NOT a derived structural constant (φ's identity `φ²=φ+1` is never
+  exercised) — retune on real data. **Value UNCHANGED** (`0.618…`); comment/doc/whitepaper/patent only ⇒
+  node lib **285 green** (verified this session against the dirty tree). New `internal/DESIGN-joint-decay-
+  damping-rate.md` records load-bearing-vs-tunable. ⚠ Sits UNCOMMITTED in the working tree (`lib.rs`
+  comment-only +16/−6, `ARCHITECTURE.md`/`SECURITY.md`/whitepaper/patent/`finalization-typescript`/
+  `doc-coherence.py`) — review + commit as ONE unit; not from the interactive session.
 - **2026-07-12 (B1)** — BUILT ✅ — **accountable-safety equivocation guard (slash-before-count).** Closes
   the MECHANISM half of the code's own self-labeled `A4 [GAP]` ("Lifecycle omitted: equivocation slashing",
   `lib.rs`), which the 2026-07-12 architect-council flagged (Vitalik + BFT, critical). Two additive fns in

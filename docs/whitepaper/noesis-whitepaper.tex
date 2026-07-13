@@ -40,7 +40,7 @@
 \large A Value Chain for Verified Mental Contribution}
 \author{Will Glynn\\
 \texttt{noesis}}
-\date{Version 5.3 \quad July 2026}
+\date{Version 5.4 \quad July 2026}
 
 \begin{document}
 \maketitle
@@ -574,18 +574,28 @@ applies to the \emph{franchise}, the vote weight, never to the staked balance, a
 all dimensions so the effective mix is time-invariant. The remaining question is what a supermajority
 is a fraction \emph{of}. A base-weight denominator is eclipse-resistant but halts under low
 participation; a pure effective-weight denominator removes the halt but lets an attacker shrink the
-denominator and finalize a minority. The stable choice is the hybrid
+denominator and finalize a minority. The stable choice is the hybrid, a supermajority on the
+\emph{combined} weight AND-gated with an anti-concentration floor on \emph{each} dimension:
 \begin{equation}
-\text{finalize} \iff \forall d:\quad W^{d}_{\text{for}} \;\ge\; \tfrac{2}{3}\,\max\!\big(W^{d}_{\text{eff}},\, Q^{d}\big),
+\text{finalize} \iff
+\underbrace{W_{\text{for}} \;\ge\; \tfrac{2}{3}\,\max\!\big(W_{\text{eff}},\, Q\big)}_{\text{combined supermajority}}
+\;\;\wedge\;\;
+\underbrace{\forall d:\ W^{d}_{\text{for}} \;\ge\; \tfrac{1}{2}\,W^{d}_{\text{all}}}_{\text{anti-concentration floor}},
 \end{equation}
-which pins the denominator at a quorum floor $Q^d$, a fraction of base weight, so neither failure
-occurs. In plain terms: a block is final once a two-thirds supermajority backs it --- the Byzantine-fault
-threshold of PBFT, carried into a finality gadget in the manner of Casper --- measured against
-whichever is larger, who is actually voting or a fixed floor, so an attacker can neither stall the
-chain by sitting out nor finalize a minority by shrinking the pool. The composition over the dimensions $d$ is AND-gated, not a substitutable weighted sum: a
-single dimension below the supermajority cannot finalize alone. This is verified against tested
-reference models, including a self-audit that demonstrates the eclipse on a bare effective basis and
-its closure under the quorum floor.
+where the combined weight $W = \tfrac13\,\mathrm{PoS} + \tfrac23\,\mathrm{PoM}$ is the finality mix
+(proof-of-work excluded), $W_{\text{for}}$ and $W_{\text{eff}}$ are its supporting and effective totals,
+$Q$ is the quorum floor (a fraction of base weight), and $W^{d}_{\text{for}}/W^{d}_{\text{all}}$ are the
+supporting and total \emph{raw} weight in dimension $d\in\{\mathrm{PoS},\mathrm{PoM}\}$. The first
+conjunct pins the denominator at $\max(W_{\text{eff}},Q)$ so neither failure occurs; the second forces
+each of capital and cognition to independently supply at least half of its own dimension, so neither axis
+finalizes alone. In plain terms: a block is final once a two-thirds supermajority backs it --- the
+Byzantine-fault threshold of PBFT, carried into a finality gadget in the manner of Casper --- measured
+against whichever is larger, who is actually voting or a fixed floor, so an attacker can neither stall the
+chain by sitting out nor finalize a minority by shrinking the pool; and the per-dimension floor makes the
+composition AND-gated rather than a substitutable weighted sum, so proof-of-mind's larger share cannot
+finalize without capital's independent consent, and conversely. This is verified against tested reference
+models, including a self-audit that demonstrates the eclipse on a bare effective basis and its closure
+under the quorum floor.
 
 \subsection{Stability: no profitable fork}
 

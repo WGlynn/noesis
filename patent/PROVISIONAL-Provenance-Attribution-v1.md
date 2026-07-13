@@ -230,9 +230,10 @@ them. The graph-restricted division refuses to pool value across provenance-disc
 contributors, but that restriction is only meaningful because backward flow runs over the
 soulbound external identity, not a transferable holder: if flow ran over ownership, a single
 party holding many addresses would appear as a connected, diverse coalition and the Myerson
-restriction would protect nothing. The `1/φ` damping is what makes backward propagation a
-contraction, without which a self-attributing ring pumps unbounded credit and the collusion
-detector faces an ill-posed, non-convergent flow field. The per-identity collusion attribution
+restriction would protect nothing. The sub-unity geometric damping (a
+tunable rate 0 < ρ < 1, default 1/φ; the inventive property is the contraction, not the specific
+value) is what makes backward propagation a contraction, without which a self-attributing ring
+pumps unbounded credit and the collusion detector faces an ill-posed, non-convergent flow field. The per-identity collusion attribution
 is only actionable because it is keyed on the same soulbound identity the division and the
 provenance walk use, so the ring named by the detector is the ring whose standing is slashed and
 whose lineage the refutation cancels — which is exactly what lets the cross-path merge recognise
