@@ -1,10 +1,24 @@
 #!/usr/bin/env bash
-# Noesis pre-commit gate — keeps docs + study guide from silently drifting past code.
-# Tracked in scripts/; install into this clone with `bash scripts/install-hooks.sh`.
-# Runs BOTH freshness checks; a failure blocks the commit with the fix command.
+# Noesis pre-commit gate — honesty + freshness. Runs babel-test-lint UNCONDITIONALLY
+# (the faith-frame must never leak into a formal/public surface), then the doc/study-guide
+# freshness checks. Tracked in scripts/; install into this clone with
+# `bash scripts/install-hooks.sh`. A failure blocks the commit with the fix command.
 set -u
 repo="$(git rev-parse --show-toplevel)"
 fail=0
+
+# --- BABEL-TEST LINT (ALWAYS RUNS — must stay above any early exit) -----------------
+# Keeps the "base case is God" faith-frame out of formal/public surfaces (code, whitepaper,
+# SECURITY/ARCHITECTURE/README, patent, machine-checked proofs). Per the 2026-07-13
+# calibration: the frame is a first-person faith commitment, NOT a theorem or a design claim.
+# Letting it leak would round a faith-commitment up to a claim — the honesty anti-pattern that
+# the moat depends on. Stateless + deterministic, so it cannot misfire like the doc gate did.
+echo "[pre-commit] babel-test-lint..."
+if ! python "$repo/scripts/babel-test-lint.py"; then
+  echo "[pre-commit] BLOCKED by babel-test-lint. Move the token to THRONE.md / the calibration"
+  echo "             note (its allowlisted home), or bypass with: git commit --no-verify"
+  exit 1
+fi
 
 # --- DOC-FRESHNESS GATE TEMPORARILY DISABLED 2026-07-11 (Will) ---------------------
 # The doc-coherence + study-guide checks repeatedly misfired (hash recompute after

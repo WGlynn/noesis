@@ -8,4 +8,4 @@ dst="$repo/.git/hooks/pre-commit"
 cp "$src" "$dst"
 chmod +x "$dst" 2>/dev/null || true
 echo "[install-hooks] pre-commit installed -> $dst"
-echo "[install-hooks] runs doc-coherence --check + study-guide --check on every commit."
+echo "[install-hooks] runs babel-test-lint (always) + doc-coherence/study-guide --check on every commit."
