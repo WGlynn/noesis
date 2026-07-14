@@ -80,6 +80,13 @@ pub mod reserve;
 /// enter replay); `advances_monotonically`/`observed_elapsed` are deterministic and replay-safe.
 pub mod wallclock;
 
+/// Never-halt liveness — the stall detector (`docs/DESIGN-never-halt-liveness.md`). The 2nd of the
+/// two never-halt pieces (the 1st, the min-difficulty floor, already lives in `pow::next_target`).
+/// Detects a PRODUCTION halt via committee wall-clocks that keep ticking through it, then snaps the
+/// next target to the floor so a modest miner revives the chain. CONSENSUS-ISOLATED SHADOW (the
+/// `jul`/`reserve`/`wallclock` precedent): pure/total, no wiring, never touches `state_digest`.
+pub mod liveness;
+
 /// A CKB-style script: a RISC-V program (by code hash) + its arguments. VM success
 /// = valid. Lock scripts gate ownership; type scripts gate state transitions.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
