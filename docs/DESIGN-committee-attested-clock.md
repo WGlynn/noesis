@@ -239,12 +239,22 @@ never-halt liveness item, cross-referenced here, not built in this spec.
 
 ## 8. Status
 
-- ✅ **built (this increment):** the pure validation kernel `node/src/wallclock.rs` — `within_tolerance`,
+- ✅ **built (kernel):** the pure validation kernel `node/src/wallclock.rs` — `within_tolerance`,
   `advances_monotonically`, `observed_elapsed` — with RED-first tests. Consensus-isolated shadow module
   (the `jul.rs`/`reserve.rs` precedent); no consensus wiring, no `state_digest` touch, additive.
-- 🟡 **designed-not-built:** the block `timestamp` field + its node-local admission check + the
-  deviation-challenge/gossip path + stake-weighted dispute adjudication + slashing wiring. Phase-2,
-  deploy-coupled (touches `validate_block`, wire, the dispute module, the bonded set's attestation keys).
+- ✅ **built (inc-CLK-1, INERT ADDITIVE — the M2a-1 precedent):** the block `timestamp: Option<u64>`
+  field carried on the wire (serde-default; legacy logs decode `None`) + the node-local admission
+  SEMANTICS `runtime::timestamp_admissible` shipped as a pure, tested helper, + the
+  `observed_elapsed → next_target` seam proven by test. **No consensus path reads or enforces the
+  timestamp** — it never enters `validate_block`/`state_digest`, replays deterministically even for
+  absurd values. `node/tests/clock_wiring.rs` (6 RED-first tests). Never a live ordering rule without
+  its magnitude guard (a monotonicity rule shipped without the admission bound bricks the channel on one
+  `Some(u64::MAX)` block — the Council finding that scoped inc-CLK-1 down to pure additive data).
+- 🟡 **designed-not-built (inc-CLK-2 — ships as ONE coherent enforcement unit):** the deterministic
+  monotonicity consensus rule + the node-local admission INGRESS (`timestamp_admissible` wired at the
+  daemon/vote path) that bounds the magnitude the rule orders + the header binding + the live retarget
+  activation (`next_target` on the block path with anchor state + genesis bits). Deploy-coupled; carries
+  the ⚑ numbers. THEN: the deviation-challenge/gossip path + stake-weighted adjudication + slashing.
 - 🔬 **open:** δ and max_staleness numbers (testnet-pinned); the never-halt stall-detector; whether the
   in-dispute reference aggregate is a plain median or BLS-signed (only matters inside a fired dispute).
 

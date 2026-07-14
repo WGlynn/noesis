@@ -501,6 +501,19 @@ pub struct Block {
     /// consensus path reads it. Under enforcement (M2a-2) the mined difficulty flows from here into
     /// `block_work` (issuance + the monotone work-clock), after `validate_block` proves the seal.
     pub pow: Option<PowSeal>,
+    /// Committee-attested wall-clock time (inc-CLK-1; `docs/DESIGN-committee-attested-clock.md`). The
+    /// PHYSICAL clock the difficulty retarget will read (distinct from the cumulative-work clock the
+    /// chain owns). `None` ⇒ no time claimed (every pre-CLK block ⇒ replay-parity preserved, exactly
+    /// like `pow`/`coinbase: None`). INERT ADDITIVE DATA MODEL (the M2a-1 precedent): inc-CLK-1 carries
+    /// the field on the wire and ships the pure validation SEMANTICS ([`timestamp_admissible`] +
+    /// `wallclock::advances_monotonically`) as tested helpers, but NO consensus path reads or enforces
+    /// it yet — never folded into `state_digest`, never gates `validate_block`. The ENFORCEMENT bundle
+    /// (deterministic monotonicity rule + the node-local admission INGRESS that bounds its magnitude +
+    /// the header binding + the `observed_elapsed → next_target` activation) ships as ONE coherent unit
+    /// in inc-CLK-2 with the ⚑ numbers — never a live ordering rule without its magnitude guard (the
+    /// Council caught that asymmetry: monotonicity's safety DEPENDS on the tolerance bound, so the two
+    /// are interdependent and must land together — [[role-conflation-is-the-bottleneck]] inverted).
+    pub timestamp: Option<u64>,
 }
 
 impl Block {
@@ -518,6 +531,7 @@ impl Block {
             token_txs: Vec::new(),
             coinbase: None,
             pow: None,
+            timestamp: None,
         }
     }
 
@@ -539,6 +553,14 @@ impl Block {
     /// mined `nonce`; the work it represents is derived at validation/apply (M2a-2), never carried.
     pub fn with_pow(mut self, bits: u32, nonce: u64) -> Block {
         self.pow = Some(PowSeal { bits, nonce });
+        self
+    }
+
+    /// Attach a committee-attested wall-clock timestamp (inc-CLK-1 builder; `None` by default). The
+    /// difficulty retarget reads it via `observed_elapsed`; monotonicity is a consensus rule and the
+    /// node-local tolerance band is checked at admission, never on replay.
+    pub fn with_timestamp(mut self, t: u64) -> Block {
+        self.timestamp = Some(t);
         self
     }
 }
@@ -659,6 +681,10 @@ pub fn header_digest(b: &Block) -> [u8; 32] {
     let (bits, nonce) = b.pow.as_ref().map(|s| (s.bits, s.nonce)).unwrap_or((0, 0));
     buf.extend_from_slice(&bits.to_le_bytes());
     buf.extend_from_slice(&nonce.to_le_bytes());
+    // NOTE (inc-CLK-1): the block `timestamp` is NOT bound here yet — it is inert additive data this
+    // increment (the M2a-1 precedent: the seal was carried before it was header-bound in M2a-2). The
+    // header binding ships in inc-CLK-2 alongside the monotonicity enforcement it protects, so the
+    // anti-malleability property arrives WITH the rule that would otherwise be weaponizable.
     noesis_core::pow::hash(&buf)
 }
 
@@ -936,7 +962,27 @@ pub fn validate_block(ledger: &Ledger, b: &Block, c: &Constitution) -> Result<()
         return Err(Violation::TokenTxInvalidOrDoubleSpend);
     }
     pow_check(b, c)?;
+    // NOTE (inc-CLK-1): the block `timestamp` is deliberately NOT validated here. It is inert additive
+    // data this increment (the M2a-1 precedent). The deterministic monotonicity rule ships in inc-CLK-2
+    // BUNDLED with its magnitude guard (the node-local admission ingress) + the retarget activation —
+    // never a live ordering rule without the bound its safety depends on (Council finding, 2026-07-14).
     Ok(())
+}
+
+/// NODE-LOCAL admission SEMANTICS (inc-CLK-1) — is a block's committee-attested `timestamp` acceptable
+/// to a validating node RIGHT NOW, given that node's own live clock reading `local_now` and the
+/// tolerance band `delta`? This is the NON-DETERMINISTIC half of timestamp validity: it MUST NEVER
+/// enter `validate_block`/`Node::validate`/`apply_block` or `state_digest`, because `sync.rs`
+/// re-validates HISTORICAL blocks through `Node::validate` and a clock check there would make a joiner
+/// reject the entire canonical chain (every old timestamp is far outside `delta` of the joiner's
+/// present clock). Shipped as a pure, tested helper (the pow-arithmetic precedent) — inc-CLK-2 wires it
+/// at the live-proposal INGRESS (the daemon/vote path), where it bounds the magnitude the monotonicity
+/// rule then orders. A `None` timestamp is admissible (inert). `delta` is a ⚑ Will-ratified number
+/// (design §5): no default is provided on purpose — too tight ⇒ honest clock-skew false-alarms, too
+/// loose ⇒ a bounded ±delta grind margin. Symmetric (bounds a future- and a past-dated value alike).
+pub fn timestamp_admissible(b: &Block, local_now: u64, delta: u64) -> bool {
+    b.timestamp
+        .map_or(true, |t| crate::wallclock::within_tolerance(t, local_now, delta))
 }
 
 /// Checks (5)+(6) over the ledger's token-cell set: each tx is ledger-valid (conserves AND spends
@@ -1091,6 +1137,8 @@ fn apply_transition(state: &mut Ledger, b: &Block, params: &Constitution) {
     for cell in &b.cells {
         state.finalized_at.entry(cell.id).or_insert(finalized_now);
     }
+    // (inc-CLK-1): the block `timestamp` is inert additive data — no apply-side effect this increment.
+    // The monotonicity comparand it will feed lands in inc-CLK-2 with the enforcement bundle.
     // recompute PoM attribution over the full chain (integer Q16.16 similarity floor).
     state.pom = pom_scores_with_similarity_floor_q16(&state.cells, params.theta_sim_q16);
 }

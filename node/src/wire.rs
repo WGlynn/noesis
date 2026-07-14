@@ -76,6 +76,11 @@ struct WBlock {
     /// the byte-identical restart/replay contract — the same additive precedent as `coinbase`.
     #[serde(default)]
     pow: Option<WPowSeal>,
+    /// Committee-attested wall-clock timestamp (inc-CLK-1). `#[serde(default)]` ⇒ pre-CLK block logs
+    /// (no field) decode as `None`, preserving the byte-identical restart/replay contract — the same
+    /// additive precedent as `pow`/`coinbase`.
+    #[serde(default)]
+    timestamp: Option<u64>,
 }
 
 // ============ conversions (real type -> wire) ============
@@ -121,6 +126,7 @@ fn w_block(b: &Block) -> WBlock {
         token_txs: b.token_txs.iter().map(w_tokentx).collect(),
         coinbase: b.coinbase.as_ref().map(w_script),
         pow: b.pow.map(|s| WPowSeal { bits: s.bits, nonce: s.nonce }),
+        timestamp: b.timestamp,
     }
 }
 
@@ -168,6 +174,7 @@ fn r_block(b: WBlock) -> Result<Block, WireError> {
         token_txs: b.token_txs.into_iter().map(r_tokentx).collect::<Result<_, _>>()?,
         coinbase: b.coinbase.map(r_script),
         pow: b.pow.map(|s| PowSeal { bits: s.bits, nonce: s.nonce }),
+        timestamp: b.timestamp,
     })
 }
 
