@@ -1,5 +1,9 @@
 # SEED — "Measured Contribution Dissolves the Redistribution Dichotomy"
 
+> ⟶ **SUPERSEDED (2026-07-14):** the draft now lives at
+> `contribution-measurement-dissolves-redistribution.md` (v0.2, prose + the capture-resistant
+> token-architecture section). This SEED is kept as the thesis-capture / outline of record.
+
 > **STATUS: SEED / outline for a future whitepaper** (Will 2026-07-13: *"this generalizability
 > dissolution of the 'socialist redistribution perception' is worth its own whitepaper 100%"*).
 > This is a thesis capture + section outline, NOT the paper. Expand with the marginal-contribution
