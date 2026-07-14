@@ -69,6 +69,21 @@ So the clock does **not** add oracle-dependence to an otherwise cryptographicall
 ~everything that was *always* oracle-shaped, sitting atop the one self-evident anchor beneath all of it.
 The clock is not a new weak link — it is the *same epistemic category as finality itself* (Will, 2026-07-14).
 
+**PoW is still an anchor to objective reality in consensus — but for on-chain data, not off-chain (Will,
+2026-07-14).** Keeping PoW in the consensus mix (NCI `pow 0.10`) means the chain retains a tie to physics.
+But that anchor secures **on-chain** facts — block production, Sybil-cost, JUL issuance (energy → coins) —
+not **off-chain** veracity. It cannot prove what time it is. (Note Noesis excludes PoW from *finality*
+(`FINALITY_MIX.pow == 0`) yet PoW remains the objective anchor for production/issuance — the anchor role and
+the finality role are distinct.) So the epistemics are three layers, not two:
+- **L0 — on-chain, self-evident (PoW):** physics/thermodynamic truth. Ordering, Sybil-cost, issuance.
+- **L1 — on-chain, incentive-settled (PoS/PoM/finality/state):** *validity* cryptographic, *canonicity*
+  incentive-based. The chain's internal consensus.
+- **L2 — off-chain, imported (time, oracle data):** objectively real, but **not self-verifiable on-chain**;
+  attestation *validity* cryptographic, *veracity* incentive-based. The clock lives here.
+
+The clock (L2) tunes L0's difficulty without corrupting it — the oracle sets the bar's height; PoW's
+self-evidence of clearing the bar is untouched.
+
 **And the confluence with the blast-radius fence (§3): the one oracle input tunes the one self-evident
 mechanism, but cannot corrupt it.** Time feeds the retarget, which sets PoW difficulty. Yet a seal that
 meets its target is valid *on its own terms* regardless of whether the target was set by an honest or a
@@ -182,6 +197,33 @@ is also resolved by stake/work-weight, not headcount, so this keeps the equivale
 place a naive "count the nodes" implementation silently reopens the hole.
 
 ---
+
+## 6.1 What Pragma coherence adds — the mechanism, not the fact (🔬 / partner)
+
+Pragma's Coherence engine (`[[pragma-os-crys-contact]]`; Tom Lindeman / Bernhard Mueller — integration is
+terms-first, POC-offered, **not built**) helps here, but only in a bounded way that must not be overclaimed
+into the Nazarov error one layer up.
+
+**What it CAN'T do:** give the external fact cryptographic veracity. No amount of rule-coherence-checking
+proves `T == real UTC`. The airgap for the *imported fact* stays incentive-based (L2). Claiming Pragma
+"makes the clock cryptographically true" would be the exact validity≠veracity error from §1, moved up a level.
+
+**What it CAN do — strengthen the veracity of the *mechanism* (L1 rules that process the L2 fact):**
+- **Confluence** — machine-check that the deviation-challenge / adjudication rules are *confluent*: every
+  honest node, given the same attestations, reaches the **same** accept/reject/slash verdict regardless of
+  gossip order. That removes a real failure mode — "the mechanism told different nodes different things,"
+  which is a veracity failure of the *mechanism* even when each attestation is individually valid.
+- **Reconcile** — Pragma's agent-state reconciliation is, structurally, the clock's dispute-convergence
+  (all nodes converge on one accepted time). A direct fit.
+- **Confluence on amendments** — verify a governance change to δ / the slashing rule stays *axiom-preserving*
+  (e.g. does not silently flip adjudication from stake-weighted to node-count and reopen the §6 Sybil hole).
+  This is Tom's dangerous "confluent + axiom-breaking" quadrant applied to the clock's own rules, hooked
+  through the built amendment socket (`node/src/amendment.rs`).
+
+**Net:** Pragma raises the *floor* of the incentive-veracity layer — it turns "we argue the incentives hold"
+into "the rule-processing is machine-checked coherent," which is the honest §1 obligation (*show* the
+incentives hold structurally) discharged rigorously. It does **not** convert incentive-veracity into
+cryptographic veracity. It makes the bridge provably coherent; it never crosses the airgap.
 
 ## 7. Liveness / never-halt
 
