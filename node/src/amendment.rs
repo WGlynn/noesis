@@ -41,6 +41,27 @@ pub enum Layer {
     Governance,
 }
 
+/// WHO may authorize an amendment (`docs/DESIGN-governance-authority-tiering.md`). ORTHOGONAL to
+/// [`Layer`] (which says WHAT is changed): a Governance-layer move still requires *Contribution*
+/// authority when it touches the MEASURE. This is inert classification METADATA — the vote-counting
+/// layer (PoM-standing-weighted for `Contribution`, buyable VIBE stewardship for `Stewardship`) is
+/// DEFERRED: it needs the VIBE token + a sybil-resistant vote curve, which is a mechanism-design-paper
+/// decision, not invented here. This tags the attach-point that layer will read. The anti-plutocracy
+/// property does NOT depend on it — it is carried structurally (soulbound weight + the `pos ≤ pom` mix
+/// bound + the axiom gate); the authority tag is legitimacy on top.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Authority {
+    /// Earned, soulbound PoM-standing must authorize. A say over WHAT COUNTS AS CONTRIBUTION (the
+    /// measure) or the MIX DIRECTION cannot be bought — sybil-resistance is inherited from the PoM
+    /// measure itself (you cannot split soulbound standing across wallets), so it opens no new sybil
+    /// surface; it reduces to the un-gameability moat the chain already stakes on.
+    Contribution,
+    /// Buyable, exitable VIBE stewardship. Operational dials that tune the machine without redefining
+    /// contribution or shifting power between capital and contribution; bounded + axiom-gated, so even
+    /// vote-domination cannot reach a plutocratic state (the outcome bound does the work).
+    Stewardship,
+}
+
 /// A governance-layer scalar field of [`Constitution`]. (`decay_pos` is carried as 0/1; `mix` is not
 /// here — it has its own [`Amendment::AmendMix`] variant because it is a 3-tuple with a sum invariant.)
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -78,6 +99,20 @@ impl GovField {
             GovField::ThetaSimQ16 => "theta_sim_q16",
             GovField::VestingW => "vesting_w",
             GovField::MaxMempool => "max_mempool",
+        }
+    }
+
+    /// Which authority class may amend this field (`docs/DESIGN-governance-authority-tiering.md`).
+    /// MEASURE-defining fields (what counts as contribution + how fast it clears) require earned,
+    /// soulbound `Contribution` authority; the rest are operational dials under buyable `Stewardship`.
+    pub fn authority(self) -> Authority {
+        match self {
+            GovField::ThetaSimQ16 | GovField::VestingW => Authority::Contribution,
+            GovField::ThresholdBps
+            | GovField::QuorumFloorBps
+            | GovField::Horizon
+            | GovField::DecayPos
+            | GovField::MaxMempool => Authority::Stewardship,
         }
     }
 }
@@ -137,6 +172,10 @@ pub enum ObligationBreach {
     MixNotNormalized { sum_e4: i64 },
     /// A mix component is negative.
     MixNegative,
+    /// An `AmendMix` would make capital (PoS) outweigh contribution (PoM) — the number-free
+    /// anti-plutocracy mix bound (`pos ≤ pom`). Governance may retune the NCI mix but can never tilt the
+    /// chain toward capital-rule (`docs/DESIGN-governance-authority-tiering.md`).
+    CapitalOutweighsContribution { pos_e4: i64, pom_e4: i64 },
 }
 
 impl Amendment {
@@ -148,6 +187,23 @@ impl Amendment {
             | Amendment::RetireDimension { .. }
             | Amendment::ReweightDimension { .. } => Layer::Constitutional,
             Amendment::AmendPhysics { .. } => Layer::Physics,
+        }
+    }
+
+    /// WHO may authorize this amendment (`docs/DESIGN-governance-authority-tiering.md`). `None` = never
+    /// authorizable (physics near-immutable). ORTHOGONAL to [`Self::layer`]: a Governance-layer param can
+    /// be either class depending on whether it touches the MEASURE. Reweighting the mix and defining the
+    /// dimension set both shift/define what contribution is worth ⇒ `Contribution`. Inert metadata: the
+    /// vote-counting layer that will read this is DEFERRED (needs VIBE — *earned by validation*, proposed
+    /// — plus a sybil-resistant vote curve, an MD-paper decision).
+    pub fn authority(&self) -> Option<Authority> {
+        match self {
+            Amendment::AmendParam { field, .. } => Some(field.authority()),
+            Amendment::AmendMix { .. } => Some(Authority::Contribution),
+            Amendment::AddDimension { .. }
+            | Amendment::RetireDimension { .. }
+            | Amendment::ReweightDimension { .. } => Some(Authority::Contribution),
+            Amendment::AmendPhysics { .. } => None,
         }
     }
 
@@ -257,6 +313,17 @@ fn check_mix(m: &Mix) -> Result<(), ObligationBreach> {
     let sum = m.pow + m.pos + m.pom;
     if (sum - 1.0).abs() > 1e-9 {
         return Err(ObligationBreach::MixNotNormalized { sum_e4: ((sum - 1.0) * 10_000.0).round() as i64 });
+    }
+    // Anti-plutocracy mix bound (DESIGN-governance-authority-tiering.md): capital's share may NEVER
+    // exceed contribution's — `pos ≤ pom`. The anti-plutocracy thesis in token form, NUMBER-FREE (no
+    // invented floor): contribution stays the dominant axis, so a buyable-governance capture cannot tilt
+    // the NCI mix toward capital-rule. (Finality safety is separately fenced by the LOCKED FINALITY_MIX +
+    // MIN_DIM_BPS; this bounds the OVERALL NCI mix the socket governs, which those do not.)
+    if m.pos > m.pom + 1e-9 {
+        return Err(ObligationBreach::CapitalOutweighsContribution {
+            pos_e4: (m.pos * 10_000.0).round() as i64,
+            pom_e4: (m.pom * 10_000.0).round() as i64,
+        });
     }
     Ok(())
 }
@@ -475,6 +542,51 @@ mod tests {
         let new = Mix { pow: -0.1, pos: 0.5, pom: 0.6 }; // sums to 1.0 but negative pow
         let a = Amendment::AmendMix { old: NCI, new };
         assert!(matches!(verify_amendment(&c, &a), Err(ObligationBreach::MixNegative)));
+    }
+
+    // --- anti-plutocracy mix bound: capital may never outweigh contribution (pos <= pom) ---
+
+    #[test]
+    fn mix_capital_outweighing_contribution_rejected() {
+        let c = base();
+        // valid probability split (sum 1, non-negative) but pos 0.50 > pom 0.40 — a tilt toward capital.
+        let new = Mix { pow: 0.10, pos: 0.50, pom: 0.40 };
+        let a = Amendment::AmendMix { old: NCI, new };
+        // ANTI-THEATER: drop the `pos <= pom` check in `check_mix` ⇒ this capital-dominant mix validates ⇒ RED.
+        assert!(matches!(
+            verify_amendment(&c, &a),
+            Err(ObligationBreach::CapitalOutweighsContribution { .. })
+        ));
+    }
+
+    #[test]
+    fn mix_capital_equal_to_contribution_ok() {
+        let c = base();
+        let new = Mix { pow: 0.20, pos: 0.40, pom: 0.40 }; // pos == pom is the allowed boundary
+        let a = Amendment::AmendMix { old: NCI, new };
+        assert!(verify_amendment(&c, &a).is_ok(), "pos == pom is the knife-edge, allowed");
+    }
+
+    // --- authority classification: measure -> Contribution, dials -> Stewardship ---
+
+    #[test]
+    fn amendment_authority_tiers_measure_vs_dials() {
+        let param = |f| Amendment::AmendParam { field: f, old: 0, new: 0 };
+        // measure-defining -> Contribution (a say over what counts as contribution is not buyable).
+        assert_eq!(param(GovField::ThetaSimQ16).authority(), Some(Authority::Contribution));
+        assert_eq!(param(GovField::VestingW).authority(), Some(Authority::Contribution));
+        // reweighting the mix / defining the dimension set also shape what contribution is worth.
+        assert_eq!(
+            Amendment::AmendMix { old: NCI, new: NCI }.authority(),
+            Some(Authority::Contribution)
+        );
+        assert_eq!(Amendment::AddDimension { id: 1 }.authority(), Some(Authority::Contribution));
+        // operational dials -> Stewardship (buyable, exitable, bounded).
+        assert_eq!(param(GovField::ThresholdBps).authority(), Some(Authority::Stewardship));
+        assert_eq!(param(GovField::QuorumFloorBps).authority(), Some(Authority::Stewardship));
+        assert_eq!(param(GovField::MaxMempool).authority(), Some(Authority::Stewardship));
+        // physics is near-immutable -> no one authorizes.
+        assert_eq!(Amendment::AmendPhysics { what: "x" }.authority(), None);
     }
 
     // --- layer routing: physics rejected, constitutional pending ---
