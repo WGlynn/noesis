@@ -13,7 +13,17 @@ carrier cannot escape the conflict — it only trades one role's loss for the ot
 dissolves the constraint instead of pushing it.
 
 This is not a metaphor we apply after the fact. It is a design lens we run *before* building any
-mechanism: does this carrier serve two roles? Do their pressures conflict? If yes, split.
+mechanism, and it has a default form and a sharpened form:
+
+- **Default (independence test): always decouple non-interdependent tasks.** If two roles have no
+  genuine interdependence (no data-dependency forcing them into one step), welding them is a legacy
+  artifact, not a requirement — decouple by default. Independence is the *license* to separate.
+- **Sharpened (conflict test):** when the two welded roles additionally have *conflicting optimization
+  pressures*, separation is not merely tidy, it is load-bearing — the conflation is the bottleneck, and
+  optimizing the shared carrier can only trade one role's loss for the other's.
+
+So the lens is: does this carrier serve two roles? Are they interdependent? If not, decouple. Do their
+pressures conflict? Then decoupling is mandatory, not optional.
 
 ## Why it is a real abstraction, not a framing coincidence
 
@@ -21,8 +31,8 @@ The same shape appears independently across three unrelated substrates:
 
 | Substrate | The conflated carrier | The two roles in tension | The separation |
 |---|---|---|---|
-| **ML architecture** | a single transformer forward pass / layer | *state maintenance* (preserve & update context) vs *prediction* (emit the next token) | the State-Prediction Separation Hypothesis: architecturally distinct pathways so each optimizes independently (arXiv 2607.01218 — see note) |
-| **Consensus** | a single Bitcoin block | *transaction confirmation/propagation* vs *leader election / proof-of-work ordering* | NC-MAX (Nervos CKB): two-step propose→commit + orphan-aware difficulty, so throughput stops being hostage to the security parameter |
+| **ML architecture** | one transformer forward-computation stream | *storing state for future predictions* vs *predicting the next token* | the State-Prediction Separation Hypothesis (Monea et al.): a Transformer variant with **two computation streams**, one per role; +2–3 pp on downstream tasks [1] |
+| **Consensus** | Bitcoin's single confirmation step | *transaction dissemination* vs *block propagation / PoW* — welded, so not-yet-propagated txs inflate block-propagation latency | NC-Max (Ren et al., NDSS): two-step **propose→commit** removes tx propagation from the block critical path; orphan-aware difficulty counts all valid blocks ⇒ selfish mining unprofitable; 3.0–6.6× lower confirmation latency [2] |
 | **Noesis (this repo)** | several — see below | safety⊥liveness, time⊥safety, observer⊥observed, money⊥governance⊥capital | a dedicated pathway per role, as a repeated design law |
 
 Convergence across ML, consensus, and our own stack is the evidence the abstraction is real: three
@@ -73,10 +83,28 @@ was written.
 
 ## Honest boundaries
 
-- The two external instances are cited for the *pattern*, not asserted at engineering precision. The
-  SPSH claim is from a thin automated read of arXiv 2607.01218 — verify against the paper before any
-  publication leans on its specifics. NC-MAX's two-step and orphan-aware difficulty details should be
-  re-grounded from the CKB/NC-MAX source before citation.
-- The law is a *lens*, not a theorem: not every two-role carrier must be split (splitting has its own
-  cost — extra pathways, coordination). The trigger is *conflicting optimization pressures*. When the
-  roles are aligned, welding is fine. The judgment is whether the pressures actually pull apart.
+- The two external instances are now grounded in their sources (References). One honest nuance on SPSH:
+  the paper states its result as *"disentangling the two roles yields better language modeling
+  performance"* — it demonstrates that separation *helps* and reports the efficiency/accuracy gains; the
+  *"conflicting optimization pressures"* framing for *why* is our reading, not language the paper uses.
+  For NC-Max, the precise separation is transaction *dissemination* from block *propagation* (we earlier
+  wrote "leader election" loosely — corrected above).
+- The law is a *lens*, not a theorem: splitting has its own cost (extra pathways, coordination). The
+  independence test says *may* decouple; the conflict test says *must*. When the roles are genuinely
+  interdependent AND their pressures are aligned, welding is correct. The judgment is whether the tasks
+  are actually independent and whether the pressures actually pull apart.
+
+## References
+
+1. G. Monea, N. Godey, K. Brantley, Y. Artzi. *The State-Prediction Separation Hypothesis.*
+   arXiv:2607.01218. The paper: *"Transformers use the same forward computation stream to both predict
+   the next token and store useful state for future token predictions... disentangling the two roles
+   yields better language modeling performance,"* via *"a Transformer variant that uses two computation
+   streams to separate the two functions"* — reporting better data/compute efficiency and +2–3 pp on
+   downstream tasks on average.
+2. K. Ren et al. *NC-Max: Breaking the Security-Performance Tradeoff in Nakamoto Consensus.* NDSS
+   Symposium. Implemented in Nervos CKB; full spec in RFC 0020 (CKB Consensus Protocol). Identifies
+   block-propagation latency from not-yet-propagated transactions as NC's bottleneck; two-step
+   propose→commit removes transaction propagation from the block critical path; difficulty adjustment
+   counts all valid blocks (including uncles) to measure true compute power, making selfish mining
+   unprofitable; reported 3.0–6.6× reduction in confirmation latency without weakening security.
