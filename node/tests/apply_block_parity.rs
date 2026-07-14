@@ -72,7 +72,8 @@ fn apply_block_matches_node_apply_over_vectors() {
     let con = Constitution::default();
 
     // OLD path: the in-place node applier (validators empty — we exercise apply/validate, not finality).
-    let mut node = Node::new(0, Vec::new(), con);
+    // (`con` is cloned in — Constitution is no longer `Copy` since it carries the coinbase-split `Vec`.)
+    let mut node = Node::new(0, Vec::new(), con.clone());
     // NEW path: fold the pure rulebook from an empty ledger.
     let mut state = Ledger::new();
 

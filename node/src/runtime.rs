@@ -36,7 +36,7 @@ use std::collections::{HashMap, HashSet};
 ///   - **governance**: weights within the bounded set, fluid.
 /// v1 carries only the finalization frame; the dimension-matrix amendment rules are the
 /// next build (`pending`: a constitutional cell whose transitions obey the verifier gate).
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct Constitution {
     /// PoM-weighted finalization mix (NCI as-built: 10/30/60 PoW/PoS/PoM).
     pub mix: Mix,
@@ -88,6 +88,18 @@ pub struct Constitution {
     /// default to their inert value). The difficulty RETARGET rule + genesis bits + the work-clock
     /// ceiling are ⚑ M3 (Will-gated), deliberately absent here.
     pub pow_enforced: bool,
+    /// The N-way JUL issuance split (inc-M3-3, the L-INFRA carve-out). Each `(recipient, bps)` carves a
+    /// slice `= reward · bps / 10_000` from the ONE constructed coinbase reward and mints it to
+    /// `recipient` as a coinbase SLICE cell ([`crate::jul::coinbase_slice_id`]); the producer
+    /// (`block.coinbase`) takes the REMAINDER — so the coinbase stays the structurally-unique inflation
+    /// channel and issuance is conserved by construction (Σ slices + producer == reward, even if the bps
+    /// are misconfigured to sum past 10_000: each slice is capped at the remaining balance, so it can
+    /// starve the producer but NEVER over-mint). Default EMPTY ⇒ the producer takes 100% ⇒ byte-identical
+    /// to pre-M3 (the inert-default precedent of `pow_enforced`/`vesting_w`). A governable list,
+    /// extensible to a new recipient with no consensus-breaking reopen (the L-INFRA anti-retrofit
+    /// requirement). This ships the routing MECHANISM; the per-recipient SEMANTICS (a plain lock vs a
+    /// PoM-routed infra payout) is the open ⚑/🔬 seam — deferred config, not decided here.
+    pub coinbase_split: Vec<(Script, u16)>,
 }
 
 impl Default for Constitution {
@@ -103,6 +115,7 @@ impl Default for Constitution {
             max_mempool: 10_000,  // resource-DoS bound A: per-replica mempool admission cap
             jul: crate::jul::JulParams::default(), // 1 JUL per unit of work (v0 unit-definition)
             pow_enforced: false,  // inert: block_work == WORK_PER_BLOCK ⇒ byte-identical to pre-M2
+            coinbase_split: Vec::new(), // inert: producer takes 100% ⇒ byte-identical to pre-M3
         }
     }
 }
@@ -977,17 +990,39 @@ fn apply_transition(state: &mut Ledger, b: &Block, params: &Constitution) {
     if let Some(recipient) = &b.coinbase {
         let reward = crate::jul::reward_for_work(block_work(b, params), params.jul);
         if reward > 0 {
-            state.token_cells.push(Cell {
-                id: crate::jul::coinbase_id(b.height),
-                lock: recipient.clone(),
-                type_script: Script {
-                    code_hash: crate::jul::JUL_CODE_HASH,
-                    args: crate::jul::JUL_ISSUER.to_vec(),
-                },
-                parent: None,
-                timestamp: 0,
-                data: crate::tokens::fungible::encode(reward),
-            });
+            let jul_type = Script {
+                code_hash: crate::jul::JUL_CODE_HASH,
+                args: crate::jul::JUL_ISSUER.to_vec(),
+            };
+            // Route the ONE constructed reward as N slices (each capped at the remaining balance, so a
+            // misconfigured Σ bps > 10_000 can NEVER over-mint — it only starves the producer) + the
+            // producer REMAINDER. An EMPTY split skips the loop ⇒ a single producer cell at `coinbase_id`
+            // ⇒ byte-identical to pre-M3. Σ slices + producer == reward ⇒ conservation by construction.
+            let mut remaining = reward;
+            for (index, (lock, bps)) in params.coinbase_split.iter().enumerate() {
+                let slice = (reward.saturating_mul(*bps as u128) / 10_000).min(remaining);
+                if slice > 0 {
+                    state.token_cells.push(Cell {
+                        id: crate::jul::coinbase_slice_id(b.height, index as u64),
+                        lock: lock.clone(),
+                        type_script: jul_type.clone(),
+                        parent: None,
+                        timestamp: 0,
+                        data: crate::tokens::fungible::encode(slice),
+                    });
+                    remaining -= slice;
+                }
+            }
+            if remaining > 0 {
+                state.token_cells.push(Cell {
+                    id: crate::jul::coinbase_id(b.height),
+                    lock: recipient.clone(),
+                    type_script: jul_type,
+                    parent: None,
+                    timestamp: 0,
+                    data: crate::tokens::fungible::encode(remaining),
+                });
+            }
             state.jul_supply.credit(reward);
         }
     }

@@ -48,9 +48,21 @@ pub const JUL_ISSUER: &[u8] = b"NOESIS-JUL-ISSUER-v0-nobody-holds-this-key";
 /// collide with a coinbase identity and grief its retirement.
 pub const COINBASE_ID_BIT: u64 = 1 << 63;
 
-/// The deterministic coinbase cell id for a block at `height`.
+/// The deterministic coinbase cell id for a block at `height` — the PRODUCER's reward. Never sets
+/// [`SPLIT_SLICE_BIT`] (requires `height < 2^62`, astronomical), so it is disjoint from every slice id.
 pub fn coinbase_id(height: u64) -> u64 {
     COINBASE_ID_BIT | height
+}
+
+/// Second reserved bit, set ONLY on coinbase SLICE cells (the N-way split recipients, inc-M3-3). Keeps a
+/// slice id disjoint from every producer [`coinbase_id`] (which never sets it) while staying inside the
+/// [`COINBASE_ID_BIT`] reserved half ⇒ token-tx outputs remain barred from slice ids too.
+pub const SPLIT_SLICE_BIT: u64 = 1 << 62;
+
+/// The deterministic id of the `index`-th coinbase SLICE cell at `height`. Unique per `(height, index)`
+/// and disjoint from every `coinbase_id`. Bounds (astronomical): `height < 2^54`, `index < 256`.
+pub fn coinbase_slice_id(height: u64, index: u64) -> u64 {
+    COINBASE_ID_BIT | SPLIT_SLICE_BIT | ((height & 0x003f_ffff_ffff_ffff) << 8) | (index & 0xff)
 }
 
 /// Is this cell a JUL cell (matches the JUL type-script program + issuer)?

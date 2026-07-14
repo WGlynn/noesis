@@ -27,6 +27,12 @@ fn genesis() -> Node {
     Node::new(0, validators, Constitution::default())
 }
 
+/// A `Node` whose Constitution carries a JUL coinbase split (inc-M3-3); all other params default.
+fn genesis_with_split(split: Vec<(Script, u16)>) -> Node {
+    let validators = vec![Validator { id: 0, pow: 0.0, pos: 1000.0, pom: 0.0, last_heartbeat: 0, staked_balance: 1000.0 }];
+    Node::new(0, validators, Constitution { coinbase_split: split, ..Constitution::default() })
+}
+
 fn cell(id: u64, contributor: &[u8], ts: u64, data: &[u8]) -> Cell {
     Cell {
         id,
@@ -290,4 +296,57 @@ fn coinbase_does_not_touch_attribution() {
     let (ids_w, root_w, pom_w, _tok_w, work_w) = with.ledger.state_digest();
     let (ids_wo, root_wo, pom_wo, _tok_wo, work_wo) = without.ledger.state_digest();
     assert_eq!((ids_w, root_w, pom_w, work_w), (ids_wo, root_wo, pom_wo, work_wo), "attribution digest unaffected by JUL");
+}
+
+/// The N-way split (inc-M3-3) routes each `(recipient, bps)` slice from the ONE constructed reward and
+/// hands the producer the REMAINDER — conserving supply exactly, with slices under disjoint reserved ids.
+/// RED break: drop the `if remaining > 0` producer mint ⇒ Σ minted < reward ⇒ conservation fails.
+#[test]
+fn coinbase_split_routes_slices_and_conserves() {
+    let reward = jul::reward_for_work(1, JulParams::default());
+    let mut node = genesis_with_split(vec![(recipient(b"infra"), 2000), (recipient(b"treasury"), 500)]);
+    produce(&mut node, 1, b"a novel contribution funding an infra split", Some(recipient(b"miner")));
+
+    let jul_cells: Vec<&Cell> = node.ledger.token_cells.iter().filter(|c| jul::is_jul(c)).collect();
+    assert_eq!(jul_cells.len(), 3, "producer + 2 slices");
+    let amount_for = |owner: &[u8]| -> u128 {
+        jul_cells.iter().filter(|c| c.lock.args.as_slice() == owner).map(|c| fungible::amount(c)).sum()
+    };
+    assert_eq!(amount_for(b"infra"), reward * 2000 / 10_000, "infra slice = 20%");
+    assert_eq!(amount_for(b"treasury"), reward * 500 / 10_000, "treasury slice = 5%");
+    assert_eq!(amount_for(b"miner"), reward - reward * 2000 / 10_000 - reward * 500 / 10_000, "producer = remainder (75%)");
+    let total: u128 = jul_cells.iter().map(|c| fungible::amount(c)).sum();
+    assert_eq!(total, reward, "Σ slices + producer == reward (conservation by construction)");
+    assert_eq!(node.ledger.jul_supply.issued(), reward, "supply credited exactly once, by the reward");
+
+    let producer = jul_cells.iter().find(|c| c.lock.args.as_slice() == b"miner").unwrap();
+    assert_eq!(producer.id, coinbase_id(1), "the producer keeps the base coinbase id");
+    for c in jul_cells.iter().filter(|c| c.lock.args.as_slice() != b"miner") {
+        assert_ne!(c.id, coinbase_id(1), "a slice id never collides with the producer id");
+        assert!(c.id & jul::SPLIT_SLICE_BIT != 0, "slices sit in the reserved slice space");
+        assert!(c.id & jul::COINBASE_ID_BIT != 0, "slices stay barred from token-tx outputs");
+    }
+    // ANTI-THEATER: drop the `if remaining > 0` producer mint ⇒ Σ < reward ⇒ the conservation assert RED.
+}
+
+/// A misconfigured split summing PAST 100% can starve the producer but can NEVER over-mint: each slice is
+/// capped at the remaining balance, so Σ minted == reward exactly.
+/// RED break: remove the `.min(remaining)` cap ⇒ each slice mints its full share ⇒ Σ > reward (inflation).
+#[test]
+fn coinbase_split_over_100pct_cannot_over_mint() {
+    let reward = jul::reward_for_work(1, JulParams::default());
+    let mut node = genesis_with_split(vec![(recipient(b"a"), 8000), (recipient(b"b"), 8000)]);
+    produce(&mut node, 1, b"a novel contribution with an over-allocated split", Some(recipient(b"miner")));
+
+    let jul_cells: Vec<&Cell> = node.ledger.token_cells.iter().filter(|c| jul::is_jul(c)).collect();
+    let total: u128 = jul_cells.iter().map(|c| fungible::amount(c)).sum();
+    assert_eq!(total, reward, "even a >100% split mints EXACTLY the reward, never more");
+    assert_eq!(node.ledger.jul_supply.issued(), reward, "supply == reward (no over-issuance)");
+    let amount_for = |owner: &[u8]| -> u128 {
+        jul_cells.iter().filter(|c| c.lock.args.as_slice() == owner).map(|c| fungible::amount(c)).sum()
+    };
+    assert_eq!(amount_for(b"a"), reward * 8000 / 10_000, "first slice = 80%");
+    assert_eq!(amount_for(b"b"), reward - reward * 8000 / 10_000, "second slice capped at the remaining 20%");
+    assert_eq!(amount_for(b"miner"), 0, "producer starved to 0 — but no over-mint");
+    // ANTI-THEATER: remove `.min(remaining)` ⇒ slice b mints a full 80% ⇒ Σ = 160% of reward ⇒ RED.
 }
