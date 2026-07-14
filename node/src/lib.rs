@@ -87,6 +87,14 @@ pub mod wallclock;
 /// `jul`/`reserve`/`wallclock` precedent): pure/total, no wiring, never touches `state_digest`.
 pub mod liveness;
 
+/// Sub-blocks — the fast (~2 s), REVERTIBLE, contribution-gated tier UNDER the 120 s ordering blocks
+/// (T9, `internal/RESEARCH-NETWORK-CONSENSUS.md`; adapted from Ergo Matrix, our own gate). The 120 s
+/// cadence is a gift to small-bandwidth/small-storage nodes; sub-blocks PAY FOR that tradeoff by
+/// soft-confirming value transactions in seconds. CONSENSUS-ISOLATED SHADOW (the `jul`/`wallclock`
+/// precedent): pure validation semantics only — no networking, no finalized-state mutation (revertible
+/// by construction), never touches `state_digest`. Slice 1 = the data model + validity gate.
+pub mod subblock;
+
 /// A CKB-style script: a RISC-V program (by code hash) + its arguments. VM success
 /// = valid. Lock scripts gate ownership; type scripts gate state transitions.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
