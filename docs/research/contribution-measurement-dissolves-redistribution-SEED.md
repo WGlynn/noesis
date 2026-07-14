@@ -30,6 +30,25 @@ contribution reward. There is no public-goods treasury; the public good is a con
   recognizes. There is nothing left to call socialist because there is no reallocation step — only
   a price on value.
 
+## This thesis IS a role separation (the design-law spine)
+
+The dissolution above is one instance of a design law Noesis runs throughout (`role-separation-as-design-law.md`,
+memory `role-conflation-is-the-bottleneck`): **when one mechanism carries two roles whose optimization
+pressures conflict, the conflation is the bottleneck; separating them into independent pathways
+dissolves it.** Here the conflated carrier is the treasury: it *measures* which public goods deserve
+funding AND *reallocates* value to them, in one welded step — and it is the reallocation half that
+reads as socialist and triggers the aversion. Separate the two: let the protocol *measure* value
+natively and *pay a price* for it, and the reallocation step — the treasury vote, the tax, the
+allocation policy — is gone. Nothing is left to code as redistribution because there is no reallocation
+pathway, only a measurement pathway and a payment.
+
+That the same move recurs in ML architecture (state vs prediction, the SPSH), in consensus (NC-MAX
+splitting transaction-confirmation from leader-election), and across Noesis's own stack (PoW's safety
+vs issuance roles; the clock's time vs safety roles; money vs governance vs state-rent) is the
+cross-substrate evidence that this is a real abstraction, not a rhetorical frame — so the whitepaper
+can present the redistribution dissolution as a *named instance of a general design law*, with external
+citations, rather than a one-off argument.
+
 ## The generalization (bug bounties are one instance)
 
 Every "should we fund X public good?" collapses into "is X a contribution the measure values?":
@@ -97,3 +116,5 @@ open problem it already stakes everything on.
 6. Prior art & positioning (QF/RPGF/Deep-Funding/Cooperative-Capitalism/AMD).
 7. Honest limits: measurability + un-gameability; what would falsify the claim.
 8. Why this is the same single bet as the rest of Noesis (not a new mechanism).
+9. The design-law framing: this dissolution as an instance of role-separation (SPSH / NC-MAX / Noesis
+   stack), so the argument is a named pattern with cross-substrate citations, not a one-off.
