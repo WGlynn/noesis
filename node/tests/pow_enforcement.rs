@@ -149,6 +149,35 @@ fn enforced_issuance_scales_with_mined_work() {
     // JUL ⇒ RED.
 }
 
+/// inc-M3-2 (DESIGN-M3 §5): the work-clock ceiling clamps the CLOCK advance only — a hard mined block
+/// cannot fast-forward `now()` past the vesting cliff — while the coinbase still pays the FULL unclamped
+/// reward (clamping the reward would under-pay proven energy and install a soft emission cap, `jul.rs`).
+#[test]
+fn work_clock_ceiling_clamps_clock_but_pays_full_reward() {
+    const CEIL: u64 = 10; // finite + below HARDER_BITS' (~256) derived work ⇒ the clamp is observable
+    let recipient = Script { code_hash: [9u8; 32], args: b"miner".to_vec() };
+    let harder = mine(valid_block(1).with_coinbase(recipient), HARDER_BITS);
+
+    let capped = Constitution { pow_enforced: true, work_clock_ceiling: CEIL, ..Constitution::default() };
+    let uncapped = Constitution { pow_enforced: true, work_clock_ceiling: u64::MAX, ..Constitution::default() };
+    let work = block_work(&harder, &capped);
+    assert!(work > CEIL, "test premise: HARDER derived work ({work}) exceeds the ceiling ({CEIL})");
+
+    let after_uncapped = apply_block(Ledger::new(), &harder, &uncapped).expect("applies (no ceiling)");
+    let after_capped = apply_block(Ledger::new(), &harder, &capped).expect("applies (finite ceiling)");
+
+    assert_eq!(after_uncapped.now(), work, "no ceiling ⇒ the clock advances by the full mined work");
+    assert_eq!(after_capped.now(), CEIL, "finite ceiling ⇒ the clock advance is clamped to the ceiling");
+    assert_eq!(
+        after_capped.jul_supply.issued(),
+        after_uncapped.jul_supply.issued(),
+        "the REWARD is unclamped — a hard block earns full JUL regardless of the clock ceiling",
+    );
+    assert!(after_capped.jul_supply.issued() > CEIL as u128, "reward tracks the full work, not the ceiling");
+    // ANTI-THEATER: min the block_work feeding reward_for_work too ⇒ the equal-issuance assert RED; drop
+    // the `.min(ceiling)` on the clock ⇒ after_capped.now() == work ⇒ the clamped-clock assert RED.
+}
+
 /// M2a-2 wires PoW into issuance + the work-clock ONLY; finality safety stays PoS+PoM (PoW is
 /// reorgeable ⇒ off the safety path). This pins that the exclusion is intact.
 #[test]

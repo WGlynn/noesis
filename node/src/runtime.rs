@@ -100,6 +100,21 @@ pub struct Constitution {
     /// requirement). This ships the routing MECHANISM; the per-recipient SEMANTICS (a plain lock vs a
     /// PoM-routed infra payout) is the open ⚑/🔬 seam — deferred config, not decided here.
     pub coinbase_split: Vec<(Script, u16)>,
+    /// Work-clock ceiling (inc-M3-2, DESIGN-M3 §5) — the max per-block advance of the cumulative-work
+    /// clock ([`Ledger::now`]). `now()` is the single clock every temporal mechanism reads, and the
+    /// finality frontier = `now() − vesting_w`. Without a ceiling, ONE validly-mined enormous-difficulty
+    /// block could jump `now()` past the `finalized_at` stamp of EVERY pending PoM cell at once, maturing
+    /// them through the vesting cliff and collapsing the dispute-during-`W` window (an L2 safety property).
+    /// The clock advance is clamped to `block_work(b).min(work_clock_ceiling)`; the coinbase REWARD is paid
+    /// on the UNCLAMPED `block_work` (clamping reward would under-pay proven energy and install a soft
+    /// emission cap — see §5). So a hard block still earns full JUL, it just cannot fast-forward the clock.
+    /// Clamp, never REJECT (a hard block is honest work; rejecting on excess difficulty is a censorship
+    /// knob). Default `u64::MAX` ⇒ `min` is a no-op ⇒ byte-identical (the inert-default precedent). A finite
+    /// ceiling is a genesis-admission PRECONDITION of `pow_enforced` and of `vesting_w > 0` (enforced in
+    /// [`Node::new`]) — an infinite ceiling under either ships the vesting-collapse attack live. The value
+    /// (recommended `K · expected_work_at_current_bits`, jointly calibrated with `vesting_w`) is ⚑ M3 and
+    /// deferred to the Phase-2 retarget controller; this ships the MECHANISM + the gate.
+    pub work_clock_ceiling: u64,
 }
 
 impl Default for Constitution {
@@ -116,6 +131,7 @@ impl Default for Constitution {
             jul: crate::jul::JulParams::default(), // 1 JUL per unit of work (v0 unit-definition)
             pow_enforced: false,  // inert: block_work == WORK_PER_BLOCK ⇒ byte-identical to pre-M2
             coinbase_split: Vec::new(), // inert: producer takes 100% ⇒ byte-identical to pre-M3
+            work_clock_ceiling: u64::MAX, // inert: min(block_work, MAX) == block_work ⇒ byte-identical
         }
     }
 }
@@ -688,6 +704,21 @@ impl Node {
             constitution.coinbase_split.len(),
             crate::jul::MAX_COINBASE_SPLIT,
         );
+        // Work-clock ceiling precondition (inc-M3-2, DESIGN-M3 §5): an INFINITE ceiling under either
+        // `pow_enforced` (real difficulty ⇒ a hard block can jump the clock arbitrarily) or `vesting_w > 0`
+        // (a live vesting cliff to jump) ships the vesting-collapse attack live. A finite ceiling is
+        // therefore a genesis-admission precondition of both — reject the misconfigured Constitution here
+        // (fail-loud BEFORE the chain runs; never a runtime halt, per [[noesis-never-halt-chain]]).
+        assert!(
+            !(constitution.pow_enforced && constitution.work_clock_ceiling == u64::MAX),
+            "pow_enforced requires a FINITE work_clock_ceiling (got u64::MAX) — an infinite clock \
+             ceiling lets one hard block collapse the vesting window",
+        );
+        assert!(
+            !(constitution.vesting_w > 0 && constitution.work_clock_ceiling == u64::MAX),
+            "vesting_w > 0 requires a FINITE work_clock_ceiling (got u64::MAX) — an infinite clock \
+             ceiling lets one hard block mature every pending cell past the vesting cliff at once",
+        );
         Node {
             id,
             ledger: Ledger::new(),
@@ -1047,7 +1078,13 @@ fn apply_transition(state: &mut Ledger, b: &Block, params: &Constitution) {
     state.height = b.height;
     // advance the cumulative-work clock (the canonical `now`). Monotone by construction
     // (block_work ≥ 1 and saturating_add never wraps); pre-PoW this tracks height exactly.
-    state.work = state.work.saturating_add(block_work(b, params));
+    // inc-M3-2 (DESIGN-M3 §5): clamp the CLOCK contribution to `work_clock_ceiling` so one
+    // enormous-difficulty block cannot fast-forward `now()` past every pending PoM cell's vesting
+    // cliff at once. The coinbase REWARD above (line ~1016) reads UNCLAMPED `block_work` ⇒ a hard
+    // block still earns full JUL; only the clock is bounded. Default `u64::MAX` ⇒ this is a no-op.
+    state.work = state
+        .work
+        .saturating_add(block_work(b, params).min(params.work_clock_ceiling));
     // vesting stamp: `or_insert` ⇒ a cell's FIRST finalization wins (idempotent under re-apply).
     // Not folded into `state_digest` ⇒ additive; same blocks + order ⇒ same map (replica-deterministic).
     let finalized_now = state.work;
@@ -2167,13 +2204,33 @@ mod tests {
         )
     }
 
+    /// inc-M3-2 gate (DESIGN-M3 §5): `pow_enforced` with an INFINITE work_clock_ceiling must FAIL to
+    /// activate at genesis admission — an infinite ceiling lets one hard block collapse the vesting
+    /// window. ANTI-THEATER: drop the assert in `Node::new` ⇒ construction succeeds, no panic ⇒ RED.
+    #[test]
+    #[should_panic(expected = "pow_enforced requires a FINITE work_clock_ceiling")]
+    fn pow_enforced_with_infinite_ceiling_is_rejected_at_genesis() {
+        let con = Constitution { pow_enforced: true, work_clock_ceiling: u64::MAX, ..Constitution::default() };
+        let _ = Node::new(0, vec![v(0, 0.0, 100.0, 100.0)], con);
+    }
+
+    /// inc-M3-2 gate: `vesting_w > 0` with an infinite ceiling is likewise rejected — a live vesting
+    /// cliff a single hard block could mature every pending cell past at once. ANTI-THEATER as above.
+    #[test]
+    #[should_panic(expected = "vesting_w > 0 requires a FINITE work_clock_ceiling")]
+    fn vesting_with_infinite_ceiling_is_rejected_at_genesis() {
+        let con = Constitution { vesting_w: 1, work_clock_ceiling: u64::MAX, ..Constitution::default() };
+        let _ = Node::new(0, vec![v(0, 0.0, 100.0, 100.0)], con);
+    }
+
     #[test]
     fn finality_pom_weight_clears_on_the_cliff_pending_contributes_zero() {
         // §2.2/D2 cliff: a cell contributes finality PoM weight iff finalized_at ≤ now − W. Distinct
         // contributor per block ⇒ per-contributor clearing is directly observable, and the exact
         // cliff boundary (block 3 cleared, block 4 pending) is pinned.
         let w = 2u64;
-        let con = Constitution { vesting_w: w, ..Constitution::default() };
+        // work_clock_ceiling: finite (inc-M3-2 precondition of vesting_w>0) but non-clamping here.
+        let con = Constitution { vesting_w: w, work_clock_ceiling: u64::MAX - 1, ..Constitution::default() };
         let mut node = Node::new(0, vec![v(0, 0.0, 100.0, 100.0)], con);
         let who = |h: u64| format!("contrib{}", h).into_bytes();
         for h in 1..=5u64 {
@@ -2220,7 +2277,8 @@ mod tests {
         // contribute finality PoM weight, even after it ages past `W`. Its un-refuted sibling (an
         // UPHELD challenge, which records nothing) still clears — no over-exclusion.
         let w = 2u64;
-        let con = Constitution { vesting_w: w, ..Constitution::default() };
+        // work_clock_ceiling: finite (inc-M3-2 precondition of vesting_w>0) but non-clamping here.
+        let con = Constitution { vesting_w: w, work_clock_ceiling: u64::MAX - 1, ..Constitution::default() };
         let mut node = Node::new(0, vec![v(0, 0.0, 100.0, 100.0)], con);
         let who = |h: u64| format!("contrib{}", h).into_bytes();
         // blocks 1 & 2 finalize (cell id == height). At now == 2, frontier = 2 − 2 = 0 ⇒ both PENDING.
@@ -2267,7 +2325,8 @@ mod tests {
         // mutates a finalized cell, the height, or the digest of already-finalized blocks — no past
         // block un-finalizes. This also pins the design decision that `refuted` is OFF the digest.
         let w = 1u64;
-        let con = Constitution { vesting_w: w, ..Constitution::default() };
+        // work_clock_ceiling: finite (inc-M3-2 precondition of vesting_w>0) but non-clamping here.
+        let con = Constitution { vesting_w: w, work_clock_ceiling: u64::MAX - 1, ..Constitution::default() };
         let mut node = Node::new(0, vec![v(0, 0.0, 100.0, 100.0)], con);
         let who = |h: u64| format!("contrib{}", h).into_bytes();
         node.apply(&carrier_for(1, &who(1)));
@@ -2290,7 +2349,7 @@ mod tests {
         // §2.5 bootstrap: at genesis nothing has aged past W ⇒ the finality PoM map is empty ⇒ every
         // Validator.pom sourced from it is 0 ⇒ bonded PoS carries finality from block zero, with NO
         // special-case code — it falls out of the definition.
-        let con = Constitution { vesting_w: 4, ..Constitution::default() };
+        let con = Constitution { vesting_w: 4, work_clock_ceiling: u64::MAX - 1, ..Constitution::default() };
         let node = Node::new(0, vec![v(0, 0.0, 100.0, 100.0)], con);
         let cleared = node.finality_pom_weight();
         assert!(cleared.is_empty(), "genesis: no finalized cells ⇒ nothing cleared ⇒ empty PoM map");
