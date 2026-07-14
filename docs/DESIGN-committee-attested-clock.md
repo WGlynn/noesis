@@ -250,13 +250,26 @@ never-halt liveness item, cross-referenced here, not built in this spec.
   absurd values. `node/tests/clock_wiring.rs` (6 RED-first tests). Never a live ordering rule without
   its magnitude guard (a monotonicity rule shipped without the admission bound bricks the channel on one
   `Some(u64::MAX)` block — the Council finding that scoped inc-CLK-1 down to pure additive data).
-- 🟡 **designed-not-built (inc-CLK-2 — ships as ONE coherent enforcement unit):** the deterministic
-  monotonicity consensus rule + the node-local admission INGRESS (`timestamp_admissible` wired at the
-  daemon/vote path) that bounds the magnitude the rule orders + the header binding + the live retarget
-  activation (`next_target` on the block path with anchor state + genesis bits). Deploy-coupled; carries
-  the ⚑ numbers. THEN: the deviation-challenge/gossip path + stake-weighted adjudication + slashing.
-- 🔬 **open:** δ and max_staleness numbers (testnet-pinned); the never-halt stall-detector; whether the
-  in-dispute reference aggregate is a plain median or BLS-signed (only matters inside a fired dispute).
+- ✅ **built (inc-CLK-2 — the deterministic enforcement bundle, flag-gated on `Constitution.clock_enforced`,
+  default inert):** (1) `header_digest` binds the `timestamp` (option-tagged like `coinbase`/`parent`) ⇒ a
+  solved seal cannot replay onto an altered time; (2) `validate_block` enforces a PRESENT + NON-DECREASING
+  timestamp (`clock_check`, single-sourced from `wallclock::advances_monotonically` — `≥`, not strict, so
+  same-tick blocks pass) with typed `Violation::{TimestampMissing, TimestampNotMonotone}`, baseline
+  `Ledger::last_timestamp` advanced in `apply_transition` (excluded from `state_digest`, history-derivable);
+  (3) the NODE-LOCAL admission ingress `Node::admits(b, local_now, δ)` = deterministic `validate` + the
+  forward-skew bound, kept OUT of the replay path. Genesis-admission gate `clock_enforced ⇒ pow_enforced`
+  (`Node::new`). `node/tests/clock_enforcement.rs` (6 RED-first tests, anti-theater breaks named).
+  NEVER-HALT: non-strict `≥` means a far-future stamp cannot brick production (successors may reuse it) —
+  it would only freeze forward progress, and the admission bound rejects it at production so the freeze
+  never lands. The ordering rule + its admission guard ship as ONE unit (the inc-CLK-1 Council lesson).
+- 🟡 **still Phase-2 (deploy-coupled):** the LIVE retarget activation (`next_target` on the block path with
+  anchor state + genesis bits — needs the committee-attested time SOURCE, so wiring it now would fabricate
+  `observed`, violating read-not-faked); the daemon accept-loop call-site for `admits`; the
+  deviation-challenge/gossip path + stake-weighted adjudication + slashing.
+- ✅ **⚑ ratified (Will 2026-07-14):** δ = 120 s (≈ the 120 s ordering-block interval), node-local config
+  (NOT a Constitution field); max_staleness = 300 s; max-forward-skew = 7200 s; ASERT half-life = 2 d.
+- 🔬 **open:** the never-halt stall-detector; whether the in-dispute reference aggregate is a plain median
+  or BLS-signed (only matters inside a fired dispute); the numbers pinned against real validator skew at testnet.
 
 ## 9. Open questions for critique
 

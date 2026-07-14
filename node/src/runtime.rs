@@ -126,6 +126,32 @@ pub struct Constitution {
     /// (recommended `K · expected_work_at_current_bits`, jointly calibrated with `vesting_w`) is ⚑ M3 and
     /// deferred to the Phase-2 retarget controller; this ships the MECHANISM + the gate.
     pub work_clock_ceiling: u64,
+    /// Clock enforcement (inc-CLK-2). When `true`, `validate_block` requires every block to carry a
+    /// `timestamp` that is monotone NON-DECREASING (`≥`) over the previous block's
+    /// ([`Ledger::last_timestamp`]) — the deterministic, replay-safe ordering rule that makes the
+    /// committee-attested wall-clock a
+    /// consensus input (`docs/DESIGN-committee-attested-clock.md`), and the `timestamp` is bound into
+    /// [`header_digest`] so a solved PoW seal cannot be replayed onto a block with an altered time.
+    /// Default `false` ⇒ the timestamp is inert additive data (the inc-CLK-1 state), monotonicity is
+    /// not checked, and behaviour is byte-identical to pre-CLK-2 (the additive precedent:
+    /// `pow_enforced`/`vesting_w`/`submission_deposit` all default to their inert value).
+    ///
+    /// GENESIS-ADMISSION PRECONDITION: `clock_enforced ⇒ pow_enforced` (asserted in [`Node::new`]).
+    /// The timestamp's anti-malleability rests on the PoW COMMITTING [`header_digest`]; enforcing a
+    /// live ordering rule on a field nothing binds is the exact weaponizable shape the inc-CLK-1
+    /// Council flagged. So the clock rule never ships ahead of the seal that makes the field tamper-
+    /// evident.
+    ///
+    /// SCOPE (deliberate role-separation — `docs/research/role-separation-as-design-law.md`): only the
+    /// PAST-direction bound (strict monotonicity) is enforced here, because it is deterministic and
+    /// replay-safe. The FORWARD-direction bound ("not too far in my future") is NODE-LOCAL and
+    /// non-deterministic — it lives in [`Node::admits`] against each node's own live clock, NEVER in
+    /// this replay path (a joiner replaying old blocks must accept timestamps far outside its live
+    /// tolerance). This is Bitcoin's median-time-past / future-time split. The two ship together (the
+    /// monotonicity rule + the admission bound its never-halt safety depends on — the interdependent-
+    /// enforcement lesson) so a `u64::MAX`-timestamp block that would brick the channel is rejected at
+    /// production by admission and thus never enters the canonical chain replay trusts.
+    pub clock_enforced: bool,
 }
 
 impl Default for Constitution {
@@ -144,6 +170,7 @@ impl Default for Constitution {
             coinbase_split: Vec::new(), // inert: producer takes 100% ⇒ byte-identical to pre-M3
             work_clock_ceiling: u64::MAX, // inert: min(block_work, MAX) == block_work ⇒ byte-identical
             submission_deposit: 0, // inert: no bond required ⇒ blocks carry no bonds ⇒ byte-identical (Bound B)
+            clock_enforced: false, // inert: timestamp is inert additive data ⇒ byte-identical to pre-CLK-2
         }
     }
 }
@@ -208,6 +235,18 @@ pub struct Ledger {
     /// divergence-detection power (a supply divergence implies a `token_ids`/`work` divergence the
     /// digest already catches). Conservation (`jul_supply == Σ live JUL + burns`) is proven by test.
     pub jul_supply: crate::jul::JulSupply,
+    /// The previous block's committee-attested `timestamp` (inc-CLK-2) — the monotonicity baseline the
+    /// clock rule reads: under `Constitution.clock_enforced`, a block's `timestamp` must be `≥` this
+    /// (non-decreasing; equality allowed for same-tick blocks). Updated by [`apply_transition`] to each
+    /// block's timestamp as it finalizes (a block with no timestamp leaves it unchanged). `0` until the
+    /// first timestamped block. Monotone non-decreasing under enforcement.
+    ///
+    /// DELIBERATELY excluded from [`Ledger::state_digest`] (the `jul_supply`/`finalized_at` precedent):
+    /// it is a pure fold over the replayed blocks' timestamps (= the last one), history-derivable and
+    /// replica-deterministic, so re-hashing it adds only churn — a `last_timestamp` divergence implies a
+    /// block-`timestamp` divergence, which under `clock_enforced` is header-bound and PoW-committed, so
+    /// the seal/`work` the digest already covers catches it.
+    pub last_timestamp: u64,
 }
 
 /// Comparable digest of a replica's state (see [`Ledger::state_digest`]): finalized cell-id
@@ -227,6 +266,7 @@ impl Ledger {
             finalized_at: HashMap::new(),
             refuted: HashSet::new(),
             jul_supply: crate::jul::JulSupply::new(),
+            last_timestamp: 0,
         }
     }
 
@@ -734,10 +774,18 @@ pub fn header_digest(b: &Block) -> [u8; 32] {
     let (bits, nonce) = b.pow.as_ref().map(|s| (s.bits, s.nonce)).unwrap_or((0, 0));
     buf.extend_from_slice(&bits.to_le_bytes());
     buf.extend_from_slice(&nonce.to_le_bytes());
-    // NOTE (inc-CLK-1): the block `timestamp` is NOT bound here yet — it is inert additive data this
-    // increment (the M2a-1 precedent: the seal was carried before it was header-bound in M2a-2). The
-    // header binding ships in inc-CLK-2 alongside the monotonicity enforcement it protects, so the
-    // anti-malleability property arrives WITH the rule that would otherwise be weaponizable.
+    // inc-CLK-2: bind the committee-attested `timestamp` (option-tagged like `coinbase`/`parent`:
+    // 0 = none, 1 + LE bytes = present). Under `pow_enforced` this makes the seal a PROOF over the
+    // timestamp — a solved hash cannot be replayed onto a block with an altered time, so the value the
+    // monotonicity rule + the retarget's observed-time term read is not producer-malleable-post-solve.
+    // Bound unconditionally (like `coinbase`); inert when `pow_enforced` is off (the digest is unused).
+    match b.timestamp {
+        None => buf.push(0),
+        Some(t) => {
+            buf.push(1);
+            buf.extend_from_slice(&t.to_le_bytes());
+        }
+    }
     noesis_core::pow::hash(&buf)
 }
 
@@ -756,6 +804,33 @@ fn pow_check(b: &Block, c: &Constitution) -> Result<(), Violation> {
         Ok(())
     } else {
         Err(Violation::PowUnmet)
+    }
+}
+
+/// Clock validity under enforcement (inc-CLK-2, `docs/DESIGN-committee-attested-clock.md`). INERT at
+/// `clock_enforced == false` (the timestamp stays inert additive data ⇒ byte-identical to pre-CLK-2).
+/// When enforced, every block MUST carry a `timestamp` (the seal-missing analog) that STRICTLY exceeds
+/// the previous block's ([`Ledger::last_timestamp`]) — the deterministic, replay-safe PAST-direction
+/// bound. The FORWARD bound ("too far in my future") is node-local ([`Node::admits`]), NEVER here: a
+/// replaying joiner accepts historical timestamps far outside its live tolerance (Bitcoin's MTP /
+/// future-time split). NEVER-HALT: because the rule is NON-DECREASING (`≥`, not strict), a maliciously
+/// far-future timestamp (e.g. `u64::MAX`) cannot even brick production — successors may reuse it — it
+/// would only FREEZE the clock's forward progress (a retarget-quality degradation, never a liveness
+/// halt). The node-local admission bound rejects such a block at PRODUCTION so the freeze never lands;
+/// the ordering rule and its admission guard ship as ONE unit (`[[interdependent-enforcement-ships-together]]`).
+fn clock_check(ledger: &Ledger, b: &Block, c: &Constitution) -> Result<(), Violation> {
+    if !c.clock_enforced {
+        return Ok(());
+    }
+    let t = b.timestamp.ok_or(Violation::TimestampMissing)?;
+    // Single-sourced from the tested wall-clock kernel — NON-DECREASING (`≥`), not strict, on purpose:
+    // two honest blocks may land within one clock tick, and forbidding equality would reject fast blocks
+    // (`wallclock::advances_monotonically` doc). The retarget reads elapsed time separately; ordering
+    // safety only needs "never runs backward."
+    if crate::wallclock::advances_monotonically(t, ledger.last_timestamp) {
+        Ok(())
+    } else {
+        Err(Violation::TimestampNotMonotone { prev: ledger.last_timestamp, got: t })
     }
 }
 
@@ -817,6 +892,15 @@ impl Node {
             "submission_deposit > 0 requires CONTROL_BINDING_ACTIVE (the lock-sig deploy) — a bond \
              forfeiture burns a cell, so it must not activate before spends are owner-authorized",
         );
+        // Clock enforcement precondition (inc-CLK-2): the monotone-timestamp rule reads a field whose
+        // anti-malleability rests on the PoW committing `header_digest`. Enforcing a live ordering rule
+        // on a field nothing binds is the inc-CLK-1 weaponizable shape, so `clock_enforced` requires
+        // `pow_enforced` — fail-loud at genesis, never a live hole.
+        assert!(
+            !(constitution.clock_enforced && !constitution.pow_enforced),
+            "clock_enforced requires pow_enforced — the monotone-timestamp rule needs the seal to \
+             header-bind the timestamp, else it is an ordering rule on a malleable field",
+        );
         Node {
             id,
             ledger: Ledger::new(),
@@ -866,6 +950,20 @@ impl Node {
     /// A node's vote on a proposal is its honest local validation.
     pub fn vote(&self, b: &Block) -> bool {
         self.validate(b)
+    }
+
+    /// NODE-LOCAL admission (inc-CLK-2 ingress) — the NON-DETERMINISTIC half of clock validity, kept
+    /// OUT of [`Node::validate`]/[`validate_block`] (the replay path) by construction. A node accepting a
+    /// freshly-produced block runs this against its OWN live clock reading `local_now`: the block must
+    /// (a) pass deterministic [`Node::validate`] AND (b) carry a `timestamp` within `delta` of `local_now`
+    /// ([`timestamp_admissible`]). (b) is the FORWARD-skew bound: a far-future (e.g. `u64::MAX`) timestamp
+    /// is rejected here at production by every honest node, so it never enters the canonical chain where it
+    /// would FREEZE the non-decreasing clock's forward progress (a retarget-quality attack). `delta`
+    /// is the ⚑ Will-ratified tolerance (2026-07-14: 120 s, ≈ the ordering-block interval); it is NODE-LOCAL
+    /// config, NOT a [`Constitution`] field — δ reflects a node's own clock trust, not consensus. The live
+    /// accept-loop call-site (noesisd) is deploy-coupled; this exposes the ingress + its property for test.
+    pub fn admits(&self, b: &Block, local_now: u64, delta: u64) -> bool {
+        self.validate(b) && timestamp_admissible(b, local_now, delta)
     }
 
     /// Does a proposed checkpoint finalize *at the current clock*? Sources `now` from the
@@ -1018,6 +1116,13 @@ pub enum Violation {
     /// authorized, or collides (bond-vs-bond, or bond-vs-token-input) within the block — the
     /// fake/underfunded/stolen/double-spent-bond class.
     BondInvalid,
+    /// (11) Clock is enforced (`Constitution.clock_enforced`) but the block carries no `timestamp`
+    /// (the seal-missing analog: an enforced clock requires the field the rule reads).
+    TimestampMissing,
+    /// (12) Clock is enforced and the block's `timestamp` runs BACKWARD — less than the previous
+    /// block's ([`Ledger::last_timestamp`]). Equality is allowed (same-tick blocks, per the kernel).
+    /// The forward bound ("too far ahead") is node-local ([`Node::admits`]), never this replay path.
+    TimestampNotMonotone { prev: u64, got: u64 },
 }
 
 /// The acceptance gate: the six conjoined checks of the old `Node::validate`, returning the typed
@@ -1042,10 +1147,7 @@ pub fn validate_block(ledger: &Ledger, b: &Block, c: &Constitution) -> Result<()
         return Err(Violation::TokenTxInvalidOrDoubleSpend);
     }
     pow_check(b, c)?;
-    // NOTE (inc-CLK-1): the block `timestamp` is deliberately NOT validated here. It is inert additive
-    // data this increment (the M2a-1 precedent). The deterministic monotonicity rule ships in inc-CLK-2
-    // BUNDLED with its magnitude guard (the node-local admission ingress) + the retarget activation —
-    // never a live ordering rule without the bound its safety depends on (Council finding, 2026-07-14).
+    clock_check(ledger, b, c)?; // (11)+(12) inc-CLK-2 monotone timestamp; inert when clock_enforced == false
     check_bonds(ledger, b, c)?; // (9)+(10) Bound-B commit-deposits (L5); inert when submission_deposit == 0
     Ok(())
 }
@@ -1287,8 +1389,12 @@ fn apply_transition(state: &mut Ledger, b: &Block, params: &Constitution) {
     for cell in &b.cells {
         state.finalized_at.entry(cell.id).or_insert(finalized_now);
     }
-    // (inc-CLK-1): the block `timestamp` is inert additive data — no apply-side effect this increment.
-    // The monotonicity comparand it will feed lands in inc-CLK-2 with the enforcement bundle.
+    // (inc-CLK-2): advance the monotonicity baseline. A timestamped block sets `last_timestamp` to its
+    // own (validated strictly-increasing under `clock_enforced`); a `None` timestamp leaves it unchanged
+    // ⇒ inert when the clock is off. Pure fold over history (excluded from `state_digest`, see the field).
+    if let Some(t) = b.timestamp {
+        state.last_timestamp = t;
+    }
     // recompute PoM attribution over the full chain (integer Q16.16 similarity floor).
     state.pom = pom_scores_with_similarity_floor_q16(&state.cells, params.theta_sim_q16);
     // Bound-B (L5): resolve commit-deposits by the SAME per-cell novelty the attribution just used. A
