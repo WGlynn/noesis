@@ -80,10 +80,19 @@ target/definition is decided here; the exact value is *measured* at build (execu
 3. **`reward_den = W_g`** (the same genesis expected work-per-block as (2)) ⇒ **1 JUL ≡ the energy of one
    genesis-difficulty block** (`reward_num = 1e8` fixed ⇒ ~1 JUL/block at genesis, difficulty-proportional
    thereafter — Lever A: 10× the energy ⇒ ~10× the JUL). Refuses to cosplay Bitcoin's 50/block; the unit is
-   human-legible AND energy-anchored by construction. **Emission ramp ships ON**: `reward_den` starts high
-   (tiny per-block JUL) and decays to `W_g` over the first N work-units, so the launch windfall is small in
-   absolute JUL. Exact `W_g` integer = the build benchmark from (2); N is a coupled ⚑ (recommend a
-   first-week-of-work-scale N).
+   human-legible AND energy-anchored by construction. Exact `W_g` integer = the build benchmark from (2).
+
+> **CORRECTED 2026-07-14 (Will) — NO emission ramp. The ramp is DROPPED (was "ships ON" here).** The ramp
+> existed to shrink a *launch-concentration windfall* (§7 finding 5), but that is a **deep-capital** problem
+> specific to **inelastic** money (Bitcoin): a fixed per-block reward means early-low-difficulty coins are
+> mined near-free and become disproportionately valuable as scarcity bites. **JUL is elastic energy-money** —
+> reward is PROPORTIONAL to work (Lever A), so 1 JUL costs the same energy in block 1 as in block 1,000,000;
+> the JUL-per-energy ratio is constant by construction. No cheap early coins ⇒ **no deep capital ⇒ no windfall
+> to neutralize** (the Ergon-community framing: elastic PoW money has no deep-capital problem). Worse, a `< 1`
+> early multiplier would mint *less JUL per unit work* early than late, **breaking the energy-peg
+> proportionality** that IS the invariant. So the flat proportional `reward_for_work` (already built) is the
+> correct and final design — a ramp would dissolve the very property it was meant to protect. (Concentration
+> of JUL is also not concentration of *control*: JUL is the money layer, orthogonal to PoS/PoM finality weight.)
 
 **Net:** (2) and (3) collapse onto ONE measured quantity `W_g` = genesis expected work-per-block, set by
 the "one modest GPU, generous interval" target. Deciding the *definition* (1 JUL = one genesis block of
@@ -339,10 +348,12 @@ is a *quality* degradation, not a liveness failure: emission stays bounded **per
 target's Sybil cost + the ramp, and if Phase 2 slips the emission *rate* runs unregulated (a known, bounded
 degraded mode) while the min-difficulty floor keeps blocks coming. Height **H** is the **deadline for full
 emission-regulation quality, NOT a halt threshold**. Quantify worst-case over-issuance if hashrate 10×
-during the fixed-target window so the degraded mode is bounded-and-known, never an excuse to stop the chain. A genesis **emission
-ramp** (`reward_den` starts high → decays to target over the first N work-units) further shrinks the
-early-hashrate windfall — a pure scalar schedule on the linear rule, no new channel (also mitigates
-launch-concentration, §7).
+during the fixed-target window so the degraded mode is bounded-and-known, never an excuse to stop the chain.
+
+> **CORRECTED 2026-07-14: no emission ramp** (see §0.1). There is nothing to "shrink" — because reward is
+> proportional to work, emission per block already tracks energy 1:1, and the JUL-per-energy cost is
+> constant, so a low-difficulty launch window mints proportionally little JUL, not a windfall. The only
+> Phase-1 emission fact is the flat proportional rule; the ramp would have broken it.
 
 **Work-clock ceiling (🟡/⚑ — safety-critical; make it a PRECONDITION of `pow_enforced`).** `now()` is the
 single clock every temporal mechanism reads; the finality frontier = `now() − vesting_w`
@@ -416,10 +427,15 @@ signal source is registered.
    **required artifact**, gating activation — not a "pass."
 4. **[MEDIUM — economic-theft, inert] Reserve harvest reflexivity.** Throttle → trip bear → harvest
    (`reserve.rs:44`). **Defense:** ship OFF; non-endogenous signal + inc-4 before any nonzero param (§6).
-5. **[MEDIUM — irreversible] Genesis burst / launch concentration.** Fixed genesis bits ⇒ an actor with
-   large launch hashrate wins a disproportionate, **un-clawback-able** share of early coinbase cells.
-   **Defense:** the genesis **emission ramp** (§5) shrinks the absolute windfall; genesis bits LOW keeps
-   it fair-mineable.
+5. **[DOWNGRADED 2026-07-14 → NON-ISSUE for the money layer] Genesis burst / launch concentration.** Fixed
+   genesis bits ⇒ an actor with large launch hashrate mines more early coinbase cells — but this is **NOT a
+   windfall**: JUL is elastic energy-money, reward is proportional to work, so every early cell cost its
+   miner FULL proportional energy (constant JUL-per-energy). There are no near-free early coins to
+   concentrate (the deep-capital problem is specific to **inelastic** money like BTC; §0.1). Acquiring more
+   JUL by spending more energy is the intended fair-launch dynamic, not capture. And JUL concentration is not
+   *control* concentration — JUL is orthogonal to PoS/PoM finality weight. **No defense needed; the dropped
+   ramp (§5) would have made it worse by breaking proportionality.** Genesis bits LOW keeps it fair-mineable.
+   (The distinct concern — finalizers *acquiring* JUL — is finding 6, which stands.)
 6. **[MEDIUM — anti-plutocracy, must be a CHECK not a norm] Finalizer capture of the genesis burst.**
    `jul.rs` guarantees `issued == 0` at genesis, so the real risk is finalizers *acquiring* the burst.
    Nothing in `validate_block`/genesis checks finalizer JUL holdings today. **Defense:** make it
@@ -487,8 +503,8 @@ else waits on a Will ruling or an inert-default flip.
 |---|---|---|---|
 | **1** | **Timestamp-fork ruling + Phase-1 bound** | ✅ **RATIFIED** (§0.1). Phase-1 = **(c) no retarget**, LOW genesis bits, target height H for full regulation (a quality deadline — the chain NEVER halts, [[noesis-never-halt-chain]]). Phase-2 = **(a)** in its precedented form: a **bonded-committee BLS-median wall-clock**, staleness-bounded against origin (§2.1). Stall recovery = min-difficulty floor + emergency rule fed by the committee's gossiped local clocks. Branch (b)-internal-cadence rejected (category error). | The load-bearing decision. Wrong = either a stalled young chain that can't recover, or a state-purity break, or open-ended launch inflation. |
 | **2** | **`genesis_bits`** | ✅ **RATIFIED** (§0.1): target = one modest GPU × a generous interval; exact `bits` measured at build. Revisit upward only once the Phase-2 retarget is live. | LOW + no-retarget is death-spiral-safe; HIGH + no-retarget = stillbirth (can't mine block 1). Too-low windfall is irreversible → the ramp (below) covers it. |
-| **3** | **`reward_den`** (`reward_num = 1e8` fixed) | ✅ **RATIFIED** (§0.1): `reward_den = W_g` ⇒ 1 JUL = one genesis-block of energy; emission ramp ON. | Sets JUL-per-block. **Structurally load-bearing at launch** (the only issuance bound in Phase 1), not cosmetic. |
-| **4** | **Genesis emission ramp** (`reward_den` high → target over first N work-units) | ON, N ⚑ | Shrinks the irreversible launch-concentration windfall. Pure scalar schedule on the linear rule. |
+| **3** | **`reward_den`** (`reward_num = 1e8` fixed) | ✅ **RATIFIED** (§0.1): `reward_den = W_g` ⇒ 1 JUL = one genesis-block of energy. Flat proportional reward (NO ramp). | Sets JUL-per-block. **Structurally load-bearing at launch** (the only issuance bound in Phase 1), not cosmetic. |
+| **4** | **Genesis emission ramp** | ❌ **DROPPED 2026-07-14 (Will)** — §0.1. | JUL is elastic ⇒ no deep-capital ⇒ no windfall to shrink; a `< 1` early multiplier would break the energy-peg proportionality (identical work must mint identical JUL). Flat proportional reward is correct + final. |
 | **5** | **Retarget algo + params** | ASERT; halflife/window ⚑ (block-count first cut); observed-term seamed. | Cadence/liveness only, not money supply. Wrong-signed/oscillating = cadence thrash; too-slow = strands difficulty after an exodus. |
 | **6** | **`work_clock_ceiling` `K`** | Finite, **precondition of `pow_enforced`**; clamp clock-only. Couple to `vesting_w`. | Too low = soft emission cap / under-pays energy; too high = re-opens vesting-collapse. Joint calibration. |
 | **7** | **`infra_bps`** (in the `Vec` split) | 0 default (present but off); `[200,500]` when on, via PoM standing; rent-preferred. | 2-way hard-wire = consensus-breaking reopen later. Too-high dilutes the Sybil-cost incentive PoW buys. |
