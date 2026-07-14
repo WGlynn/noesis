@@ -8,7 +8,7 @@
 
 use noesis::runtime::{Block, PowSeal};
 use noesis::wire::{decode_block, encode_block};
-use noesis_core::pow::{compact_to_target, hash, put, work_from_target};
+use noesis_core::pow::{compact_to_target, hash, put, target_to_compact, work_from_target};
 
 fn empty_block(pow: Option<PowSeal>) -> Block {
     // A wire test needs a Block value, not a consensus-valid one (encode/decode never validates).
@@ -63,6 +63,59 @@ fn work_is_floored_at_one_and_saturates() {
     // wrapped-to-0 divisor ⇒ yields u64::MAX not 1 ⇒ the first assert goes RED. Remove the
     // `q > u64::MAX >> 1` saturation guard ⇒ target=2 wraps to 0x5555_5555_5555_5555 ≠ u64::MAX ⇒ the
     // second assert goes RED.
+}
+
+/// `target_to_compact` is the strict inverse of `compact_to_target` on the canonical compact space:
+/// every `bits` the decoder accepts survives a compact→target→compact round-trip. This is the exact
+/// property the M3 retarget controller relies on to emit a candidate block's `bits` from a target.
+#[test]
+fn target_to_compact_roundtrips_canonical_bits() {
+    // canonical nBits: sign bit clear, no redundant leading-zero mantissa byte — except the sign-forced
+    // leading zero in 0x1d00ffff, the real Bitcoin max target.
+    for &bits in &[0x0102_0000u32, 0x0512_3456, 0x1b04_04cb, 0x1d00_ffff] {
+        let target = compact_to_target(bits).expect("canonical bits decode");
+        assert_eq!(
+            target_to_compact(&target),
+            Some(bits),
+            "compact→target→compact must round-trip: {bits:#010x}"
+        );
+    }
+    // a wider sweep across exponents with a fixed canonical mantissa (0x0abcde, sign bit clear).
+    for exp in 4u32..=32 {
+        let bits = (exp << 24) | 0x000a_bcde;
+        let target = compact_to_target(bits).expect("swept canonical bits decode");
+        assert_eq!(target_to_compact(&target), Some(bits), "round-trip must hold at exponent {exp}");
+    }
+    // ANTI-THEATER: return a constant, or drop the `size` computation ⇒ the swept exponents no longer
+    // match ⇒ RED.
+}
+
+/// The encoder never lets the mantissa's top bit read as a sign bit — it grows the exponent and inserts
+/// a leading-zero mantissa byte instead (why Bitcoin's max target is 0x1d00ffff, not 0x1cffff00).
+#[test]
+fn target_to_compact_never_sets_the_sign_bit() {
+    // the real Bitcoin max target must encode to its canonical 0x1d00ffff.
+    let max_target = compact_to_target(0x1d00_ffff).unwrap();
+    assert_eq!(target_to_compact(&max_target), Some(0x1d00_ffff), "max target ⇒ canonical 0x1d00ffff");
+    // a target whose top significant byte has bit 7 set must still produce a sign-bit-clear mantissa
+    // and decode back byte-exactly.
+    let mut t = [0u8; 32];
+    t[10] = 0x80;
+    let bits = target_to_compact(&t).expect("a nonzero target encodes");
+    assert_eq!(bits & 0x0080_0000, 0, "the encoded mantissa must never set the sign bit");
+    assert_eq!(compact_to_target(bits), Some(t), "sign-normalized bits decode back to the exact target");
+    // ANTI-THEATER: remove the `mantissa & 0x00800000` shift-and-grow ⇒ the max target encodes to a
+    // sign-bit-set value the decoder would reject ⇒ the first assert goes RED.
+}
+
+/// The encoder is total: a zero target is rejected (unmeetable, mirroring the decoder), and even the
+/// not-exactly-representable all-ones target encodes to a valid compact rather than panicking.
+#[test]
+fn target_to_compact_is_total() {
+    assert!(target_to_compact(&[0u8; 32]).is_none(), "the zero target is unmeetable ⇒ None");
+    let bits = target_to_compact(&[0xff; 32]).expect("all-ones target must encode (truncated), not panic");
+    assert!(compact_to_target(bits).is_some(), "the produced bits must itself be a decodable compact");
+    // ANTI-THEATER: drop the all-zero `?` early-return ⇒ target_to_compact(&[0;32]) returns Some(0) ⇒ RED.
 }
 
 // ---- data model + wire ----

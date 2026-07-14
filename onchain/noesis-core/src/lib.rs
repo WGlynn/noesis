@@ -1036,6 +1036,42 @@ pub mod pow {
         Some(target)
     }
 
+    /// Encode a 256-bit big-endian target back into a Bitcoin-style compact target ("nBits") — the
+    /// strict inverse of [`compact_to_target`], needed by the M3 retarget controller to emit a
+    /// candidate block's `bits` from a computed target. Produces the CANONICAL compact (no redundant
+    /// leading-zero mantissa byte; the sign bit is never set): for any canonical `bits`,
+    /// `target_to_compact(compact_to_target(bits).unwrap()) == Some(bits)` (round-trip). A zero target
+    /// is rejected (`None`) — unmeetable, mirroring `compact_to_target`'s zero rejection. Total,
+    /// integer-only, never panics (the transition-purity contract).
+    ///
+    /// The compact format carries only a 3-byte mantissa, so encoding a target with significant bytes
+    /// BELOW the top three truncates toward zero — the standard Bitcoin `GetCompact` behavior. The
+    /// round-trip identity therefore holds on the canonical compact space (every `bits` accepted by
+    /// `compact_to_target`), not on the full 2^256 target space; the M3 controller always re-encodes a
+    /// target it just derived, so it lives on that canonical space by construction. No numeric constant
+    /// (genesis bits, interval, retarget params) is introduced here — those stay ⚑ M3.
+    pub fn target_to_compact(target: &[u8; 32]) -> Option<u32> {
+        // index of the most-significant non-zero byte; all-zero ⇒ None (unmeetable), matches the decoder.
+        let msb = target.iter().position(|&b| b != 0)?;
+        let mut size = (32 - msb) as u32; // number of significant bytes (Bitcoin's nSize / exponent)
+        // top three significant bytes, big-endian, as a 24-bit mantissa (bytes past the end ⇒ 0). This
+        // one expression is correct for every size: for size < 3 the low significant byte(s) land in the
+        // high part of the mantissa exactly as Bitcoin's `nCompact = low << 8*(3-nSize)` prescribes.
+        let b0 = target[msb] as u32;
+        let b1 = if msb + 1 < 32 { target[msb + 1] as u32 } else { 0 };
+        let b2 = if msb + 2 < 32 { target[msb + 2] as u32 } else { 0 };
+        let mut mantissa = (b0 << 16) | (b1 << 8) | b2;
+        // the mantissa's top bit must never read as the sign bit: shift down one byte and grow the
+        // exponent (this is why e.g. the max target 0x1d00ffff carries a leading-zero mantissa byte).
+        if mantissa & 0x0080_0000 != 0 {
+            mantissa >>= 8;
+            size += 1;
+        }
+        // size is at most 33 (all-ones target after the sign-shift); the resulting `bits` always decodes
+        // without the decoder's overflow rejection because the shifted mantissa's top byte is zero.
+        Some((size << 24) | mantissa)
+    }
+
     /// Chainwork of a target: `floor((2^256 - 1) / (target + 1))`, saturated to `u64`. Every valid
     /// block advances the monotone work-clock by >= 1: the all-ones (easiest) target returns the
     /// minimum 1 via the `target + 1` overflow branch, and the quotient is >= 1 for every other
