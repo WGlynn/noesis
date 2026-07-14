@@ -61,9 +61,18 @@ pub const SPLIT_SLICE_BIT: u64 = 1 << 62;
 
 /// The deterministic id of the `index`-th coinbase SLICE cell at `height`. Unique per `(height, index)`
 /// and disjoint from every `coinbase_id`. Bounds (astronomical): `height < 2^54`, `index < 256`.
+/// The 8-bit `index` field is the hard cap on split size: an `index ≥ 256` would `& 0xff`-WRAP and
+/// collide with an earlier slice's id. That bound is enforced at Constitution admission via
+/// [`MAX_COINBASE_SPLIT`] (fail-loud on a misconfigured genesis) — this function stays total.
 pub fn coinbase_slice_id(height: u64, index: u64) -> u64 {
     COINBASE_ID_BIT | SPLIT_SLICE_BIT | ((height & 0x003f_ffff_ffff_ffff) << 8) | (index & 0xff)
 }
+
+/// Hard cap on `Constitution.coinbase_split` length: the [`coinbase_slice_id`] index field is 8 bits,
+/// so beyond this a slice id would wrap and collide with an earlier one. Enforced fail-loud when a
+/// [`crate::runtime::Constitution`] is admitted at genesis (a governance/genesis misconfiguration must
+/// be caught before launch, NOT silently mint two coinbase cells sharing an id).
+pub const MAX_COINBASE_SPLIT: usize = 256;
 
 /// Is this cell a JUL cell (matches the JUL type-script program + issuer)?
 pub fn is_jul(cell: &Cell) -> bool {

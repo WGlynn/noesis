@@ -350,3 +350,32 @@ fn coinbase_split_over_100pct_cannot_over_mint() {
     assert_eq!(amount_for(b"miner"), 0, "producer starved to 0 — but no over-mint");
     // ANTI-THEATER: remove `.min(remaining)` ⇒ slice b mints a full 80% ⇒ Σ = 160% of reward ⇒ RED.
 }
+
+/// A split at the MAX boundary (256 slices) mints 256 distinct-id slice cells — no id wraps/collides.
+/// This pins the exact edge the 8-bit slice-id index field allows (index 0..=255).
+#[test]
+fn coinbase_split_at_max_boundary_has_distinct_ids() {
+    let split: Vec<(Script, u16)> = (0..jul::MAX_COINBASE_SPLIT)
+        .map(|i| (recipient(format!("r{i}").as_bytes()), 1)) // 1 bps each ⇒ tiny slices, producer keeps rest
+        .collect();
+    let mut node = genesis_with_split(split);
+    produce(&mut node, 1, b"a novel contribution funding a max-width split", Some(recipient(b"miner")));
+
+    let ids: Vec<u64> = node.ledger.token_cells.iter().filter(|c| jul::is_jul(c)).map(|c| c.id).collect();
+    let mut uniq = ids.clone();
+    uniq.sort_unstable();
+    uniq.dedup();
+    assert_eq!(uniq.len(), ids.len(), "every coinbase cell id is distinct at the 256-slice boundary");
+}
+
+/// A coinbase split LONGER than [`jul::MAX_COINBASE_SPLIT`] is rejected fail-loud at genesis admission
+/// (the 257th slice would `& 0xff`-wrap to the id of the 1st and silently mint a colliding coinbase cell).
+/// ANTI-THEATER: remove the `assert!` in `Node::new` ⇒ construction succeeds, no panic ⇒ this test RED.
+#[test]
+#[should_panic(expected = "MAX_COINBASE_SPLIT")]
+fn coinbase_split_over_max_is_rejected_at_genesis() {
+    let split: Vec<(Script, u16)> = (0..=jul::MAX_COINBASE_SPLIT) // 257 entries: one past the cap
+        .map(|i| (recipient(format!("r{i}").as_bytes()), 1))
+        .collect();
+    let _ = genesis_with_split(split); // must panic before returning a Node
+}

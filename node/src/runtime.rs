@@ -679,6 +679,15 @@ pub struct Node {
 
 impl Node {
     pub fn new(id: u64, validators: Vec<Validator>, constitution: Constitution) -> Self {
+        // Genesis-admission validity: a coinbase split longer than the 8-bit slice-id index field would
+        // wrap and mint two coinbase cells sharing an id (see `jul::coinbase_slice_id`). Reject a
+        // misconfigured genesis Constitution here — fail-loud BEFORE the chain runs, never a runtime halt.
+        assert!(
+            constitution.coinbase_split.len() <= crate::jul::MAX_COINBASE_SPLIT,
+            "coinbase_split has {} entries, exceeds MAX_COINBASE_SPLIT ({}) — slice ids would collide",
+            constitution.coinbase_split.len(),
+            crate::jul::MAX_COINBASE_SPLIT,
+        );
         Node {
             id,
             ledger: Ledger::new(),
@@ -999,6 +1008,9 @@ fn apply_transition(state: &mut Ledger, b: &Block, params: &Constitution) {
             // producer REMAINDER. An EMPTY split skips the loop ⇒ a single producer cell at `coinbase_id`
             // ⇒ byte-identical to pre-M3. Σ slices + producer == reward ⇒ conservation by construction.
             let mut remaining = reward;
+            // Defense-in-depth for the pure path (which does not pass through `Node::new`'s admission
+            // check): the index MUST stay under the 8-bit slice-id field or the id would wrap/collide.
+            debug_assert!(params.coinbase_split.len() <= crate::jul::MAX_COINBASE_SPLIT);
             for (index, (lock, bps)) in params.coinbase_split.iter().enumerate() {
                 let slice = (reward.saturating_mul(*bps as u128) / 10_000).min(remaining);
                 if slice > 0 {
