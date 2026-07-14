@@ -73,6 +73,13 @@ pub mod jul;
 /// a protocol-spend-only reserve cell are the later increments (3b/4), not this one.
 pub mod reserve;
 
+/// Wall-clock validation kernel (Phase-2 timestamp source; `docs/DESIGN-committee-attested-clock.md`).
+/// The pure per-node validation predicates behind the committee-attested physical clock + the elapsed-time
+/// feed for `noesis_core::pow::next_target`. CONSENSUS-ISOLATED SHADOW (the `jul`/`reserve` precedent):
+/// no wiring, never touches `state_digest`. `within_tolerance` is a node-LOCAL admission rule (must not
+/// enter replay); `advances_monotonically`/`observed_elapsed` are deterministic and replay-safe.
+pub mod wallclock;
+
 /// A CKB-style script: a RISC-V program (by code hash) + its arguments. VM success
 /// = valid. Lock scripts gate ownership; type scripts gate state transitions.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
