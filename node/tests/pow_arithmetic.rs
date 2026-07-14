@@ -8,7 +8,9 @@
 
 use noesis::runtime::{Block, PowSeal};
 use noesis::wire::{decode_block, encode_block};
-use noesis_core::pow::{compact_to_target, hash, put, target_to_compact, work_from_target};
+use noesis_core::pow::{
+    compact_to_target, hash, next_target, put, target_to_compact, work_from_target, RetargetParams,
+};
 
 fn empty_block(pow: Option<PowSeal>) -> Block {
     // A wire test needs a Block value, not a consensus-valid one (encode/decode never validates).
@@ -162,4 +164,84 @@ fn pow_hash_and_put_are_deterministic_and_injective() {
     put(&mut b, b"c");
     assert_ne!(a, b, "length-prefix framing must be injective (no concatenation ambiguity)");
     // ANTI-THEATER: replace `put`'s length prefix with a bare extend_from_slice ⇒ a == b ⇒ RED.
+}
+
+// ---- ASERT retarget (inc-M3-1) ----
+// [u8; 32] Ord is lexicographic = big-endian numeric comparison, so `a.cmp(&b)` compares targets directly.
+
+fn rp(interval: u64, half_life: u64) -> RetargetParams {
+    // pow_limit = the easiest representable target (0x1f00ffff) — far easier than ANCHOR, so it only
+    // bites the explicit clamp test, never the others.
+    RetargetParams { ideal_interval: interval, half_life, pow_limit_bits: 0x1f00_ffff }
+}
+
+// target = 0x01 at byte index 8 (= 2^184): clean room to double/halve as exact powers of two.
+const ANCHOR: u32 = 0x1801_0000;
+
+/// A block exactly on schedule (observed == expected) leaves difficulty UNCHANGED, and the Phase-1 seam
+/// (observed == None) does the same — the controller is inert until a clock signal exists.
+#[test]
+fn retarget_on_schedule_and_no_signal_are_unchanged() {
+    let p = rp(100, 1000);
+    assert_eq!(next_target(ANCHOR, 1, Some(100), p), Some(ANCHOR), "on-schedule (Δ=0) ⇒ unchanged");
+    assert_eq!(next_target(ANCHOR, 1, None, p), Some(ANCHOR), "no clock signal ⇒ unchanged (the seam)");
+    // ANTI-THEATER: drop the observed==None ⇒ anchor branch (or break the exponent-0 identity) ⇒ RED.
+}
+
+/// Faster than schedule hardens (smaller target); slower eases (larger target). Direction is the whole point.
+#[test]
+fn retarget_hardens_when_fast_eases_when_slow() {
+    let p = rp(100, 1000);
+    let anchor_t = compact_to_target(ANCHOR).unwrap();
+    // height_delta 20 ⇒ expected 2000; observed 1000 (fast) ⇒ harder; observed 3000 (slow) ⇒ easier.
+    let fast = compact_to_target(next_target(ANCHOR, 20, Some(1000), p).unwrap()).unwrap();
+    let slow = compact_to_target(next_target(ANCHOR, 20, Some(3000), p).unwrap()).unwrap();
+    assert_eq!(fast.cmp(&anchor_t), core::cmp::Ordering::Less, "faster ⇒ smaller (harder) target");
+    assert_eq!(slow.cmp(&anchor_t), core::cmp::Ordering::Greater, "slower ⇒ larger (easier) target");
+    // ANTI-THEATER: flip the exponent sign (neg/pos swap) ⇒ direction inverts ⇒ RED.
+}
+
+/// Exact at whole half-lives: +τ doubles the target (half difficulty), −τ halves it. frac == 0 ⇒ the cubic
+/// approximation contributes nothing ⇒ these are exact powers of two.
+#[test]
+fn retarget_exact_at_whole_half_lives() {
+    let p = rp(100, 1000);
+    // +1 half-life: height_delta 1 ⇒ expected 100; observed 1100 ⇒ Δ = +τ ⇒ target ×2 (0x01 → 0x02).
+    assert_eq!(next_target(ANCHOR, 1, Some(1100), p), Some(0x1802_0000), "+τ ⇒ target doubles");
+    // −1 half-life: height_delta 15 ⇒ expected 1500; observed 500 ⇒ Δ = −τ ⇒ target ÷2 (0x01 → 0x0080).
+    assert_eq!(next_target(ANCHOR, 15, Some(500), p), Some(0x1800_8000), "−τ ⇒ target halves");
+    // ANTI-THEATER: drop the −16 net-shift offset (or the ×65536 factor scale) ⇒ magnitude wrong ⇒ RED.
+}
+
+/// Monotone in observed time: more elapsed ⇒ a target no smaller (weakly easier).
+#[test]
+fn retarget_is_monotone_in_observed_time() {
+    let p = rp(100, 1000);
+    let mut prev = [0u8; 32];
+    for obs in [0u64, 500, 1000, 2000, 5000, 20_000] {
+        let t = compact_to_target(next_target(ANCHOR, 10, Some(obs), p).unwrap()).unwrap();
+        assert!(t.cmp(&prev) != core::cmp::Ordering::Less, "target must not shrink as observed time grows");
+        prev = t;
+    }
+    // ANTI-THEATER: make the exponent decrease in observed ⇒ some step shrinks ⇒ RED.
+}
+
+/// A huge overshoot never returns a target easier than the floor — it clamps to pow_limit_bits (the
+/// never-halt difficulty floor).
+#[test]
+fn retarget_clamps_to_the_pow_limit_floor() {
+    let p = rp(100, 1000);
+    // observed vastly exceeds expected ⇒ exponent huge positive ⇒ the target would blow past the floor.
+    assert_eq!(next_target(ANCHOR, 1, Some(1_000_000), p), Some(0x1f00_ffff), "overshoot clamps to the floor");
+    // ANTI-THEATER: remove the pow_limit clamp ⇒ returns an easier-than-floor target ⇒ RED.
+}
+
+/// Total: a zero half-life and a malformed anchor/floor compact are rejected (None), never a panic.
+#[test]
+fn retarget_is_total_on_bad_input() {
+    assert_eq!(next_target(ANCHOR, 1, Some(100), rp(100, 0)), None, "τ == 0 ⇒ None (no divide-by-zero)");
+    let bad_floor = RetargetParams { ideal_interval: 100, half_life: 1000, pow_limit_bits: 0 };
+    assert_eq!(next_target(ANCHOR, 1, Some(100), bad_floor), None, "malformed pow_limit ⇒ None");
+    assert_eq!(next_target(0, 1, Some(100), rp(100, 1000)), None, "malformed anchor ⇒ None");
+    // ANTI-THEATER: unwrap the anchor/floor decode instead of `?` ⇒ panic on bad input ⇒ RED (not None).
 }

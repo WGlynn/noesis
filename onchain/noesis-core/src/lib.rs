@@ -1155,4 +1155,156 @@ pub mod pow {
             }
         }
     }
+
+    // ============ ASERT difficulty retarget (inc-M3-1, DESIGN-M3 §3) ============
+
+    /// Parameters for the [`next_target`] ASERT retarget. All caller-supplied — this module hard-codes NO
+    /// economic number (interval, half-life, floor are ⚑ M3, ratified at wiring). `ideal_interval` and
+    /// `half_life` are in the SAME time unit as the `observed` elapsed passed to [`next_target`].
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub struct RetargetParams {
+        /// Target time per block (the schedule slope): `expected_elapsed = ideal_interval · height_delta`.
+        pub ideal_interval: u64,
+        /// ASERT time constant τ: the elapsed-time surplus/deficit that moves difficulty by exactly one
+        /// doubling (2× target ⇒ ½ difficulty) or halving. Must be ≥ 1 (τ == 0 ⇒ [`next_target`] `None`).
+        pub half_life: u64,
+        /// Minimum difficulty = maximum (easiest) target, as compact bits. The retarget never returns a
+        /// target easier than this (the death-spiral / never-halt floor). Must be a valid compact.
+        pub pow_limit_bits: u32,
+    }
+
+    /// ASERT difficulty retarget — negative-solvetime-tolerant, integer-only, float-free (the
+    /// transition-purity contract). Given the anchor block's compact target `anchor_bits`, the block-count
+    /// since the anchor `height_delta`, and the OBSERVED elapsed time since the anchor, returns the next
+    /// block's compact target.
+    ///
+    /// The exponent decomposes as `observed − (ideal_interval · height_delta)`: the **expected** (schedule)
+    /// half is pure height + a constant (NO clock); only the **observed** half needs a timestamp.
+    /// `observed == None` is the Phase-1 seam — no clock signal ⇒ treat the block as exactly on schedule
+    /// (exponent 0) ⇒ target UNCHANGED. So the controller is live and testable while the timestamp source
+    /// stays ⚑ M3 (the same "right interface, degenerate constant" discipline as `pow_enforced` default-false).
+    ///
+    /// Faster-than-schedule (`observed < expected`) ⇒ smaller (HARDER) target; slower ⇒ larger (EASIER),
+    /// clamped to `pow_limit_bits` (never easier than the floor) and to a minimum target of 1 (never the
+    /// unmeetable zero). Exact at whole half-lives: `observed = expected ± k·half_life ⇒ target = anchor·2^±k`
+    /// (the cubic `2^frac` approximation only rounds the fractional part). Returns `None` on a malformed
+    /// anchor/floor compact or a zero `half_life`; never panics.
+    pub fn next_target(
+        anchor_bits: u32,
+        height_delta: u64,
+        observed: Option<u64>,
+        params: RetargetParams,
+    ) -> Option<u32> {
+        let anchor = compact_to_target(anchor_bits)?;
+        let pow_limit = compact_to_target(params.pow_limit_bits)?;
+        if params.half_life == 0 {
+            return None; // τ == 0 ⇒ undefined (division) ⇒ reject, never divide-by-zero
+        }
+        // No clock signal ⇒ exactly-on-schedule seam ⇒ anchor unchanged (still floor-clamped + re-encoded
+        // so the result is always a canonical compact).
+        let observed = match observed {
+            None => return clamp_and_encode(anchor, &pow_limit),
+            Some(t) => t,
+        };
+        let expected = params.ideal_interval.saturating_mul(height_delta);
+        // signed exponent in 16.16 fixed point: ((observed − expected) << 16) / half_life. i128 holds any
+        // u64 difference shifted left 16 with room to spare.
+        let (neg, diff) = if observed >= expected {
+            (false, observed - expected)
+        } else {
+            (true, expected - observed)
+        };
+        let magnitude = ((diff as i128) << 16) / (params.half_life as i128);
+        let exponent = if neg { -magnitude } else { magnitude };
+        // decompose: arithmetic >> 16 floors toward −∞, and `& 0xffff` recovers the positive fractional
+        // remainder in [0, 65536) — the standard two's-complement ASERT identity (holds for negatives).
+        let shifts = exponent >> 16;
+        let frac = (exponent & 0xffff) as u128;
+        // 2^frac ≈ factor / 65536, factor ∈ [65536, 131072): BCH aserti3-2d cubic (all products fit u128).
+        let factor = 65536u128
+            + ((195_766_423_245_605u128 * frac
+                + 971_821_376u128 * frac * frac
+                + 5_127u128 * frac * frac * frac
+                + (1u128 << 47))
+                >> 48);
+        // next = anchor · factor, then a net bit-shift of (shifts − 16) (the −16 undoes the factor's ×65536).
+        let mut t = mul_small256(&anchor, factor as u64);
+        let net = shifts - 16;
+        if net >= 0 {
+            shl256_sat(&mut t, net.min(256) as u32); // ≥256 ⇒ overflow ⇒ saturates to the easiest target
+        } else {
+            shr256(&mut t, (-net).min(256) as u32); // ≤ −256 ⇒ underflows to 0 ⇒ pinned to 1 below
+        }
+        clamp_and_encode(t, &pow_limit)
+    }
+
+    /// Clamp a target to `[1, pow_limit]` (never easier than the floor, never the unmeetable zero) and
+    /// re-encode to a canonical compact.
+    fn clamp_and_encode(mut t: [u8; 32], pow_limit: &[u8; 32]) -> Option<u32> {
+        if cmp256(&t, pow_limit) == core::cmp::Ordering::Greater {
+            t = *pow_limit; // too easy ⇒ pin to the floor (max target)
+        }
+        if t == [0u8; 32] {
+            t[31] = 1; // never the unmeetable zero target — pin to the maximally-hard target of 1
+        }
+        target_to_compact(&t)
+    }
+
+    /// `target · factor` (factor ≤ ~2^17), big-endian 256-bit, saturating to all-ones on overflow (an
+    /// overflow means "easier than any representable target" ⇒ the caller's floor-clamp handles it).
+    fn mul_small256(target: &[u8; 32], factor: u64) -> [u8; 32] {
+        let mut out = [0u8; 32];
+        let mut carry: u128 = 0;
+        let mut i = 32;
+        while i > 0 {
+            i -= 1;
+            let prod = target[i] as u128 * factor as u128 + carry;
+            out[i] = (prod & 0xff) as u8;
+            carry = prod >> 8;
+        }
+        if carry != 0 {
+            return [0xffu8; 32]; // overflowed 256 bits ⇒ saturate to the easiest target
+        }
+        out
+    }
+
+    /// One-bit left shift of a big-endian 256-bit value; returns `true` if a set bit fell off the top.
+    fn shl1_256(t: &mut [u8; 32]) -> bool {
+        let mut carry = 0u16;
+        let mut i = 32;
+        while i > 0 {
+            i -= 1;
+            let v = ((t[i] as u16) << 1) | carry;
+            t[i] = (v & 0xff) as u8;
+            carry = v >> 8;
+        }
+        carry != 0
+    }
+
+    /// One-bit right shift of a big-endian 256-bit value (toward zero).
+    fn shr1_256(t: &mut [u8; 32]) {
+        let mut carry = 0u8; // the LSB of the higher byte drops into the top of the current byte
+        for byte in t.iter_mut() {
+            let next = *byte & 1;
+            *byte = (*byte >> 1) | (carry << 7);
+            carry = next;
+        }
+    }
+
+    /// `target <<= bits`, saturating to all-ones the moment a set bit would fall off the top.
+    fn shl256_sat(target: &mut [u8; 32], bits: u32) {
+        for _ in 0..bits.min(256) {
+            if shl1_256(target) {
+                *target = [0xffu8; 32];
+                return;
+            }
+        }
+    }
+
+    /// `target >>= bits`, big-endian 256-bit (toward zero; `bits ≥ 256 ⇒ 0`).
+    fn shr256(target: &mut [u8; 32], bits: u32) {
+        for _ in 0..bits.min(256) {
+            shr1_256(target);
+        }
+    }
 }
