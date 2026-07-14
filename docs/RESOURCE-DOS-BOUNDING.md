@@ -3,7 +3,7 @@
 > Closes the honest weak leg called out in `SECURITY.md` §2 and the reviewer's
 > shortcut: *"the economic gate removes the incentive; a submission bond /
 > rate-limit / commit-deposit that bounds the resource cost of evaluating junk is
-> designed, not built."* This doc is the design; Bound A is built, Bound B is teed.
+> designed, not built."* This doc is the design; Bound A AND Bound B are now BUILT (L5, 2026-07-14).
 
 ## The threat (precise)
 
@@ -47,7 +47,17 @@ supplies — so eviction is a Bound-B-era refinement, not a v1 mechanism.
   stops exactly at the cap; setting `max_mempool = usize::MAX` re-admits the whole
   flood (the bound genuinely does the work, not a coincidental limit).
 
-### Bound B — commit-deposit refunded on genuine contribution  🟡 DESIGNED (build next, fresh)
+### Bound B — commit-deposit refunded on genuine contribution  ✅ BUILT (L5, 2026-07-14)
+
+> ✅ Built: `Constitution.submission_deposit` (default 0 = inert) + `Block.bonds` + `check_bonds`
+> (validate) + the refund/burn resolve loop in `apply_transition`, in `node/src/runtime.rs`; tests in
+> `node/tests/submission_deposit.rs` (flood costs K·d, honest made-whole, per-CELL not per-contributor,
+> fake/underfunded/non-JUL/duplicate rejected, the bond-and-spend escape rejected, forfeit burns exactly
+> one instance). Refund = leave the bonded cell live; burn = retire exactly one instance (no re-output)
+> ⇒ conservation by construction, `jul_supply.issued` untouched. ⚑ ACTIVATION is a governance act on a
+> LIVE chain and requires `CONTROL_BINDING_ACTIVE` (the lock-sig deploy — a forfeiture burns a cell, so
+> spends must be owner-authorized first) + circulating JUL; `Node::new` asserts both. Header-binding of
+> `bonds` + the non-empty-auth bond test ride the next header rev (deferred, honestly labeled).
 
 A submission carries a deposit `d ≥ Constitution.submission_deposit`. The deposit is
 **refunded** iff the cell turns out to be a genuine contribution (banks novelty /
@@ -82,7 +92,7 @@ Bound A.
 | Bound | Mechanism | Status | Where |
 |---|---|---|---|
 | A | bounded mempool admission cap | ✅ built & tested | `runtime.rs` `Node::submit` + `Constitution.max_mempool` |
-| B | commit-deposit refunded on genuine contribution | 🟡 designed, build contract above | this doc §Bound B |
+| B | commit-deposit refunded on genuine contribution | ✅ built & tested (L5) | `runtime.rs` `check_bonds`/`apply_transition` + `tests/submission_deposit.rs` |
 
 This does **not** touch the PoM↔finality decision (open, Will-reserved). The mempool
 cap is a per-replica resource guard with no finality semantics.

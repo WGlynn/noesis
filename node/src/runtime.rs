@@ -88,6 +88,17 @@ pub struct Constitution {
     /// default to their inert value). The difficulty RETARGET rule + genesis bits + the work-clock
     /// ceiling are ⚑ M3 (Will-gated), deliberately absent here.
     pub pow_enforced: bool,
+    /// Bound-B commit-deposit (L5; `docs/RESOURCE-DOS-BOUNDING.md` §Bound B): the minimum JUL escrow (in
+    /// base units) a submission must post as a live bonded cell. `0` ⇒ INERT (no bond required, blocks
+    /// carry no `bonds`, byte-identical to pre-L5 — the `pow_enforced`/`vesting_w`/`work_clock_ceiling`
+    /// precedent). When `> 0` every cell must be bonded; a bond is refunded iff its cell banks novelty
+    /// and burned iff it scores zero, so a K-junk flood costs `K · submission_deposit`.
+    /// ⚑ ACTIVATION IS A GOVERNANCE ACT ON A LIVE CHAIN, never a genesis default: a bond requires
+    /// circulating JUL (a coinbase must have paid a submitter first), so a genesis with `> 0` and zero
+    /// seeded JUL cannot produce a non-empty block. It also requires `CONTROL_BINDING_ACTIVE` (the
+    /// lock-sig deploy) — a forfeiture burns the bonded cell, so spends must be owner-authorized first
+    /// (`Node::new` asserts both). The value is Will/governance-gated, like `delta`.
+    pub submission_deposit: u128,
     /// The N-way JUL issuance split (inc-M3-3, the L-INFRA carve-out). Each `(recipient, bps)` carves a
     /// slice `= reward · bps / 10_000` from the ONE constructed coinbase reward and mints it to
     /// `recipient` as a coinbase SLICE cell ([`crate::jul::coinbase_slice_id`]); the producer
@@ -132,6 +143,7 @@ impl Default for Constitution {
             pow_enforced: false,  // inert: block_work == WORK_PER_BLOCK ⇒ byte-identical to pre-M2
             coinbase_split: Vec::new(), // inert: producer takes 100% ⇒ byte-identical to pre-M3
             work_clock_ceiling: u64::MAX, // inert: min(block_work, MAX) == block_work ⇒ byte-identical
+            submission_deposit: 0, // inert: no bond required ⇒ blocks carry no bonds ⇒ byte-identical (Bound B)
         }
     }
 }
@@ -446,7 +458,6 @@ impl TokenTx {
     pub(crate) fn spend_is_authorized(input: &Cell, auth: &[u8], tx_digest: &[u8; 32]) -> bool {
         // Explicit deploy flag — never an overloaded sentinel (the QA-port-2 lesson). Pre-deploy a
         // cell may carry no control proof; at deploy an empty auth no longer authorizes.
-        const CONTROL_BINDING_ACTIVE: bool = false;
         if auth.is_empty() {
             return !CONTROL_BINDING_ACTIVE;
         }
@@ -482,6 +493,33 @@ pub struct PowSeal {
 /// A proposed block: cells paired with their consensus-sourced ordering coordinates,
 /// already in canonical commit order. Assembly is presentation-independent — no producer
 /// can bias which cell lands in which slot (the temporal-order strategyproofness guarantee).
+/// Deploy flag for the existence→control lock-signature layer: while `false` (pre-deploy) an empty
+/// `auth` authorizes a spend (existence stands in for control); at deploy it flips and every spend —
+/// token input OR Bound-B deposit — must present a verified Lamport signature. Module-scoped so the
+/// genesis-admission gate on `submission_deposit` can read it (a bond forfeiture BURNS a cell, so it
+/// must not activate before the auth that proves the burner owns it — the inc-CLK-1 lesson: never ship
+/// a destruction rule ahead of its guard).
+pub(crate) const CONTROL_BINDING_ACTIVE: bool = false;
+
+/// A Bound-B commit-deposit (`docs/RESOURCE-DOS-BOUNDING.md` §Bound B): the escrow that attaches a
+/// cost to the ACT of submission, refunded iff the bonded cell is a genuine contribution and burned
+/// iff it scores zero novelty — the SAME per-cell predicate the attribution gate already computes, so
+/// no new judgment/oracle (SubstrateGeometryMatch). Keyed by `for_cell` (not positional) so
+/// `Block::assemble`'s canonical permutation can never misalign a bond with the wrong cell.
+#[derive(Clone)]
+pub struct Bond {
+    /// the bonded attribution cell's id (a member of `Block.cells`).
+    pub for_cell: u64,
+    /// the escrowed JUL cell — must BYTE-MATCH a live `token_cell` on full identity
+    /// `(id, lock, type_script, data)`, be real JUL (`is_jul`), and carry `amount ≥ submission_deposit`.
+    /// A REAL consumed value cell, never a producer-asserted number ([P·dont-let-attacker-choose-critical-input]).
+    pub deposit: Cell,
+    /// owner spend proof over the bond (the lock-sig seam, positional like `TokenTx.auths`). Empty =
+    /// pre-deploy inert sentinel (`CONTROL_BINDING_ACTIVE == false`); a presented auth is verified for
+    /// real. Without this, a hostile producer could bond a VICTIM's live JUL cell for junk and burn it.
+    pub auth: Vec<u8>,
+}
+
 #[derive(Clone)]
 pub struct Block {
     pub height: u64,
@@ -514,6 +552,12 @@ pub struct Block {
     /// Council caught that asymmetry: monotonicity's safety DEPENDS on the tolerance bound, so the two
     /// are interdependent and must land together — [[role-conflation-is-the-bottleneck]] inverted).
     pub timestamp: Option<u64>,
+    /// Bound-B commit-deposits, one per bonded cell (`docs/RESOURCE-DOS-BOUNDING.md` §Bound B). Empty on
+    /// every pre-Bound-B block AND whenever `Constitution.submission_deposit == 0` ⇒ replay-parity
+    /// preserved (the `token_txs`/`coinbase`/`pow` additive precedent). When the deposit is active each
+    /// cell must be bonded; on apply a bond is REFUNDED (left live, untouched) iff its cell scores
+    /// novelty and BURNED (retired, no re-output) iff it scores zero — conservation by construction.
+    pub bonds: Vec<Bond>,
 }
 
 impl Block {
@@ -532,6 +576,7 @@ impl Block {
             coinbase: None,
             pow: None,
             timestamp: None,
+            bonds: Vec::new(),
         }
     }
 
@@ -561,6 +606,14 @@ impl Block {
     /// node-local tolerance band is checked at admission, never on replay.
     pub fn with_timestamp(mut self, t: u64) -> Block {
         self.timestamp = Some(t);
+        self
+    }
+
+    /// Attach Bound-B commit-deposits (L5 builder; empty by default). Each bond escrows a live JUL cell
+    /// against one of this block's cells; validity + refund/burn are enforced in `validate_block`/
+    /// `apply_transition` when `Constitution.submission_deposit > 0`.
+    pub fn with_bonds(mut self, bonds: Vec<Bond>) -> Block {
+        self.bonds = bonds;
         self
     }
 }
@@ -744,6 +797,25 @@ impl Node {
             !(constitution.vesting_w > 0 && constitution.work_clock_ceiling == u64::MAX),
             "vesting_w > 0 requires a FINITE work_clock_ceiling (got u64::MAX) — an infinite clock \
              ceiling lets one hard block mature every pending cell past the vesting cliff at once",
+        );
+        // Bound-B / PoW interaction (L5): the block `bonds` are consensus-consumed, state-affecting bytes
+        // that are NOT yet committed in `header_digest`. Under `pow_enforced` an unbound bonds field is
+        // the exact PoW-replay malleability the header guards against (a solved seal relayed onto a block
+        // with swapped/stripped bonds). So an active deposit under PoW is a genesis-admission error until
+        // the header binds bonds (deferred with the inc-CLK-2 header rev) — fail-loud, never a live hole.
+        assert!(
+            !(constitution.pow_enforced && constitution.submission_deposit > 0),
+            "submission_deposit > 0 under pow_enforced requires header-bound bonds (not yet shipped) — \
+             gate the deposit until the header binds `bonds`",
+        );
+        // Bound-B forfeiture BURNS the bonded cell. Until the lock-sig layer is live
+        // (`CONTROL_BINDING_ACTIVE`), an empty auth authorizes any spend, so an active deposit would let
+        // a producer bond — and burn — a VICTIM's cell. Gate activation behind control-binding so the
+        // destruction rule never ships ahead of the auth that proves ownership (the inc-CLK-1 lesson).
+        assert!(
+            !(constitution.submission_deposit > 0 && !CONTROL_BINDING_ACTIVE),
+            "submission_deposit > 0 requires CONTROL_BINDING_ACTIVE (the lock-sig deploy) — a bond \
+             forfeiture burns a cell, so it must not activate before spends are owner-authorized",
         );
         Node {
             id,
@@ -938,6 +1010,14 @@ pub enum Violation {
     /// (8) PoW is enforced but the seal's header hash does not meet its claimed compact target (or
     /// the target is malformed) — the claimed work is not backed by a valid proof.
     PowUnmet,
+    /// (9) Bound-B is active (`submission_deposit > 0`) but the block's bond set does not cover its
+    /// cells 1:1 (a missing bond, a duplicate, or a bond for an absent cell), OR bonds are present while
+    /// the deposit is inert (`== 0`, fail-closed — no ambiguous voluntary-bond half-config).
+    BondCoverage,
+    /// (10) a bond's escrowed deposit is not a live JUL cell of the required denomination/amount, is not
+    /// authorized, or collides (bond-vs-bond, or bond-vs-token-input) within the block — the
+    /// fake/underfunded/stolen/double-spent-bond class.
+    BondInvalid,
 }
 
 /// The acceptance gate: the six conjoined checks of the old `Node::validate`, returning the typed
@@ -966,6 +1046,76 @@ pub fn validate_block(ledger: &Ledger, b: &Block, c: &Constitution) -> Result<()
     // data this increment (the M2a-1 precedent). The deterministic monotonicity rule ships in inc-CLK-2
     // BUNDLED with its magnitude guard (the node-local admission ingress) + the retarget activation —
     // never a live ordering rule without the bound its safety depends on (Council finding, 2026-07-14).
+    check_bonds(ledger, b, c)?; // (9)+(10) Bound-B commit-deposits (L5); inert when submission_deposit == 0
+    Ok(())
+}
+
+/// Canonical message a bond's `auth` signs (L5) — binds the authorization to THIS (for_cell, deposit)
+/// so a signature cannot be replayed onto a different bond. Domain-separated; length-prefixed for
+/// injectivity. Deploy-independent (matters only once `CONTROL_BINDING_ACTIVE` flips).
+fn bond_message(for_cell: u64, deposit: &Cell) -> [u8; 32] {
+    use noesis_core::pow::{hash, put};
+    let mut buf: Vec<u8> = Vec::new();
+    buf.extend_from_slice(b"noesis-bond-v1");
+    buf.extend_from_slice(&for_cell.to_le_bytes());
+    buf.extend_from_slice(&deposit.id.to_le_bytes());
+    buf.extend_from_slice(&deposit.lock.code_hash);
+    put(&mut buf, &deposit.lock.args);
+    buf.extend_from_slice(&deposit.type_script.code_hash);
+    put(&mut buf, &deposit.type_script.args);
+    put(&mut buf, &deposit.data);
+    hash(&buf)
+}
+
+/// Bound-B validity (L5, `docs/RESOURCE-DOS-BOUNDING.md` §Bound B). INERT at `submission_deposit == 0`
+/// (bonds must be absent ⇒ byte-identical to pre-L5). When active, every cell is bonded 1:1 and each
+/// bond escrows a REAL live JUL cell (never a producer-asserted number — [P·dont-let-attacker-choose-
+/// critical-input]): full-identity match in `token_cells`, `is_jul`, `amount ≥ submission_deposit`,
+/// owner-authorized, and single-use (unique among bonds AND disjoint from every token-tx input in the
+/// block — closing the bond-a-cell-and-also-spend-it escape where the burn's `retain` would no-op).
+fn check_bonds(ledger: &Ledger, b: &Block, c: &Constitution) -> Result<(), Violation> {
+    if c.submission_deposit == 0 {
+        // fail-closed: no ambiguous "voluntary bond under an inert deposit" half-config.
+        return if b.bonds.is_empty() { Ok(()) } else { Err(Violation::BondCoverage) };
+    }
+    // Coverage: exactly one bond per cell, keyed by `for_cell`.
+    if b.bonds.len() != b.cells.len() {
+        return Err(Violation::BondCoverage);
+    }
+    let cell_ids: HashSet<u64> = b.cells.iter().map(|cl| cl.id).collect();
+    let mut covered: HashSet<u64> = HashSet::new();
+    // Seed the single-use set with every token-tx input identity so a bond cannot double-use a cell a
+    // token movement already spends in the same block.
+    let mut consumed: HashSet<(u64, Script, Script)> = HashSet::new();
+    for tx in &b.token_txs {
+        for inp in &tx.inputs {
+            consumed.insert((inp.id, inp.lock.clone(), inp.type_script.clone()));
+        }
+    }
+    for bond in &b.bonds {
+        if !cell_ids.contains(&bond.for_cell) || !covered.insert(bond.for_cell) {
+            return Err(Violation::BondCoverage); // bond for an absent cell, or a duplicate bond
+        }
+        let d = &bond.deposit;
+        // real JUL, full-identity live, funded — the amount is READ from the finalized cell, not declared.
+        if !crate::jul::is_jul(d) {
+            return Err(Violation::BondInvalid);
+        }
+        let live = ledger.token_cells.iter().any(|cl| {
+            cl.id == d.id && cl.lock == d.lock && cl.type_script == d.type_script && cl.data == d.data
+        });
+        if !live || crate::tokens::fungible::amount(d) < c.submission_deposit {
+            return Err(Violation::BondInvalid);
+        }
+        // control: a bond is a spend ⇒ owner-authorized (empty auth = pre-deploy inert sentinel).
+        if !TokenTx::spend_is_authorized(d, &bond.auth, &bond_message(bond.for_cell, d)) {
+            return Err(Violation::BondInvalid);
+        }
+        // single-use: unique among bonds AND disjoint from token-tx inputs.
+        if !consumed.insert((d.id, d.lock.clone(), d.type_script.clone())) {
+            return Err(Violation::BondInvalid);
+        }
+    }
     Ok(())
 }
 
@@ -1141,6 +1291,33 @@ fn apply_transition(state: &mut Ledger, b: &Block, params: &Constitution) {
     // The monotonicity comparand it will feed lands in inc-CLK-2 with the enforcement bundle.
     // recompute PoM attribution over the full chain (integer Q16.16 similarity floor).
     state.pom = pom_scores_with_similarity_floor_q16(&state.cells, params.theta_sim_q16);
+    // Bound-B (L5): resolve commit-deposits by the SAME per-cell novelty the attribution just used. A
+    // cell that banked ZERO novelty FORFEITS its bond — retire the escrowed JUL cell with no re-output
+    // (burn = retirement, the existing JUL-burn shape); a cell that banked novelty is REFUNDED by
+    // leaving its bond cell live and untouched. Conservation BY CONSTRUCTION: every bond is either left
+    // live or removed, so Σ posted == Σ refunded + Σ burned, and `jul_supply.issued` is never touched.
+    // Gated on the active deposit ⇒ inert (byte-identical `token_cells`/digest) at `submission_deposit == 0`.
+    if params.submission_deposit > 0 && !b.bonds.is_empty() {
+        use crate::ValueOracle;
+        let vals = crate::NoveltyOracleV0.cell_values(&state.cells, params.theta_sim_q16);
+        let start = state.cells.len() - b.cells.len(); // this block's cells are the tail of state.cells
+        for (i, cell) in b.cells.iter().enumerate() {
+            if vals[start + i] == 0 {
+                if let Some(bond) = b.bonds.iter().find(|bd| bd.for_cell == cell.id) {
+                    let d = &bond.deposit;
+                    // Burn EXACTLY ONE instance of the bonded cell (position + remove), never `retain`
+                    // (remove-all): absent a unique nullifier, two byte-identical cells can coexist, and
+                    // a remove-all would over-burn N·d for a 1·d forfeit (Council MAJOR, 2026-07-14).
+                    // Deterministic: `position` finds the first match in canonical `token_cells` order.
+                    if let Some(pos) = state.token_cells.iter().position(|c| {
+                        c.id == d.id && c.lock == d.lock && c.type_script == d.type_script && c.data == d.data
+                    }) {
+                        state.token_cells.remove(pos);
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// THE RULEBOOK. Pure, deterministic `(prev_state, block) -> Result<next_state, violation>`:

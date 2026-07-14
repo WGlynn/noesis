@@ -19,7 +19,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use crate::commit_order::Committed;
-use crate::runtime::{Block, PowSeal, TokenStandard, TokenTx};
+use crate::runtime::{Block, Bond, PowSeal, TokenStandard, TokenTx};
 use crate::{Cell, Script};
 
 // ============ wire mirror structs (the only serde in the block path) ============
@@ -81,6 +81,17 @@ struct WBlock {
     /// additive precedent as `pow`/`coinbase`.
     #[serde(default)]
     timestamp: Option<u64>,
+    /// Bound-B commit-deposits (L5). `#[serde(default)]` ⇒ pre-L5 / inert-deposit block logs (no field)
+    /// decode as an empty vec, preserving byte-identical restart/replay — the additive precedent.
+    #[serde(default)]
+    bonds: Vec<WBond>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct WBond {
+    for_cell: u64,
+    deposit: WCell,
+    auth: Vec<u8>,
 }
 
 // ============ conversions (real type -> wire) ============
@@ -127,6 +138,11 @@ fn w_block(b: &Block) -> WBlock {
         coinbase: b.coinbase.as_ref().map(w_script),
         pow: b.pow.map(|s| WPowSeal { bits: s.bits, nonce: s.nonce }),
         timestamp: b.timestamp,
+        bonds: b
+            .bonds
+            .iter()
+            .map(|bd| WBond { for_cell: bd.for_cell, deposit: w_cell(&bd.deposit), auth: bd.auth.clone() })
+            .collect(),
     }
 }
 
@@ -175,6 +191,11 @@ fn r_block(b: WBlock) -> Result<Block, WireError> {
         coinbase: b.coinbase.map(r_script),
         pow: b.pow.map(|s| PowSeal { bits: s.bits, nonce: s.nonce }),
         timestamp: b.timestamp,
+        bonds: b
+            .bonds
+            .into_iter()
+            .map(|bd| Bond { for_cell: bd.for_cell, deposit: r_cell(bd.deposit), auth: bd.auth })
+            .collect(),
     })
 }
 

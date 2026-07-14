@@ -72,10 +72,12 @@ to genuinely contribute.
   scores it 0) and now **resource-bounded at the memory/compute layer** by a bounded mempool admission cap
   (`Constitution.max_mempool`; `Node::submit` rejects admission once the pool is at the cap — a
   deterministic, economics-independent ceiling, ✅ built & tested:
-  `runtime.rs::resource_dos_flood_is_bounded_by_mempool_cap`). The remaining 🟡 is the **economic teeth**:
-  a commit-deposit refunded on genuine contribution / forfeited on junk, which makes a K-junk flood cost
-  K·d — **designed, not built** (build contract in `docs/RESOURCE-DOS-BOUNDING.md` Bound B). A serious
-  reviewer should still press on the deposit leg; we flag it rather than overclaim.
+  `runtime.rs::resource_dos_flood_is_bounded_by_mempool_cap`). The **economic teeth** — a commit-deposit
+  refunded on genuine contribution / forfeited on junk, making a K-junk flood cost K·d — is now ✅ built &
+  tested (L5: `runtime.rs` `check_bonds`/`apply_transition`, `tests/submission_deposit.rs`). Refund = the
+  bonded cell stays live; burn = retire exactly one instance ⇒ conservation by construction. ⚑ activation
+  is a governance act on a live chain, gated behind `CONTROL_BINDING_ACTIVE` (a burn must not precede its
+  auth-guard). Still-deferred + honestly flagged: header-binding of `bonds` and the non-empty-auth path.
 
 ### 3. Double-spend — ✅ built & tested (reference) / 🟡 deploy-coupled crypto
 - Single-use UTXO retirement: a consumed authority/value cell is retired on apply, so a later block's
