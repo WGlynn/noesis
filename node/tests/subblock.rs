@@ -28,6 +28,19 @@ fn tok(id: u64, amount: u128, owner: &[u8], issuer: &[u8]) -> Cell {
     }
 }
 
+/// A JUL cell (the money type) — used to construct the JUL-smuggle the settlement tier rejects.
+fn jul_cell(id: u64, owner: &[u8], amount: u128) -> Cell {
+    use noesis::jul::{JUL_CODE_HASH, JUL_ISSUER};
+    Cell {
+        id,
+        lock: Script { code_hash: [0u8; 32], args: owner.to_vec() },
+        type_script: Script { code_hash: JUL_CODE_HASH, args: JUL_ISSUER.to_vec() },
+        parent: None,
+        timestamp: 0,
+        data: noesis::tokens::fungible::encode(amount),
+    }
+}
+
 /// A conserving transfer of the whole `input` cell to `new_owner` (same amount, same issuer).
 fn transfer(input: Cell, new_owner: &[u8], out_id: u64) -> TokenTx {
     let issuer = input.type_script.args.clone();
@@ -141,6 +154,40 @@ fn conserves_across_provisional_overlay() {
     );
     // ANTI-THEATER: validate against the base ledger only (skip the provisional overlay) ⇒ the
     // double-spend passes AND the multi-hop fails ⇒ both asserts RED.
+}
+
+/// The fast tier must apply the SAME conservation rule as settlement. A soft-confirm of a tx that
+/// settlement will ALWAYS reject — JUL minted from nothing (declare a benign token, smuggle a JUL output),
+/// or a token output squatting a reserved coinbase id — is a soft-confirm of a guaranteed revert, which
+/// misleads a merchant. Single-sourcing sub-block conservation onto `runtime::txs_conserve_and_single_use`
+/// (the settlement gate) closes the gap: the fast tier now runs the JUL-conservation + coinbase-squat checks
+/// its own copy was missing, so the two tiers can never drift again.
+#[test]
+fn fast_tier_matches_settlement_conservation() {
+    let coin = tok(1, 100, ALICE, ISS);
+    let ledger = ledger_with(5, &[(ALICE, 100)], vec![coin.clone()]);
+
+    // (a) JUL smuggle: declare benign token TC (conserves 100→100) but smuggle a 50-JUL output (jul_in=0).
+    // `is_valid_in_ledger` conserves only the DECLARED token, so this passes it — the JUL check is what
+    // catches the mint-from-nothing (the exact runtime::token_txs_conserve_and_single_use rationale).
+    let mut smuggle = transfer(coin.clone(), BOB, 3);
+    smuggle.outputs.push(jul_cell(2, BOB, 50));
+    assert_eq!(
+        validate_sub_block(&ledger, &[], &sub(5, 0, ALICE, vec![smuggle]), 0),
+        Err(SubBlockViolation::TxInvalidOrDoubleSpend),
+        "the fast tier must reject a JUL-from-nothing smuggle, exactly as settlement does"
+    );
+
+    // (b) coinbase-id squat: a token output claiming a reserved coinbase id could grief a real reward.
+    let mut squat = transfer(coin, BOB, 3);
+    squat.outputs[0].id = noesis::jul::COINBASE_ID_BIT | 3;
+    assert_eq!(
+        validate_sub_block(&ledger, &[], &sub(5, 0, ALICE, vec![squat]), 0),
+        Err(SubBlockViolation::TxInvalidOrDoubleSpend),
+        "the fast tier must reject a coinbase-id squat, exactly as settlement does"
+    );
+    // ANTI-THEATER: sub-block's old private conserve check omitted BOTH the JUL-conservation and the
+    // coinbase-squat gates ⇒ both txs passed validation ⇒ both asserts RED before the single-source.
 }
 
 /// The honest UX contract read side: a finalized output is `Final`; a sub-block output is `SoftConfirmed`

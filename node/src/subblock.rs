@@ -25,9 +25,8 @@
 //! vesting window `W`, so there is nothing to fast-confirm; the first/second-class tx split is also deferred.
 
 use crate::runtime::{Ledger, TokenTx};
-use crate::{Cell, Script};
+use crate::Cell;
 use noesis_core::pow::{hash, put};
-use std::collections::HashSet;
 
 /// A sub-block: a fast, REVERTIBLE batch of value transactions proposed between two ordering blocks by a
 /// contribution-weighted producer. Soft-confirmation only — never finalized state.
@@ -98,26 +97,6 @@ fn provisional_live(ledger: &Ledger, prior: &[SubBlock]) -> Vec<Cell> {
     live
 }
 
-/// Conserve + single-use for a batch of txs against a provisional live set. Mirrors the ordering-block
-/// gate `token_txs_conserve_and_single_use` (a small, deliberate duplication — the sub-block tier is a
-/// SEPARATE consensus surface; single-sourcing both onto one `&[Cell] × &[TokenTx]` helper is a follow).
-fn txs_conserve_and_single_use(live: &[Cell], txs: &[TokenTx]) -> bool {
-    let mut consumed: HashSet<(u64, Script, Script)> = HashSet::new();
-    for tx in txs {
-        if !tx.is_valid_in_ledger(live) {
-            return false;
-        }
-        for inp in &tx.inputs {
-            // full-identity key incl. no `data` matches the ordering-block gate's single-use key
-            // (id, lock, type_script) — `data` binding is enforced by `is_valid_in_ledger` above.
-            if !consumed.insert((inp.id, inp.lock.clone(), inp.type_script.clone())) {
-                return false;
-            }
-        }
-    }
-    true
-}
-
 /// Validate a sub-block against the current ledger + the provisional overlay of prior accepted sub-blocks
 /// in this interval. REVERTIBLE by construction — touches no finalized state, never enters `state_digest`.
 ///
@@ -145,8 +124,10 @@ pub fn validate_sub_block(
         return Err(SubBlockViolation::InsufficientStanding { have: standing, need: min_standing });
     }
     // (4) txs conserve + single-use against the provisional overlay (multi-hop soft-chain allowed; a
-    //     double-spend of an input already consumed earlier in the interval is rejected).
-    if !txs_conserve_and_single_use(&provisional_live(ledger, prior), &sub.txs) {
+    //     double-spend of an input already consumed earlier in the interval is rejected). SINGLE-SOURCED
+    //     onto the settlement gate `runtime::txs_conserve_and_single_use` so the fast tier runs the SAME
+    //     rule as finalization (incl. JUL-conservation + coinbase-squat) — the two tiers cannot drift.
+    if !crate::runtime::txs_conserve_and_single_use(&provisional_live(ledger, prior), &sub.txs) {
         return Err(SubBlockViolation::TxInvalidOrDoubleSpend);
     }
     Ok(())

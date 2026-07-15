@@ -1274,9 +1274,22 @@ pub fn timestamp_admissible(b: &Block, local_now: u64, delta: u64) -> bool {
 /// nullifier — the crypto nullifier / on-VM UTXO-set retirement is the deploy-coupled layer; this
 /// reference set models both block scopes.
 fn token_txs_conserve_and_single_use(ledger: &Ledger, b: &Block) -> bool {
+    txs_conserve_and_single_use(&ledger.token_cells, &b.token_txs)
+}
+
+/// Conserve + single-use for a batch of value txs against a live cell set — the SINGLE consensus rule
+/// for value movement, shared by the SETTLEMENT tier ([`token_txs_conserve_and_single_use`], over the
+/// block's `token_txs` vs the finalized set) and the SUB-BLOCK fast tier
+/// ([`crate::subblock::validate_sub_block`], over the provisional soft-chain overlay). Single-sourcing
+/// the two is load-bearing: a soft-confirm must never accept a tx settlement will reject, or the fast
+/// tier would soft-confirm a guaranteed revert. Each tx must: conserve its DECLARED token + spend only
+/// live inputs (`is_valid_in_ledger`); not inflate JUL (`jul_out ≤ jul_in`, measured by the cells' real
+/// `is_jul` identity, since the coinbase is the money layer's sole inflation channel); not squat a
+/// reserved coinbase id; and consume each input at most once.
+pub(crate) fn txs_conserve_and_single_use(live: &[Cell], txs: &[TokenTx]) -> bool {
     let mut consumed: HashSet<(u64, Script, Script)> = HashSet::new();
-    for tx in &b.token_txs {
-        if !tx.is_valid_in_ledger(&ledger.token_cells) {
+    for tx in txs {
+        if !tx.is_valid_in_ledger(live) {
             return false;
         }
         // JUL SECURITY (increment 2): JUL is conserve-or-burn-ONLY through the token path ⇒ the block
