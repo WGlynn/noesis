@@ -2,9 +2,10 @@
 //! conservation + the confirmation-tier read side. Pure SHADOW validation: no networking, no
 //! finalized-state mutation (revertible by construction). Each test names its anti-theater break.
 
-use noesis::runtime::{Ledger, TokenStandard, TokenTx};
+use noesis::commit_order::Committed;
+use noesis::runtime::{apply_block, Block, Constitution, Ledger, TokenStandard, TokenTx};
 use noesis::subblock::{
-    tier_of_output, validate_sub_block, ConfirmationTier, SubBlock, SubBlockViolation,
+    absorb, tier_of_output, validate_sub_block, ConfirmationTier, SubBlock, SubBlockViolation,
 };
 use noesis::{Cell, Script};
 
@@ -161,4 +162,62 @@ fn confirmation_tier_soft_vs_final() {
     assert_eq!(tier_of_output(&ledger, &[], 99), None, "an id unknown to both tiers is neither");
     // ANTI-THEATER: return SoftConfirmed unconditionally ⇒ the Final assert RED; check sub-blocks before
     // the finalized set ⇒ id 1 mis-reports Soft ⇒ RED.
+}
+
+/// Absorption is DETERMINISTIC: the interval's accepted sub-blocks flatten into ordering-block txs in
+/// `seq` order regardless of the order an absorber received them, so two honest absorbers agree byte-for-
+/// byte (the security-relevant property).
+#[test]
+fn absorb_is_deterministic_regardless_of_receipt_order() {
+    let s0 = sub(5, 0, ALICE, vec![transfer(tok(1, 100, ALICE, ISS), BOB, 10)]);
+    let s1 = sub(5, 1, BOB, vec![transfer(tok(2, 100, BOB, ISS), CAROL, 11)]);
+    let ids = |txs: &[TokenTx]| -> Vec<u64> {
+        txs.iter().flat_map(|t| t.outputs.iter().map(|o| o.id)).collect()
+    };
+    let in_order = absorb(&[s0.clone(), s1.clone()]);
+    let received_shuffled = absorb(&[s1, s0]); // same soft-chain, delivered out of order
+    assert_eq!(ids(&in_order), vec![10, 11], "flattened in seq order");
+    assert_eq!(
+        ids(&in_order),
+        ids(&received_shuffled),
+        "receipt order must not affect absorption — two honest absorbers agree"
+    );
+    // ANTI-THEATER: drop the sort_by_key(seq) ⇒ the shuffled input flattens to [11, 10] ⇒ RED.
+}
+
+/// End-to-end soft → final: a tx soft-confirmed in a sub-block becomes `Final` once an ordering block
+/// absorbs it into its `token_txs` and that block finalizes (ordinary validation + apply).
+#[test]
+fn absorbed_sub_block_txs_become_final() {
+    let coin = tok(1, 100, ALICE, ISS);
+    let ledger = ledger_with(5, &[(ALICE, 100)], vec![coin.clone()]);
+
+    // sub0 soft-confirms ALICE → BOB (output id 2).
+    let s0 = sub(5, 0, ALICE, vec![transfer(coin, BOB, 2)]);
+    assert!(validate_sub_block(&ledger, &[], &s0, 0).is_ok(), "the soft-confirm is valid");
+    assert_eq!(
+        tier_of_output(&ledger, std::slice::from_ref(&s0), 2),
+        Some(ConfirmationTier::SoftConfirmed),
+        "before absorption the output is SoftConfirmed (revertible)"
+    );
+
+    // the next ORDERING block (height 6) absorbs the soft-chain into its token_txs.
+    let contrib = Cell {
+        id: 6,
+        lock: Script { code_hash: [1u8; 32], args: b"owner".to_vec() },
+        type_script: Script { code_hash: [2u8; 32], args: b"alice".to_vec() },
+        parent: None,
+        timestamp: 0,
+        data: b"ordering block 6 contribution, genuinely novel".to_vec(),
+    };
+    let ordering = Block::assemble(6, &[(contrib, Committed { height: 6, secret: [7u8; 32] })])
+        .with_token_txs(absorb(std::slice::from_ref(&s0)));
+    let after = apply_block(ledger, &ordering, &Constitution::default()).expect("ordering block applies");
+
+    assert_eq!(
+        tier_of_output(&after, &[], 2),
+        Some(ConfirmationTier::Final),
+        "once absorbed + finalized the output is Final (soft → final)"
+    );
+    // ANTI-THEATER: if absorb() dropped the txs, output 2 never enters token_cells ⇒ tier stays None ⇒ RED.
 }

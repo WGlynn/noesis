@@ -167,3 +167,24 @@ pub fn tier_of_output(ledger: &Ledger, accepted: &[SubBlock], output_id: u64) ->
     }
     None
 }
+
+/// ABSORPTION (slice 2): flatten an interval's ACCEPTED sub-blocks into the ordered list of value txs an
+/// ORDERING block includes, so their soft-confirmations become `Final` once that block finalizes. The
+/// producer folds this into the ordering block's `token_txs`; ORDINARY block validation then finalizes
+/// them — and a tx that no longer conserves against the (possibly advanced) finalized state simply fails
+/// that validation ⇒ that tx REVERTS, which is exactly the honest soft contract (soft was never a promise).
+///
+/// DETERMINISTIC by construction: sub-blocks are taken in `seq` order regardless of the order they were
+/// received, so two honest absorbers given the same accepted soft-chain produce identical output — the
+/// determinism the security analysis (`docs/research/sub-block-security.md` §6) flags as a property to
+/// prove. (`SubBlock.seq` is unique+sequential in a valid chain — `validate_sub_block` — so the sort is a
+/// total order; the sort is stable, so it is well-defined even on a malformed input.)
+///
+/// POLICY DEFERRED (⚑ Will): this slice ships the pure, deterministic ABSORPTION only. Whether the ordering
+/// block REPLACES its mempool with the soft-chain, MERGES the two, or PRIORITISES one, plus any per-block
+/// capacity cap, is the inclusion-policy layer on top — an open design fork, not decided here.
+pub fn absorb(accepted: &[SubBlock]) -> Vec<TokenTx> {
+    let mut ordered: Vec<&SubBlock> = accepted.iter().collect();
+    ordered.sort_by_key(|s| s.seq);
+    ordered.into_iter().flat_map(|s| s.txs.iter().cloned()).collect()
+}
