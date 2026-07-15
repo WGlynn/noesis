@@ -254,11 +254,15 @@ fn main() {
             });
             run_connect(addr);
         }
+        Some("--serve-api") => {
+            noesis::rpc::serve_api(args.get(2).map(String::as_str).unwrap_or("127.0.0.1:9955"))
+        }
         Some(other) => {
             eprintln!("noesisd: unknown mode {other:?}");
-            eprintln!("usage: noesisd                  # T0 devnet (produce a chain locally)");
-            eprintln!("       noesisd --listen [addr]  # T1 seed (default 127.0.0.1:0)");
-            eprintln!("       noesisd --connect <addr> # T1 joiner (sync from a seed)");
+            eprintln!("usage: noesisd                    # T0 devnet (produce a chain locally)");
+            eprintln!("       noesisd --listen [addr]    # T1 seed (default 127.0.0.1:0)");
+            eprintln!("       noesisd --connect <addr>   # T1 joiner (sync from a seed)");
+            eprintln!("       noesisd --serve-api [addr] # live HTTP API for friends (default 127.0.0.1:9955)");
             std::process::exit(2);
         }
     }

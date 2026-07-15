@@ -101,6 +101,11 @@ pub mod subblock;
 /// and joiner boot identically. `internal/DECISIONS-M3-money-2026-07-15.md`.
 pub mod chainspec;
 
+/// rpc — the node's live HTTP/JSON API (`GET /state`, `POST /submit`): the interface a friend or a
+/// browser frontend calls to submit a contribution and read the chain. std-only (the `net` precedent),
+/// with a pure, unit-tested dispatch core. Step 2 of the friends-ready node.
+pub mod rpc;
+
 /// A CKB-style script: a RISC-V program (by code hash) + its arguments. VM success
 /// = valid. Lock scripts gate ownership; type scripts gate state transitions.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
