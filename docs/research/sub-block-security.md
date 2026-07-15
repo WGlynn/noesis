@@ -52,13 +52,18 @@ never safety"). **Consequence:** the security question for sub-blocks is *not* "
   ordering block, the ordering block wins. Sub-block state is provisional.
 - **A4 — One ordering interval bounds the reversion window (~120 s).** A soft-confirmed tx is either
   absorbed by the next ordering block (→ path to Final) or reverts.
-- **A5 — Sub-block DATA AVAILABILITY holds (new, from the commit-by-root absorption choice).** The ordering
-  block commits only a Merkle root over the absorbed txs (`subblock::subblock_txs_root`), NOT the tx bytes —
-  a light block. This trades away self-containment: validators + syncing nodes must be able to RETRIEVE the
-  sub-block txs (from the gossip layer / an archive) to reconstruct state and to let a user prove their own
-  coin exists. **Validity ≠ availability** — neither the root nor a future ZK proof-of-absorption removes
-  this duty (a root or proof with withheld data is a *validium*, with the classic frozen-funds risk). DA is
-  the gossip layer's job (`[[validity-not-availability]]`).
+- **A5 — Absorption is RE-INCLUDE (self-contained blocks), so there is NO settlement/history DA assumption.**
+  Resolved 2026-07-14 (Will): the ordering block CARRIES the absorbed txs in its body (`token_txs`) and
+  commits their Merkle root (`subblock::subblock_txs_root`) in the HEADER — Bitcoin-standard (data in body,
+  root in header for PoW binding + light-client inclusion proofs). The block is fully self-contained and
+  replayable; a bare-root/validium data-availability requirement was CONSIDERED and REJECTED because it buys
+  little (a no-sub-block block carries those same txs anyway — re-include is not heavier than baseline) at the
+  cost of a real DA risk. The only residual availability need is EPHEMERAL and non-safety: a sub-block's txs
+  must reach peers for the ~2 s soft-confirm; if they don't, the tx simply isn't soft-confirmed (it still
+  settles normally in the ordering block). Propagation efficiency (not safety) is recovered with BIP152-style
+  compact blocks over the 6-byte `weak_tx_id`s, so a node that followed the fast tier reconstructs the
+  ordering block from cache without re-download. `[[validity-not-availability]]` (the distinction that made
+  the tradeoff legible; the conclusion here is to keep the data on-chain).
 
 ## 4. Threats and mitigations
 
@@ -71,7 +76,7 @@ never safety"). **Consequence:** the security question for sub-blocks is *not* "
 | **T5** | **Soft-chain reorg**: sub-blocks reordered/dropped before absorption. | By design the soft-chain is provisional; intra-interval reorg is expected and bounded by A4. | Expected behaviour, not a bug. ✅ |
 | **T6** | **Cross-tier inconsistency**: soft-confirm a spend of a cell not live in finalized state. | `validate_sub_block` validates against the provisional overlay built ON TOP of the finalized token set (grounded: `provisional_live` starts from `ledger.token_cells`), so it cannot soft-confirm a phantom/retired input. At absorption, re-validation vs the (possibly advanced) finalized state is authoritative. | ✅ (re-validation-at-absorption is part of the absorption slice). |
 | **T7** | **Standing-key compromise**: a high-standing contributor's key is stolen. | Damage confined to the fast tier (revertible); does NOT touch finality — the key's PoM finality weight is a separate, vesting-gated path. | Bounded; thresholds + eventual slashing are the mitigation surface. 🟡 |
-| **T8** | **Data withholding (validium freeze)**: an ordering block commits a root over txs whose data is not made available, so nodes cannot reconstruct state / users cannot prove their coins to spend them. | DA is required (A5): sub-block txs are gossiped + archived; a root committing UNAVAILABLE data must be treated as invalid at absorption (a validator that cannot obtain + verify the committed txs does not accept the ordering block). | The enforcement (reject-on-unavailable + archival/serving rules) is the gossip slice (2c). 🟡 — this is the security cost of the lean commit-by-root choice, entered knowingly. |
+| **T8** | **Data withholding (validium freeze)** — *DISSOLVED 2026-07-14 by the re-include choice.* | The ordering block CARRIES its txs (A5), so there is no committed-but-unavailable data and no validium freeze: every block is self-validating/replayable. The only residual is ephemeral + non-safety — a withheld sub-block just doesn't soft-confirm (the tx still settles in the ordering block). | ✅ eliminated at the settlement/history layer; the ~2 s soft-confirm reliability residual is a UX matter (T1/T4), not a fund-safety one. |
 
 ## 5. What sub-blocks deliberately do NOT secure
 

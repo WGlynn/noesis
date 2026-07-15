@@ -190,13 +190,15 @@ pub fn absorb(accepted: &[SubBlock]) -> Vec<TokenTx> {
     ordered.into_iter().flat_map(|s| s.txs.iter().cloned()).collect()
 }
 
-// ---- Commit-by-Merkle-root (slice 2b, Will 2026-07-14): the ORDERING block commits a ROOT over the
-// interval's absorbed txs instead of re-carrying them (Ergo-style — light block). This trades away
-// self-containment: DATA AVAILABILITY moves to the sub-block gossip layer (the txs must stay retrievable to
-// sync state + let a user spend their coin). NEITHER a root NOR a future ZK proof removes that DA duty —
-// validity ≠ availability (a ZK proof-of-absorption via `utxo_commitment::verify_transition` is a future
-// COMPUTE overlay on top, not a DA substitute). This slice ships the deterministic commitment + its
-// verification at the reference layer; the in-header field + apply-from-root land with gossip (slice 2c).
+// ---- Absorption Merkle root (slice 2b). The ordering block RE-INCLUDES the absorbed txs in its body
+// (`token_txs`, self-contained/replayable) AND commits their Merkle root in its HEADER — Bitcoin-standard
+// (data in body, root in header for PoW binding + light-client inclusion proofs). A commit-by-root-ONLY
+// design (block = root, txs off-chain) was considered and REJECTED (Will 2026-07-14): it buys little (a
+// no-sub-block block carries those same txs anyway ⇒ re-include is not heavier than baseline) at the cost of
+// a real data-availability risk (validity ≠ availability, `[[validity-not-availability]]`). So there is NO
+// DA store / reject-on-unavailable — the block IS the data. This root is the deterministic HEADER commitment
+// over the absorbed set; binding it into the ordering-block header + `verify` at absorption are the wiring
+// follow. A ZK proof-of-absorption (`utxo_commitment::verify_transition`) stays a future COMPUTE overlay.
 
 /// Domain tags for the Merkle construction — leaves and internal nodes hash under distinct prefixes so no
 /// node can be reinterpreted as a leaf or vice-versa (CVE-2012-2459 class defense).
@@ -246,11 +248,13 @@ fn tx_commit(tx: &TokenTx) -> [u8; 32] {
     hash(&buf)
 }
 
-/// The Merkle root an ORDERING block commits over the interval's absorbed txs. DETERMINISTIC: txs are taken
-/// in `seq` order ([`absorb`]) so two honest producers commit the SAME root (the security-relevant
+/// The Merkle root an ORDERING block commits in its HEADER over the interval's absorbed txs (the txs
+/// themselves are RE-INCLUDED in the block body — self-contained, no DA problem). DETERMINISTIC: txs are
+/// taken in `seq` order ([`absorb`]) so two honest producers commit the SAME root (the security-relevant
 /// property). Domain-separated leaves/nodes + a tx-COUNT binding defeat duplicate-leaf reshaping
-/// (CVE-2012-2459). An EMPTY interval ⇒ all-zero root (no absorption). COMMITMENT ONLY — the tx data lives
-/// in the sub-blocks (DA = the gossip layer); a verifier reconstructs + checks the root from what it holds.
+/// (CVE-2012-2459). An EMPTY interval ⇒ all-zero root (no absorption). A verifier recomputes it over the
+/// block's own re-included txs (Bitcoin-standard: the header root binds the body); it also enables
+/// light-client inclusion proofs against the header.
 pub fn subblock_txs_root(accepted: &[SubBlock]) -> [u8; 32] {
     let txs = absorb(accepted);
     if txs.is_empty() {
@@ -286,10 +290,21 @@ pub fn subblock_txs_root(accepted: &[SubBlock]) -> [u8; 32] {
     hash(&b)
 }
 
-/// Verify an ordering block's committed absorption root against the sub-blocks a node HOLDS: recompute the
-/// deterministic root and compare. Ships the VERIFICATION semantics; the in-header field + the
-/// apply-from-root state transition are slice 2c (they need the DA layer so a validator is guaranteed to
-/// hold the txs the root commits to).
+/// Verify an ordering block's committed header root against the absorbed set it re-includes: recompute the
+/// deterministic root and compare. Ships the VERIFICATION semantics; binding the root into the actual
+/// ordering-block header field (so the PoW commits it) is the wiring follow. No DA dependency — the txs are
+/// in the block body.
 pub fn verify_absorption_root(accepted: &[SubBlock], committed: [u8; 32]) -> bool {
     subblock_txs_root(accepted) == committed
+}
+
+/// A compact 6-byte WEAK transaction id for sub-block ANNOUNCEMENT (Ergo's weak-ID propagation — announce
+/// by weak id, fetch the full tx only when unseen: the bandwidth win). A truncated content hash. It is a
+/// bandwidth HINT, NOT a security binding — the ordering block's full Merkle root ([`subblock_txs_root`]) is
+/// the binding — so a rare 6-byte collision merely triggers an unnecessary fetch, never a validity error.
+pub fn weak_tx_id(tx: &TokenTx) -> [u8; 6] {
+    let full = tx_commit(tx);
+    let mut id = [0u8; 6];
+    id.copy_from_slice(&full[..6]);
+    id
 }
