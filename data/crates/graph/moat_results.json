@@ -1,0 +1,29 @@
+{
+  "judged_n": 3000,
+  "ancestor_singleton_frac": 0.0,
+  "ancestor_median": 127,
+  "ancestor_p90": 509,
+  "ancestor_max": 1915,
+  "n_pairs": 5998,
+  "predictive": {
+    "proxy_f0": 0.5167,
+    "best_single": 0.5126,
+    "learned": 0.5201,
+    "delta_vs_proxy_mean": 0.0034,
+    "delta_vs_proxy_wins": 12,
+    "delta_vs_best_mean": 0.0075,
+    "delta_vs_best_wins": 14,
+    "noise_band_1se": 0.0144,
+    "weights_last": [
+      0.084,
+      1.555,
+      -0.12,
+      -0.292
+    ]
+  },
+  "adversarial": {
+    "proxy_gap": 0.0,
+    "learned_gap": 0.05
+  },
+  "iso_invariant": true
+}

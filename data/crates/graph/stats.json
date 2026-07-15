@@ -1,0 +1,13 @@
+{
+  "dump": "2026-07-15-020010",
+  "crates_total": 299775,
+  "edges_normal_crate_level": 1940630,
+  "crates_with_ge1_reverse_dep": 111693,
+  "ancestor_closure_sample_n": 4000,
+  "ancestor_closure_singletons": 722,
+  "ancestor_closure_singleton_frac": 0.1805,
+  "ancestor_closure_median": 115,
+  "ancestor_closure_p90": 493,
+  "ancestor_closure_max": 1303,
+  "COMPARE_deepfunding_singleton_frac": 0.8261
+}
