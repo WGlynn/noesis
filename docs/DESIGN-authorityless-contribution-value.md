@@ -121,10 +121,16 @@ over‑rated, deferred, or already‑mitigated). The genuinely load‑bearing re
 - **🔴 Host‑liveness collapse in a value downturn (new).** If JUL value craters, rational operators
   unplug and the chain halts because nobody mines — never‑halt cannot prevent it. ⚠ **CALIBRATION: the
   council's proposed "base‑reward floor" CONFLICTS with the ratified energy‑peg** (`DECISIONS-M3-money-
-  2026-07-15.md` §1: identical work must mint identical JUL; a floor mints JUL for no work). The
-  peg‑preserving answers instead: the **counter‑cyclical reserve** (already built, `node/src/reserve.rs`,
-  Lever B — releases during downturns) + **diversified node income** (validation / dispute bounties, not
-  only mining) + emergency governance quorum‑lowering. Do NOT add a coinbase floor.
+  2026-07-15.md` §1: identical work must mint identical JUL; a floor mints JUL for no work). **JUL is
+  NEVER minted for no work (Will 2026‑07‑15).** The peg‑preserving liveness income is a DIFFERENT token:
+  **pay the keep‑a‑node‑alive role (validation) in VIBE**, which is governance, not energy‑money, so
+  minting it for validation breaks no peg — and this is ALREADY the design (`DESIGN-governance-authority-
+  tiering.md:109‑113`: "VIBE is earned by validating"). So: operators stay online for **VIBE‑by‑validation**
+  (+ dispute bounties) even when JUL mining isn't profitable; the **counter‑cyclical reserve**
+  (`node/src/reserve.rs`, Lever B) smooths the JUL side; emergency governance quorum‑lowering is the
+  last resort. Do NOT add a JUL coinbase floor. (Residual, already flagged in the tiering doc:
+  VIBE‑by‑validation lets capital‑that‑operates earn governance ⇒ acceptable only because the tiering
+  makes Tier‑2 governance outcome‑bounded — reconcile there, not here.)
 
 - **🔴 Data‑poisoning the learned‑`v(S)` (new, deepest).** The moat (§4) is not only data‑*gated* but
   data‑*poisonable*: if `v(S)` trains on on‑chain citation frequency, a Sybil ring poisons the training
