@@ -107,6 +107,61 @@ collusion slash + dispute market + learned‑`v(S)`) as the network robustifies 
 vesting‑`W` and the moat. It buys the early network time; it is not the endgame, and it must never be
 mistaken for authority (it is a spam filter, not a maintainer).
 
+## 5b. Adversarial council findings (2026‑07‑15) — calibrated
+
+A three‑seat adversarial council (sybil/economic · content/ML · systems/liveness, read‑only) red‑teamed
+this design then blue‑teamed each attack. Severity is calibrated honestly (several raw findings were
+over‑rated, deferred, or already‑mitigated). The genuinely load‑bearing results:
+
+- **FIXED — unbounded ingress seen‑set (OOM):** the screen's seen‑set grew without bound (~24 GB/yr) =
+  a self‑inflicted host‑liveness failure. Now capped (`node/src/screen.rs` `MAX_SEEN`; production =
+  Bloom filter + snapshot). This matters because **never‑halt is a *protocol* property and is vacuous if
+  the *physical* node set → 0** (Will 2026‑07‑15).
+
+- **🔴 Host‑liveness collapse in a value downturn (new).** If JUL value craters, rational operators
+  unplug and the chain halts because nobody mines — never‑halt cannot prevent it. ⚠ **CALIBRATION: the
+  council's proposed "base‑reward floor" CONFLICTS with the ratified energy‑peg** (`DECISIONS-M3-money-
+  2026-07-15.md` §1: identical work must mint identical JUL; a floor mints JUL for no work). The
+  peg‑preserving answers instead: the **counter‑cyclical reserve** (already built, `node/src/reserve.rs`,
+  Lever B — releases during downturns) + **diversified node income** (validation / dispute bounties, not
+  only mining) + emergency governance quorum‑lowering. Do NOT add a coinbase floor.
+
+- **🔴 Data‑poisoning the learned‑`v(S)` (new, deepest).** The moat (§4) is not only data‑*gated* but
+  data‑*poisonable*: if `v(S)` trains on on‑chain citation frequency, a Sybil ring poisons the training
+  labels so the model learns to score junk highly. **Defense — repurposes the §1 authority insight:**
+  seed the model on OFF‑chain ground truth = **real merged PRs** (a maintainer's merge IS an
+  authoritative value label — borrow it for the training SEED without making it consensus), plus
+  adversarial‑robust training + an auditable outcome‑label trail. Never trust raw on‑chain citations as
+  the label.
+
+- **🔴 Cold‑start deadlock (new).** Early network has no downstream data ⇒ `v(S)` falls back to novelty
+  ⇒ junk scores > 0 ⇒ repels real users ⇒ no outcome labels ⇒ the moat never forms. The obvious fix (a
+  supervised bootstrap screen) re‑introduces authority. Unsolved; the merged‑PR seed above is the most
+  promising bridge (it supplies labels the network can't yet generate).
+
+- **🟡 Coherent LLM‑filler.** Random‑noise padding is ALREADY zeroed by the consensus value layer
+  (`value::is_incompressible_q16` + `production_value_zeroes_incompressible_noise`, `lib.rs:1836` — the
+  council missed this), so no entropy floor was added to the screen. Grammatical‑but‑worthless LLM text
+  still passes every heuristic; only learned‑`v(S)` catches it, near‑term lever = the submission bond.
+
+- **🟡 Design‑notes for when the slash/dispute path is wired (deploy‑coupled, deferred):**
+  retroactive‑slash *griefing* (forged disputes against honest work → dispute bond + appeal window +
+  slash‑freeze cooldown + public dispute log); retroactive‑slash *inversion* (earn PoM influence during
+  the vesting‑`W` window, vote once before a refutation lands → embed refutations on‑chain for atomic
+  convergence); bond/dust flooding → per‑block cell caps + UTXO compaction.
+
+- **⬇ Confirmed strengths / downgraded alarms:** a balanced‑cycle collusion ring **fails by
+  construction** (single‑parent DAG can't form a balanced cycle); the screen cannot fork consensus (it is
+  explicitly advisory) and cannot identity‑censor (it sees only content, not the contributor — residual:
+  never let it become the *only* submission path, keep a gossip‑forward/bypass route); FNV
+  shingle‑collision gaming is real but pre‑existing in `coverage()` (consensus‑critical, used everywhere)
+  ⇒ a Will‑gated call (crypto‑hash shingles), not an autonomous change.
+
+**Through‑line:** every layer's teeth rest on `v(S)`; its honest state is now **data‑gated +
+data‑poisonable + cold‑start‑deadlocked**, and the merged‑PR training seed is the single most promising
+thread because it borrows an external authoritative value label to bootstrap what the network cannot yet
+produce itself.
+
 ## 6. One‑paragraph summary (the honest claim)
 
 GitHub validates contributions with a maintainer's *authority* to merge. Noesis has no such authority,
