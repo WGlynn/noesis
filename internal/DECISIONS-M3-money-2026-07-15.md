@@ -28,6 +28,10 @@
   is calendar-based. (Minor: puts the timestamp into issuance = small bounded grind surface; note at wiring.)
 - **No launch ramp** (dropped 2026-07-14 — JUL elastic ⇒ no deep-capital windfall). **No discrete halving**
   (the smooth exponential replaces Bitcoin-style halving).
+- **RATIONALE (the plain-English *why*):** Will's blog `docs/research/stable-base-money-ergon-rationale.md`
+  — the deflationary-base paradox (defi builds stability on hyper-deflationary collateral ⇒ boom/bust),
+  and Ergon's fix: **costliness ≠ deflation** (keep gold/BTC costliness, drop the scarcity-deflation via a
+  proportional/elastic reward). L1 = the stable base; public-goods "building blocks" compose on top.
 
 ### 2. TSS **Layer 2 (PI controller) + Layer 3 (elastic rebase) = OFF the base layer** (DeFi-derivative, not consensus)
 - **Reason (Will):** L2 and L3 both depend on the **CPI + electricity-price oracles** (TSS §5.2 dual-oracle;
