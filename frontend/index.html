@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Noēsis · contribution ledger</title>
+<style>
+  :root {
+    --bg:      #0e0f12;
+    --panel:   #16181d;
+    --panel-2: #1b1e24;
+    --line:    #262a32;
+    --ink:     #e9e5db;
+    --muted:   #8b909b;
+    --faint:   #5c616c;
+    --gold:    #d8a24a;   /* JUL — energy-anchored money */
+    --mind:    #7fb2bf;   /* PoM — earned standing */
+    --bad:     #c96a5e;
+    --radius:  10px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); }
+  body {
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding: 48px 20px 72px;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  code, .mono { font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace; }
+
+  header { margin-bottom: 34px; }
+  .wordmark {
+    font-family: Iowan Old Style, "Palatino Linotype", Palatino, Georgia, serif;
+    font-size: 40px; font-weight: 600; letter-spacing: .5px; margin: 0;
+  }
+  .wordmark .dot { color: var(--gold); }
+  .tagline { color: var(--muted); margin: 6px 0 0; font-size: 15px; }
+  .tagline b { color: var(--ink); font-weight: 600; }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 22px 22px 20px; margin: 18px 0;
+  }
+  .card h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: .12em;
+    color: var(--faint); margin: 0 0 16px; font-weight: 600;
+  }
+
+  label { display: block; font-size: 13px; color: var(--muted); margin: 0 0 6px; }
+  input[type=text], textarea {
+    width: 100%; background: var(--panel-2); border: 1px solid var(--line);
+    color: var(--ink); border-radius: 8px; padding: 11px 12px; font-size: 15px;
+    font-family: inherit; resize: vertical;
+  }
+  input[type=text]:focus, textarea:focus { outline: none; border-color: var(--gold); }
+  textarea { min-height: 78px; }
+  .field { margin-bottom: 14px; }
+  .hint { font-size: 12px; color: var(--faint); margin-top: 6px; }
+
+  button {
+    background: var(--gold); color: #1a1206; border: 0; border-radius: 8px;
+    padding: 11px 18px; font-size: 14px; font-weight: 700; cursor: pointer;
+    letter-spacing: .01em;
+  }
+  button:hover { filter: brightness(1.06); }
+  button:disabled { opacity: .5; cursor: default; }
+
+  .toast { margin-top: 14px; font-size: 13px; min-height: 18px; }
+  .toast.ok  { color: var(--mind); }
+  .toast.err { color: var(--bad); }
+
+  /* chain stats */
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line);
+           border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .stat { background: var(--panel-2); padding: 14px 16px; }
+  .stat .k { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--faint); }
+  .stat .v { font-size: 26px; font-weight: 600; margin-top: 4px; }
+  .stat .v.gold { color: var(--gold); }
+  .stat .u { font-size: 12px; color: var(--muted); margin-left: 4px; font-weight: 400; }
+
+  .board { margin-top: 18px; }
+  .board .row { display: flex; align-items: center; gap: 12px; padding: 9px 2px;
+                border-bottom: 1px solid var(--line); }
+  .board .row:last-child { border-bottom: 0; }
+  .board .name { flex: 1; }
+  .board .name b { font-weight: 600; }
+  .board .pom  { font-family: ui-monospace, Menlo, monospace; color: var(--mind); font-weight: 600; }
+  .bar { height: 4px; border-radius: 3px; background: var(--mind); opacity: .55; margin-top: 4px; }
+  .empty { color: var(--faint); font-size: 14px; padding: 6px 0; }
+
+  .statusline { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--faint);
+                margin-top: 4px; }
+  .dot-live { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+  .dot-live.up   { background: #6fbf7f; }
+  .dot-live.down { background: var(--bad); }
+
+  footer { margin-top: 30px; color: var(--faint); font-size: 12px; line-height: 1.7; }
+  footer .cfg { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+  footer .cfg input { max-width: 260px; padding: 7px 10px; font-size: 12px; }
+  a { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1 class="wordmark">Noēsis<span class="dot">.</span></h1>
+    <p class="tagline">A coordination primitive, not a casino. Contribution that <b>adds up</b> instead of running out — your standing is earned, never pre‑minted.</p>
+    <div class="statusline"><span id="live" class="dot-live"></span><span id="livetext">connecting…</span></div>
+  </header>
+
+  <section class="card">
+    <h2>Contribute</h2>
+    <div class="field">
+      <label for="who">Your handle</label>
+      <input id="who" type="text" placeholder="e.g. dave" autocomplete="off" spellcheck="false" />
+    </div>
+    <div class="field">
+      <label for="what">Your contribution</label>
+      <textarea id="what" placeholder="Write something genuinely new. Near‑duplicates of earlier work earn no novelty."></textarea>
+      <div class="hint">The chain measures novelty: distinct ideas earn standing; paraphrases of what's already committed score zero.</div>
+    </div>
+    <button id="send">Submit contribution</button>
+    <div id="toast" class="toast"></div>
+  </section>
+
+  <section class="card">
+    <h2>The chain</h2>
+    <div class="stats">
+      <div class="stat"><div class="k">Height</div><div class="v" id="s-height">—</div></div>
+      <div class="stat"><div class="k">JUL issued</div><div class="v gold"><span id="s-jul">—</span><span class="u">JUL</span></div></div>
+      <div class="stat"><div class="k">Contributors</div><div class="v" id="s-people">—</div></div>
+    </div>
+    <div class="board" id="board"></div>
+  </section>
+
+  <footer>
+    <div class="cfg">
+      <span>node</span>
+      <input id="api" type="text" value="http://127.0.0.1:9955" spellcheck="false" />
+    </div>
+    JUL is energy‑anchored money, minted from the proof‑of‑work that seals each block — no pre‑mine.
+    PoM standing is soulbound and earned by finalized contribution. This is a local devnet; difficulty is a
+    low placeholder for instant mining. Built in the open · <a href="https://github.com/WGlynn/noesis">WGlynn/noesis</a>
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const apiBase = () => $("api").value.replace(/\/+$/, "");
+  let lastHeight = -1;
+
+  function setLive(state, text) {
+    $("live").className = "dot-live " + state;
+    $("livetext").textContent = text;
+  }
+
+  function render(s) {
+    $("s-height").textContent = s.height;
+    $("s-jul").textContent = s.jul_issued;
+    const people = s.contributors || {};
+    const names = Object.keys(people);
+    $("s-people").textContent = names.length;
+
+    const board = $("board");
+    if (names.length === 0) {
+      board.innerHTML = '<div class="empty">No contributions yet — be the first to earn standing.</div>';
+      return;
+    }
+    const max = Math.max(...names.map((n) => people[n]));
+    names.sort((a, b) => people[b] - people[a]);
+    board.innerHTML = names.map((n) => {
+      const pom = people[n];
+      const w = max > 0 ? Math.round((pom / max) * 100) : 0;
+      const nm = n.replace(/[<>&]/g, "");
+      return `<div class="row"><div class="name"><b>${nm}</b>
+                <div class="bar" style="width:${w}%"></div></div>
+              <div class="pom">${pom}</div></div>`;
+    }).join("");
+  }
+
+  async function refresh() {
+    try {
+      const r = await fetch(apiBase() + "/state", { cache: "no-store" });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const s = await r.json();
+      render(s);
+      setLive("up", `live · height ${s.height} · ${s.jul_issued} JUL`);
+      lastHeight = s.height;
+    } catch (e) {
+      setLive("down", "node unreachable — is `noesisd --serve-api` running?");
+    }
+  }
+
+  async function submit() {
+    const contributor = $("who").value.trim();
+    const data = $("what").value.trim();
+    const toast = $("toast");
+    if (!contributor || !data) {
+      toast.className = "toast err";
+      toast.textContent = "Enter a handle and a contribution.";
+      return;
+    }
+    $("send").disabled = true;
+    toast.className = "toast";
+    toast.textContent = "mining…";
+    try {
+      const r = await fetch(apiBase() + "/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contributor, data }),
+      });
+      const s = await r.json();
+      if (!r.ok || s.error) throw new Error(s.error || ("HTTP " + r.status));
+      render(s);
+      const earned = (s.contributors && s.contributors[contributor]) || 0;
+      toast.className = "toast ok";
+      toast.textContent = `Block ${s.block_height} finalized — ${contributor} now holds ${earned} PoM standing.`;
+      $("what").value = "";
+    } catch (e) {
+      toast.className = "toast err";
+      toast.textContent = "Rejected: " + e.message + (/novel|zero/i.test(e.message) ? "" : " (try a more novel contribution?)");
+    } finally {
+      $("send").disabled = false;
+    }
+  }
+
+  $("send").addEventListener("click", submit);
+  $("what").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit(); });
+  $("api").addEventListener("change", refresh);
+  refresh();
+  setInterval(refresh, 3000);
+})();
+</script>
+</body>
+</html>
