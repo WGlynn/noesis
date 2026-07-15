@@ -9077,7 +9077,8 @@ pub mod index_rule {
     //! the re-exported rules through the maintainer-side `NoveltyIndex` producer (which, being
     //! maintainer-side state, stays node-only by design).
     pub use noesis_core::index_rule::{
-        valid_ordered_root_transition, valid_root_transition, CellBatch, InsertStep,
+        encode_index_batch, parse_index_batch, valid_ordered_root_transition,
+        valid_root_transition, CellBatch, InsertStep,
     };
 
     #[cfg(test)]

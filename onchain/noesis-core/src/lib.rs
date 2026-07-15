@@ -306,6 +306,87 @@ pub mod index_rule {
         }
         root == new_root
     }
+
+    // ---- Wire format (single home for the on-VM index-batch layout) ----
+    // The index type-script DECODES; the node/producer ENCODES. Same codec discipline as
+    // `commit_order::{parse,encode}_batch` and `finalization::{parse,encode}_*`. Layout:
+    //   old_root (Hash, 32) ‖ new_root (Hash, 32)                    -- the transition endpoints
+    //   then N cell-batch records, each:
+    //     height (u64 LE, 8) ‖ secret (Hash, 32) ‖ n_steps (u32 LE, 4)   -- the consensus coord
+    //     then n_steps × step: key (u64 LE, 8) ‖ siblings (DEPTH*32)       -- the rolling-root path
+    // A cell may carry n_steps==0 (a fully-redundant cell earns nothing but still ORDERS); an
+    // empty batch (zero cells) transitions nothing => malformed, like the empty commit/finalize group.
+    pub const ROOTS_LEN: usize = 64;
+    pub const CELL_HDR_LEN: usize = 8 + 32 + 4; // height + secret + n_steps
+    pub const STEP_LEN: usize = 8 + DEPTH * 32; // key + one full sibling path
+
+    /// Decode an on-VM index batch: `(old_root, new_root, cells)`. `None` on any length that is not
+    /// a well-formed header + exact cell/step records, or a zero-cell batch (transitions nothing).
+    pub fn parse_index_batch(data: &[u8]) -> Option<(Hash, Hash, Vec<CellBatch>)> {
+        if data.len() < ROOTS_LEN {
+            return None;
+        }
+        let mut old_root = [0u8; 32];
+        old_root.copy_from_slice(&data[0..32]);
+        let mut new_root = [0u8; 32];
+        new_root.copy_from_slice(&data[32..64]);
+        let mut cells = Vec::new();
+        let mut off = ROOTS_LEN;
+        while off < data.len() {
+            if off + CELL_HDR_LEN > data.len() {
+                return None; // truncated cell header
+            }
+            let height = u64::from_le_bytes(data[off..off + 8].try_into().unwrap());
+            let mut secret = [0u8; 32];
+            secret.copy_from_slice(&data[off + 8..off + 40]);
+            let n_steps = u32::from_le_bytes(data[off + 40..off + 44].try_into().unwrap()) as usize;
+            off += CELL_HDR_LEN;
+            // Capacity from REAL remaining length, never from the self-declared `n_steps` (the codec
+            // discipline of the sibling parsers): a forged header claiming a huge count must NOT drive
+            // a multi-TB pre-allocation that traps the VM — it must fall to a clean malformed reject.
+            if n_steps > (data.len() - off) / STEP_LEN {
+                return None; // more steps than the remaining bytes can hold
+            }
+            let mut steps = Vec::with_capacity(n_steps);
+            for _ in 0..n_steps {
+                if off + STEP_LEN > data.len() {
+                    return None; // truncated step record
+                }
+                let key = u64::from_le_bytes(data[off..off + 8].try_into().unwrap());
+                let mut siblings = [[0u8; 32]; DEPTH];
+                for (i, sib) in siblings.iter_mut().enumerate() {
+                    let b = off + 8 + i * 32;
+                    sib.copy_from_slice(&data[b..b + 32]);
+                }
+                steps.push(InsertStep { key, siblings });
+                off += STEP_LEN;
+            }
+            cells.push(CellBatch { coord: commit_order::Committed { height, secret }, steps });
+        }
+        if cells.is_empty() {
+            return None; // a batch with no cells transitions nothing
+        }
+        Some((old_root, new_root, cells))
+    }
+
+    /// Producer/test mirror of `parse_index_batch` — the other half of the single source.
+    pub fn encode_index_batch(old_root: Hash, new_root: Hash, cells: &[CellBatch]) -> Vec<u8> {
+        let mut out = Vec::with_capacity(ROOTS_LEN);
+        out.extend_from_slice(&old_root);
+        out.extend_from_slice(&new_root);
+        for cell in cells {
+            out.extend_from_slice(&cell.coord.height.to_le_bytes());
+            out.extend_from_slice(&cell.coord.secret);
+            out.extend_from_slice(&(cell.steps.len() as u32).to_le_bytes());
+            for step in &cell.steps {
+                out.extend_from_slice(&step.key.to_le_bytes());
+                for sib in &step.siblings {
+                    out.extend_from_slice(sib);
+                }
+            }
+        }
+        out
+    }
 }
 
 // ============ zk-score (Fit 2) single-source: floor, wire, digest, nullifier, verdict ============
