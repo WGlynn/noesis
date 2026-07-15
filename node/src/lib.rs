@@ -106,6 +106,11 @@ pub mod chainspec;
 /// with a pure, unit-tested dispatch core. Step 2 of the friends-ready node.
 pub mod rpc;
 
+/// store — the durable, append-only block log: the chain survives a node restart by replaying the log
+/// through the same validate+apply path a joiner uses. The difference between a demo and a node that
+/// stays on. Step "persistence" of the friends-ready node.
+pub mod store;
+
 /// A CKB-style script: a RISC-V program (by code hash) + its arguments. VM success
 /// = valid. Lock scripts gate ownership; type scripts gate state transitions.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

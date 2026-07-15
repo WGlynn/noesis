@@ -40,14 +40,31 @@ pub struct ServerState {
     spec: ChainSpec,
     node: Node,
     next_id: u64,
+    /// Where finalized blocks are persisted. `None` ⇒ in-memory only (tests); `Some(path)` ⇒ durable:
+    /// every finalized block is appended, and a restart replays the log instead of resetting to genesis.
+    store: Option<std::path::PathBuf>,
 }
 
 impl ServerState {
-    /// Boot an empty genesis from the dev spec — friends' contributions ARE the chain from block zero.
+    /// In-memory genesis (no persistence) — friends' contributions ARE the chain from block zero. Used
+    /// by tests; the live server uses [`with_store`](Self::with_store) so the chain survives a restart.
     pub fn new() -> Self {
         let spec = ChainSpec::dev();
         let (node, _keys) = spec.genesis_node();
-        ServerState { spec, node, next_id: 1 }
+        ServerState { spec, node, next_id: 1, store: None }
+    }
+
+    /// Boot a DURABLE node: replay the persisted block log at `path` (or start at genesis if absent),
+    /// and append every future finalized block there. This is what makes a hosted node "stay on" — a
+    /// process restart resumes the chain rather than wiping it. Returns the state + how many blocks were
+    /// replayed so the caller can announce it.
+    pub fn with_store(path: impl Into<std::path::PathBuf>) -> std::io::Result<(Self, usize)> {
+        let path = path.into();
+        let spec = ChainSpec::dev();
+        let (node, replayed) = crate::store::load_chain(&path, &spec)?;
+        // Resume id assignment past the highest persisted cell id (never collide with a replayed cell).
+        let next_id = node.ledger.cells.iter().map(|c| c.id).max().unwrap_or(0) + 1;
+        Ok((ServerState { spec, node, next_id, store: Some(path) }, replayed))
     }
 
     /// The chain view as JSON.
@@ -94,7 +111,17 @@ impl ServerState {
         };
         self.node.submit(cell, Committed { height: self.node.ledger.height + 1, secret });
         match self.spec.produce_block(&mut self.node) {
-            Some(block) => Ok(block.height),
+            Some(block) => {
+                // Durability: append the finalized block before returning. Best-effort — the block is
+                // already applied in memory, so a write failure degrades durability (a restart would
+                // lose this one block), not correctness; surface it loudly rather than crash the node.
+                if let Some(path) = &self.store {
+                    if let Err(e) = crate::store::append_block(path, &block) {
+                        eprintln!("noesisd: WARN failed to persist block {}: {e}", block.height);
+                    }
+                }
+                Ok(block.height)
+            }
             None => Err("contribution did not finalize a block".into()),
         }
     }
@@ -191,20 +218,30 @@ fn write_http_response(stream: &mut TcpStream, status: u16, body: &[u8]) -> std:
 }
 
 /// Bind `addr` and serve the API forever (one thread per connection, the shared node behind a mutex).
-/// The node boots an empty genesis; every `POST /submit` builds the chain one finalized block at a time.
-pub fn serve_api(addr: &str) {
+/// The node is DURABLE: it replays the block log at `store_path` on boot and appends every finalized
+/// block, so a restart resumes the chain instead of resetting to genesis. Every `POST /submit` builds
+/// the chain one finalized block at a time.
+pub fn serve_api(addr: &str, store_path: &str) {
     let listener = TcpListener::bind(addr).unwrap_or_else(|e| {
         eprintln!("noesisd: failed to bind {addr}: {e}");
         std::process::exit(1);
     });
     let bound = listener.local_addr().map(|a| a.to_string()).unwrap_or_else(|_| addr.to_string());
+    let (server_state, replayed) = ServerState::with_store(store_path).unwrap_or_else(|e| {
+        eprintln!("noesisd: failed to open chain store {store_path}: {e}");
+        std::process::exit(1);
+    });
     println!("noesisd --serve-api — Noesis live node API");
-    println!("genesis: empty ledger, ChainSpec::dev() [PoW enforced, JUL issuing]. friends build the chain.");
+    if replayed > 0 {
+        println!("resumed durable chain from {store_path}: replayed {replayed} blocks, height {}.", server_state.node.ledger.height);
+    } else {
+        println!("genesis: empty ledger, ChainSpec::dev() [PoW enforced, JUL issuing]. persisting to {store_path}.");
+    }
     println!("LISTENING http://{bound}");
     println!("  GET  /state              -> chain view (height, jul, contributors)");
     println!("  POST /submit {{contributor,data}} -> add a contribution, mine+finalize a block");
 
-    let state = Arc::new(Mutex::new(ServerState::new()));
+    let state = Arc::new(Mutex::new(server_state));
     for conn in listener.incoming() {
         let mut stream = match conn {
             Ok(s) => s,
