@@ -32,32 +32,16 @@
 //! wiring `gossip`'s reader loop into a running node (so new blocks propagate to already-joined peers)
 //! is slice-5b. What IS proven here: two OS processes converge to identical state via the join.
 
-use std::collections::HashMap;
 use std::io::{self, Write};
 use std::sync::Arc;
 use std::thread;
 
-use noesis::chainspec::{mine, ChainSpec};
+use noesis::chainspec::ChainSpec;
 use noesis::commit_order::Committed;
-use noesis::consensus::Validator;
 use noesis::net::{Listener, Peer};
 use noesis::runtime::{Block, Node};
 use noesis::sync::{serve, sync_from};
 use noesis::{Cell, Script};
-
-/// A genesis bonded-PoS validator, keyed to a contributor handle. `pos`/`staked_balance` give it
-/// bonded capital weight (carries finality at genesis); `pom` starts 0 and is sourced live from the
-/// cleared-score bridge each round as this contributor's finalized work ages in.
-fn genesis_validator(id: u64) -> Validator {
-    Validator {
-        id,
-        pow: 0.0,
-        pos: 1000.0,
-        pom: 0.0,
-        last_heartbeat: 0,
-        staked_balance: 1000.0,
-    }
-}
 
 /// The honest genesis, now single-sourced from [`ChainSpec::dev`]: an empty ledger, the ratified M3
 /// economics turned ON (PoW enforced ⇒ mined difficulty ⇒ JUL issues from block zero), and a small
@@ -145,66 +129,29 @@ fn print_state(node: &Node) {
 /// canonical order. Shared by all three modes — the devnet narrates it, the seed serves the blocks.
 /// `verbose` prints per-block progress (devnet) vs staying quiet (seed banner handles its own lines).
 fn build_chain(verbose: bool) -> (Node, Vec<Block>) {
-    let (mut node, keys) = genesis();
-    let genesis_bits = ChainSpec::dev().genesis_bits;
-    // id -> contributor key, so each validator's PoM weight is sourced from the cleared-score bridge.
-    let key_of: HashMap<u64, Vec<u8>> =
-        keys.iter().enumerate().map(|(i, k)| (i as u64, k.clone())).collect();
+    let spec = ChainSpec::dev();
+    let (mut node, _keys) = spec.genesis_node();
 
     let mut blocks = Vec::new();
     for (round_ix, proposals) in workload().into_iter().enumerate() {
         let height = round_ix as u64 + 1;
+        let n = proposals.len();
 
-        // intake -> mempool
-        for (c, co) in &proposals {
-            node.submit(c.clone(), co.clone());
+        // intake -> mempool, then run the ONE proven per-block engine (mine -> validate ->
+        // finality-gate -> apply), single-sourced in ChainSpec::produce_block.
+        for (c, co) in proposals {
+            node.submit(c, co);
         }
-
-        // leader move: assemble the next block, name a coinbase recipient (the producer) so the mined
-        // work issues JUL, then mine the seal to meet the fixed genesis difficulty (the dev spec
-        // enforces PoW, so an un-mined block would fail validation).
-        let producer = Script { code_hash: [0u8; 32], args: key_of.get(&0).cloned().unwrap_or_default() };
-        let block = mine(node.propose().with_coinbase(producer), genesis_bits);
-
-        // honest local validation (the vote)
-        if !node.validate(&block) {
-            if verbose {
-                println!("block {height}: REJECTED by validation — not applied");
+        match spec.produce_block(&mut node) {
+            Some(block) => {
+                blocks.push(block);
+                if verbose {
+                    println!("block {height}: FINALIZED ({n} cells)");
+                    print_state(&node);
+                }
             }
-            node.clear_mempool();
-            continue;
-        }
-
-        // THE FINALITY GATE: source each validator's PoM from the cleared-score bridge, then require
-        // the finality gadget to say YES before applying. At genesis this map is empty => pom=0 =>
-        // bonded PoS carries finality (§2.5).
-        let fpw = node.finality_pom_weight();
-        let mut validators: Vec<Validator> = (0..keys.len() as u64).map(genesis_validator).collect();
-        for v in &mut validators {
-            v.pom = key_of
-                .get(&v.id)
-                .and_then(|k| fpw.get(k))
-                .map(|w| *w as f64)
-                .unwrap_or(0.0);
-        }
-        // single proposer: every honest validator votes for its own valid proposal.
-        let voters_for = validators.clone();
-
-        if !node.checkpoint_finalizes(&voters_for, &validators) {
-            if verbose {
-                println!("block {height}: validated but did NOT finalize — not applied");
-            }
-            node.clear_mempool();
-            continue;
-        }
-
-        // finalized: apply, clear the round's mempool, record the canonical block.
-        node.apply(&block);
-        node.clear_mempool();
-        blocks.push(block);
-        if verbose {
-            println!("block {height}: FINALIZED ({} cells)", proposals.len());
-            print_state(&node);
+            None if verbose => println!("block {height}: not finalized — not applied"),
+            None => {}
         }
     }
     (node, blocks)

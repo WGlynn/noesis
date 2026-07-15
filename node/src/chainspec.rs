@@ -21,6 +21,7 @@
 
 use crate::consensus::Validator;
 use crate::runtime::{header_digest, Block, Constitution, Node};
+use crate::Script;
 
 /// The genesis definition every honest node agrees on. Two nodes that boot the same `ChainSpec`
 /// produce comparable state digests; disagreeing on any field forks block zero.
@@ -84,6 +85,52 @@ impl ChainSpec {
         let validators: Vec<Validator> = self.validators.iter().map(|(_, v)| v.clone()).collect();
         let keys: Vec<Vec<u8>> = self.validators.iter().map(|(k, _)| k.clone()).collect();
         (Node::new(0, validators, self.constitution.clone()), keys)
+    }
+
+    /// Produce ONE block from whatever is currently in `node`'s mempool, through the FULL proven
+    /// pipeline — propose → name a coinbase → mine → validate → finality-GATE → apply — and return the
+    /// finalized block (or `None` if the round produced nothing valid/final). This is the SINGLE
+    /// per-block engine shared by every driver: the scripted devnet, the seed, and the live API's
+    /// submit path all call THIS, so an interactively-submitted contribution travels the exact same
+    /// path the tested chain does (no second, drifting pipeline).
+    ///
+    /// An empty mempool yields `None` (a block with no cells is invalid by rule — `EmptyBlock`). On a
+    /// validation or finality miss the mempool is cleared and `None` returned (the round is dropped,
+    /// never half-applied). The caller must `submit` contributions before calling.
+    pub fn produce_block(&self, node: &mut Node) -> Option<Block> {
+        if node.mempool.is_empty() {
+            return None; // no contributions ⇒ nothing to finalize (an empty block is invalid)
+        }
+        // The producer (block reward recipient) is the first bonded validator's contributor key.
+        let producer = Script {
+            code_hash: [0u8; 32],
+            args: self.validators.first().map(|(k, _)| k.clone()).unwrap_or_default(),
+        };
+        let block = mine(node.propose().with_coinbase(producer), self.genesis_bits);
+        if !node.validate(&block) {
+            node.clear_mempool();
+            return None;
+        }
+        // THE FINALITY GATE: rebuild the bonded validator set, sourcing each one's live PoM weight from
+        // the cleared-score bridge (empty at genesis ⇒ pom 0 ⇒ bonded PoS carries finality). Single
+        // proposer ⇒ every honest validator votes for the one valid proposal.
+        let fpw = node.finality_pom_weight();
+        let validators: Vec<Validator> = self
+            .validators
+            .iter()
+            .map(|(k, v)| {
+                let mut v = v.clone();
+                v.pom = fpw.get(k).map(|w| *w as f64).unwrap_or(0.0);
+                v
+            })
+            .collect();
+        if !node.checkpoint_finalizes(&validators, &validators) {
+            node.clear_mempool();
+            return None;
+        }
+        node.apply(&block);
+        node.clear_mempool();
+        Some(block)
     }
 }
 
@@ -151,5 +198,35 @@ mod tests {
         let target = noesis_core::pow::compact_to_target(spec.genesis_bits).unwrap();
         assert!(header_digest(&mined) <= target, "the mined header must meet the target");
         assert!(node.validate(&mined), "the mined block must validate under the dev constitution");
+    }
+
+    #[test]
+    fn produce_block_finalizes_a_submitted_contribution_and_issues_jul() {
+        use crate::commit_order::Committed;
+        use crate::{Cell, Script};
+
+        let spec = ChainSpec::dev();
+        let (mut node, _keys) = spec.genesis_node();
+
+        // Empty mempool ⇒ nothing to finalize.
+        assert!(spec.produce_block(&mut node).is_none(), "an empty mempool produces no block");
+
+        // Submit one real contribution, then run the single per-block engine.
+        node.submit(
+            Cell {
+                id: 1,
+                lock: Script { code_hash: [0u8; 32], args: b"al".to_vec() },
+                type_script: Script { code_hash: [1u8; 32], args: b"alice".to_vec() },
+                parent: None,
+                timestamp: 1,
+                data: b"the quick brown fox jumps high".to_vec(),
+            },
+            Committed { height: 1, secret: [11u8; 32] },
+        );
+        let block = spec.produce_block(&mut node).expect("a submitted contribution finalizes a block");
+        assert_eq!(block.height, 1);
+        assert_eq!(node.ledger.height, 1, "the block was applied");
+        assert!(node.ledger.jul_supply.issued() > 0, "mined work issued JUL from block zero");
+        assert!(node.mempool.is_empty(), "the mempool is cleared after production");
     }
 }
