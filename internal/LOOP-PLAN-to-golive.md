@@ -9,7 +9,12 @@
 > `internal/STATUS-LEDGER.md`, `ROADMAP-2026-2028.md`. **Honest labels (NO ROUND-UP):** ✅ built ·
 > 🟡 designed · 🔬 open-research · ⛔ blocked · 🔌 deploy-coupled · ⚑ Will-gated decision.
 >
-> **Stamp:** first written 2026-07-13 (HEAD `bf781fc`, lib suite 323 green). Loop-counts firm up after L0.
+> **Stamp:** first written 2026-07-13 (HEAD `bf781fc`, lib 323 green). **RECONCILED 2026-07-15 (HEAD `34ee644`,
+> lib 328 green) — 40 commits since the stamp drained almost every decision-unblocked cold build.** The
+> spine + money track are essentially BUILT at the reference/on-VM layer; what remains is the **deploy pole**
+> (5 deploy-coupled binding flips, all still `false`) + a short ⚑-economics sitting + the genesis/P2P engineering
+> pole + the undated research moat. The 07-13 counts below ("~4-5 loops" / "~10 loops") are SUPERSEDED by the
+> reconciled ledger — read the RECONCILED rows, not the original Status column.
 
 ---
 
@@ -59,19 +64,19 @@ consensus-affecting loops, plus the genesis/P2P engineering pole.** That is a co
 Tier: **DI** = deploy-independent, runnable now · **COLD** = consensus-affecting (⚑-gated, RED-first,
 extraction-audit + Will-review before merge) · **DEPLOY** = 🔌 substrate · **RESEARCH** = 🔬 undatable.
 
-| Loop | Piece (SYSTEM-MAP layer) | Tier | Depends on | Status @ 2026-07-13 |
+| Loop | Piece (SYSTEM-MAP layer) | Tier | Depends on | Status @ RECONCILED 2026-07-15 |
 |---|---|---|---|---|
-| **L0** | **Reconcile MVP-SCOPE §1 vs HEAD** (re-verify every file:line pin; the doc is 10 days stale) | DI | — | **do first** — prerequisite for firm counts |
-| **⚑-D** | **Will decision packet** — W + PoM-finality input + bridge shape + θ_sim + MIN_DIM_BPS + I-2 | ⚑ | L0 | design inputs partly shipped (`DESIGN-vesting-W-and-standing-bridge.md`) |
-| **L1** | Finalization ELF twin-update → `finalizes_pos_pom_fixed` (5) — kills the wrong-rule-at-deploy landmine | COLD | L0 (decision-unblocked; starts before ⚑-D) | 🟡, in-progress-dirty in tree |
-| **L2** | Circularity fix / **vesting window `W`** (7,3) — fresh standing can't vote finality inside the window | COLD | ⚑-D | 🟡 designed |
-| **L3** | `Standing.pom`→`Validator.pom` **production bridge** (7→3) — the finality PoM input becomes real | COLD | L2 | 🟡 designed |
-| **L4** | Invariant pins + doc-coherence (E) — slash-burns-never-transfers test, zero-fee pin, β-bounty fence, re-stamp drift | DI/WARM | L0 | 🟡 cheap, load-bearing for "honest" |
-| **L5** | Bound B commit-deposit (liveness) — refund-on-contribution / forfeit-BURNS-only, 12-item rubric before merge | COLD | L4 | 🟡 designed, rubric-gated |
-| **L6** | On-VM enforcement parity (4,5,7) — validator-registry binding, lock-sig GO-LIVE flip, on-VM soulbound+similarity syscalls, double-spend crypto | DEPLOY | L1,L3 | 🟡/🔌 |
-| **⚑-G** | **Genesis bootstrap decision** — PoW-scaffold vs founding bonded-set | ⚑ | — | open founding call |
-| **L7** | Genesis / chain-spec / P2P + T1 slice-5 live + hosted seed node (6) — **the long pole** | DEPLOY | L6, ⚑-G | 🔬/🔌 (2-node convergence ✅, not a network) |
-| **R1** | Learned-`v(S)` moat on a deep-ancestry outcome-labelled dataset (8) | RESEARCH | data hunt | 🔬 NULL twice; **undated** |
+| **L0** | **Reconcile MVP-SCOPE §1 vs HEAD** | DI | — | ✅ done 2026-07-13 (+ this 07-15 reconcile) |
+| **⚑-D** | **Will decision packet** — W + PoM-finality input + bridge shape + θ_sim + MIN_DIM_BPS + I-2 | ⚑ | L0 | ✅ **RATIFIED 2026-07-11** (D1–D5, `DESIGN-vesting-W` §4); MIN_DIM_BPS deferred |
+| **L1** | Finalization ELF twin-update → `finalizes_pos_pom_fixed` (5) | COLD | L0 | ✅ **SHIPPED** (`df8f05e`) |
+| **L2** | Circularity fix / **vesting window `W`** (7,3) | COLD | ⚑-D | ✅ **SHIPPED** — Phase-3 refuted-set AND-gate (`11d5785`); inert at W=0 until ⚑ number |
+| **L3** | `Standing.pom`→`Validator.pom` **production bridge** (7→3) | COLD | L2 | ✅ **SHIPPED** (`runtime.rs:626`) |
+| **L4** | Invariant pins + doc-coherence (E) | DI/WARM | L0 | ✅ pins SHIPPED (`8695d65`); 🟡 residual doc-coherence tick owed (MVP-SCOPE §2 / TOKENOMICS JUL over-generalization) |
+| **L5** | Bound B commit-deposit (liveness) — refund-on-contribution / forfeit-BURNS-only | COLD | L4 | ✅ **SHIPPED** (`84f432c`, 8 tests; Council caught 2 real bugs) |
+| **L6** | On-VM enforcement parity (4,5,7) | DEPLOY | L1,L3 | ✅ **reference/on-VM BUILT** — lock-sig twin ✅, PoM intake floors ✅, similarity floor ✅, index root-transition ELF ✅ (`34ee644`); 🔌 remaining = 5 BINDING FLIPS (all `false`) + on-VM single-use/nullifier crypto |
+| **⚑-G** | **Genesis bootstrap decision** — PoW-scaffold vs founding bonded-set | ⚑ | — | ✅ mostly SETTLED (PoW starts genesis + bonded PoS finalizes block-0, `DESIGN-vesting-W` §2.5); open sliver = money-in-genesis-set (rec: moneyless+decaying) |
+| **L7** | Genesis / chain-spec / P2P + hosted seed node (6) — **the long pole** | DEPLOY | L6, ⚑-G | 🔌 (2-node convergence ✅, not yet a public network) |
+| **R1** | Learned-`v(S)` moat on a deep-ancestry outcome-labelled dataset (8) | RESEARCH | data hunt | 🔬 NULL twice; **undated** (adversarial instrument ✅, real-outcome data open) |
 | **R2** | HCE M2/C4 theorems + M3 `p`-supplier + M4 symmetric-lie elimination (3,8) | RESEARCH | — | 🔬 conjecture; **undated** |
 
 ### PoW-axis + money track (JUL — core consensus, launch-required; Will 2026-07-13)
@@ -92,18 +97,23 @@ deferrable for launch." ⚠ **Doc-coherence fix owed (folds into L4):** MVP-SCOP
 TOKENOMICS "core needs no PoW" over-generalize that narrow finality-safety claim into a launch-wide one —
 correct them so a collaborator reading the chain isn't misled.
 
-Built so far: inc-1 ✅ (`e51e164`) issuance core · inc-2 ✅ (`56d506f`) coinbase settlement · inc-3 ✅
-(`bf781fc`) counter-cyclical reserve (shadow).
+Built so far (RECONCILED 2026-07-15): inc-1 ✅ (`e51e164`) issuance · inc-2 ✅ (`56d506f`) coinbase settlement ·
+inc-3 ✅ (`bf781fc`) counter-cyclical reserve (shadow) · **PoW work-dimension arithmetic + ENFORCEMENT ✅**
+(`23a90f0`/`43921f9` — `block_work` returns real `work_from_target` under `pow_enforced`, `runtime.rs:703`; Lever-A
+no longer a `=1` stub) · **M3 pow-arithmetic ✅** — ASERT retarget (`cc3254f`), work-clock ceiling (`62a0f4b`),
+N-way coinbase split (`6df23e7`), `target_to_compact` (`cd915de`) · **committee-attested clock ✅** (`6184ac9`) +
+clock ENFORCEMENT ✅ (CLK-1 `32b87b5`, CLK-2 `4e52ae6`) · **never-halt liveness detector ✅** (`697fc30`) ·
+emission-ramp DROPPED (`4a8b6b9` — JUL elasticity dissolves deep-capital, no ramp needed).
 
-| Loop | Piece | Tier | Depends on | Status |
+| Loop | Piece | Tier | Depends on | Status @ RECONCILED 2026-07-15 |
 |---|---|---|---|---|
-| **M1** | JUL inc-3b — reserve consensus wiring: skim/top-up at the coinbase-mint site + protocol-spend-only reserve cell | COLD | signal in block stream; `CONTROL_BINDING_ACTIVE` flip (runtime.rs:411) | 🟡 designed (inc-3 seams) |
-| **M2** | PoW + genesis issuance — `Block::difficulty` + real `block_work` + issue JUL from block 0 on the PoW path, JUL out of `FINALITY_MIX` (inc-4 genesis wiring) | COLD | ⚑-G (PoW starts genesis) | 🟡 designed |
-| **M3** | JUL economics live — governable `Constitution` JUL params + Lever-A difficulty-retarget (Ergon fidelity) + reserve activation numbers + the miner-reflexivity game-theory pass (the inc-3 Council gate) | COLD/⚑ | M1, M2; ⚑ numbers | 🟡 designed / ⚑ |
+| **M1** | JUL inc-3b — reserve consensus wiring: skim/top-up at the coinbase-mint site + protocol-spend-only reserve cell | COLD | `CONTROL_BINDING_ACTIVE` flip (runtime.rs:411) | 🟡 designed (inc-3 seams); the ONE remaining decision-unblocked-ish JUL build, but couples to the keyless-reserve-cell deploy flip |
+| **M2** | PoW + genesis issuance — arithmetic + enforcement + retarget + clock DONE; remaining = issue JUL from block 0 in the genesis chain-spec | COLD/🔌 | ⚑-G (PoW starts genesis) | ✅ arithmetic+enforcement+retarget+clock SHIPPED; 🔌 genesis chain-spec issuance is deploy-coupled |
+| **M3** | JUL economics live — plug the ⚑ numbers into the built machinery: genesis bits, retarget cadence, work-clock-ceiling `K`, reserve activation numbers + miner-reflexivity pass | ⚑ | M1, M2; ⚑ numbers | 🟡 mechanism BUILT (all M3 pow-arithmetic ✅); **⚑ numbers = the economics sitting** (Will owns) |
 
-> Lever A (the production-cost anchor) is economically INERT until M2 makes `block_work` return real mined
-> difficulty (jul.rs:6-9) — so "JUL live as money" genuinely requires the PoW layer, which is why M2 is
-> coupled to the genesis bootstrap decision ⚑-G.
+> Lever A (the production-cost anchor) is now LIVE-capable: `block_work` returns real mined difficulty under
+> `pow_enforced` (`runtime.rs:703`). What's left for "JUL live as money" is the genesis chain-spec that turns
+> `pow_enforced` on from block 0 (M2 deploy half) + the ⚑ economic numbers (M3) — not more mechanism.
 
 ### Deferrable, decision-unblocked (NOT launch-blocking)
 
@@ -138,19 +148,44 @@ L0 (reconcile)
 Parallel, undated background tracks:  R1 moat data hunt · R2 HCE M2/C4
 ```
 
-**Honest count to a floor public testnet:** **L0 + ⚑-D + consensus spine { L1, L2, L3, L4, L5, L6 } +
-money track { M1, M2, M3 } + ⚑-G + L7** — i.e. **~10 build loops across two parallel tracks behind two
-Will-decision gates (⚑-D, ⚑-G), with L7 (genesis/P2P) the long engineering pole.** Each build loop is a
-session; the pacing constraint is Will's decision/review cadence on the COLD loops, not build throughput.
+**Honest count — RECONCILED 2026-07-15 (HEAD `34ee644`, 40 commits since the 07-13 stamp):** the 07-13 count
+was "~4-5 build loops"; those loops have now SHIPPED. The spine is done at the reference layer (L1 finalization
+ELF ✅, L2 vesting-W Phase-3 ✅, L3 bridge ✅, θ_sim ✅, I-2 ✅), **L5 Bound-B commit-deposit ✅** (`84f432c`),
+governance authority-tiering ✅, and the WHOLE money-track MECHANISM ✅ (PoW arithmetic + enforcement + ASERT
+retarget + work-clock ceiling + committee clock + clock enforcement + never-halt). L6 on-VM parity is BUILT at
+the reference/on-VM layer (lock-sig, PoM intake floors, similarity floor, index root-transition ELF `34ee644`).
+**⇒ There are essentially NO decision-unblocked cold builds left** (CONTINUE.md 2026-07-14 PM verified this;
+this reconcile confirms it). **What genuinely remains, in three honest buckets:**
+
+1. **⚑ Economics sitting (Will owns, small):** M3 numbers — genesis bits, retarget cadence, work-clock-ceiling
+   `K`, reserve activation numbers — plug into already-built machinery. Not a build; a ratification.
+2. **🔌 Deploy pole (the real engineering, me to lead):** flip the **5 deploy-coupled binding sentinels** (all
+   `false`: `CONTROL_BINDING_ACTIVE`, `COORDS_BOUND`, `REGISTRY_BINDING_ACTIVE`, `PROVENANCE_BOUND`,
+   `CONTROL_ENFORCED`) so on-VM scripts source roots/coords/identity from real cells; on-VM single-use/nullifier
+   crypto; the M2 genesis chain-spec that issues JUL from block 0; **L7 genesis / chain-spec / P2P + hosted seed
+   node = the long pole**; and a **Linux/WSL2 box for the zkVM recursion receipt** (this machine has none).
+3. **🔬 Research, undated (blocks the THESIS, never the FLOOR):** R1 learned-`v(S)` moat (data-blocked) · R2 HCE.
+
+The two decision gates are all but CLOSED: **⚑-D RATIFIED 2026-07-11** (`DESIGN-vesting-W` §4) and **⚑-G
+finality-genesis SETTLED** (bonded PoS carries block zero, §2.5; open sliver = money-in-genesis-set, rec:
+moneyless+decaying). **So the schedule is no longer bounded by build effort or pending decisions — it is bounded
+by the deploy/infra pole (a Linux box + genesis/P2P engineering) and one short economics sitting.**
+
+Also decision-unblocked but NOT launch-gating (UX fast-follows / hardening): sub-block network half (gossip/DA
+live propagation), equivocation-slashing wiring, apply-from-root rewire, single-sourcing the duplicated
+`txs_conserve_and_single_use` / `commit_cell` helpers, Council pass on the sub-block tier, + the L4
+doc-coherence tick.
 
 ## The one sentence to tell people (honest, no round-up)
 
-> *"The reference node is built and green, and JUL — the e-cash — is three-quarters built (issuance,
-> settlement, reserve done; genesis-issuance and economics still to wire). The launchable **floor**
-> (contribution ledger + capital-orthogonal PoS+PoM finality + JUL money live) is about ten cold-build
-> loops across two parallel tracks, behind two decision sittings and a genesis/P2P engineering pole —
-> automatable in sessions, paced by review, not effort. The un-gameability **moat** is honest open research
-> we won't date, and our launch never claims it."*
+> *"The reference node is built and green, and the money layer's mechanism is done — issuance, settlement,
+> reserve, proof-of-work with real difficulty, difficulty retarget, and the chain's clock all built and tested.
+> The consensus spine (a strategyproof contribution ledger with capital-orthogonal PoS+PoM finality) is
+> complete, and every on-VM enforcement script is written. What stands between here and a public testnet is no
+> longer building: it's the deploy pole — turning those enforcement scripts on against a real chain, wiring
+> genesis and peer-to-peer into an actual network, a Linux box for one zero-knowledge receipt, and a short
+> sitting to set the economic numbers. The un-gameability **moat** is honest open research we won't date, and
+> our launch never claims it."*
 
 ---
 
