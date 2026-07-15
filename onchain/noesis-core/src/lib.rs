@@ -1386,13 +1386,8 @@ pub mod pow {
         // remainder in [0, 65536) — the standard two's-complement ASERT identity (holds for negatives).
         let shifts = exponent >> 16;
         let frac = (exponent & 0xffff) as u128;
-        // 2^frac ≈ factor / 65536, factor ∈ [65536, 131072): BCH aserti3-2d cubic (all products fit u128).
-        let factor = 65536u128
-            + ((195_766_423_245_605u128 * frac
-                + 971_821_376u128 * frac * frac
-                + 5_127u128 * frac * frac * frac
-                + (1u128 << 47))
-                >> 48);
+        // 2^frac ≈ factor / 65536, factor ∈ [65536, 131072): single-sourced cubic (see `pow2_frac_q16`).
+        let factor = pow2_frac_q16(frac);
         // next = anchor · factor, then a net bit-shift of (shifts − 16) (the −16 undoes the factor's ×65536).
         let mut t = mul_small256(&anchor, factor as u64);
         let net = shifts - 16;
@@ -1402,6 +1397,61 @@ pub mod pow {
             shr256(&mut t, (-net).min(256) as u32); // ≤ −256 ⇒ underflows to 0 ⇒ pinned to 1 below
         }
         clamp_and_encode(t, &pow_limit)
+    }
+
+    /// `2^(frac/65536) · 65536` — the fractional-part power-of-two, as a Q16.16 factor in
+    /// `[65536, 131072)`. BCH aserti3-2d cubic approximation: integer-only, float-free, replica-identical.
+    /// `frac` must be in `[0, 65536)`. Single-sourced so both the ASERT retarget ([`next_target`]) and the
+    /// Moore's-law issuance decay ([`moore_decay_q32`]) share ONE exponential (no duplicated magic constants
+    /// to drift apart).
+    pub fn pow2_frac_q16(frac: u128) -> u128 {
+        65536u128
+            + ((195_766_423_245_605u128 * frac
+                + 971_821_376u128 * frac * frac
+                + 5_127u128 * frac * frac * frac
+                + (1u128 << 47))
+                >> 48)
+    }
+
+    /// Moore's-law JUL-issuance decay multiplier `2^(−elapsed / halflife)`, returned as a **Q32 fraction**
+    /// (× 2^32) in `[0, 2^32]`. This is the coefficient that holds JUL's ENERGY peg: a flat (no-decay)
+    /// reward pegs to *hashes*, but hashes-per-joule rises as hardware improves, so an undecayed reward
+    /// silently inflates JUL against energy. Halving JUL-per-hash every hardware-efficiency doubling period
+    /// keeps JUL-per-*joule* constant (`DECISIONS-M3-money-2026-07-15.md` §1).
+    ///
+    /// `halflife` = the hardware-efficiency doubling period, in the SAME calendar time unit as `elapsed`
+    /// (seconds since genesis, from the attested wall-clock — Moore's law is calendar-based, NOT
+    /// work-based). It equals `ln 2 / a_estim`; expressing the governable parameter as an integer period
+    /// (rather than a fixed-point rate) keeps this exact and float-free.
+    ///
+    /// **INERT SEAM:** `halflife == 0` ⇒ returns exactly `2^32` (identity multiplier, decay OFF) so issuance
+    /// is byte-identical until a nonzero period is governed in — the same default-off discipline as
+    /// `pow_enforced`. Total and panic-free: after ~32 doubling periods the multiplier saturates to 0
+    /// (issuance-per-hash → 0 over decades), and it never exceeds `2^32` (decay is always ≤ 1).
+    pub fn moore_decay_q32(elapsed: u64, halflife: u64) -> u64 {
+        const Q32: i128 = 1 << 32;
+        if halflife == 0 {
+            return Q32 as u64; // inert: no decay, identity multiplier
+        }
+        // decay · 2^32 = 2^(32 − elapsed/halflife). Build the exponent E in Q16.16 (signed).
+        let e_q16: i128 = (32i128 << 16) - (((elapsed as i128) << 16) / halflife as i128);
+        let shifts = e_q16 >> 16; // arithmetic floor toward −∞
+        let frac = (e_q16 & 0xffff) as u128; // positive remainder in [0, 65536), holds for negatives
+        let mut val: i128 = pow2_frac_q16(frac) as i128; // ∈ [2^16, 2^17)
+        let net = shifts - 16; // undo the factor's ×2^16
+        if net >= 0 {
+            // decay ≤ 1 ⇒ 2^E ≤ 2^32; this branch is only reached near elapsed≈0. Cap at 2^32.
+            if net >= 64 {
+                return Q32 as u64;
+            }
+            val <<= net;
+            if val > Q32 {
+                val = Q32;
+            }
+        } else {
+            val >>= (-net).min(127) as u32; // enough doublings ⇒ floors to 0 (fail-closed)
+        }
+        val as u64
     }
 
     /// Clamp a target to `[1, pow_limit]` (never easier than the floor, never the unmeetable zero) and

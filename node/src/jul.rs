@@ -125,6 +125,30 @@ pub fn reward_for_work(work: u64, params: JulParams) -> u128 {
     (work as u128).saturating_mul(params.reward_num as u128) / (params.reward_den.max(1) as u128)
 }
 
+/// The full Ergon-style issuance rule: the proportional reward, scaled by the **Moore's-law calendar
+/// decay** `e^(−a_estim·t)` that holds JUL's ENERGY peg (`DECISIONS-M3-money-2026-07-15.md` §1). The
+/// proportional part (`reward_for_work`) pegs JUL to a fixed amount of *work* (hashes); the decay
+/// corrects for hardware getting cheaper per hash over calendar time, so a fixed amount of *energy*
+/// keeps minting a fixed amount of JUL — the actual invariant.
+///
+/// `elapsed` = calendar time since genesis (seconds, from the attested wall-clock — Moore's law is
+/// calendar-based, not work-based). `halflife` = the hardware-efficiency doubling period (the governable
+/// `a_estim` expressed as an exact integer period, `= ln2 / a_estim`).
+///
+/// **INERT DEFAULT:** `halflife == 0` ⇒ `noesis_core::pow::moore_decay_q32` returns the identity
+/// multiplier `2^32`, so this is BYTE-IDENTICAL to `reward_for_work` until a nonzero period is governed
+/// in (the same default-off seam as `pow_enforced`). The decay only reduces issuance — `decay ≤ 1` always
+/// ⇒ this never mints more than `reward_for_work`, preserving the `Σout ≤ Σin` conservation oracle.
+///
+/// Totality: `base ≤ ~2^91` (work·1e8) and `decay ≤ 2^32`, so the Q32 product `≤ 2^123 < u128::MAX`;
+/// `saturating_mul` is belt-and-braces. Floor `>> 32` biases DOWN (never over-mints), matching
+/// `reward_for_work`'s floor-division discipline.
+pub fn reward_with_decay(work: u64, params: JulParams, elapsed: u64, halflife: u64) -> u128 {
+    let base = reward_for_work(work, params);
+    let decay = noesis_core::pow::moore_decay_q32(elapsed, halflife) as u128;
+    base.saturating_mul(decay) >> 32
+}
+
 // ============ Issuance state ============
 
 /// Cumulative JUL ever issued, in base units — the ONLY issuance state. The per-block subsidy is NOT
@@ -181,5 +205,57 @@ mod tests {
         // Clamp to den ≥ 1 ⇒ the function is total on the full input domain (fail-closed).
         let p = JulParams { reward_num: 100, reward_den: 0 };
         assert_eq!(reward_for_work(5, p), 500);
+    }
+
+    // ============ Moore's-law decay (ERGON SEAM) ============
+
+    #[test]
+    fn decay_off_is_byte_identical_to_flat_reward() {
+        // halflife == 0 ⇒ inert seam ⇒ reward_with_decay ≡ reward_for_work at ANY elapsed time.
+        let p = JulParams::default();
+        for work in [0u64, 1, 7, 1_000, u32::MAX as u64] {
+            for elapsed in [0u64, 1, 1_000_000, u64::MAX] {
+                assert_eq!(
+                    reward_with_decay(work, p, elapsed, 0),
+                    reward_for_work(work, p),
+                    "decay-off must equal flat reward (work={work}, elapsed={elapsed})"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn identical_energy_mints_identical_jul_across_an_efficiency_doubling() {
+        // THE PEG PROPERTY. Hardware efficiency doubles every `halflife` seconds ⇒ the same ENERGY buys
+        // 2× the work (hashes). With the decay, that 2× work at t=halflife must mint ~the SAME JUL as
+        // 1× work at t=0 — energy-pegged, not hash-pegged.
+        let p = JulParams::default();
+        let halflife = 94_608_000u64; // ~3 years in seconds (illustrative a_estim)
+        let work_t0 = 1_000_000u64; // energy E buys this many hashes at genesis
+        let work_t1 = 2_000_000u64; // same energy E buys 2× hashes after one efficiency doubling
+
+        let jul_t0 = reward_with_decay(work_t0, p, 0, halflife);
+        let jul_t1 = reward_with_decay(work_t1, p, halflife, halflife);
+
+        // Equal within the fixed-point rounding floor (the >>32 + cubic approximation).
+        let diff = jul_t0.abs_diff(jul_t1);
+        assert!(diff <= 2, "energy peg broken: t0={jul_t0} t1={jul_t1} diff={diff}");
+        // And sanity: a FLAT reward would have paid DOUBLE at t1 (the bug the decay fixes).
+        assert_eq!(reward_for_work(work_t1, p), 2 * reward_for_work(work_t0, p));
+    }
+
+    #[test]
+    fn decay_halves_issuance_each_halflife_and_never_over_mints() {
+        let p = JulParams::default();
+        let hl = 1_000_000u64;
+        let work = 1_000_000u64;
+        let flat = reward_for_work(work, p);
+        // One period ⇒ ½, two ⇒ ¼ (within rounding).
+        assert!(reward_with_decay(work, p, hl, hl).abs_diff(flat / 2) <= 1);
+        assert!(reward_with_decay(work, p, 2 * hl, hl).abs_diff(flat / 4) <= 1);
+        // decay ≤ 1 ALWAYS ⇒ never mints more than the flat reward (conservation-safe).
+        for elapsed in [0u64, hl / 2, hl, 5 * hl, 100 * hl] {
+            assert!(reward_with_decay(work, p, elapsed, hl) <= flat);
+        }
     }
 }

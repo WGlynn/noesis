@@ -8,13 +8,14 @@
 
 use noesis::runtime::{Block, PowSeal};
 use noesis::wire::{decode_block, encode_block};
+use noesis_core::pow::moore_decay_q32;
 use noesis_core::pow::{
     compact_to_target, hash, next_target, put, target_to_compact, work_from_target, RetargetParams,
 };
 
 fn empty_block(pow: Option<PowSeal>) -> Block {
     // A wire test needs a Block value, not a consensus-valid one (encode/decode never validates).
-    Block { height: 7, cells: vec![], coords: vec![], token_txs: vec![], coinbase: None, pow, timestamp: None, bonds: vec![] }
+    Block { height: 7, cells: vec![], coords: vec![], token_txs: vec![], coinbase: None, pow, timestamp: None, bonds: vec![], subblock_root: None }
 }
 
 // ---- core target math ----
@@ -244,4 +245,57 @@ fn retarget_is_total_on_bad_input() {
     assert_eq!(next_target(ANCHOR, 1, Some(100), bad_floor), None, "malformed pow_limit ⇒ None");
     assert_eq!(next_target(0, 1, Some(100), rp(100, 1000)), None, "malformed anchor ⇒ None");
     // ANTI-THEATER: unwrap the anchor/floor decode instead of `?` ⇒ panic on bad input ⇒ RED (not None).
+}
+
+// ============ Moore's-law issuance decay (moore_decay_q32) ============
+
+const Q32: u64 = 1 << 32;
+
+/// halflife == 0 is the INERT seam: identity multiplier 2^32 at any elapsed ⇒ issuance byte-identical.
+#[test]
+fn decay_off_returns_the_identity_multiplier() {
+    for elapsed in [0u64, 1, 1_000_000, u64::MAX] {
+        assert_eq!(moore_decay_q32(elapsed, 0), Q32, "halflife 0 ⇒ decay off (identity)");
+    }
+    // ANTI-THEATER: drop the halflife==0 guard ⇒ divide-by-zero panic ⇒ RED.
+}
+
+/// At genesis (elapsed 0) the decay is exactly 1.0 (= 2^32); it never exceeds 1.0 (decay is ≤ 1).
+#[test]
+fn decay_is_one_at_genesis_and_never_above_one() {
+    assert_eq!(moore_decay_q32(0, 1_000_000), Q32, "no time elapsed ⇒ no decay");
+    for elapsed in [0u64, 1, 500_000, 1_000_000, 10_000_000] {
+        assert!(moore_decay_q32(elapsed, 1_000_000) <= Q32, "decay must be ≤ 1.0");
+    }
+    // ANTI-THEATER: remove the `if val > Q32` cap ⇒ >1 near genesis ⇒ RED (would over-mint).
+}
+
+/// Exact at whole doubling periods: k periods ⇒ 2^(−k) (the cubic only rounds the fractional part).
+#[test]
+fn decay_halves_each_whole_halflife() {
+    let hl = 1_000_000u64;
+    assert_eq!(moore_decay_q32(hl, hl), Q32 >> 1, "1 period ⇒ ½");
+    assert_eq!(moore_decay_q32(2 * hl, hl), Q32 >> 2, "2 periods ⇒ ¼");
+    assert_eq!(moore_decay_q32(3 * hl, hl), Q32 >> 3, "3 periods ⇒ ⅛");
+    // ANTI-THEATER: key the exponent to work instead of elapsed ⇒ wrong scaling ⇒ RED.
+}
+
+/// Half a period ⇒ 1/√2 ≈ 0.7071 (fractional-exponent correctness via the shared cubic).
+#[test]
+fn decay_at_half_a_period_is_one_over_sqrt_two() {
+    let hl = 1_000_000u64;
+    let d = moore_decay_q32(hl / 2, hl);
+    let expected = ((Q32 as f64) / 2f64.sqrt()) as u64; // reference only; the impl stays integer-only
+    let diff = d.abs_diff(expected);
+    assert!(diff < (Q32 / 1000), "½ period ⇒ ~1/√2 (got {d}, want ~{expected}, diff {diff})");
+}
+
+/// Total + fail-closed: after enough periods the multiplier floors to 0 (issuance/hash → 0 over decades),
+/// never negative, never a panic.
+#[test]
+fn decay_saturates_to_zero_after_many_periods() {
+    let hl = 1_000_000u64;
+    assert_eq!(moore_decay_q32(40 * hl, hl), 0, "~40 doublings ⇒ 0");
+    assert_eq!(moore_decay_q32(u64::MAX, 1), 0, "extreme elapsed ⇒ 0, no panic");
+    // ANTI-THEATER: an unbounded left-shift path would panic/overflow on extreme input ⇒ RED.
 }
