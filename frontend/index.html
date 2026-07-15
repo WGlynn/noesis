@@ -153,6 +153,10 @@
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
+  // Default the node address to SAME-ORIGIN when the page is served BY the node (one URL = whole app,
+  // no CORS, no hardcoded address — a single tunnel exposes everything). Fall back to the local devnet
+  // address only when the file is opened directly (file://), where there is no origin to inherit.
+  if (location.protocol.startsWith("http")) $("api").value = location.origin;
   const apiBase = () => $("api").value.replace(/\/+$/, "");
   let lastHeight = -1;
 

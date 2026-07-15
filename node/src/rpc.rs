@@ -2,7 +2,8 @@
 //! SUBMIT a contribution and READ the chain. This is what turns `noesisd` from "runs a scripted
 //! workload" into "a node your friends can poke."
 //!
-//! Two endpoints, plus CORS so a browser frontend on another origin can call them:
+//! Three routes, plus CORS so a browser frontend on another origin can also call them:
+//!   * `GET  /`       — the embedded frontend itself (`text/html`), so ONE public URL is the whole app.
 //!   * `GET  /state`  — the chain view: height, JUL issued, per-contributor PoM standing, cell counts.
 //!   * `POST /submit` — a JSON `{ "contributor": "...", "data": "..." }`; the node builds a cell, runs
 //!                      the ONE proven per-block engine ([`crate::chainspec::ChainSpec::produce_block`]),
@@ -33,6 +34,10 @@ use crate::{Cell, Script};
 const MAX_BODY: usize = 64 * 1024;
 /// Per-socket read/write deadline — a stalled client's thread dies instead of hanging forever.
 const IO_TIMEOUT: Duration = Duration::from_secs(30);
+/// The frontend, EMBEDDED at compile time so the node is ONE self-contained binary that serves its own
+/// UI at `/`. Same-origin ⇒ the page fetches `/state` and `/submit` relative to wherever it is served,
+/// so a single tunnel (one public URL) exposes the whole app with no CORS and no hardcoded node address.
+const INDEX_HTML: &str = include_str!("../../frontend/index.html");
 
 /// The live node's mutable state behind the API: the chain spec (the genesis + per-block engine), the
 /// node replica, and a monotone cell-id counter for interactively-submitted contributions.
@@ -148,12 +153,21 @@ impl Default for ServerState {
     }
 }
 
-/// The PURE request dispatcher: `(state, method, path, body) -> (http_status, json_bytes)`. No socket,
-/// so it is fully unit-testable. `serve_api` is the thin transport shell around this.
-pub fn handle_request(state: &mut ServerState, method: &str, path: &str, body: &[u8]) -> (u16, Vec<u8>) {
-    let out = |status: u16, v: Value| (status, v.to_string().into_bytes());
+/// The PURE request dispatcher: `(state, method, path, body) -> (http_status, content_type, body)`. No
+/// socket, so it is fully unit-testable. The content-type rides along because the node serves both the
+/// HTML frontend (`GET /`) and JSON (`/state`, `/submit`). `serve_api` is the thin transport shell.
+pub fn handle_request(
+    state: &mut ServerState,
+    method: &str,
+    path: &str,
+    body: &[u8],
+) -> (u16, &'static str, Vec<u8>) {
+    let out = |status: u16, v: Value| (status, "application/json", v.to_string().into_bytes());
     match (method, path) {
-        ("OPTIONS", _) => (204, Vec::new()), // CORS preflight
+        ("OPTIONS", _) => (204, "application/json", Vec::new()), // CORS preflight
+        // The embedded frontend: one URL serves the whole app (same-origin ⇒ its /state + /submit
+        // fetches are relative, so a single tunnel needs no CORS and no hardcoded node address).
+        ("GET", "/") | ("GET", "/index.html") => (200, "text/html; charset=utf-8", INDEX_HTML.as_bytes().to_vec()),
         ("GET", "/state") => out(200, state.state_json()),
         ("POST", "/submit") => {
             let parsed: Result<Value, _> = serde_json::from_slice(body);
@@ -206,9 +220,9 @@ fn read_http_request(read_half: TcpStream) -> std::io::Result<(String, String, V
     Ok((method, path, bodybuf))
 }
 
-/// Write an HTTP/1.1 response with the JSON body and permissive CORS (so a browser frontend on any
-/// origin can call the node during local development).
-fn write_http_response(stream: &mut TcpStream, status: u16, body: &[u8]) -> std::io::Result<()> {
+/// Write an HTTP/1.1 response with the given `content_type` (HTML for the frontend, JSON for the API)
+/// and permissive CORS (so a browser frontend on any origin can also call the node during development).
+fn write_http_response(stream: &mut TcpStream, status: u16, content_type: &str, body: &[u8]) -> std::io::Result<()> {
     let reason = match status {
         200 => "OK",
         204 => "No Content",
@@ -219,7 +233,7 @@ fn write_http_response(stream: &mut TcpStream, status: u16, body: &[u8]) -> std:
     };
     let head = format!(
         "HTTP/1.1 {status} {reason}\r\n\
-         Content-Type: application/json\r\n\
+         Content-Type: {content_type}\r\n\
          Content-Length: {}\r\n\
          Access-Control-Allow-Origin: *\r\n\
          Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n\
@@ -253,6 +267,8 @@ pub fn serve_api(addr: &str, store_path: &str) {
         println!("genesis: empty ledger, ChainSpec::dev() [PoW enforced, JUL issuing]. persisting to {store_path}.");
     }
     println!("LISTENING http://{bound}");
+    println!("  open http://{bound}/ in a browser — the node serves its own frontend (one URL = whole app)");
+    println!("  GET  /                   -> the embedded web UI (submit + watch PoM/JUL)");
     println!("  GET  /state              -> chain view (height, jul, contributors)");
     println!("  POST /submit {{contributor,data}} -> add a contribution, mine+finalize a block");
 
@@ -277,11 +293,11 @@ pub fn serve_api(addr: &str, store_path: &str) {
                 Ok(t) => t,
                 Err(_) => return, // malformed/timed-out request: drop the connection
             };
-            let (status, resp) = {
+            let (status, content_type, resp) = {
                 let mut st = state.lock().unwrap_or_else(|p| p.into_inner());
                 handle_request(&mut st, &method, &path, &body)
             };
-            let _ = write_http_response(&mut stream, status, &resp);
+            let _ = write_http_response(&mut stream, status, content_type, &resp);
         });
     }
 }
@@ -297,8 +313,9 @@ mod tests {
     #[test]
     fn get_state_reports_an_empty_genesis() {
         let mut st = ServerState::new();
-        let (status, body) = handle_request(&mut st, "GET", "/state", b"");
+        let (status, ctype, body) = handle_request(&mut st, "GET", "/state", b"");
         assert_eq!(status, 200);
+        assert_eq!(ctype, "application/json");
         let v = state_of(&body);
         assert_eq!(v["height"], 0);
         assert_eq!(v["jul_issued"], 0);
@@ -306,10 +323,25 @@ mod tests {
     }
 
     #[test]
+    fn get_root_serves_the_embedded_html_frontend() {
+        let mut st = ServerState::new();
+        let (status, ctype, body) = handle_request(&mut st, "GET", "/", b"");
+        assert_eq!(status, 200);
+        assert_eq!(ctype, "text/html; charset=utf-8");
+        let html = String::from_utf8(body).expect("frontend is UTF-8");
+        assert!(html.contains("<!"), "serves an HTML document");
+        assert!(html.contains("/submit"), "the served page targets the submit endpoint");
+        // /index.html is the same document (so a browser's default path also works)
+        let (s2, c2, b2) = handle_request(&mut st, "GET", "/index.html", b"");
+        assert_eq!((s2, c2), (200, "text/html; charset=utf-8"));
+        assert_eq!(b2.len(), html.len());
+    }
+
+    #[test]
     fn submit_finalizes_a_block_and_updates_state() {
         let mut st = ServerState::new();
         let body = br#"{"contributor":"dave","data":"a genuinely new idea about winter light"}"#;
-        let (status, resp) = handle_request(&mut st, "POST", "/submit", body);
+        let (status, _ctype, resp) = handle_request(&mut st, "POST", "/submit", body);
         assert_eq!(status, 200);
         let v = state_of(&resp);
         assert_eq!(v["finalized"], true);
@@ -319,7 +351,7 @@ mod tests {
         assert!(v["contributors"].get("dave").is_some(), "dave earned standing");
         // a second contribution advances the chain to height 2
         let body2 = br#"{"contributor":"erin","data":"an entirely separate subject, cold rivers"}"#;
-        let (_s, resp2) = handle_request(&mut st, "POST", "/submit", body2);
+        let (_s, _c, resp2) = handle_request(&mut st, "POST", "/submit", body2);
         assert_eq!(state_of(&resp2)["height"], 2);
     }
 
@@ -327,18 +359,18 @@ mod tests {
     fn malformed_and_unknown_requests_are_rejected_cleanly() {
         let mut st = ServerState::new();
         // bad JSON body
-        let (s1, _) = handle_request(&mut st, "POST", "/submit", b"not json");
+        let (s1, _, _) = handle_request(&mut st, "POST", "/submit", b"not json");
         assert_eq!(s1, 400);
         // empty contributor
-        let (s2, _) = handle_request(&mut st, "POST", "/submit", br#"{"contributor":"","data":"x"}"#);
+        let (s2, _, _) = handle_request(&mut st, "POST", "/submit", br#"{"contributor":"","data":"x"}"#);
         assert_eq!(s2, 400);
         // unknown path
-        let (s3, _) = handle_request(&mut st, "GET", "/nope", b"");
+        let (s3, _, _) = handle_request(&mut st, "GET", "/nope", b"");
         assert_eq!(s3, 404);
         // CORS preflight
-        let (s4, _) = handle_request(&mut st, "OPTIONS", "/submit", b"");
+        let (s4, _, _) = handle_request(&mut st, "OPTIONS", "/submit", b"");
         assert_eq!(s4, 204);
         // nothing finalized ⇒ height still 0
-        assert_eq!(state_of(&handle_request(&mut st, "GET", "/state", b"").1)["height"], 0);
+        assert_eq!(state_of(&handle_request(&mut st, "GET", "/state", b"").2)["height"], 0);
     }
 }
