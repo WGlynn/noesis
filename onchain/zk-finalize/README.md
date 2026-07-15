@@ -36,8 +36,10 @@ cd parity && cargo run --release      # host stable, no risc0 tooling
 
 ## Proving (env-gated)
 
-RISC Zero's prover does not run natively on Windows — it needs Linux or WSL2. This box has neither
-a WSL distro nor Docker installed, so the receipt is produced under WSL2/Linux or CI, not here.
+RISC Zero's prover does not run natively on Windows — it needs Linux or WSL2. The dev box has neither
+a WSL distro nor Docker, so the receipt is produced in **CI** on the free public-repo Linux runner
+(`.github/workflows/zk-receipt.yml`) — ✅ GREEN 2026-07-15 (run 29416024770): all three fixtures proven
+with a real STARK (`RISC0_DEV_MODE=0`) and `receipt.verify(ZK_FINALIZE_ID)` passing.
 
 ```
 # one-time, on Linux / WSL2:
@@ -52,8 +54,9 @@ confirm the guest logic + journal shape match `parity/` before paying for a real
 ## Status (honest)
 
 - ✅ Guest wraps the real core via the existing wire format; parity harness GREEN on host stable.
-- 🟡 Guest/host risc0 code written against the risc0 **1.2** line; **not yet compiled or proven**
-  on this machine (no prover env). Versions may need a bump to match whatever `rzup` installs.
-- 🔬 A verifying receipt has not been produced. Do not claim "ZK ships" until `host` proves and
-  `receipt.verify` passes. Next after this: Fit 2 (private-input scoring), Fit 3 (Noir novelty
-  non-membership), per `docs/ZK-INTEGRATION.md`.
+- ✅ Guest/host risc0 **1.2** code COMPILES and PROVES in CI — the `rzup` toolchain installed clean
+  (no version bump needed) and the guest built + proved on the first run.
+- ✅ A verifying receipt HAS been produced (CI run 29416024770, 2026-07-15): all three fixtures
+  proven with a real STARK and `receipt.verify` passing, verdicts equal to the parity ground truth.
+  Fit 1 is ✅. Next: Fit 2 (private-input scoring), Fit 3 (Noir novelty non-membership), per
+  `docs/ZK-INTEGRATION.md`.

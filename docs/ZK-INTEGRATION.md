@@ -79,11 +79,12 @@ are private; never where it's already light and public.
 ## Build order
 
 1. **RISC Zero PoC:** prove `finalizes_pos_pom_fixed` execution. Wraps existing `no_std` code; smallest
-   real zkVM win. (Also the cleanest portfolio artifact.) **STARTED** — `onchain/zk-finalize/`:
+   real zkVM win. (Also the cleanest portfolio artifact.) ✅ **DONE (2026-07-15)** — `onchain/zk-finalize/`:
    guest wraps the real fn via the existing wire format, host proves+verifies the canonical fixtures,
-   and a host-stable `parity/` harness (no risc0) is GREEN and locks the expected journal verdicts
-   (whale-alone REJECTED, whale+2 FINALIZES). Proving is env-gated (RISC Zero needs Linux/WSL2; not
-   on this Windows box). Receipt not yet produced ⇒ still 🟡, not ✅.
+   and a host-stable `parity/` harness (no risc0) locks the expected journal verdicts (whale-alone
+   REJECTED, whale+2 FINALIZES). The real receipt is produced in CI on the free public-repo Linux
+   runner (`.github/workflows/zk-receipt.yml`, run 29416024770): all three fixtures proven with a real
+   STARK (`RISC0_DEV_MODE=0`), `receipt.verify(ZK_FINALIZE_ID)` passing, verdicts == parity. **⇒ ✅.**
 2. **Private-input scoring proof (Fit 2):** content as private witness, value-bound + floor-pass public.
 3. **Merkle non-membership novelty (Fit 3):** Noir circuit over `coverage` CovIds vs corpus root.
 4. **Account-link selective disclosure (Fit 4):** Noir proof over the binding + commitment.
