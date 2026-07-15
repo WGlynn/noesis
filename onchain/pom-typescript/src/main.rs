@@ -24,10 +24,20 @@
 //! via noesis_core::classify; the floor arithmetic is noesis_core::floored_from_counts
 //! — the SAME single-source functions the node drift-guards.
 //!
-//! Honest scope: this enforces the SEMANTIC floor on-VM, over EVERY input in the
-//! script group (closes the input-0-only smuggling gap found by the 2026-06-12
-//! adversarial tick). The similarity floor still needs cross-cell state (the
-//! seen-shingle set) served via syscalls — that is the next piece, not claimed here.
+//! Honest scope: this enforces the SEMANTIC floor over EVERY input in the script group
+//! (closes the input-0-only smuggling gap found by the 2026-06-12 adversarial tick) AND
+//! the cross-cell SIMILARITY floor on-VM. The similarity floor's seen-shingle set rides
+//! in as the novelty-index root (cell-dep 0): a produced cell whose coverage overlap with
+//! that committed set exceeds θ_sim is zeroed whole (exit 22) — the SAME Q16.16 rule as
+//! the node reference `pom_scores_with_similarity_floor_q16` (`floored_from_counts`;
+//! e2e-covered in `ckb_vm_proven_e2e.rs`, redundant/near-twin mints denied).
+//!
+//! What is NOT yet on-VM is the OTHER half of the seen-set: the index-cell type-script
+//! that PROVES the served root was honestly maintained — the on-VM twin of
+//! `index_rule::valid_ordered_root_transition` (node-reference-only today). This program
+//! TRUSTS the served root's integrity to that (unbuilt) cell, gated further by
+//! `index_dep_bound`/BINDING_ACTIVE at deploy. The floor is correct CONDITIONAL on an
+//! honest root; the transition twin is what discharges that condition.
 
 #![no_std]
 #![no_main]
