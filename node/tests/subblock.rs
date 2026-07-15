@@ -5,7 +5,8 @@
 use noesis::commit_order::Committed;
 use noesis::runtime::{apply_block, Block, Constitution, Ledger, TokenStandard, TokenTx};
 use noesis::subblock::{
-    absorb, tier_of_output, validate_sub_block, ConfirmationTier, SubBlock, SubBlockViolation,
+    absorb, subblock_txs_root, tier_of_output, validate_sub_block, verify_absorption_root,
+    ConfirmationTier, SubBlock, SubBlockViolation,
 };
 use noesis::{Cell, Script};
 
@@ -220,4 +221,49 @@ fn absorbed_sub_block_txs_become_final() {
         "once absorbed + finalized the output is Final (soft → final)"
     );
     // ANTI-THEATER: if absorb() dropped the txs, output 2 never enters token_cells ⇒ tier stays None ⇒ RED.
+}
+
+/// Commit-by-root: the absorption root is DETERMINISTIC and receipt-order-independent (seq-ordered), so two
+/// honest producers commit the same 32-byte root regardless of the order sub-blocks arrived.
+#[test]
+fn absorption_root_is_deterministic_and_order_independent() {
+    let s0 = sub(5, 0, ALICE, vec![transfer(tok(1, 100, ALICE, ISS), BOB, 10)]);
+    let s1 = sub(5, 1, BOB, vec![transfer(tok(2, 100, BOB, ISS), CAROL, 11)]);
+    let r1 = subblock_txs_root(&[s0.clone(), s1.clone()]);
+    let r2 = subblock_txs_root(&[s1, s0]); // same soft-chain, received out of order
+    assert_ne!(r1, [0u8; 32], "a non-empty interval has a non-zero root");
+    assert_eq!(r1, r2, "the root is receipt-order-independent (seq-ordered) ⇒ honest producers agree");
+    // ANTI-THEATER: drop the seq sort in absorb() ⇒ r1 != r2 ⇒ RED.
+}
+
+/// The root BINDS the tx content (a changed tx ⇒ a changed root) and `verify_absorption_root` accepts the
+/// correct root, rejects a wrong one.
+#[test]
+fn absorption_root_binds_content_and_verifies() {
+    let s0 = sub(5, 0, ALICE, vec![transfer(tok(1, 100, ALICE, ISS), BOB, 10)]);
+    let committed = subblock_txs_root(std::slice::from_ref(&s0));
+    assert!(verify_absorption_root(std::slice::from_ref(&s0), committed), "the correct root verifies");
+    assert!(!verify_absorption_root(std::slice::from_ref(&s0), [9u8; 32]), "a wrong root is rejected");
+
+    // a different tx (same input, DIFFERENT recipient) must change the root.
+    let s0b = sub(5, 0, ALICE, vec![transfer(tok(1, 100, ALICE, ISS), CAROL, 10)]);
+    assert_ne!(
+        subblock_txs_root(std::slice::from_ref(&s0b)),
+        committed,
+        "changing a tx must change the committed root (content binding)"
+    );
+    // ANTI-THEATER: return a constant root ⇒ the wrong-root reject AND the content-binding assert go RED.
+}
+
+/// An empty interval (no sub-blocks, or sub-blocks carrying no txs) commits the all-zero root.
+#[test]
+fn empty_interval_has_zero_root() {
+    assert_eq!(subblock_txs_root(&[]), [0u8; 32], "no sub-blocks ⇒ zero root");
+    let empty = sub(5, 0, ALICE, vec![]);
+    assert_eq!(
+        subblock_txs_root(std::slice::from_ref(&empty)),
+        [0u8; 32],
+        "sub-blocks with no txs ⇒ zero root"
+    );
+    assert!(verify_absorption_root(&[], [0u8; 32]), "the zero root verifies for an empty interval");
 }

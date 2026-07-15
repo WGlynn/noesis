@@ -26,6 +26,7 @@
 
 use crate::runtime::{Ledger, TokenTx};
 use crate::{Cell, Script};
+use noesis_core::pow::{hash, put};
 use std::collections::HashSet;
 
 /// A sub-block: a fast, REVERTIBLE batch of value transactions proposed between two ordering blocks by a
@@ -187,4 +188,108 @@ pub fn absorb(accepted: &[SubBlock]) -> Vec<TokenTx> {
     let mut ordered: Vec<&SubBlock> = accepted.iter().collect();
     ordered.sort_by_key(|s| s.seq);
     ordered.into_iter().flat_map(|s| s.txs.iter().cloned()).collect()
+}
+
+// ---- Commit-by-Merkle-root (slice 2b, Will 2026-07-14): the ORDERING block commits a ROOT over the
+// interval's absorbed txs instead of re-carrying them (Ergo-style — light block). This trades away
+// self-containment: DATA AVAILABILITY moves to the sub-block gossip layer (the txs must stay retrievable to
+// sync state + let a user spend their coin). NEITHER a root NOR a future ZK proof removes that DA duty —
+// validity ≠ availability (a ZK proof-of-absorption via `utxo_commitment::verify_transition` is a future
+// COMPUTE overlay on top, not a DA substitute). This slice ships the deterministic commitment + its
+// verification at the reference layer; the in-header field + apply-from-root land with gossip (slice 2c).
+
+/// Domain tags for the Merkle construction — leaves and internal nodes hash under distinct prefixes so no
+/// node can be reinterpreted as a leaf or vice-versa (CVE-2012-2459 class defense).
+const MERKLE_LEAF: u8 = 0x00;
+const MERKLE_NODE: u8 = 0x01;
+
+/// Commit one cell's FULL consensus identity — id, lock, type_script, parent, timestamp, data, every
+/// variable field length-prefixed (injective). Mirrors `runtime::commit_cell_identity`; the duplication is
+/// deliberate for this shadow slice and single-sources when 2c binds the root in the ordering-block header.
+fn commit_cell(buf: &mut Vec<u8>, cell: &Cell) {
+    buf.extend_from_slice(&cell.id.to_le_bytes());
+    buf.extend_from_slice(&cell.lock.code_hash);
+    put(buf, &cell.lock.args);
+    buf.extend_from_slice(&cell.type_script.code_hash);
+    put(buf, &cell.type_script.args);
+    match cell.parent {
+        None => buf.push(0),
+        Some(p) => {
+            buf.push(1);
+            buf.extend_from_slice(&p.to_le_bytes());
+        }
+    }
+    buf.extend_from_slice(&cell.timestamp.to_le_bytes());
+    put(buf, &cell.data);
+}
+
+/// Commit one tx's CONSENSUS-CONSUMED bytes in PRESENTED order (standard/code_hash/args/inputs/outputs/
+/// auths) — the SAME anti-malleable framing `runtime::header_digest` binds token_txs by, NOT the auth-free
+/// `tx.digest()` signing view (so reordered outputs or swapped auths change the leaf).
+fn tx_commit(tx: &TokenTx) -> [u8; 32] {
+    let mut buf = Vec::new();
+    buf.push(tx.standard as u8);
+    buf.extend_from_slice(&tx.code_hash);
+    put(&mut buf, &tx.args);
+    buf.extend_from_slice(&(tx.inputs.len() as u64).to_le_bytes());
+    for inp in &tx.inputs {
+        commit_cell(&mut buf, inp);
+    }
+    buf.extend_from_slice(&(tx.outputs.len() as u64).to_le_bytes());
+    for out in &tx.outputs {
+        commit_cell(&mut buf, out);
+    }
+    buf.extend_from_slice(&(tx.auths.len() as u64).to_le_bytes());
+    for a in &tx.auths {
+        put(&mut buf, a);
+    }
+    hash(&buf)
+}
+
+/// The Merkle root an ORDERING block commits over the interval's absorbed txs. DETERMINISTIC: txs are taken
+/// in `seq` order ([`absorb`]) so two honest producers commit the SAME root (the security-relevant
+/// property). Domain-separated leaves/nodes + a tx-COUNT binding defeat duplicate-leaf reshaping
+/// (CVE-2012-2459). An EMPTY interval ⇒ all-zero root (no absorption). COMMITMENT ONLY — the tx data lives
+/// in the sub-blocks (DA = the gossip layer); a verifier reconstructs + checks the root from what it holds.
+pub fn subblock_txs_root(accepted: &[SubBlock]) -> [u8; 32] {
+    let txs = absorb(accepted);
+    if txs.is_empty() {
+        return [0u8; 32];
+    }
+    let mut layer: Vec<[u8; 32]> = txs
+        .iter()
+        .map(|tx| {
+            let mut b = Vec::with_capacity(33);
+            b.push(MERKLE_LEAF);
+            b.extend_from_slice(&tx_commit(tx));
+            hash(&b)
+        })
+        .collect();
+    while layer.len() > 1 {
+        layer = layer
+            .chunks(2)
+            .map(|pair| {
+                let mut b = Vec::with_capacity(65);
+                b.push(MERKLE_NODE);
+                b.extend_from_slice(&pair[0]);
+                b.extend_from_slice(pair.get(1).unwrap_or(&pair[0])); // duplicate last if odd
+                hash(&b)
+            })
+            .collect();
+    }
+    // Bind the tx COUNT: a duplicate-leaf reshaping changes the effective count, so committing it as well
+    // closes the residual ambiguity the domain tags alone leave (belt-and-braces).
+    let mut b = Vec::with_capacity(48);
+    b.extend_from_slice(b"noesis-subblock-txs-root-v1");
+    b.extend_from_slice(&(txs.len() as u64).to_le_bytes());
+    b.extend_from_slice(&layer[0]);
+    hash(&b)
+}
+
+/// Verify an ordering block's committed absorption root against the sub-blocks a node HOLDS: recompute the
+/// deterministic root and compare. Ships the VERIFICATION semantics; the in-header field + the
+/// apply-from-root state transition are slice 2c (they need the DA layer so a validator is guaranteed to
+/// hold the txs the root commits to).
+pub fn verify_absorption_root(accepted: &[SubBlock], committed: [u8; 32]) -> bool {
+    subblock_txs_root(accepted) == committed
 }
