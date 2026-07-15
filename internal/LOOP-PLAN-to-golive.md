@@ -43,10 +43,12 @@ provided copy never claims more than the floor.
 - **⚑ GENESIS BOOTSTRAP — an open founding call (SYSTEM-MAP genesis-readiness).** PoW-scaffold (ethos-pure)
   vs a founding bonded-set (small pre-allocation). Without it, "who wins block zero" has no answer. Not a
   build; a decision.
-- **🔬 RESEARCH — undatable (MVP-SCOPE §2, STATUS-LEDGER).** Learned-`v(S)` moat (data-blocked: needs a
-  deep-ancestry outcome-labelled dataset; the adversarial instrument is ✅ but real-outcome data is open)
-  and HCE M2/C4 theorems (+ M3 `p`-supplier, M4 symmetric-lie elimination). Run as **background tracks**;
-  never place them on the critical path or a schedule.
+- **🔬 RESEARCH — undatable (MVP-SCOPE §2, STATUS-LEDGER).** Learned-`v(S)` moat — the deep-ancestry
+  dataset is now ✅ **SUPPLIED** (2026-07-15, crates.io, `data/crates/RESULTS.md`) and the predictive half is
+  NULL a 3rd time on non-degenerate data ⇒ the moat rests on the **structural defense**, not a predictive
+  win; still open = a real *adaptive* adversary + the general graph-iso theorem — and HCE M2/C4 theorems
+  (+ M3 `p`-supplier, M4 symmetric-lie elimination). Run as **background tracks**; never place them on the
+  critical path or a schedule.
 - **🔌 DEPLOY-INFRA.** A real zkVM recursion receipt needs **Linux/WSL2** (this box has none). Genesis /
   chain-spec / P2P is the **long engineering pole** after the cold builds.
 
@@ -76,7 +78,7 @@ extraction-audit + Will-review before merge) · **DEPLOY** = 🔌 substrate · *
 | **L6** | On-VM enforcement parity (4,5,7) | DEPLOY | L1,L3 | ✅ **reference/on-VM BUILT** — lock-sig twin ✅, PoM intake floors ✅, similarity floor ✅, index root-transition ELF ✅ (`34ee644`); 🔌 remaining = 5 BINDING FLIPS (all `false`) + on-VM single-use/nullifier crypto |
 | **⚑-G** | **Genesis bootstrap decision** — PoW-scaffold vs founding bonded-set | ⚑ | — | ✅ mostly SETTLED (PoW starts genesis + bonded PoS finalizes block-0, `DESIGN-vesting-W` §2.5); open sliver = money-in-genesis-set (rec: moneyless+decaying) |
 | **L7** | Genesis / chain-spec / P2P + hosted seed node (6) — **the long pole** | DEPLOY | L6, ⚑-G | 🔌 (2-node convergence ✅, not yet a public network) |
-| **R1** | Learned-`v(S)` moat on a deep-ancestry outcome-labelled dataset (8) | RESEARCH | data hunt | 🔬 NULL twice; **undated** (adversarial instrument ✅, real-outcome data open) |
+| **R1** | Learned-`v(S)` moat on a deep-ancestry outcome-labelled dataset (8) | RESEARCH | data hunt | 🔬 **dataset DISCHARGED 2026-07-15** (crates.io, 299,775 crates, ancestor-singleton 0.18 vs DeepFunding 0.83; `data/crates/RESULTS.md`, `5d1a084`) ⇒ predictive half NULL a **3rd** time, now DECISIVE (topology excluded) ⇒ **reframe CONFIRMED: moat = structural defense, not the predictive win**. Iso-gate ran+passed on real data (caught+fixed a real B1-determinism bug). **Still undated:** real *adaptive* adversary + general graph-iso theorem |
 | **R2** | HCE M2/C4 theorems + M3 `p`-supplier + M4 symmetric-lie elimination (3,8) | RESEARCH | — | 🔬 conjecture; **undated** |
 
 ### PoW-axis + money track (JUL — core consensus, launch-required; Will 2026-07-13)
