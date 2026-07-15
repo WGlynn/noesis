@@ -31,6 +31,12 @@ const MIN_UNIQUE_RATIO_BPS: u64 = 5000; // 50%
 /// Maximum fraction (in basis points) of a submission's distinct shingles that may already be in this
 /// node's seen‑set. Above this the content is a near‑copy of something seen (dup / imported plagiarism).
 const MAX_OVERLAP_BPS: u64 = 8000; // 80%
+/// Hard cap on the seen‑set size (≈ this many `u64` CovIds). BOUNDS node memory: without it the set
+/// grows unbounded (~24 GB/yr at 1 contribution/s — a real OOM the adversarial council flagged, and a
+/// self‑inflicted host‑liveness failure). When full the screen STOPS recording new shingles: liveness
+/// over perfect originality for an advisory filter. The production upgrade is a Bloom filter + an
+/// on‑disk snapshot; this is the honest bootstrap bound.
+const MAX_SEEN: usize = 5_000_000;
 
 /// Why a submission was screened out (advisory — returned to the submitter, never consensus).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -100,6 +106,9 @@ impl Screen {
 
     /// Fold an accepted submission's shingles into the seen‑set (so later copies of it are caught).
     pub fn record(&mut self, data: &[u8]) {
+        if self.seen.len() >= MAX_SEEN {
+            return; // bounded: stay alive rather than OOM (production = Bloom filter + snapshot)
+        }
         self.seen.extend(coverage(data));
     }
 }
