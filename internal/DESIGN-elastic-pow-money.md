@@ -1,5 +1,12 @@
 # DESIGN — Elastic (Ergon-style) Proof-of-Work money layer
 
+> **⚠ SUPERSEDED by `internal/DECISIONS-M3-money-2026-07-15.md` (Will's ratified sitting). The "~2.3-year
+> half-life" quoted throughout this note (lines ~57/74/94/113/160) was a RECONSTRUCTED/unverified figure and
+> is WITHDRAWN.** The ratified decay is `e^(−a_estim·t)`, calendar/clock-keyed, with `a_estim` a GOVERNABLE
+> Constitution field — illustrative starting figure ~efficiency-doubling every 3 years (Ergon §5.3), NOT a
+> hardcoded half-life. The L2 PI (120d) / L3 rebase constants below are correct but live on the app-layer DeFi
+> derivative, not base consensus. Read the ratified file as authoritative.**
+>
 > SPEC tick, 2026-06-20 (Will: "it's supposed to be elastic like Ergon per the newer
 > whitepaper"). Design-first, no code (Will's call). PRIVATE.
 

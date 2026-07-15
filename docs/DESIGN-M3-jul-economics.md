@@ -1,5 +1,15 @@
 # DESIGN — M3: JUL economics (the money layer)
 
+> **⚠ SUPERSEDED IN PART by `internal/DECISIONS-M3-money-2026-07-15.md` (Will's ratified economics sitting).**
+> Read that file as authoritative where they conflict. The three load-bearing reversals it makes vs the text
+> below: (1) **Moore's-law decay is CORE to the energy peg, NOT deferred/optional** — the reward is
+> `e^(−a_estim·t) · (work·num/den)`, calendar/clock-keyed (NOT work-keyed); flat-in-time pegs to *hashes*, and
+> since hashes/joule rises with hardware that silently inflates JUL against energy, so the decay is what holds
+> the ENERGY peg. §4/§10#9 and inc-M3-6 ("DEFERRED") are OUT OF DATE. (2) **`infra_bps` = NONE, permanently** —
+> infra is funded as measured PoM contribution + VIBE, never a coinbase skim; §4/§10#7's `[200,500]`
+> recommendation is WITHDRAWN. (3) TSS L2 (PI) + L3 (rebase) are **app-layer DeFi derivatives on JUL-L1, not
+> base consensus**. Still valid below: no launch ramp, no deep-capital problem (elastic reward), finality-exclusion.
+>
 > Status labels: ✅ built · 🟡 designed-not-built · 🔬 open research · ⚑ Will-gated number.
 > Ground truth pinned at HEAD `1686029`. Every code claim carries a `file:line` — re-verify at source
 > before quoting (line numbers drift). **This note SPECS and PLANS; it does not build and it does not
@@ -507,9 +517,9 @@ else waits on a Will ruling or an inert-default flip.
 | **4** | **Genesis emission ramp** | ❌ **DROPPED 2026-07-14 (Will)** — §0.1. | JUL is elastic ⇒ no deep-capital ⇒ no windfall to shrink; a `< 1` early multiplier would break the energy-peg proportionality (identical work must mint identical JUL). Flat proportional reward is correct + final. |
 | **5** | **Retarget algo + params** | ASERT; halflife/window ⚑ (block-count first cut); observed-term seamed. | Cadence/liveness only, not money supply. Wrong-signed/oscillating = cadence thrash; too-slow = strands difficulty after an exodus. |
 | **6** | **`work_clock_ceiling` `K`** | Finite, **precondition of `pow_enforced`**; clamp clock-only. Couple to `vesting_w`. | Too low = soft emission cap / under-pays energy; too high = re-opens vesting-collapse. Joint calibration. |
-| **7** | **`infra_bps`** (in the `Vec` split) | 0 default (present but off); `[200,500]` when on, via PoM standing; rent-preferred. | 2-way hard-wire = consensus-breaking reopen later. Too-high dilutes the Sybil-cost incentive PoW buys. |
+| **7** | **`infra_bps`** (in the `Vec` split) | ❌ **NONE, permanently (RATIFIED 2026-07-15).** Infra funded as measured PoM contribution + VIBE, never a coinbase skim; `coinbase_split` stays empty. The `[200,500]` recommendation is WITHDRAWN. | A redistributive coinbase tax contradicts the "measured contribution dissolves redistribution" thesis; PoM+VIBE is the correct funding path. |
 | **8** | **Reserve activation set** — `skim_bps`, `bear_threshold_bps` **deadband**, `max_release_per_period`, cooldowns | **ALL 0 until inc-4.** Load-bearing safety numbers = the harvest-bounds (deadband, per-period cap, cooldowns), set in the inc-4 game-theory pass. Release = **burn-only** until the reserve cell exists. | Live on an endogenous/zero-deadband signal = repeatable harvesting. Co-activated with a time-retarget = composed attack surface. |
-| **9** | **Moore's-law decay** | **OFF (deferred to future work).** If ever on: work-keyed half-life, ⚑ (🔬 unverified vs any Ergon number). | Pure optionality; no launch need. |
+| **9** | **Moore's-law decay** | ✅ **CORE, ON (RATIFIED 2026-07-15) — NOT deferred.** `e^(−a_estim·t)`, CALENDAR/clock-keyed (not work-keyed), `a_estim` governable (illustrative ~3yr efficiency-doubling). Ships decay=0 ⇒ inert until set. | A flat (no-decay) reward pegs to *hashes*; hashes/joule rises with hardware ⇒ silent inflation vs energy. The decay HOLDS the energy peg — it is the peg, not optionality. |
 
 ---
 
