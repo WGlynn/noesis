@@ -111,6 +111,12 @@ pub mod rpc;
 /// stays on. Step "persistence" of the friends-ready node.
 pub mod store;
 
+/// screen — the bootstrap ingress filter (advisory, node-local): a cheap quality + originality gate at
+/// submission time that rejects trivial/low-information content (the booger-chain) and near-copies of
+/// seen content (imported plagiarism). NOT consensus, NOT the value function — scaffolding that
+/// converges to the structural defense (`docs/DESIGN-authorityless-contribution-value.md` §5).
+pub mod screen;
+
 /// A CKB-style script: a RISC-V program (by code hash) + its arguments. VM success
 /// = valid. Lock scripts gate ownership; type scripts gate state transitions.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

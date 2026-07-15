@@ -43,6 +43,9 @@ pub struct ServerState {
     /// Where finalized blocks are persisted. `None` ⇒ in-memory only (tests); `Some(path)` ⇒ durable:
     /// every finalized block is appended, and a restart replays the log instead of resetting to genesis.
     store: Option<std::path::PathBuf>,
+    /// The node-local ingress screen: rejects trivial / near-duplicate submissions before the mempool.
+    /// Advisory (never consensus); rebuilt from the persisted chain on boot so originality survives a restart.
+    screen: crate::screen::Screen,
 }
 
 impl ServerState {
@@ -51,7 +54,7 @@ impl ServerState {
     pub fn new() -> Self {
         let spec = ChainSpec::dev();
         let (node, _keys) = spec.genesis_node();
-        ServerState { spec, node, next_id: 1, store: None }
+        ServerState { spec, node, next_id: 1, store: None, screen: crate::screen::Screen::new() }
     }
 
     /// Boot a DURABLE node: replay the persisted block log at `path` (or start at genesis if absent),
@@ -64,7 +67,12 @@ impl ServerState {
         let (node, replayed) = crate::store::load_chain(&path, &spec)?;
         // Resume id assignment past the highest persisted cell id (never collide with a replayed cell).
         let next_id = node.ledger.cells.iter().map(|c| c.id).max().unwrap_or(0) + 1;
-        Ok((ServerState { spec, node, next_id, store: Some(path) }, replayed))
+        // Rebuild the ingress screen's seen-set from the replayed chain so originality checks survive a restart.
+        let mut screen = crate::screen::Screen::new();
+        for c in &node.ledger.cells {
+            screen.record(&c.data);
+        }
+        Ok((ServerState { spec, node, next_id, store: Some(path), screen }, replayed))
     }
 
     /// The chain view as JSON.
@@ -95,6 +103,11 @@ impl ServerState {
         if data.is_empty() {
             return Err("data must be non-empty".into());
         }
+        // Bootstrap ingress screen (advisory, node-local): reject trivial / near-duplicate content
+        // before it reaches the mempool. Not a consensus rule — this node's own spam filter.
+        if let Err(reject) = self.screen.check(data.as_bytes()) {
+            return Err(reject.message());
+        }
         let id = self.next_id;
         self.next_id += 1;
         // The contributor key is soulbound (`type_script.args`); the lock owner is the same handle for
@@ -112,6 +125,8 @@ impl ServerState {
         self.node.submit(cell, Committed { height: self.node.ledger.height + 1, secret });
         match self.spec.produce_block(&mut self.node) {
             Some(block) => {
+                // Accepted + finalized ⇒ fold its shingles into the screen so later copies are caught.
+                self.screen.record(data.as_bytes());
                 // Durability: append the finalized block before returning. Best-effort — the block is
                 // already applied in memory, so a write failure degrades durability (a restart would
                 // lose this one block), not correctness; surface it loudly rather than crash the node.
