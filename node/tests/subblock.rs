@@ -255,6 +255,67 @@ fn absorption_root_binds_content_and_verifies() {
     // ANTI-THEATER: return a constant root ⇒ the wrong-root reject AND the content-binding assert go RED.
 }
 
+/// Slice-2c: the absorption root is BOUND INTO the ordering-block header (`Block.subblock_root`), so the
+/// PoW commits it — a solved seal cannot be replayed onto a block whose absorbed soft-chain was swapped.
+/// `None` (the default) is byte-identical to a pre-sub-block header (replay parity, the coinbase/pow/
+/// timestamp precedent); `Some(root)` changes the digest; the committed root equals `subblock_txs_root`.
+#[test]
+fn subblock_root_binds_into_header_digest() {
+    use noesis::commit_order::Committed;
+    use noesis::runtime::header_digest;
+
+    let contrib = |id: u64| Cell {
+        id,
+        lock: Script { code_hash: [1u8; 32], args: b"owner".to_vec() },
+        type_script: Script { code_hash: [2u8; 32], args: b"alice".to_vec() },
+        parent: None,
+        timestamp: 0,
+        data: b"ordering block 6 contribution, genuinely novel".to_vec(),
+    };
+    let props = [(contrib(6), Committed { height: 6, secret: [7u8; 32] })];
+
+    // The interval's absorbed soft-chain + its deterministic root.
+    let s0 = sub(6, 0, ALICE, vec![transfer(tok(1, 100, ALICE, ISS), BOB, 10)]);
+    let accepted = [s0];
+    let root = subblock_txs_root(&accepted);
+
+    // Baseline: no sub-block root ⇒ digest MUST equal the same block built without touching the field
+    // (default `None`) ⇒ replay-parity with every pre-sub-block block.
+    let bare = Block::assemble(6, &props);
+    let none_explicit = Block::assemble(6, &props); // subblock_root defaults to None
+    assert_eq!(
+        header_digest(&bare),
+        header_digest(&none_explicit),
+        "a None sub-block root is byte-identical to a pre-sub-block header (replay parity)"
+    );
+
+    // Binding: committing the root CHANGES the header digest ⇒ the PoW now proves the absorbed set.
+    let committed = Block::assemble(6, &props).with_subblock_root(root);
+    assert_ne!(
+        header_digest(&bare),
+        header_digest(&committed),
+        "committing a sub-block root must change the header digest (the seal binds the absorbed set)"
+    );
+
+    // Swap the absorbed soft-chain (different recipient ⇒ different root) ⇒ a DIFFERENT header ⇒ the seal
+    // cannot be replayed onto it.
+    let s0b = sub(6, 0, ALICE, vec![transfer(tok(1, 100, ALICE, ISS), CAROL, 10)]);
+    let swapped = Block::assemble(6, &props).with_subblock_root(subblock_txs_root(&[s0b]));
+    assert_ne!(
+        header_digest(&committed),
+        header_digest(&swapped),
+        "swapping the absorbed soft-chain post-solve changes the header ⇒ replay is impossible"
+    );
+
+    // The committed root a verifier recomputes over the block's re-included txs matches the header field.
+    assert!(
+        verify_absorption_root(&accepted, committed.subblock_root.expect("root committed")),
+        "the header's committed root equals the recomputed absorption root over the re-included txs"
+    );
+    // ANTI-THEATER: drop the subblock_root arm from header_digest ⇒ bare == committed ⇒ the binding
+    // assert goes RED (a solver could swap the absorbed set after solving).
+}
+
 /// An empty interval (no sub-blocks, or sub-blocks carrying no txs) commits the all-zero root.
 #[test]
 fn empty_interval_has_zero_root() {

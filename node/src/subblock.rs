@@ -197,8 +197,9 @@ pub fn absorb(accepted: &[SubBlock]) -> Vec<TokenTx> {
 // no-sub-block block carries those same txs anyway ⇒ re-include is not heavier than baseline) at the cost of
 // a real data-availability risk (validity ≠ availability, `[[validity-not-availability]]`). So there is NO
 // DA store / reject-on-unavailable — the block IS the data. This root is the deterministic HEADER commitment
-// over the absorbed set; binding it into the ordering-block header + `verify` at absorption are the wiring
-// follow. A ZK proof-of-absorption (`utxo_commitment::verify_transition`) stays a future COMPUTE overlay.
+// over the absorbed set; it is now BOUND into the ordering-block header via `Block::subblock_root` +
+// `runtime::header_digest` (slice-2c) so the PoW seal proves it. A ZK proof-of-absorption
+// (`utxo_commitment::verify_transition`) stays a future COMPUTE overlay.
 
 /// Domain tags for the Merkle construction — leaves and internal nodes hash under distinct prefixes so no
 /// node can be reinterpreted as a leaf or vice-versa (CVE-2012-2459 class defense).
@@ -291,9 +292,9 @@ pub fn subblock_txs_root(accepted: &[SubBlock]) -> [u8; 32] {
 }
 
 /// Verify an ordering block's committed header root against the absorbed set it re-includes: recompute the
-/// deterministic root and compare. Ships the VERIFICATION semantics; binding the root into the actual
-/// ordering-block header field (so the PoW commits it) is the wiring follow. No DA dependency — the txs are
-/// in the block body.
+/// deterministic root and compare. The root is bound into the header field `Block::subblock_root` (so the
+/// PoW commits it, `runtime::header_digest` slice-2c); this recomputes it over the block's own re-included
+/// txs. No DA dependency — the txs are in the block body.
 pub fn verify_absorption_root(accepted: &[SubBlock], committed: [u8; 32]) -> bool {
     subblock_txs_root(accepted) == committed
 }

@@ -598,6 +598,16 @@ pub struct Block {
     /// cell must be bonded; on apply a bond is REFUNDED (left live, untouched) iff its cell scores
     /// novelty and BURNED (retired, no re-output) iff it scores zero — conservation by construction.
     pub bonds: Vec<Bond>,
+    /// Sub-block absorption commitment (slice-2c; `node/src/subblock.rs`, `docs/research/sub-block-security.md`).
+    /// The deterministic Merkle root over the interval's absorbed sub-block txs ([`subblock::subblock_txs_root`]).
+    /// The absorbed txs are RE-INCLUDED in `token_txs` (self-contained — the block IS the data, no DA problem;
+    /// Will 2026-07-14 `[[validity-not-availability]]`); this HEADER field binds their root so the PoW commits
+    /// it (Bitcoin-standard: data in body, root in header). `None` ⇒ no sub-blocks absorbed ⇒ replay-parity
+    /// preserved (the `coinbase`/`pow`/`timestamp`/`bonds` additive precedent). Bound into [`header_digest`]
+    /// option-tagged, so under `pow_enforced` a solved seal cannot be replayed onto a swapped soft-chain. A
+    /// verifier recomputes it over the block's own re-included txs ([`subblock::verify_absorption_root`]); it
+    /// also enables light-client inclusion proofs against the header.
+    pub subblock_root: Option<[u8; 32]>,
 }
 
 impl Block {
@@ -617,6 +627,7 @@ impl Block {
             pow: None,
             timestamp: None,
             bonds: Vec::new(),
+            subblock_root: None,
         }
     }
 
@@ -654,6 +665,14 @@ impl Block {
     /// `apply_transition` when `Constitution.submission_deposit > 0`.
     pub fn with_bonds(mut self, bonds: Vec<Bond>) -> Block {
         self.bonds = bonds;
+        self
+    }
+
+    /// Commit an interval's sub-block absorption root (slice-2c builder; `None` by default). The absorbed
+    /// txs themselves must ALSO be re-included via [`with_token_txs`] (the block is self-contained); this
+    /// only binds their [`subblock::subblock_txs_root`] into the header so the PoW seal proves the set.
+    pub fn with_subblock_root(mut self, root: [u8; 32]) -> Block {
+        self.subblock_root = Some(root);
         self
     }
 }
@@ -784,6 +803,17 @@ pub fn header_digest(b: &Block) -> [u8; 32] {
         Some(t) => {
             buf.push(1);
             buf.extend_from_slice(&t.to_le_bytes());
+        }
+    }
+    // slice-2c: bind the sub-block absorption root (option-tagged like `timestamp`/`coinbase`:
+    // 0 = none, 1 + 32 bytes = present). Under `pow_enforced` this makes the seal a PROOF over the
+    // absorbed soft-chain — a solved hash cannot be replayed onto a block whose sub-block set was
+    // swapped. Inert when `None` (every pre-sub-block block ⇒ byte-identical digest ⇒ replay-parity).
+    match b.subblock_root {
+        None => buf.push(0),
+        Some(root) => {
+            buf.push(1);
+            buf.extend_from_slice(&root);
         }
     }
     noesis_core::pow::hash(&buf)

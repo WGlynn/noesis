@@ -85,6 +85,11 @@ struct WBlock {
     /// decode as an empty vec, preserving byte-identical restart/replay — the additive precedent.
     #[serde(default)]
     bonds: Vec<WBond>,
+    /// Sub-block absorption root (slice-2c). `#[serde(default)]` ⇒ pre-sub-block block logs (no field)
+    /// decode as `None`, preserving byte-identical restart/replay — the same additive precedent as
+    /// `bonds`/`timestamp`/`pow`/`coinbase`.
+    #[serde(default)]
+    subblock_root: Option<[u8; 32]>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -143,6 +148,7 @@ fn w_block(b: &Block) -> WBlock {
             .iter()
             .map(|bd| WBond { for_cell: bd.for_cell, deposit: w_cell(&bd.deposit), auth: bd.auth.clone() })
             .collect(),
+        subblock_root: b.subblock_root,
     }
 }
 
@@ -196,6 +202,7 @@ fn r_block(b: WBlock) -> Result<Block, WireError> {
             .into_iter()
             .map(|bd| Bond { for_cell: bd.for_cell, deposit: r_cell(bd.deposit), auth: bd.auth })
             .collect(),
+        subblock_root: b.subblock_root,
     })
 }
 
