@@ -9071,75 +9071,14 @@ pub mod proven {
 /// novel shingle; later cells in the block see it as overlap — demonstrated in-test by
 /// running the proven verifier against the evolving roots.
 pub mod index_rule {
-    use super::smt::{leaf, root_from, Hash, DEPTH};
-
-    /// One insertion in the block's batch: the key and its sibling path against the
-    /// rolling root at this position in the chain.
-    #[derive(Clone)]
-    pub struct InsertStep {
-        pub key: u64,
-        pub siblings: [Hash; DEPTH],
-    }
-
-    /// The transition rule the index cell's type-script enforces.
-    pub fn valid_root_transition(old_root: Hash, new_root: Hash, steps: &[InsertStep]) -> bool {
-        let mut root = old_root;
-        for step in steps {
-            if root_from(step.key, [0u8; 32], &step.siblings) != root {
-                return false; // not absent under the rolling root (dup, stale, or forged)
-            }
-            root = root_from(step.key, leaf(step.key), &step.siblings);
-        }
-        root == new_root
-    }
-
-    /// A single cell's contribution to the block's index batch: its CONSENSUS-SOURCED commit
-    /// coordinate ([`super::commit_order::Committed`]) paired with the novel-shingle insertions
-    /// it makes against the rolling root. Grouping at cell granularity is what lets the rule
-    /// bind the ORDER the cells are applied in to consensus, not to producer presentation.
-    #[derive(Clone)]
-    pub struct CellBatch {
-        pub coord: super::commit_order::Committed,
-        pub steps: Vec<InsertStep>,
-    }
-
-    /// The index-cell transition rule WITH the commit-order invariant wired in
-    /// (TEMPORAL-ORDER-ONCHAIN.md, NEXT-BUILD (b)). [`valid_root_transition`] proves the root
-    /// moved correctly but TRUSTS the producer's order of steps — and order is exactly what
-    /// decides first-commit-wins when two same-height cells contend for shared novel coverage
-    /// (the first to insert a shared key banks it; the second can no longer prove non-membership
-    /// ⇒ earns 0 for that key). This variant closes the relocated invariant at per-cell-batch
-    /// granularity: the cells must ALREADY be in canonical commit order
-    /// ([`super::commit_order::is_canonical_order`] — height ascending, then the XOR-seeded
-    /// in-block slot, NEITHER producer-arrangeable), and ONLY THEN is the flattened rolling-root
-    /// transition checked. A producer-favorable reordering is REJECTED at the order gate before
-    /// any root math (no silent re-sort ⇒ no probe signal), so no party can choose which of two
-    /// contending cells banks the shared shingles. This is the index-rule half of the temporal-
-    /// order fix: `commit_order` made the order consensus-sourced; this makes the index cell
-    /// REFUSE to advance on any other order.
-    pub fn valid_ordered_root_transition(
-        old_root: Hash,
-        new_root: Hash,
-        cells: &[CellBatch],
-    ) -> bool {
-        // 1. Consensus order gate: the cells must be presented in canonical commit order.
-        let coords: Vec<super::commit_order::Committed> =
-            cells.iter().map(|c| c.coord.clone()).collect();
-        if !super::commit_order::is_canonical_order(&coords) {
-            return false;
-        }
-        // 2. Rolling-root transition over the steps, flattened in that consensus-fixed order.
-        let mut root = old_root;
-        for cell in cells {
-            for step in &cell.steps {
-                if root_from(step.key, [0u8; 32], &step.siblings) != root {
-                    return false; // not absent under the rolling root (dup, stale, or forged)
-                }
-                root = root_from(step.key, leaf(step.key), &step.siblings);
-            }
-        }
-        root == new_root
-    }
+    //! Single-sourced into `noesis-core` (T7 #3) so the on-VM index type-script and this node
+    //! reference are ONE arithmetic. The `InsertStep` / `CellBatch` types + the two transition
+    //! rules now live in `noesis_core::index_rule`; the tests below are the drift-guard, driving
+    //! the re-exported rules through the maintainer-side `NoveltyIndex` producer (which, being
+    //! maintainer-side state, stays node-only by design).
+    pub use noesis_core::index_rule::{
+        valid_ordered_root_transition, valid_root_transition, CellBatch, InsertStep,
+    };
 
     #[cfg(test)]
     mod tests {

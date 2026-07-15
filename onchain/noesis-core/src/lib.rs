@@ -223,6 +223,91 @@ pub fn proven_floored_novelty_q16(
     Some(floored_from_counts(novelty, overlap, total, data, theta_sim_q16, theta_ent_q16))
 }
 
+// ============ Index-cell root-transition rule (T7 #3, single source of node::index_rule) ============
+//
+// The transition rule the novelty-index cell's type-script enforces: the committed seen-shingle root
+// may advance old -> new ONLY as an EXACT chain of single-key SMT insertions, each proven against the
+// ROLLING root. Kept here (no_std) so the on-VM index type-script and the node reference are ONE
+// arithmetic (the single-source discipline of `finalization` / `commit_order` / `tx`). The node
+// re-exports these and drives the drift-guard tests through its maintainer-side `NoveltyIndex`
+// producer (which, being maintainer-side state, stays in the node by design).
+//
+// Load-bearing detail: intermediate roots are COMPUTED from each step's own sibling path
+// (`root_from(key, EMPTY, siblings)` checked == rolling root, then `root_from(key, leaf, siblings)`),
+// never supplied by the producer. Two structural consequences, not bookkept:
+//   - duplicate insertion is impossible (the second insert of a key cannot prove non-membership
+//     under the rolling root that now contains it);
+//   - smuggling or omitting a key moves the computed final root off `new_root`.
+pub mod index_rule {
+    use crate::commit_order;
+    use crate::{leaf, root_from, Hash, DEPTH};
+    use alloc::vec::Vec;
+
+    /// One insertion in the block's batch: the key and its sibling path against the rolling root at
+    /// this position in the chain.
+    #[derive(Clone)]
+    pub struct InsertStep {
+        pub key: u64,
+        pub siblings: [Hash; DEPTH],
+    }
+
+    /// The transition rule the index cell's type-script enforces.
+    pub fn valid_root_transition(old_root: Hash, new_root: Hash, steps: &[InsertStep]) -> bool {
+        let mut root = old_root;
+        for step in steps {
+            if root_from(step.key, [0u8; 32], &step.siblings) != root {
+                return false; // not absent under the rolling root (dup, stale, or forged)
+            }
+            root = root_from(step.key, leaf(step.key), &step.siblings);
+        }
+        root == new_root
+    }
+
+    /// A single cell's contribution to the block's index batch: its CONSENSUS-SOURCED commit
+    /// coordinate ([`commit_order::Committed`]) paired with the novel-shingle insertions it makes
+    /// against the rolling root. Grouping at cell granularity binds the ORDER the cells are applied
+    /// in to consensus, not to producer presentation.
+    #[derive(Clone)]
+    pub struct CellBatch {
+        pub coord: commit_order::Committed,
+        pub steps: Vec<InsertStep>,
+    }
+
+    /// The index-cell transition rule WITH the commit-order invariant wired in.
+    /// [`valid_root_transition`] proves the root moved correctly but TRUSTS the producer's order of
+    /// steps — and order is exactly what decides first-commit-wins when two same-height cells contend
+    /// for shared novel coverage (the first to insert a shared key banks it; the second can no longer
+    /// prove non-membership => earns 0 for that key). This variant closes the invariant at per-cell-
+    /// batch granularity: the cells must ALREADY be in canonical commit order
+    /// ([`commit_order::is_canonical_order`] — height ascending, then the XOR-seeded in-block slot,
+    /// NEITHER producer-arrangeable), and ONLY THEN is the flattened rolling-root transition checked.
+    /// A producer-favorable reordering is REJECTED at the order gate before any root math (no silent
+    /// re-sort => no probe signal), so no party can choose which of two contending cells banks the
+    /// shared shingles.
+    pub fn valid_ordered_root_transition(
+        old_root: Hash,
+        new_root: Hash,
+        cells: &[CellBatch],
+    ) -> bool {
+        // 1. Consensus order gate: the cells must be presented in canonical commit order.
+        let coords: Vec<commit_order::Committed> = cells.iter().map(|c| c.coord.clone()).collect();
+        if !commit_order::is_canonical_order(&coords) {
+            return false;
+        }
+        // 2. Rolling-root transition over the steps, flattened in that consensus-fixed order.
+        let mut root = old_root;
+        for cell in cells {
+            for step in &cell.steps {
+                if root_from(step.key, [0u8; 32], &step.siblings) != root {
+                    return false; // not absent under the rolling root (dup, stale, or forged)
+                }
+                root = root_from(step.key, leaf(step.key), &step.siblings);
+            }
+        }
+        root == new_root
+    }
+}
+
 // ============ zk-score (Fit 2) single-source: floor, wire, digest, nullifier, verdict ============
 // One home for the pieces the zk-score guest + host + parity must agree on, so the private-scoring
 // path cannot drift between the prover and the ground-truth harness. The BYTE LAYOUT of the digest,
