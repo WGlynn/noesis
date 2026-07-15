@@ -37,10 +37,11 @@ use std::io::{self, Write};
 use std::sync::Arc;
 use std::thread;
 
+use noesis::chainspec::{mine, ChainSpec};
 use noesis::commit_order::Committed;
 use noesis::consensus::Validator;
 use noesis::net::{Listener, Peer};
-use noesis::runtime::{Block, Constitution, Node};
+use noesis::runtime::{Block, Node};
 use noesis::sync::{serve, sync_from};
 use noesis::{Cell, Script};
 
@@ -58,16 +59,13 @@ fn genesis_validator(id: u64) -> Validator {
     }
 }
 
-/// The honest genesis: an empty ledger (via `Node::new`), the default Constitution (NCI mix,
-/// 2/3 bar, W=0, theta=0.95), and a small bonded PoS set each paired with its contributor key.
-/// PoM is NOT seeded — standing is earned, not pre-minted. A seed and a joiner MUST call this
-/// identically (same validators, same Constitution) — genesis agreement is what makes the digests
-/// comparable at all.
+/// The honest genesis, now single-sourced from [`ChainSpec::dev`]: an empty ledger, the ratified M3
+/// economics turned ON (PoW enforced ⇒ mined difficulty ⇒ JUL issues from block zero), and a small
+/// bonded PoS set each paired with its contributor key. PoM is NOT seeded — standing is earned, not
+/// pre-minted. A seed and a joiner MUST boot the same spec — genesis agreement is what makes the
+/// digests comparable at all.
 fn genesis() -> (Node, Vec<Vec<u8>>) {
-    let keys: Vec<Vec<u8>> = vec![b"alice".to_vec(), b"bob".to_vec(), b"carol".to_vec()];
-    let validators: Vec<Validator> = (0..keys.len() as u64).map(genesis_validator).collect();
-    let node = Node::new(0, validators, Constitution::default());
-    (node, keys)
+    ChainSpec::dev().genesis_node()
 }
 
 fn cell(id: u64, owner: &[u8], contributor: &[u8], parent: Option<u64>, ts: u64, data: &[u8]) -> Cell {
@@ -120,7 +118,7 @@ fn digest_string(node: &Node) -> String {
 }
 
 fn print_state(node: &Node) {
-    let (ids, root, pom, _tokens, work) = node.ledger.state_digest();
+    let (ids, root, pom, tokens, work) = node.ledger.state_digest();
     let root_hex: String = root.iter().take(6).map(|b| format!("{b:02x}")).collect();
     let mut pom_sorted = pom.clone();
     pom_sorted.sort_by(|a, b| b.1.cmp(&a.1));
@@ -128,11 +126,15 @@ fn print_state(node: &Node) {
         .iter()
         .map(|(k, v)| format!("{}={}", String::from_utf8_lossy(k), v))
         .collect();
+    // JUL issued so far, in whole JUL (base units / 10^8) — minted from the block's mined work.
+    let jul = node.ledger.jul_supply.issued() / noesis::jul::JUL_BASE_UNITS;
     println!(
-        "  height={} work={} cells={} index_root={}.. pom[{}]",
+        "  height={} work={} cells={} jul={} coinbase_cells={} index_root={}.. pom[{}]",
         node.ledger.height,
         work,
         ids.len(),
+        jul,
+        tokens.len(),
         root_hex,
         pom_str.join(" ")
     );
@@ -144,6 +146,7 @@ fn print_state(node: &Node) {
 /// `verbose` prints per-block progress (devnet) vs staying quiet (seed banner handles its own lines).
 fn build_chain(verbose: bool) -> (Node, Vec<Block>) {
     let (mut node, keys) = genesis();
+    let genesis_bits = ChainSpec::dev().genesis_bits;
     // id -> contributor key, so each validator's PoM weight is sourced from the cleared-score bridge.
     let key_of: HashMap<u64, Vec<u8>> =
         keys.iter().enumerate().map(|(i, k)| (i as u64, k.clone())).collect();
@@ -157,8 +160,11 @@ fn build_chain(verbose: bool) -> (Node, Vec<Block>) {
             node.submit(c.clone(), co.clone());
         }
 
-        // leader move: assemble the next block
-        let block = node.propose();
+        // leader move: assemble the next block, name a coinbase recipient (the producer) so the mined
+        // work issues JUL, then mine the seal to meet the fixed genesis difficulty (the dev spec
+        // enforces PoW, so an un-mined block would fail validation).
+        let producer = Script { code_hash: [0u8; 32], args: key_of.get(&0).cloned().unwrap_or_default() };
+        let block = mine(node.propose().with_coinbase(producer), genesis_bits);
 
         // honest local validation (the vote)
         if !node.validate(&block) {
@@ -207,7 +213,7 @@ fn build_chain(verbose: bool) -> (Node, Vec<Block>) {
 /// No-arg mode: the T0 devnet — boot an honest genesis, produce the scripted chain, print state.
 fn run_devnet() {
     println!("noesisd — Noesis T0 local devnet");
-    println!("genesis: empty ledger (PoM earned, not pre-minted) + Constitution::default() + bonded PoS set\n");
+    println!("genesis: empty ledger (PoM earned, not pre-minted) + ChainSpec::dev() [PoW enforced, JUL issuing] + bonded PoS set\n");
     println!("booted. producing the honest chain (finality GATED every block):\n");
 
     let (node, blocks) = build_chain(true);
@@ -216,6 +222,8 @@ fn run_devnet() {
     println!("finality was GATED on the finality gadget every block — not stamped on validation alone.");
     let total_pom: u64 = node.ledger.pom.values().sum();
     println!("PoM standing earned by contribution (not pre-minted): {total_pom} total across {} contributors.", node.ledger.pom.len());
+    let jul = node.ledger.jul_supply.issued() / noesis::jul::JUL_BASE_UNITS;
+    println!("JUL issued from mined work (energy-anchored, no pre-mine): {jul} JUL over {} blocks.", blocks.len());
 }
 
 /// `--listen [addr]` — the SEED. Build the canonical chain, then serve its block log to any joiner.

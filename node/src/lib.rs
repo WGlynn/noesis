@@ -95,6 +95,12 @@ pub mod liveness;
 /// by construction), never touches `state_digest`. Slice 1 = the data model + validity gate.
 pub mod subblock;
 
+/// ChainSpec — the single-sourced genesis definition ("what block zero is") every honest node agrees
+/// on: the constitution (with the ratified M3 economics turned ON), the bonded genesis validators, and
+/// the fixed Phase-1 mining difficulty. Lifts genesis out of the `noesisd` driver so a devnet, seed,
+/// and joiner boot identically. `internal/DECISIONS-M3-money-2026-07-15.md`.
+pub mod chainspec;
+
 /// A CKB-style script: a RISC-V program (by code hash) + its arguments. VM success
 /// = valid. Lock scripts gate ownership; type scripts gate state transitions.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
