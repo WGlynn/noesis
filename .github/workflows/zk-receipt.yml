@@ -1,0 +1,63 @@
+name: zk-finalize receipt
+
+# The public repo's free Linux runner IS our zkVM box — RISC Zero's prover does not run on Windows
+# (this project's dev machine), so the real receipt for Fit 1 of docs/ZK-INTEGRATION.md is produced
+# here. A green run proves `finalizes_pos_pom_fixed` in the RISC Zero zkVM and verifies each receipt
+# against the guest image id ⇒ flips the Fit-1 PoC from 🟡 (receipt not yet produced) to ✅.
+#
+# Runs on demand (workflow_dispatch) and when the proven code or this workflow changes. Kept OUT of
+# the fast ci.yml because installing the RISC Zero toolchain + real proving is minutes-heavy.
+
+on:
+  workflow_dispatch: {}
+  push:
+    paths:
+      - "onchain/zk-finalize/**"
+      - "onchain/noesis-core/**"
+      - ".github/workflows/zk-receipt.yml"
+
+env:
+  CARGO_TERM_COLOR: always
+  # 0 = produce a REAL cryptographic receipt (dev-mode would emit a fake receipt that verifies
+  # trivially — that is NOT the milestone).
+  RISC0_DEV_MODE: "0"
+
+jobs:
+  prove-finalize:
+    name: prove + verify finalize fixtures
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable host toolchain)
+        run: rustup toolchain install stable --profile minimal
+
+      - name: Install RISC Zero toolchain (rzup)
+        run: |
+          curl -L https://risczero.com/install | bash
+          echo "$HOME/.risc0/bin" >> "$GITHUB_PATH"
+
+      - name: rzup install (r0vm + risc0 rust toolchain + cargo-risczero)
+        run: |
+          rzup --version
+          rzup install
+
+      - name: Cache cargo (zk-finalize workspace)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            onchain/zk-finalize/target
+          key: ${{ runner.os }}-zkfinalize-${{ hashFiles('onchain/zk-finalize/**/Cargo.toml') }}
+
+      - name: Prove + verify the canonical fixtures (real receipt)
+        working-directory: onchain/zk-finalize/host
+        run: cargo run --release --bin prove-finalize | tee "$GITHUB_WORKSPACE/zk-finalize-receipt.log"
+
+      - name: Upload the proof log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zk-finalize-receipt-log
+          path: zk-finalize-receipt.log
