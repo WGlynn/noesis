@@ -1096,6 +1096,19 @@ pub mod xmss {
             && &fold_root(sig.index, sig.ots_root, &sig.auth) == address
     }
 
+    /// Recover the tree ROOT this signature commits to over `msg`, if the OTS verifies. Unlike
+    /// [`verify`] (which checks against a known address), this RETURNS the folded root — used by the
+    /// multi-tree layer, where a bottom-subtree signature's root is what the upper tree then signs.
+    pub fn recover_root(msg: &[u8; 32], sig: &Signature) -> Option<[u8; 32]> {
+        if (sig.index as usize) >= LEAVES {
+            return None;
+        }
+        if !lamport::verify(&sig.ots_root, msg, &sig.ots_sig) {
+            return None;
+        }
+        Some(fold_root(sig.index, sig.ots_root, &sig.auth))
+    }
+
     /// The canonical 32-byte message a CONTRIBUTION signs over - binds the signer's address, the
     /// one-time leaf index (anti-replay), and the contribution bytes. SINGLE SOURCE: the browser
     /// wallet and the node MUST compute this identically or every signature fails.
@@ -1146,6 +1159,164 @@ pub mod xmss {
             let mut sig = sign(&master, 0, &msg);
             sig.index = LEAVES as u32;
             assert!(!verify(&addr, &msg, &sig), "index >= LEAVES rejected");
+        }
+    }
+}
+
+/// XMSS^MT — the MULTI-TREE (hierarchical-deterministic) wallet. `xmss` (above) gives 2^H = 256
+/// one-time leaves per key, then the wallet is stranded and standing would reset on a new key. XMSS^MT
+/// removes that wall WITHOUT changing the address: a two-layer certification chain, both layers reusing
+/// the proven `xmss` tree. The TOP tree's leaf `s` signs the ROOT of BOTTOM subtree `s`; the bottom
+/// leaf `l` signs the actual message. Global index `g = (s << H) | l` ⇒ 2^H subtrees × 2^H leaves =
+/// 65,536 signatures under ONE fixed address = the top-tree root. Deterministic (HD): every subtree
+/// seed derives from the single master seed, so one seed backs up the whole hierarchy. Keygen of the
+/// ADDRESS builds only the top tree (2^H OTS), so it stays as cheap as a single `xmss` key; bottom
+/// subtrees are built lazily as they are used. Fully hash-based / post-quantum; no new assumption.
+///
+/// One-time safety across the reuse: the top leaf `s` always signs the SAME constant root `R_s`, so
+/// re-signing it for every leaf in subtree `s` is signing an identical message with a one-time key —
+/// safe (byte-identical output, no second preimage revealed). Standard XMSS^MT.
+pub mod xmss_mt {
+    use alloc::vec::Vec;
+    use super::xmss;
+
+    /// Global index range: 2^H subtrees × 2^H leaves.
+    pub const MAX_SIGS: u64 = (xmss::LEAVES as u64) * (xmss::LEAVES as u64);
+
+    /// Domain-separated master-seed derivation for the two layers (distinct from every other hasher).
+    fn h(tag: u8, parts: &[&[u8]]) -> [u8; 32] {
+        let mut hasher = blake2b_ref::Blake2bBuilder::new(32).personal(b"noesis-xmmt-v1\0\0").build();
+        hasher.update(&[tag]);
+        for p in parts {
+            hasher.update(p);
+        }
+        let mut out = [0u8; 32];
+        hasher.finalize(&mut out);
+        out
+    }
+    /// The single top-tree seed (over whose leaves the stable address is the Merkle root).
+    fn top_seed(master: &[u8; 32]) -> [u8; 32] {
+        h(0x10, &[master])
+    }
+    /// Bottom subtree `s`'s seed — deterministic from the master (the HD property).
+    fn bottom_seed(master: &[u8; 32], s: u32) -> [u8; 32] {
+        h(0x11, &[master, &s.to_le_bytes()])
+    }
+
+    fn split(g: u32) -> (u32, u32) {
+        (g >> xmss::H, g & (xmss::LEAVES as u32 - 1)) // (subtree, leaf)
+    }
+
+    /// A multi-tree signature: the global index, the bottom-subtree OTS+path over the message, and the
+    /// top-tree OTS+path certifying that subtree's root up to the address.
+    pub struct MtSignature {
+        pub g: u32,
+        pub bottom: xmss::Signature,
+        pub top: xmss::Signature,
+    }
+
+    /// The stable wallet ADDRESS = the top tree's Merkle root. O(2^H) OTS keygens — computed once.
+    pub fn keygen_address(master: &[u8; 32]) -> [u8; 32] {
+        xmss::keygen_address(&top_seed(master))
+    }
+
+    /// Sign `msg` at global index `g`. Bottom subtree `s` signs the message; the top leaf `s` signs the
+    /// bottom subtree's root. Never sign twice at one `g` (each bottom leaf is one-time).
+    pub fn sign(master: &[u8; 32], g: u32, msg: &[u8; 32]) -> MtSignature {
+        let (s, l) = split(g);
+        let bseed = bottom_seed(master, s);
+        let bottom = xmss::sign(&bseed, l, msg);
+        let r_s = xmss::keygen_address(&bseed); // this subtree's root
+        let top = xmss::sign(&top_seed(master), s, &r_s); // top leaf s certifies R_s
+        MtSignature { g, bottom, top }
+    }
+
+    /// Verify a multi-tree signature over `msg` under the fixed `address`. Chain: the bottom OTS must
+    /// verify over `msg` and yield subtree root R; the top OTS at `s` must verify over R and fold to
+    /// `address`. A liar cannot fake R (bottom sig would not verify) nor R's certification (top sig).
+    pub fn verify(address: &[u8; 32], g: u32, msg: &[u8; 32], sig: &MtSignature) -> bool {
+        if (g as u64) >= MAX_SIGS || sig.g != g {
+            return false;
+        }
+        let (s, l) = split(g);
+        if sig.bottom.index != l || sig.top.index != s {
+            return false;
+        }
+        // bottom OTS over msg -> the subtree root it commits to
+        let r_s = match xmss::recover_root(msg, &sig.bottom) {
+            Some(r) => r,
+            None => return false,
+        };
+        // top leaf s must have signed exactly R_s, and fold to the wallet address
+        xmss::verify(address, &r_s, &sig.top)
+    }
+
+    /// Convenience: the contribution message at global index `g` (reuses the single-tree digest so the
+    /// node + browser agree). `g` is the anti-replay counter, monotone per address.
+    pub fn contribution_digest(address: &[u8; 32], g: u32, data: &[u8]) -> [u8; 32] {
+        xmss::contribution_digest(address, g, data)
+    }
+
+    /// A cached tree of bottom-subtree seeds is unnecessary here (seeds are cheap to re-derive); the
+    /// browser wallet caches the built leaves per subtree, not this crate.
+    #[allow(dead_code)]
+    fn _doc_anchor() -> Vec<u8> {
+        Vec::new()
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn mt_sign_verify_across_subtrees() {
+            let master = [3u8; 32];
+            let addr = keygen_address(&master);
+            // exercise leaf 0 of subtree 0, a mid leaf, a subtree boundary, and the top of the range
+            for &g in &[0u32, 5, 255, 256, 257, 1000, (MAX_SIGS as u32) - 1] {
+                let msg = contribution_digest(&addr, g, b"a real hd-wallet contribution");
+                let sig = sign(&master, g, &msg);
+                assert!(verify(&addr, g, &msg, &sig), "honest sig at global index {g} verifies");
+            }
+        }
+
+        #[test]
+        fn mt_rejects_forgery_and_index_games() {
+            let master = [3u8; 32];
+            let addr = keygen_address(&master);
+            let g = 300u32; // subtree 1, leaf 44
+            let msg = contribution_digest(&addr, g, b"data");
+            let sig = sign(&master, g, &msg);
+
+            // foreign address
+            let other = keygen_address(&[9u8; 32]);
+            assert!(!verify(&other, g, &msg, &sig), "foreign address rejected");
+            // tampered message
+            let msg2 = contribution_digest(&addr, g, b"swapped");
+            assert!(!verify(&addr, g, &msg2, &sig), "tampered message rejected");
+            // claimed g mismatched to the signature's internal indices
+            assert!(!verify(&addr, g + 1, &msg, &sig), "g mismatch rejected");
+            // out of range
+            let big = MAX_SIGS as u32;
+            let sig2 = sign(&master, g, &msg);
+            assert!(!verify(&addr, big, &msg, &sig2), "g >= MAX_SIGS rejected");
+            // a bottom sig from a DIFFERENT subtree cannot be spliced under this top
+            let mut spliced = sign(&master, g, &msg);
+            spliced.bottom = sign(&master, 44, &msg).bottom; // subtree 0 leaf 44, wrong subtree
+            assert!(!verify(&addr, g, &msg, &spliced), "cross-subtree splice rejected");
+        }
+
+        #[test]
+        fn address_is_stable_across_the_whole_range() {
+            // the whole point of MT: one address regardless of which subtree/leaf you spend
+            let master = [7u8; 32];
+            let a = keygen_address(&master);
+            for &g in &[0u32, 256, 65535] {
+                let msg = contribution_digest(&a, g, b"x-marks");
+                let sig = sign(&master, g, &msg);
+                // address used to verify is the SAME constant for every g
+                assert!(verify(&a, g, &msg, &sig));
+            }
         }
     }
 }
