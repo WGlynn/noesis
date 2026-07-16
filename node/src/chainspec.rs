@@ -77,6 +77,59 @@ impl ChainSpec {
         }
     }
 
+    /// The PUBLIC TESTNET spec: the first genesis a stranger boots. Identical honest structure to
+    /// [`dev`](Self::dev) — money layer ON, empty ledger, PoM earned not pre-minted, a small bonded PoS
+    /// set carrying finality from block zero — but with a DISTINCT `chain_id` (so testnet blocks can
+    /// never replay onto a devnet or mainnet) and a HARDER-than-dev `genesis_bits` so a public node is
+    /// not a free-for-all where every hash trivially seals a block.
+    ///
+    /// HONEST SCOPE (loud, do NOT round up): `genesis_bits` here is a TESTNET PLACEHOLDER — harder than
+    /// dev's near-maximum target so a modest always-on VM must actually grind for a block, but still
+    /// CPU-mineable within a handful of iterations. It is NOT the measured mainnet difficulty; that
+    /// remains the standing ⚑ (`genesis_bits` measured-at-build on real hardware, loop-plan M2/⚑).
+    /// Everything else is the honest launch default: `vesting_w = 0`, empty `coinbase_split`
+    /// (ratified `infra_bps = NONE`), `submission_deposit = 0`, `clock_enforced = false` — the testnet
+    /// ships at the FLOOR, never claiming the moat. The 5 on-VM binding activations
+    /// (`CONTROL_BINDING_ACTIVE` etc.) stay `false` until the deploy-coupled go-live flip (Will-gated).
+    ///
+    /// JUL ON TESTNET (the resolved design — dial the PARAMETER, never the MECHANISM): PoW stays fully
+    /// in consensus (`pow_enforced = true`) so the testnet tests the REAL security model, and JUL mints
+    /// from work through the exact same path as mainnet (`block_work → reward_for_work`). The money layer
+    /// is genuinely exercised. But because difficulty is LOW, the energy behind a block is a few thousand
+    /// CPU hashes (microseconds, no GPU, no meaningful electricity) — so testnet JUL is a
+    /// functional-but-WORTHLESS test token by construction (distinct `chain_id` + trivial energy + it is
+    /// a testnet). The energy-peg is an EMERGENT property of HIGH (mainnet) difficulty, not a coded flag;
+    /// lowering difficulty makes JUL a test token with ZERO consensus change. NEVER set
+    /// `pow_enforced = false` to "save power" — that removes PoW from consensus, breaks the
+    /// genesis-admission invariants, and stops the testnet testing the real thing. Honest scope: low
+    /// difficulty ⇒ low Sybil-cost / cheap blocks, which is expected and correct FOR a testnet.
+    pub fn testnet() -> Self {
+        let constitution = Constitution { pow_enforced: true, work_clock_ceiling: 1 << 40, ..Default::default() };
+
+        let keys: Vec<Vec<u8>> = vec![b"alice".to_vec(), b"bob".to_vec(), b"carol".to_vec()];
+        let validators = keys
+            .iter()
+            .enumerate()
+            .map(|(i, k)| {
+                (
+                    k.clone(),
+                    Validator { id: i as u64, pow: 0.0, pos: 1000.0, pom: 0.0, last_heartbeat: 0, staked_balance: 1000.0 },
+                )
+            })
+            .collect();
+
+        ChainSpec {
+            chain_id: 0x_7e57, // "teST" — distinct from dev (0xde0) so blocks never cross networks
+            constitution,
+            // Exponent 0x1f (one below dev's 0x20) ⇒ target ≈ 2^240, ~2^8 harder than dev's ≈ 2^248:
+            // a public node grinds a few thousand hashes per block instead of ~1, still instant on a
+            // modest VM. Same mantissa shape as dev (0x00ffff) ⇒ a compact the decoder accepts.
+            // TESTNET PLACEHOLDER — the measured mainnet value is the standing ⚑.
+            genesis_bits: 0x1f00_ffff,
+            validators,
+        }
+    }
+
     /// Boot the genesis node from this spec: an EMPTY ledger with the spec's constitution and bonded
     /// validator set. Returns the node plus the ordered contributor keys (so a driver can source each
     /// validator's live PoM from the cleared-score bridge). Every mode (devnet / seed / joiner) calls
@@ -172,6 +225,47 @@ mod tests {
         assert_eq!(keys, vec![b"alice".to_vec(), b"bob".to_vec(), b"carol".to_vec()]);
         assert_eq!(node.ledger.height, 0, "genesis ledger is empty");
         assert!(node.ledger.pom.is_empty(), "no pre-minted PoM standing");
+    }
+
+    #[test]
+    fn testnet_spec_boots_pow_on_distinct_from_dev_and_mines() {
+        use crate::commit_order::Committed;
+        use crate::{Cell, Script};
+
+        let dev = ChainSpec::dev();
+        let net = ChainSpec::testnet();
+
+        // Distinct network identity ⇒ blocks can never replay across networks.
+        assert_ne!(net.chain_id, dev.chain_id, "testnet must not share the devnet chain_id");
+        // Harder than dev's near-maximum target (smaller target = more work), still a valid compact.
+        let dev_target = noesis_core::pow::compact_to_target(dev.genesis_bits).unwrap();
+        let net_target = noesis_core::pow::compact_to_target(net.genesis_bits).unwrap();
+        assert!(net_target < dev_target, "testnet difficulty must be harder than dev's free-for-all");
+
+        // Same honest-genesis invariants as dev: money on, finite ceiling, empty ledger, no pre-mint.
+        assert!(net.constitution.pow_enforced, "testnet turns the money layer on");
+        assert!(net.constitution.work_clock_ceiling < u64::MAX, "pow_enforced requires a finite ceiling");
+        assert!(net.constitution.coinbase_split.is_empty(), "ratified infra_bps = NONE ⇒ empty split");
+        let (mut node, keys) = net.genesis_node(); // Node::new asserts genesis admission — must not panic
+        assert_eq!(node.ledger.height, 0, "genesis ledger is empty");
+        assert!(node.ledger.pom.is_empty(), "no pre-minted PoM standing");
+        assert_eq!(keys, vec![b"alice".to_vec(), b"bob".to_vec(), b"carol".to_vec()]);
+
+        // A real contribution mines + validates + finalizes + issues JUL against the testnet difficulty.
+        node.submit(
+            Cell {
+                id: 1,
+                lock: Script { code_hash: [0u8; 32], args: b"al".to_vec() },
+                type_script: Script { code_hash: [1u8; 32], args: b"alice".to_vec() },
+                parent: None,
+                timestamp: 1,
+                data: b"the quick brown fox jumps high".to_vec(),
+            },
+            Committed { height: 1, secret: [11u8; 32] },
+        );
+        let block = net.produce_block(&mut node).expect("a contribution finalizes a testnet block");
+        assert_eq!(block.height, 1);
+        assert!(node.ledger.jul_supply.issued() > 0, "mined work issues JUL from block zero on testnet too");
     }
 
     #[test]

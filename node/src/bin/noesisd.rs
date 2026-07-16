@@ -254,16 +254,30 @@ fn main() {
             });
             run_connect(addr);
         }
-        Some("--serve-api") => noesis::rpc::serve_api(
-            args.get(2).map(String::as_str).unwrap_or("127.0.0.1:9955"),
-            args.get(3).map(String::as_str).unwrap_or("noesis-chain.log"),
-        ),
+        Some("--serve-api") => {
+            // Which genesis this durable node boots is selected by NOESIS_NET (default dev = safe
+            // local). A public testnet node sets NOESIS_NET=testnet so a stranger who joins boots the
+            // ONE testnet block-zero (distinct chain_id ⇒ testnet blocks never cross to dev/mainnet).
+            let spec = match std::env::var("NOESIS_NET").as_deref() {
+                Ok("testnet") => ChainSpec::testnet(),
+                Ok("dev") | Err(_) => ChainSpec::dev(),
+                Ok(other) => {
+                    eprintln!("noesisd: unknown NOESIS_NET={other:?} (use 'dev' or 'testnet')");
+                    std::process::exit(2);
+                }
+            };
+            noesis::rpc::serve_api(
+                args.get(2).map(String::as_str).unwrap_or("127.0.0.1:9955"),
+                args.get(3).map(String::as_str).unwrap_or("noesis-chain.log"),
+                spec,
+            );
+        }
         Some(other) => {
             eprintln!("noesisd: unknown mode {other:?}");
             eprintln!("usage: noesisd                    # T0 devnet (produce a chain locally)");
             eprintln!("       noesisd --listen [addr]    # T1 seed (default 127.0.0.1:0)");
             eprintln!("       noesisd --connect <addr>   # T1 joiner (sync from a seed)");
-            eprintln!("       noesisd --serve-api [addr] # live HTTP API for friends (default 127.0.0.1:9955)");
+            eprintln!("       noesisd --serve-api [addr] [store]  # live HTTP API + embedded UI (NOESIS_NET=dev|testnet, default dev)");
             std::process::exit(2);
         }
     }

@@ -17,6 +17,10 @@ cd "$ROOT"
 PORT="${NOESIS_PORT:-9955}"
 BIND="${NOESIS_BIND:-127.0.0.1}"
 CHAIN="${NOESIS_CHAIN:-$ROOT/noesis-chain.log}"
+# This is the PUBLIC-facing launcher, so it boots the testnet genesis by default (distinct chain_id;
+# PoW stays in consensus at low difficulty ⇒ trivial energy, worthless-by-construction test JUL). Set
+# NOESIS_NET=dev for a purely local devnet.
+export NOESIS_NET="${NOESIS_NET:-testnet}"
 
 echo "==> building release noesisd (first build is slow; later builds are cached)"
 cargo build --release -p noesis --bin noesisd
@@ -25,7 +29,7 @@ NODE_BIN="$ROOT/target/release/noesisd.exe"
 [ -f "$NODE_BIN" ] || NODE_BIN="$ROOT/target/release/noesisd"
 [ -f "$NODE_BIN" ] || { echo "!! build succeeded but no noesisd binary found under target/release/"; exit 1; }
 
-echo "==> starting node on $BIND:$PORT (durable chain: $CHAIN)"
+echo "==> starting node on $BIND:$PORT (net=$NOESIS_NET, durable chain: $CHAIN)"
 "$NODE_BIN" --serve-api "$BIND:$PORT" "$CHAIN" &
 NODE_PID=$!
 

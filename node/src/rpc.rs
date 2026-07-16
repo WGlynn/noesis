@@ -66,9 +66,8 @@ impl ServerState {
     /// and append every future finalized block there. This is what makes a hosted node "stay on" — a
     /// process restart resumes the chain rather than wiping it. Returns the state + how many blocks were
     /// replayed so the caller can announce it.
-    pub fn with_store(path: impl Into<std::path::PathBuf>) -> std::io::Result<(Self, usize)> {
+    pub fn with_store(path: impl Into<std::path::PathBuf>, spec: ChainSpec) -> std::io::Result<(Self, usize)> {
         let path = path.into();
-        let spec = ChainSpec::dev();
         let (node, replayed) = crate::store::load_chain(&path, &spec)?;
         // Resume id assignment past the highest persisted cell id (never collide with a replayed cell).
         let next_id = node.ledger.cells.iter().map(|c| c.id).max().unwrap_or(0) + 1;
@@ -250,17 +249,18 @@ fn write_http_response(stream: &mut TcpStream, status: u16, content_type: &str, 
 /// The node is DURABLE: it replays the block log at `store_path` on boot and appends every finalized
 /// block, so a restart resumes the chain instead of resetting to genesis. Every `POST /submit` builds
 /// the chain one finalized block at a time.
-pub fn serve_api(addr: &str, store_path: &str) {
+pub fn serve_api(addr: &str, store_path: &str, spec: ChainSpec) {
     let listener = TcpListener::bind(addr).unwrap_or_else(|e| {
         eprintln!("noesisd: failed to bind {addr}: {e}");
         std::process::exit(1);
     });
     let bound = listener.local_addr().map(|a| a.to_string()).unwrap_or_else(|_| addr.to_string());
-    let (server_state, replayed) = ServerState::with_store(store_path).unwrap_or_else(|e| {
+    let chain_id = spec.chain_id;
+    let (server_state, replayed) = ServerState::with_store(store_path, spec).unwrap_or_else(|e| {
         eprintln!("noesisd: failed to open chain store {store_path}: {e}");
         std::process::exit(1);
     });
-    println!("noesisd --serve-api — Noesis live node API");
+    println!("noesisd --serve-api — Noesis live node API (chain_id=0x{chain_id:x})");
     if replayed > 0 {
         println!("resumed durable chain from {store_path}: replayed {replayed} blocks, height {}.", server_state.node.ledger.height);
     } else {
