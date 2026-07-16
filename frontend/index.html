@@ -56,6 +56,11 @@
   .field { margin-bottom: 14px; }
   .hint { font-size: 12px; color: var(--faint); margin-top: 6px; }
 
+  .upload { display: block; margin: 0 0 14px; padding: 12px 14px; border: 1px dashed var(--line);
+            border-radius: 8px; color: var(--muted); font-size: 13px; cursor: pointer; text-align: center; }
+  .upload:hover, .upload.drag { border-color: var(--gold); color: var(--ink); background: var(--panel-2); }
+  .upload b { color: var(--mind); font-weight: 600; }
+
   button {
     background: var(--gold); color: #1a1206; border: 0; border-radius: 8px;
     padding: 11px 18px; font-size: 14px; font-weight: 700; cursor: pointer; letter-spacing: .01em;
@@ -191,6 +196,11 @@
       <textarea id="what" placeholder="Write something genuinely new. Near‑duplicates of earlier work earn no novelty."></textarea>
       <div class="hint">The chain measures novelty: distinct ideas earn standing; paraphrases of what's already committed score zero. Each submission is signed with a fresh one‑time key.</div>
     </div>
+    <label class="upload" id="drop" for="file">
+      <input id="file" type="file" hidden
+        accept=".rs,.js,.ts,.tsx,.jsx,.py,.go,.c,.h,.cpp,.cc,.hpp,.sol,.move,.md,.txt,.json,.toml,.yaml,.yml,.sh,.java,.rb,.php,.swift,.kt,.lua,.sql,text/*" />
+      <span id="file-label">📎 Upload a code file — or drop it here. It reads into your contribution to review, then sign.</span>
+    </label>
     <button id="send">Sign &amp; submit</button>
     <div id="toast" class="toast"></div>
   </section>
@@ -423,6 +433,31 @@
     if (box.hidden) { $("w-seed").textContent = C.hexEncode(wallet.seed); box.hidden = false; $("backup-toggle").textContent = "Hide secret key"; }
     else { box.hidden = true; $("backup-toggle").textContent = "Back up secret key"; }
   });
+  // ---- code upload: read a file into the contribution (same sign+submit path) ----
+  const MAX_UPLOAD = 32 * 1024; // fits under the node body cap alongside the signature
+  function loadFile(file) {
+    if (!file) return;
+    const toast = $("toast");
+    if (file.size > MAX_UPLOAD) {
+      toast.className = "toast err";
+      toast.textContent = `File is ${(file.size / 1024).toFixed(1)} KB — max ${MAX_UPLOAD / 1024} KB of code per contribution.`;
+      return;
+    }
+    const r = new FileReader();
+    r.onload = () => {
+      $("what").value = r.result;
+      const nm = file.name.replace(/[<>&]/g, "");
+      $("file-label").innerHTML = `📎 Loaded <b>${nm}</b> (${(file.size / 1024).toFixed(1)} KB) — review below, then Sign &amp; submit.`;
+      toast.className = "toast"; toast.textContent = "";
+    };
+    r.readAsText(file);
+  }
+  $("file").addEventListener("change", (e) => loadFile(e.target.files[0]));
+  const drop = $("drop");
+  ["dragover", "dragenter"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("drag"); }));
+  ["dragleave", "dragend"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("drag"); }));
+  drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("drag"); loadFile(e.dataTransfer.files[0]); });
+
   $("send").addEventListener("click", submit);
   $("what").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit(); });
   $("api").addEventListener("change", refresh);
