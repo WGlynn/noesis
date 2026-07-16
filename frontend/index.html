@@ -64,10 +64,35 @@
   }
   button:hover { filter: brightness(1.06); }
   button:disabled { opacity: .5; cursor: default; }
+  /* secondary / inline buttons */
+  button.ghost {
+    background: transparent; color: var(--muted); border: 1px solid var(--line);
+    font-weight: 600;
+  }
+  button.ghost:hover { color: var(--ink); border-color: var(--faint); filter: none; }
+  button.sm { padding: 5px 10px; font-size: 12px; }
 
   .toast { margin-top: 14px; font-size: 13px; min-height: 18px; }
   .toast.ok  { color: var(--mind); }
   .toast.err { color: var(--bad); }
+
+  /* ---- wallet ---- */
+  .row-inline { display: flex; gap: 8px; align-items: stretch; }
+  .row-inline input { flex: 1; }
+  .wallet-id { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+               padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
+  .wallet-id .k { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--faint); }
+  .addr { font-size: 20px; margin-top: 3px; display: flex; align-items: center; gap: 10px; }
+  .addr b { color: var(--ink); font-weight: 600; word-break: break-all; }
+  .wallet-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
+                  background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .wallet-stats .stat { background: var(--panel-2); padding: 14px 16px; }
+  .wallet-stats .k { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--faint); }
+  .wallet-stats .v { font-size: 26px; font-weight: 600; margin-top: 4px; }
+  .wallet-stats .v.mind { color: var(--mind); }
+  .wallet-stats .u { font-size: 11px; color: var(--faint); margin-top: 2px; }
+  .contrib-as { font-size: 13px; color: var(--muted); margin: 0 0 14px; }
+  .contrib-as b { color: var(--mind); font-weight: 600; }
 
   /* chain stats */
   .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line);
@@ -82,8 +107,12 @@
   .board .row { display: flex; align-items: center; gap: 12px; padding: 9px 2px;
                 border-bottom: 1px solid var(--line); }
   .board .row:last-child { border-bottom: 0; }
+  .board .row.you { background: rgba(127,178,191,.07); border-radius: 6px; padding-left: 8px; padding-right: 8px; }
+  .board .rank { width: 24px; color: var(--faint); font-size: 13px; font-variant-numeric: tabular-nums; }
   .board .name { flex: 1; }
   .board .name b { font-weight: 600; }
+  .board .name .metag { color: var(--mind); font-size: 11px; font-weight: 700; margin-left: 6px;
+                        text-transform: uppercase; letter-spacing: .08em; }
   .board .pom  { font-family: ui-monospace, Menlo, monospace; color: var(--mind); font-weight: 600; }
   .bar { height: 4px; border-radius: 3px; background: var(--mind); opacity: .55; margin-top: 4px; }
   .empty { color: var(--faint); font-size: 14px; padding: 6px 0; }
@@ -98,6 +127,13 @@
   footer .cfg { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
   footer .cfg input { max-width: 260px; padding: 7px 10px; font-size: 12px; }
   a { color: var(--muted); }
+
+  @media (max-width: 480px) {
+    body { padding: 32px 14px 56px; }
+    .wordmark { font-size: 32px; }
+    .wallet-stats, .stats { grid-template-columns: 1fr 1fr; }
+    .addr { font-size: 17px; }
+  }
 </style>
 </head>
 <body>
@@ -109,12 +145,46 @@
     <div class="statusline"><span id="live" class="dot-live"></span><span id="livetext">connecting…</span></div>
   </header>
 
+  <!-- ============ Wallet ============ -->
+  <section class="card" id="wallet-card">
+    <h2>Your wallet</h2>
+
+    <!-- no wallet yet: create one -->
+    <div id="wallet-new">
+      <div class="field">
+        <label for="new-handle">Choose a handle — this becomes your identity on the chain</label>
+        <div class="row-inline">
+          <input id="new-handle" type="text" placeholder="e.g. dave" autocomplete="off" spellcheck="false" maxlength="40" />
+          <button id="gen-handle" class="ghost" type="button">Random</button>
+        </div>
+        <div class="hint">Your standing is <b>soulbound</b> to this handle — earned, never transferable. Kept in this browser only; there is no password. On this testnet the handle <i>is</i> your address (key‑based signing is a later milestone).</div>
+      </div>
+      <button id="create-wallet" type="button">Create wallet</button>
+    </div>
+
+    <!-- wallet exists: show it -->
+    <div id="wallet-view" hidden>
+      <div class="wallet-id">
+        <div>
+          <div class="k">Signed in as</div>
+          <div class="addr"><b id="w-handle" class="mono">—</b>
+            <button id="copy-handle" class="ghost sm" type="button">copy</button></div>
+        </div>
+        <button id="forget" class="ghost sm" type="button">switch</button>
+      </div>
+      <div class="wallet-stats">
+        <div class="stat"><div class="k">PoM standing</div><div class="v mind" id="w-pom">—</div><div class="u">earned · soulbound</div></div>
+        <div class="stat"><div class="k">Rank</div><div class="v" id="w-rank">—</div><div class="u" id="w-rank-u">of contributors</div></div>
+        <div class="stat"><div class="k">Share</div><div class="v" id="w-share">—</div><div class="u">of all standing</div></div>
+      </div>
+      <div class="hint" id="w-jul-note">Your real asset here is <b>PoM standing</b>. JUL (the energy‑anchored money layer) is minted to the block <i>producer</i> on this testnet, so a submitter's JUL balance stays 0 until the planned faucet/distribution lands.</div>
+    </div>
+  </section>
+
+  <!-- ============ Contribute ============ -->
   <section class="card">
     <h2>Contribute</h2>
-    <div class="field">
-      <label for="who">Your handle</label>
-      <input id="who" type="text" placeholder="e.g. dave" autocomplete="off" spellcheck="false" />
-    </div>
+    <p class="contrib-as" id="contrib-as" hidden>Contributing as <b id="contrib-handle">—</b>.</p>
     <div class="field">
       <label for="what">Your contribution</label>
       <textarea id="what" placeholder="Write something genuinely new. Near‑duplicates of earlier work earn no novelty."></textarea>
@@ -124,6 +194,7 @@
     <div id="toast" class="toast"></div>
   </section>
 
+  <!-- ============ The chain ============ -->
   <section class="card">
     <h2>The chain</h2>
     <div class="stats">
@@ -144,7 +215,7 @@
     submission</i> (first‑appearance coverage; near‑duplicates score zero). The full design bases standing
     on <i>downstream value</i> — a learned value function that is still open research — and only counts it
     after a <i>vesting delay</i> (age + survive disputes). So this shows the plumbing, not the value moat.
-    Local devnet; difficulty is a low placeholder for instant mining.
+    Testnet difficulty is a low placeholder for instant mining.
     Built in the open · <a href="https://github.com/WGlynn/noesis">WGlynn/noesis</a>
   </footer>
 
@@ -158,19 +229,77 @@
   // address only when the file is opened directly (file://), where there is no origin to inherit.
   if (location.protocol.startsWith("http")) $("api").value = location.origin;
   const apiBase = () => $("api").value.replace(/\/+$/, "");
-  let lastHeight = -1;
+
+  // ---- wallet: a handle persisted in this browser IS the identity on the chain ----
+  const HANDLE_KEY = "noesis_handle";
+  let handle = null;
+  let lastState = null;
+
+  const cleanHandle = (s) => (s || "").trim().replace(/\s+/g, " ").slice(0, 40);
+
+  function loadWallet() {
+    handle = cleanHandle(localStorage.getItem(HANDLE_KEY) || "");
+    if (handle) {
+      $("wallet-new").hidden = true;
+      $("wallet-view").hidden = false;
+      $("w-handle").textContent = handle;
+      $("contrib-as").hidden = false;
+      $("contrib-handle").textContent = handle;
+    } else {
+      $("wallet-new").hidden = false;
+      $("wallet-view").hidden = true;
+      $("contrib-as").hidden = true;
+    }
+    if (lastState) renderWallet(lastState);
+  }
+
+  function createWallet() {
+    const h = cleanHandle($("new-handle").value);
+    if (!h) { $("new-handle").focus(); return; }
+    localStorage.setItem(HANDLE_KEY, h);
+    loadWallet();
+  }
+
+  function forgetWallet() {
+    localStorage.removeItem(HANDLE_KEY);
+    $("new-handle").value = "";
+    loadWallet();
+  }
 
   function setLive(state, text) {
     $("live").className = "dot-live " + state;
     $("livetext").textContent = text;
   }
 
+  // Update the wallet card's live stats (standing / rank / share) from the latest chain state.
+  function renderWallet(s) {
+    if (!handle) return;
+    const people = s.contributors || {};
+    const names = Object.keys(people);
+    const mine = people[handle] || 0;
+    const total = names.reduce((a, n) => a + (people[n] || 0), 0);
+    $("w-pom").textContent = mine;
+    if (names.includes(handle)) {
+      const sorted = names.slice().sort((a, b) => people[b] - people[a]);
+      const rank = sorted.indexOf(handle) + 1;
+      $("w-rank").textContent = "#" + rank;
+      $("w-rank-u").textContent = "of " + names.length;
+      $("w-share").textContent = total > 0 ? Math.round((mine / total) * 100) + "%" : "—";
+    } else {
+      $("w-rank").textContent = "—";
+      $("w-rank-u").textContent = "unranked yet";
+      $("w-share").textContent = "0%";
+    }
+  }
+
   function render(s) {
+    lastState = s;
     $("s-height").textContent = s.height;
     $("s-jul").textContent = s.jul_issued;
     const people = s.contributors || {};
     const names = Object.keys(people);
     $("s-people").textContent = names.length;
+    renderWallet(s);
 
     const board = $("board");
     if (names.length === 0) {
@@ -179,11 +308,14 @@
     }
     const max = Math.max(...names.map((n) => people[n]));
     names.sort((a, b) => people[b] - people[a]);
-    board.innerHTML = names.map((n) => {
+    board.innerHTML = names.map((n, i) => {
       const pom = people[n];
       const w = max > 0 ? Math.round((pom / max) * 100) : 0;
       const nm = n.replace(/[<>&]/g, "");
-      return `<div class="row"><div class="name"><b>${nm}</b>
+      const you = n === handle;
+      const tag = you ? '<span class="metag">you</span>' : "";
+      return `<div class="row${you ? " you" : ""}"><div class="rank">${i + 1}</div>
+                <div class="name"><b>${nm}</b>${tag}
                 <div class="bar" style="width:${w}%"></div></div>
               <div class="pom">${pom}</div></div>`;
     }).join("");
@@ -196,19 +328,24 @@
       const s = await r.json();
       render(s);
       setLive("up", `live · height ${s.height} · ${s.jul_issued} JUL`);
-      lastHeight = s.height;
     } catch (e) {
       setLive("down", "node unreachable — is `noesisd --serve-api` running?");
     }
   }
 
   async function submit() {
-    const contributor = $("who").value.trim();
+    const contributor = handle;
     const data = $("what").value.trim();
     const toast = $("toast");
-    if (!contributor || !data) {
+    if (!contributor) {
       toast.className = "toast err";
-      toast.textContent = "Enter a handle and a contribution.";
+      toast.textContent = "Create a wallet first — it's your identity on the chain.";
+      $("new-handle").focus();
+      return;
+    }
+    if (!data) {
+      toast.className = "toast err";
+      toast.textContent = "Write a contribution to submit.";
       return;
     }
     $("send").disabled = true;
@@ -235,9 +372,23 @@
     }
   }
 
+  // wiring
+  $("create-wallet").addEventListener("click", createWallet);
+  $("new-handle").addEventListener("keydown", (e) => { if (e.key === "Enter") createWallet(); });
+  $("gen-handle").addEventListener("click", () => {
+    $("new-handle").value = "friend-" + Math.random().toString(16).slice(2, 6);
+    $("new-handle").focus();
+  });
+  $("forget").addEventListener("click", forgetWallet);
+  $("copy-handle").addEventListener("click", () => {
+    navigator.clipboard && navigator.clipboard.writeText(handle);
+    const b = $("copy-handle"); const t = b.textContent; b.textContent = "copied"; setTimeout(() => (b.textContent = t), 1200);
+  });
   $("send").addEventListener("click", submit);
   $("what").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit(); });
   $("api").addEventListener("change", refresh);
+
+  loadWallet();
   refresh();
   setInterval(refresh, 3000);
 })();

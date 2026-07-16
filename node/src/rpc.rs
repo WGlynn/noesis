@@ -264,7 +264,7 @@ pub fn serve_api(addr: &str, store_path: &str, spec: ChainSpec) {
     if replayed > 0 {
         println!("resumed durable chain from {store_path}: replayed {replayed} blocks, height {}.", server_state.node.ledger.height);
     } else {
-        println!("genesis: empty ledger, ChainSpec::dev() [PoW enforced, JUL issuing]. persisting to {store_path}.");
+        println!("genesis: empty ledger (chain_id=0x{chain_id:x}) [PoW enforced, JUL issuing]. persisting to {store_path}.");
     }
     println!("LISTENING http://{bound}");
     println!("  open http://{bound}/ in a browser — the node serves its own frontend (one URL = whole app)");
