@@ -970,6 +970,186 @@ pub mod lamport {
     }
 }
 
+/// XMSS-style MULTI-USE hash-based signature - the WALLET identity layer. `lamport` (above) is a
+/// ONE-TIME signature: safe for exactly one sign per key (perfect for spending a cell, consumed
+/// once). A wallet signs MANY times (one per contribution), so it needs a many-time key. This
+/// composes the built primitives WITHOUT touching them: a fixed height-`H` Merkle tree over `2^H`
+/// Lamport one-time leaves. The public ADDRESS is the tree root; signing with leaf `index` reveals
+/// that leaf's OTS signature plus its Merkle authentication path, and the verifier checks the OTS
+/// sig AND that the leaf commits back to the address. Fully hash-based (post-quantum) - no new
+/// assumption beyond blake2b + Lamport. Single-sourced here (no_std, builds riscv) so the node, any
+/// on-VM twin, and the browser wallet agree byte-for-byte.
+///
+/// STATEFUL by construction (like every hash-based multi-sig): each leaf `index` signs at most once.
+/// The wallet tracks its next index; the node enforces per-address monotonicity (a reused or
+/// regressed index is rejected) - see the rpc submit path.
+pub mod xmss {
+    use alloc::vec::Vec;
+    use super::lamport;
+
+    /// Merkle height. `2^H` one-time leaves = max signatures one wallet key can make. 8 => 256
+    /// contributions per wallet - plenty for a testnet key, and keygen (`2^H` OTS keygens, done once
+    /// in the browser) stays sub-second. Raise for a longer-lived key at the cost of slower keygen.
+    pub const H: usize = 8;
+    /// Number of one-time leaves in a wallet's tree.
+    pub const LEAVES: usize = 1 << H;
+
+    /// Domain-separated 32-byte blake2b for the XMSS layer. `tag` separates the four uses (leaf-seed
+    /// derivation / Merkle node / contribution digest / data hash); the personalization separates
+    /// these from the smt, lamport, and tx digests.
+    fn h(tag: u8, parts: &[&[u8]]) -> [u8; 32] {
+        let mut hasher = blake2b_ref::Blake2bBuilder::new(32).personal(b"noesis-xmss-v1\0\0").build();
+        hasher.update(&[tag]);
+        for p in parts {
+            hasher.update(p);
+        }
+        let mut out = [0u8; 32];
+        hasher.finalize(&mut out);
+        out
+    }
+
+    /// Deterministic per-leaf OTS seed, derived from the wallet master seed (domain-separated).
+    fn leaf_seed(master: &[u8; 32], index: u32) -> [u8; 32] {
+        h(0x01, &[master, &index.to_le_bytes()])
+    }
+    /// Leaf `index`'s public value in the tree = the Lamport OTS public root for that leaf.
+    fn leaf_pub(master: &[u8; 32], index: u32) -> [u8; 32] {
+        lamport::keygen_root(&leaf_seed(master, index))
+    }
+    /// Internal Merkle node hash.
+    fn node(left: &[u8; 32], right: &[u8; 32]) -> [u8; 32] {
+        h(0x02, &[left, right])
+    }
+
+    /// Fold a leaf value + its authentication path back up to a root, using the low `H` bits of
+    /// `index` for left/right ordering. The verifier's single-leaf recomputation.
+    fn fold_root(index: u32, leaf_value: [u8; 32], auth: &[[u8; 32]; H]) -> [u8; 32] {
+        let mut acc = leaf_value;
+        for (level, sib) in auth.iter().enumerate() {
+            acc = if (index >> level) & 1 == 0 { node(&acc, sib) } else { node(sib, &acc) };
+        }
+        acc
+    }
+
+    /// Merkle root over a full power-of-two level.
+    fn root_of(leaves: &[[u8; 32]]) -> [u8; 32] {
+        let mut level: Vec<[u8; 32]> = leaves.to_vec();
+        while level.len() > 1 {
+            level = level.chunks(2).map(|c| node(&c[0], &c[1])).collect();
+        }
+        level[0]
+    }
+
+    /// The sibling at each level for `index` in the tree over `leaves`.
+    fn auth_path(leaves: &[[u8; 32]], index: u32) -> [[u8; 32]; H] {
+        let mut path = [[0u8; 32]; H];
+        let mut level: Vec<[u8; 32]> = leaves.to_vec();
+        let mut idx = index as usize;
+        for p in path.iter_mut() {
+            *p = level[idx ^ 1];
+            level = level.chunks(2).map(|c| node(&c[0], &c[1])).collect();
+            idx /= 2;
+        }
+        path
+    }
+
+    /// Build all `2^H` leaf public values. Wallet / test tooling only (the node never builds the
+    /// whole tree - it verifies ONE path). O(2^H) OTS keygens; callers that sign repeatedly cache it.
+    pub fn build_leaves(master: &[u8; 32]) -> Vec<[u8; 32]> {
+        (0..LEAVES as u32).map(|i| leaf_pub(master, i)).collect()
+    }
+
+    /// The wallet ADDRESS = Merkle root over all `2^H` leaf public values. Compute once.
+    pub fn keygen_address(master: &[u8; 32]) -> [u8; 32] {
+        root_of(&build_leaves(master))
+    }
+
+    /// A multi-use signature: which leaf, that leaf's OTS public root, its Merkle auth path, and the
+    /// 16 KiB one-time Lamport signature over the message.
+    pub struct Signature {
+        pub index: u32,
+        pub ots_root: [u8; 32],
+        pub auth: [[u8; 32]; H],
+        pub ots_sig: Vec<u8>,
+    }
+
+    /// Sign `msg` with leaf `index`. Rebuilds the tree for the auth path (repeated signers should
+    /// cache `build_leaves`). One-time discipline: never sign twice with one index.
+    pub fn sign(master: &[u8; 32], index: u32, msg: &[u8; 32]) -> Signature {
+        let leaves = build_leaves(master);
+        Signature {
+            index,
+            ots_root: leaves[index as usize],
+            auth: auth_path(&leaves, index),
+            ots_sig: lamport::sign(&leaf_seed(master, index), msg),
+        }
+    }
+
+    /// Verify a signature over `msg` under `address`. True iff the Lamport OTS verifies under the
+    /// presented leaf root AND that leaf commits back to `address` at `index`. (A liar cannot present
+    /// a false `ots_root`: the OTS sig would not verify under it.)
+    pub fn verify(address: &[u8; 32], msg: &[u8; 32], sig: &Signature) -> bool {
+        if (sig.index as usize) >= LEAVES {
+            return false;
+        }
+        lamport::verify(&sig.ots_root, msg, &sig.ots_sig)
+            && &fold_root(sig.index, sig.ots_root, &sig.auth) == address
+    }
+
+    /// The canonical 32-byte message a CONTRIBUTION signs over - binds the signer's address, the
+    /// one-time leaf index (anti-replay), and the contribution bytes. SINGLE SOURCE: the browser
+    /// wallet and the node MUST compute this identically or every signature fails.
+    pub fn contribution_digest(address: &[u8; 32], index: u32, data: &[u8]) -> [u8; 32] {
+        let data_hash = h(0x04, &[data]);
+        h(0x03, &[address, &index.to_le_bytes(), &data_hash])
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn sign_verify_roundtrips_across_multiple_leaves() {
+            let master = [7u8; 32];
+            let addr = keygen_address(&master);
+            for &index in &[0u32, 1, 2, 100, 255] {
+                let msg = contribution_digest(&addr, index, b"a genuinely new idea");
+                let sig = sign(&master, index, &msg);
+                assert!(verify(&addr, &msg, &sig), "honest sig at leaf {index} verifies");
+            }
+        }
+
+        #[test]
+        fn wrong_key_wrong_message_and_forgery_are_rejected() {
+            let master = [7u8; 32];
+            let addr = keygen_address(&master);
+            let msg = contribution_digest(&addr, 3, b"real data");
+            let sig = sign(&master, 3, &msg);
+
+            let other = keygen_address(&[9u8; 32]);
+            assert!(!verify(&other, &msg, &sig), "sig does not verify under a foreign address");
+            let msg2 = contribution_digest(&addr, 3, b"swapped data");
+            assert!(!verify(&addr, &msg2, &sig), "sig is bound to its exact message");
+            let mut forged = sign(&master, 3, &msg);
+            forged.ots_root = keygen_address(&[1u8; 32]);
+            assert!(!verify(&addr, &msg, &forged), "a false ots_root is rejected");
+            let mut short = sign(&master, 3, &msg);
+            short.ots_sig.truncate(short.ots_sig.len() - 1);
+            assert!(!verify(&addr, &msg, &short), "malformed sig length rejected");
+        }
+
+        #[test]
+        fn index_beyond_the_tree_is_rejected() {
+            let master = [7u8; 32];
+            let addr = keygen_address(&master);
+            let msg = contribution_digest(&addr, 0, b"x");
+            let mut sig = sign(&master, 0, &msg);
+            sig.index = LEAVES as u32;
+            assert!(!verify(&addr, &msg, &sig), "index >= LEAVES rejected");
+        }
+    }
+}
+
 /// Canonical transaction digest - SINGLE SOURCE for the bytes a lock-signature covers and the
 /// replica-deterministic identity of a value movement. Lives here (no_std, builds riscv) so the
 /// on-VM lock-script type-script recomputes the SAME digest the node signs/verifies over - paying the

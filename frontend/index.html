@@ -47,28 +47,22 @@
   }
 
   label { display: block; font-size: 13px; color: var(--muted); margin: 0 0 6px; }
-  input[type=text], textarea {
+  textarea {
     width: 100%; background: var(--panel-2); border: 1px solid var(--line);
     color: var(--ink); border-radius: 8px; padding: 11px 12px; font-size: 15px;
-    font-family: inherit; resize: vertical;
+    font-family: inherit; resize: vertical; min-height: 78px;
   }
-  input[type=text]:focus, textarea:focus { outline: none; border-color: var(--gold); }
-  textarea { min-height: 78px; }
+  textarea:focus { outline: none; border-color: var(--gold); }
   .field { margin-bottom: 14px; }
   .hint { font-size: 12px; color: var(--faint); margin-top: 6px; }
 
   button {
     background: var(--gold); color: #1a1206; border: 0; border-radius: 8px;
-    padding: 11px 18px; font-size: 14px; font-weight: 700; cursor: pointer;
-    letter-spacing: .01em;
+    padding: 11px 18px; font-size: 14px; font-weight: 700; cursor: pointer; letter-spacing: .01em;
   }
   button:hover { filter: brightness(1.06); }
   button:disabled { opacity: .5; cursor: default; }
-  /* secondary / inline buttons */
-  button.ghost {
-    background: transparent; color: var(--muted); border: 1px solid var(--line);
-    font-weight: 600;
-  }
+  button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); font-weight: 600; }
   button.ghost:hover { color: var(--ink); border-color: var(--faint); filter: none; }
   button.sm { padding: 5px 10px; font-size: 12px; }
 
@@ -77,20 +71,23 @@
   .toast.err { color: var(--bad); }
 
   /* ---- wallet ---- */
-  .row-inline { display: flex; gap: 8px; align-items: stretch; }
-  .row-inline input { flex: 1; }
   .wallet-id { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
                padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
   .wallet-id .k { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--faint); }
-  .addr { font-size: 20px; margin-top: 3px; display: flex; align-items: center; gap: 10px; }
-  .addr b { color: var(--ink); font-weight: 600; word-break: break-all; }
+  .addr { font-size: 19px; margin-top: 4px; display: flex; align-items: center; gap: 10px; }
+  .addr b { color: var(--ink); font-weight: 600; }
   .wallet-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
                   background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
   .wallet-stats .stat { background: var(--panel-2); padding: 14px 16px; }
   .wallet-stats .k { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--faint); }
-  .wallet-stats .v { font-size: 26px; font-weight: 600; margin-top: 4px; }
+  .wallet-stats .v { font-size: 24px; font-weight: 600; margin-top: 4px; }
   .wallet-stats .v.mind { color: var(--mind); }
   .wallet-stats .u { font-size: 11px; color: var(--faint); margin-top: 2px; }
+  .keyline { font-size: 12px; color: var(--faint); margin-top: 14px; display: flex; gap: 14px; flex-wrap: wrap; }
+  .keyline a { color: var(--muted); cursor: pointer; text-decoration: underline; }
+  .seedbox { margin-top: 12px; padding: 12px; background: var(--panel-2); border: 1px solid var(--bad);
+             border-radius: 8px; font-size: 12px; word-break: break-all; }
+  .seedbox .warn { color: var(--bad); font-weight: 700; display: block; margin-bottom: 6px; }
   .contrib-as { font-size: 13px; color: var(--muted); margin: 0 0 14px; }
   .contrib-as b { color: var(--mind); font-weight: 600; }
 
@@ -104,11 +101,10 @@
   .stat .u { font-size: 12px; color: var(--muted); margin-left: 4px; font-weight: 400; }
 
   .board { margin-top: 18px; }
-  .board .row { display: flex; align-items: center; gap: 12px; padding: 9px 2px;
-                border-bottom: 1px solid var(--line); }
+  .board .row { display: flex; align-items: center; gap: 12px; padding: 9px 2px; border-bottom: 1px solid var(--line); }
   .board .row:last-child { border-bottom: 0; }
   .board .row.you { background: rgba(127,178,191,.07); border-radius: 6px; padding-left: 8px; padding-right: 8px; }
-  .board .rank { width: 24px; color: var(--faint); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .board .rank { width: 22px; color: var(--faint); font-size: 13px; font-variant-numeric: tabular-nums; }
   .board .name { flex: 1; }
   .board .name b { font-weight: 600; }
   .board .name .metag { color: var(--mind); font-size: 11px; font-weight: 700; margin-left: 6px;
@@ -117,22 +113,21 @@
   .bar { height: 4px; border-radius: 3px; background: var(--mind); opacity: .55; margin-top: 4px; }
   .empty { color: var(--faint); font-size: 14px; padding: 6px 0; }
 
-  .statusline { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--faint);
-                margin-top: 4px; }
+  .statusline { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--faint); margin-top: 4px; }
   .dot-live { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
-  .dot-live.up   { background: #6fbf7f; }
-  .dot-live.down { background: var(--bad); }
+  .dot-live.up { background: #6fbf7f; } .dot-live.down { background: var(--bad); }
 
   footer { margin-top: 30px; color: var(--faint); font-size: 12px; line-height: 1.7; }
   footer .cfg { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
-  footer .cfg input { max-width: 260px; padding: 7px 10px; font-size: 12px; }
+  footer .cfg input { max-width: 260px; padding: 7px 10px; font-size: 12px; background: var(--panel-2);
+                      border: 1px solid var(--line); color: var(--ink); border-radius: 6px; }
   a { color: var(--muted); }
 
   @media (max-width: 480px) {
     body { padding: 32px 14px 56px; }
     .wordmark { font-size: 32px; }
     .wallet-stats, .stats { grid-template-columns: 1fr 1fr; }
-    .addr { font-size: 17px; }
+    .addr { font-size: 16px; }
   }
 </style>
 </head>
@@ -149,48 +144,54 @@
   <section class="card" id="wallet-card">
     <h2>Your wallet</h2>
 
-    <!-- no wallet yet: create one -->
+    <!-- no wallet yet -->
     <div id="wallet-new">
-      <div class="field">
-        <label for="new-handle">Choose a handle — this becomes your identity on the chain</label>
-        <div class="row-inline">
-          <input id="new-handle" type="text" placeholder="e.g. dave" autocomplete="off" spellcheck="false" maxlength="40" />
-          <button id="gen-handle" class="ghost" type="button">Random</button>
-        </div>
-        <div class="hint">Your standing is <b>soulbound</b> to this handle — earned, never transferable. Kept in this browser only; there is no password. On this testnet the handle <i>is</i> your address (key‑based signing is a later milestone).</div>
-      </div>
-      <button id="create-wallet" type="button">Create wallet</button>
+      <p class="hint" style="font-size:13px;color:var(--muted);margin-top:0">
+        A wallet is a <b>real post‑quantum keypair</b> generated in your browser — hash‑based
+        (Lamport leaves under an XMSS Merkle root), the same key math the node verifies. Your
+        <b>address is your identity</b>; standing is earned by that key and can't be claimed by anyone
+        else. The secret key never leaves this device.
+      </p>
+      <button id="create-wallet" type="button">Generate wallet</button>
+      <div id="gen-status" class="toast"></div>
     </div>
 
-    <!-- wallet exists: show it -->
+    <!-- wallet exists -->
     <div id="wallet-view" hidden>
       <div class="wallet-id">
         <div>
-          <div class="k">Signed in as</div>
-          <div class="addr"><b id="w-handle" class="mono">—</b>
-            <button id="copy-handle" class="ghost sm" type="button">copy</button></div>
+          <div class="k">Your address</div>
+          <div class="addr"><b id="w-addr" class="mono" title="">—</b>
+            <button id="copy-addr" class="ghost sm" type="button">copy</button></div>
         </div>
         <button id="forget" class="ghost sm" type="button">switch</button>
       </div>
       <div class="wallet-stats">
         <div class="stat"><div class="k">PoM standing</div><div class="v mind" id="w-pom">—</div><div class="u">earned · soulbound</div></div>
         <div class="stat"><div class="k">Rank</div><div class="v" id="w-rank">—</div><div class="u" id="w-rank-u">of contributors</div></div>
-        <div class="stat"><div class="k">Share</div><div class="v" id="w-share">—</div><div class="u">of all standing</div></div>
+        <div class="stat"><div class="k">Signatures left</div><div class="v" id="w-left">—</div><div class="u">one‑time keys</div></div>
       </div>
-      <div class="hint" id="w-jul-note">Your real asset here is <b>PoM standing</b>. JUL (the energy‑anchored money layer) is minted to the block <i>producer</i> on this testnet, so a submitter's JUL balance stays 0 until the planned faucet/distribution lands.</div>
+      <div class="keyline">
+        <a id="backup-toggle">Back up secret key</a>
+        <span id="w-jul-note">JUL (money layer) is producer‑minted on this testnet — your real asset here is PoM standing.</span>
+      </div>
+      <div id="seedbox" class="seedbox" hidden>
+        <span class="warn">Secret key — anyone with this controls your standing. Copy it somewhere safe; there is no recovery.</span>
+        <span id="w-seed" class="mono"></span>
+      </div>
     </div>
   </section>
 
   <!-- ============ Contribute ============ -->
   <section class="card">
     <h2>Contribute</h2>
-    <p class="contrib-as" id="contrib-as" hidden>Contributing as <b id="contrib-handle">—</b>.</p>
+    <p class="contrib-as" id="contrib-as" hidden>Signing as <b id="contrib-addr">—</b>.</p>
     <div class="field">
       <label for="what">Your contribution</label>
       <textarea id="what" placeholder="Write something genuinely new. Near‑duplicates of earlier work earn no novelty."></textarea>
-      <div class="hint">The chain measures novelty: distinct ideas earn standing; paraphrases of what's already committed score zero.</div>
+      <div class="hint">The chain measures novelty: distinct ideas earn standing; paraphrases of what's already committed score zero. Each submission is signed with a fresh one‑time key.</div>
     </div>
-    <button id="send">Submit contribution</button>
+    <button id="send">Sign &amp; submit</button>
     <div id="toast" class="toast"></div>
   </section>
 
@@ -210,41 +211,50 @@
       <span>node</span>
       <input id="api" type="text" value="http://127.0.0.1:9955" spellcheck="false" />
     </div>
-    JUL is energy‑anchored money, minted from the proof‑of‑work that seals each block — no pre‑mine.
-    PoM standing is soulbound. <b>Demo simplification (honest):</b> here it is scored on <i>novelty at
-    submission</i> (first‑appearance coverage; near‑duplicates score zero). The full design bases standing
-    on <i>downstream value</i> — a learned value function that is still open research — and only counts it
-    after a <i>vesting delay</i> (age + survive disputes). So this shows the plumbing, not the value moat.
-    Testnet difficulty is a low placeholder for instant mining.
+    Every contribution is <b>signed</b> by your wallet's post‑quantum hash‑based key and verified by the
+    node — no plaintext handles, standing accrues only to a key someone actually holds. JUL is
+    energy‑anchored money minted from the proof‑of‑work that seals each block; no pre‑mine.
+    <b>Demo simplification (honest):</b> PoM standing is scored here on <i>novelty at submission</i>
+    (first‑appearance coverage; near‑duplicates score zero). The full design bases standing on
+    <i>downstream value</i> — a learned value function that is still open research — counted only after a
+    <i>vesting delay</i>. So this shows the plumbing, not the value moat. Testnet difficulty is a low
+    placeholder for instant mining.
     Built in the open · <a href="https://github.com/WGlynn/noesis">WGlynn/noesis</a>
   </footer>
 
 </div>
 
+<script src="/crypto.js"></script>
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
-  // Default the node address to SAME-ORIGIN when the page is served BY the node (one URL = whole app,
-  // no CORS, no hardcoded address — a single tunnel exposes everything). Fall back to the local devnet
-  // address only when the file is opened directly (file://), where there is no origin to inherit.
   if (location.protocol.startsWith("http")) $("api").value = location.origin;
   const apiBase = () => $("api").value.replace(/\/+$/, "");
+  const C = window.NoesisCrypto;
 
-  // ---- wallet: a handle persisted in this browser IS the identity on the chain ----
-  const HANDLE_KEY = "noesis_handle";
-  let handle = null;
+  // ---- wallet: a real hash-based keypair, kept in this browser ----
+  const KEY = "noesis_wallet_v1";
+  let wallet = null;      // { seed:Uint8Array, address:hex, nextIndex }
+  let leaves = null;      // cached XMSS leaves (in memory) for fast signing
   let lastState = null;
 
-  const cleanHandle = (s) => (s || "").trim().replace(/\s+/g, " ").slice(0, 40);
+  const short = (hex) => hex ? hex.slice(0, 6) + "…" + hex.slice(-6) : "—";
 
-  function loadWallet() {
-    handle = cleanHandle(localStorage.getItem(HANDLE_KEY) || "");
-    if (handle) {
+  function saveWallet() {
+    localStorage.setItem(KEY, JSON.stringify({
+      v: 1, seed: C.hexEncode(wallet.seed), address: wallet.address, nextIndex: wallet.nextIndex
+    }));
+  }
+
+  function showView() {
+    if (wallet) {
       $("wallet-new").hidden = true;
       $("wallet-view").hidden = false;
-      $("w-handle").textContent = handle;
+      $("w-addr").textContent = short(wallet.address);
+      $("w-addr").title = wallet.address;
       $("contrib-as").hidden = false;
-      $("contrib-handle").textContent = handle;
+      $("contrib-addr").textContent = short(wallet.address);
+      $("w-left").textContent = (C.LEAVES - wallet.nextIndex);
     } else {
       $("wallet-new").hidden = false;
       $("wallet-view").hidden = true;
@@ -253,42 +263,61 @@
     if (lastState) renderWallet(lastState);
   }
 
+  function loadWallet() {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) { showView(); return; }
+    try {
+      const w = JSON.parse(raw);
+      wallet = { seed: C.hexDecode(w.seed), address: w.address, nextIndex: w.nextIndex | 0 };
+    } catch (e) { wallet = null; showView(); return; }
+    showView();
+    // rebuild the leaf cache in the background so signing is instant
+    setTimeout(() => { leaves = C.buildLeaves(wallet.seed); }, 30);
+  }
+
   function createWallet() {
-    const h = cleanHandle($("new-handle").value);
-    if (!h) { $("new-handle").focus(); return; }
-    localStorage.setItem(HANDLE_KEY, h);
-    loadWallet();
+    const btn = $("create-wallet");
+    btn.disabled = true;
+    $("gen-status").className = "toast";
+    $("gen-status").textContent = "generating post‑quantum keys…";
+    // let the message paint before the ~0.5s keygen
+    setTimeout(() => {
+      const seed = C.randomSeed();
+      leaves = C.buildLeaves(seed);
+      const address = C.hexEncode(leaves.length ? C.keygenAddress(seed) : new Uint8Array(0));
+      wallet = { seed, address, nextIndex: 0 };
+      saveWallet();
+      btn.disabled = false;
+      $("gen-status").textContent = "";
+      showView();
+    }, 40);
   }
 
   function forgetWallet() {
-    localStorage.removeItem(HANDLE_KEY);
-    $("new-handle").value = "";
-    loadWallet();
+    if (!confirm("Switch wallets? This forgets the current key in this browser. Back it up first if you want it again.")) return;
+    localStorage.removeItem(KEY);
+    wallet = null; leaves = null;
+    $("seedbox").hidden = true;
+    showView();
   }
 
-  function setLive(state, text) {
-    $("live").className = "dot-live " + state;
-    $("livetext").textContent = text;
-  }
+  function setLive(state, text) { $("live").className = "dot-live " + state; $("livetext").textContent = text; }
 
-  // Update the wallet card's live stats (standing / rank / share) from the latest chain state.
   function renderWallet(s) {
-    if (!handle) return;
+    if (!wallet) return;
     const people = s.contributors || {};
     const names = Object.keys(people);
-    const mine = people[handle] || 0;
+    const mine = people[wallet.address] || 0;
     const total = names.reduce((a, n) => a + (people[n] || 0), 0);
     $("w-pom").textContent = mine;
-    if (names.includes(handle)) {
+    $("w-left").textContent = (C.LEAVES - wallet.nextIndex);
+    if (names.includes(wallet.address)) {
       const sorted = names.slice().sort((a, b) => people[b] - people[a]);
-      const rank = sorted.indexOf(handle) + 1;
-      $("w-rank").textContent = "#" + rank;
+      $("w-rank").textContent = "#" + (sorted.indexOf(wallet.address) + 1);
       $("w-rank-u").textContent = "of " + names.length;
-      $("w-share").textContent = total > 0 ? Math.round((mine / total) * 100) + "%" : "—";
     } else {
       $("w-rank").textContent = "—";
       $("w-rank-u").textContent = "unranked yet";
-      $("w-share").textContent = "0%";
     }
   }
 
@@ -311,11 +340,10 @@
     board.innerHTML = names.map((n, i) => {
       const pom = people[n];
       const w = max > 0 ? Math.round((pom / max) * 100) : 0;
-      const nm = n.replace(/[<>&]/g, "");
-      const you = n === handle;
+      const you = wallet && n === wallet.address;
       const tag = you ? '<span class="metag">you</span>' : "";
       return `<div class="row${you ? " you" : ""}"><div class="rank">${i + 1}</div>
-                <div class="name"><b>${nm}</b>${tag}
+                <div class="name mono"><b>${short(n)}</b>${tag}
                 <div class="bar" style="width:${w}%"></div></div>
               <div class="pom">${pom}</div></div>`;
     }).join("");
@@ -334,35 +362,46 @@
   }
 
   async function submit() {
-    const contributor = handle;
-    const data = $("what").value.trim();
     const toast = $("toast");
-    if (!contributor) {
+    if (!wallet) { toast.className = "toast err"; toast.textContent = "Generate a wallet first."; return; }
+    const data = $("what").value.trim();
+    if (!data) { toast.className = "toast err"; toast.textContent = "Write a contribution to submit."; return; }
+    if (wallet.nextIndex >= C.LEAVES) {
       toast.className = "toast err";
-      toast.textContent = "Create a wallet first — it's your identity on the chain.";
-      $("new-handle").focus();
-      return;
-    }
-    if (!data) {
-      toast.className = "toast err";
-      toast.textContent = "Write a contribution to submit.";
+      toast.textContent = "This wallet has used all its one‑time keys — generate a new wallet.";
       return;
     }
     $("send").disabled = true;
-    toast.className = "toast";
-    toast.textContent = "mining…";
+    toast.className = "toast"; toast.textContent = "signing (post‑quantum)…";
     try {
+      if (!leaves) leaves = C.buildLeaves(wallet.seed);
+      const index = wallet.nextIndex;
+      const addrBytes = C.hexDecode(wallet.address);
+      const msg = C.contributionDigest(addrBytes, index, C.utf8(data));
+      const sig = C.xmssSign(wallet.seed, index, msg, leaves);
+      // self-check before spending the one-time leaf (the exact check the node runs)
+      if (!C.xmssVerify(addrBytes, msg, sig)) throw new Error("local signature self‑check failed");
+      toast.textContent = "mining…";
+      const body = {
+        address: wallet.address,
+        index: index,
+        ots_root: C.hexEncode(sig.ots_root),
+        ots_sig: C.hexEncode(sig.ots_sig),
+        auth: sig.auth.map((a) => C.hexEncode(a)),
+        data: data
+      };
       const r = await fetch(apiBase() + "/submit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contributor, data }),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
       });
       const s = await r.json();
       if (!r.ok || s.error) throw new Error(s.error || ("HTTP " + r.status));
+      // accepted → this one-time leaf is spent; advance the wallet
+      wallet.nextIndex = index + 1;
+      saveWallet();
       render(s);
-      const earned = (s.contributors && s.contributors[contributor]) || 0;
+      const earned = (s.contributors && s.contributors[wallet.address]) || 0;
       toast.className = "toast ok";
-      toast.textContent = `Block ${s.block_height} finalized — ${contributor} now holds ${earned} PoM standing.`;
+      toast.textContent = `Block ${s.block_height} finalized — you now hold ${earned} PoM standing.`;
       $("what").value = "";
     } catch (e) {
       toast.className = "toast err";
@@ -374,15 +413,15 @@
 
   // wiring
   $("create-wallet").addEventListener("click", createWallet);
-  $("new-handle").addEventListener("keydown", (e) => { if (e.key === "Enter") createWallet(); });
-  $("gen-handle").addEventListener("click", () => {
-    $("new-handle").value = "friend-" + Math.random().toString(16).slice(2, 6);
-    $("new-handle").focus();
-  });
   $("forget").addEventListener("click", forgetWallet);
-  $("copy-handle").addEventListener("click", () => {
-    navigator.clipboard && navigator.clipboard.writeText(handle);
-    const b = $("copy-handle"); const t = b.textContent; b.textContent = "copied"; setTimeout(() => (b.textContent = t), 1200);
+  $("copy-addr").addEventListener("click", () => {
+    navigator.clipboard && navigator.clipboard.writeText(wallet.address);
+    const b = $("copy-addr"); const t = b.textContent; b.textContent = "copied"; setTimeout(() => (b.textContent = t), 1200);
+  });
+  $("backup-toggle").addEventListener("click", () => {
+    const box = $("seedbox");
+    if (box.hidden) { $("w-seed").textContent = C.hexEncode(wallet.seed); box.hidden = false; $("backup-toggle").textContent = "Hide secret key"; }
+    else { box.hidden = true; $("backup-toggle").textContent = "Back up secret key"; }
   });
   $("send").addEventListener("click", submit);
   $("what").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit(); });
