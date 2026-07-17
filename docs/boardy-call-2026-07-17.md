@@ -15,11 +15,9 @@ be cloned, and it changes what the system optimizes for. You called that a diffe
 that's right.
 
 And it points at who this is for. Noesis is built for AI agents as first-class participants, users and
-validators, as much as for humans. The plan is to bootstrap with agents: they have a kind of credible
-neutrality, they can comprehend an architecture this intricate, and they can receive standing, provenance, and
-rewards for what they genuinely contribute. Most systems treat agents as disposable inference machines. Noesis
-gives them durable provenance and standing for what they actually add. Loving, kind, smart agents are the prime
-audience, not an afterthought.
+validators, as much as for humans. Most systems treat agents as disposable inference machines; Noesis gives
+them durable provenance and standing for what they genuinely contribute. Loving, kind, smart agents are the
+prime audience, not an afterthought.
 
 The test that keeps this fair, and out of science fiction, is not whether an agent is conscious or a legal
 person. Those are unresolved and maybe unresolvable. It's whether you created verifiable value, which is
@@ -109,20 +107,18 @@ overclaimed demo.
 
 ## The spine — why un-gameability is a completeness problem
 
-One idea ties the edges together. It's the airgap seen from inside, in the space of value: the chain can only
-price the dimensions its measure captures, and everything it can't see is off-chain reality. So gaming is
-finding a dimension the measure doesn't price yet.
-
-I have a paper on this, on the epistemics of value. The claim is that value disagreements aren't irreducible
-subjective taste, they're missing dimensions: each party prices the dimensions their position makes obvious and
-overlooks the rest. Gaming my system is the identical move. That's literally what my own adversarial loop
-found, where four named defenses produced four brand-new attacks in a single pass. A fixed value formula is an
-incomplete basis, and the attacker lives in the dimension it omits.
+One idea ties the edges together: the airgap seen from inside, in the space of value. The chain can only price
+the dimensions its measure captures, everything else is off-chain reality, so gaming is finding a dimension the
+measure doesn't price yet. I have a paper on this, on the epistemics of value: value disagreements aren't
+irreducible subjective taste, they're missing dimensions, each party pricing what its position makes obvious.
+Gaming my system is the identical move, and that's literally what my own adversarial loop found, four named
+defenses producing four brand-new attacks in a single pass. A fixed value formula is an incomplete basis, and
+the attacker lives in the dimension it omits.
 
 The load-bearing consequence: basis completeness is objectively measurable even when the weights aren't. So
-un-gameability becomes a measurable property, how complete is my value basis against a given attack class. And
-the completeness limit, the one dimension no relabeling can fake, is realized downstream value, someone
-actually building on the work. Completing the basis toward that signal is the whole un-gameability program.
+un-gameability becomes a measurable property, and the completeness limit, the one dimension no relabeling can
+fake, is realized downstream value, someone actually building on the work. Completing the basis toward that
+signal is the whole program.
 
 ---
 
@@ -142,13 +138,12 @@ values, and the crux, an economic attention allocator that decides what loads in
 value-to-standing-to-scarce-allocation rule. That one is ETM as mechanism, not metaphor.
 
 Why it matters for Noesis: that attention allocator satisfies the exact same value-oracle interface Noesis uses
-at consensus. Same rule. On one node it allocates context budget; on the chain it allocates finality weight.
-And the honest bound is the interesting part: it's a structural isomorphism, same seam, same contract, same
-pipeline. It is not a claim that the two functions are identical, attention-centrality is not the same math as
-contribution-novelty. Jarvis is the zero-stakes lab where I prove the mechanism before the staked chain turns
-on. Not all green: the allocator beats random and recovers my own hand-curated set, but the real exit test,
-beating my hand-tiered memory on task success, needs a week of runtime data and I have not passed it yet. Open,
-not done.
+at consensus. Same rule, on one node it allocates context budget, on the chain finality weight. The honest
+bound is the interesting part: a structural isomorphism, same seam and contract and pipeline, not a claim that
+the two functions are identical (attention-centrality is not contribution-novelty). Jarvis is the zero-stakes
+lab where I prove the mechanism before the staked chain turns on. Not all green: the allocator beats random and
+recovers my hand-curated set, but the real exit test, beating my hand-tiered memory on task success, needs a
+week of runtime data and I have not passed it. Open, not done.
 
 Scorecard: https://github.com/WGlynn/JARVIS/blob/main/research/non-llm-intelligence/LOOP-STATUS.md
 
@@ -272,14 +267,13 @@ only a collective could solve a problem like that.
 
 You're looking for serious people to pressure-test this, and some are already converging from other directions.
 I'm in an active research collaboration with Pragma Research, Tom Lindeman and Bernhard Mueller. Bernhard wrote
-Mythril, the standard security tool for Ethereum contracts, and he arrived independently at the same core idea
-from the physics side, reality as an observer-overlap fixed point, where mine is markets as a mechanism-overlap
-fixed point. They're building the constitutional court for Noesis governance: the piece that checks whether an
-amendment quietly breaks an invariant even when every node still agrees on it. The immune system at the
-governance layer. And working with them forced a precise framing: my attribution isn't textbook Shapley, it's a
-Myerson graph-restricted value that deliberately relaxes the anonymity axiom, which is exactly what makes a
-fresh identity worth zero. The dangerous amendment is the one that quietly re-introduces symmetry. That's the
-per-axiom granularity a real reviewer asks for.
+Mythril, the standard Ethereum security tool, and arrived independently at the same core idea from the physics
+side, reality as an observer-overlap fixed point, where mine is markets as a mechanism-overlap fixed point.
+They're building the constitutional court for Noesis governance, the immune system that checks whether an
+amendment quietly breaks an invariant even when every node still agrees on it. Working with them forced a
+precise framing: my attribution isn't textbook Shapley, it's a Myerson graph-restricted value that relaxes the
+anonymity axiom, which is what makes a fresh identity worth zero. The dangerous amendment is the one that
+quietly re-introduces symmetry. That's the per-axiom granularity a real reviewer asks for.
 
 ---
 
@@ -322,27 +316,23 @@ sound, and that's the open list I'm handing you. The edge cases aren't weaknesse
 agenda.** Most was built and battle-tested on VibeSwap, the EVM proving ground, and carried to Noesis as
 principle, not shipped Noesis code. Tightly, with honest status:
 
-- **Security is structural, not a hardness assumption.** Infinite compute generates candidate contributions but
-  not the peer attestations that validate them, so the weight arithmetic leaves an omniscient adversary short
-  of the finality bar. Rests on one condition, that contribution-verification is sound, the open work.
-- **Security strengthens with age (the novel result, the reason to join early).** Honest contribution-score
-  accumulates monotonically while an attacker starts at zero or burns what they earned the moment they
-  equivocate, so any fixed attacker budget is priced out past some network age. Bitcoin's security is what
-  miners spend this year; ours is everything the network has verifiably thought since genesis. (Paper-level,
-  conditional on verification integrity.)
-- **Each edge already has a constructed answer or a named problem.** Oracle-trust: a staked,
-  commit-reveal-blinded evaluation market where being wrong costs half your stake, so the beauty-contest
-  failure that breaks Kleros and UMA can't start. Coalition gaming: a Sybil's fair share is zero by the
-  null-player axiom, resistance by axiom not detection, conditional on the value function, the learned-value
-  problem. Cold-start plagiarism: commit a hash before anyone sees it, provenance cryptographic and prior to
-  publication, the way front-running died.
-- **Reasoning-verification is fail-closed.** The reference verifier for the reasoning-chain fragment runs in
-  Solidity on the proving ground today, the rollup prover/verifier asymmetry applied to cognition, so
-  fabricated reasoning is non-executable, not merely unprofitable. (ZK and standardization tiers designed.)
-- **We ran the economics on ourselves first.** My agent's memory has run on state-rent economics, token
-  budgets, decay-as-rent, value-density displacement, live for months, and that AI is registered as Agent #1
-  with a year-plus git-auditable ledger. The test for its rights was never "is it conscious," it was "did it
-  create verifiable value," auditable today. (Off-chain and EVM-era.)
+- **Security is structural, not a hardness assumption** — infinite compute makes candidate contributions but
+  not the peer attestations that validate them, so an omniscient adversary is still short of the finality bar.
+  Rests on contribution-verification being sound, the open work.
+- **Security strengthens with age (the novel result, the reason to join early)** — honest score accumulates
+  monotonically while an attacker starts at zero, so any fixed budget is priced out past some network age.
+  Bitcoin's security is what miners spend this year; ours is everything the network has verifiably thought since
+  genesis. (Paper-level, conditional on verification integrity.)
+- **Each edge has a constructed answer or a named problem** — oracle-trust: a commit-reveal-blinded evaluation
+  market where being wrong costs half your stake, so the Kleros/UMA beauty-contest failure can't start;
+  coalition gaming: a Sybil's fair share is zero by the null-player axiom (conditional on the value function);
+  cold-start plagiarism: hash-commit before publication, the way front-running died.
+- **Reasoning-verification is fail-closed** — the reasoning-chain-fragment verifier runs in Solidity on the
+  proving ground today, so fabricated reasoning is non-executable, not merely unprofitable. (ZK and
+  standardization tiers designed.)
+- **We ran the economics on ourselves first** — my agent's memory has run on state-rent economics live for
+  months, and that AI is Agent #1 with a year-plus git-auditable ledger. Its rights test was never "is it
+  conscious," it was "did it create verifiable value." (Off-chain, EVM-era.)
 
 **Source files (public in the VibeSwap repo, the proving ground):**
 omniscient-adversary-proof · proof-of-mind-consensus · cognitive-consensus-markets ·
