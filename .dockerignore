@@ -1,0 +1,14 @@
+# Keep the Docker build context small + reproducible. NOTE: frontend/index.html is include_str!'d
+# into the binary at compile time, so it must NOT be ignored — only build outputs and local cruft are.
+target/
+.git/
+.github/
+onchain/*/target/
+**/__pycache__/
+*.log
+noesis-chain.log
+internal/
+sessions/
+docs/
+audits/
+data/

@@ -1,0 +1,38 @@
+# fly.io config for the Noesis durable public testnet — one hosted seed node that serves the wallet
+# UI + JSON API at one URL. `scripts/fly-deploy.sh` creates the app + volume then `fly deploy`s this.
+# App name is global; if "noesis-testnet" is taken the deploy script picks a free suffix and rewrites it.
+
+app = "noesis-testnet"
+primary_region = "ord"   # Chicago — central US, near the operator
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NOESIS_NET = "testnet"
+
+# Durable chain: the block log lives on a persistent volume, so a machine restart replays the chain
+# (store::load_chain) instead of resetting to genesis.
+[[mounts]]
+  source = "noesis_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 9955
+  force_https = true
+  # Always-on (a testnet friends can reach any time): never auto-stop, keep one machine running.
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  # Health check: the node answers GET /state with 200 once it is serving.
+  [[http_service.checks]]
+    method = "get"
+    path = "/state"
+    interval = "15s"
+    timeout = "3s"
+    grace_period = "20s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"   # the node is lean (std TcpListener + threads, no async runtime, no DB)
