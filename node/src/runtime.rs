@@ -1218,10 +1218,10 @@ fn check_bonds(ledger: &Ledger, b: &Block, c: &Constitution) -> Result<(), Viola
     let mut covered: HashSet<u64> = HashSet::new();
     // Seed the single-use set with every token-tx input identity so a bond cannot double-use a cell a
     // token movement already spends in the same block.
-    let mut consumed: HashSet<(u64, Script, Script)> = HashSet::new();
+    let mut consumed: HashSet<(u64, Script, Script, Vec<u8>)> = HashSet::new();
     for tx in &b.token_txs {
         for inp in &tx.inputs {
-            consumed.insert((inp.id, inp.lock.clone(), inp.type_script.clone()));
+            consumed.insert((inp.id, inp.lock.clone(), inp.type_script.clone(), inp.data.clone()));
         }
     }
     for bond in &b.bonds {
@@ -1244,7 +1244,7 @@ fn check_bonds(ledger: &Ledger, b: &Block, c: &Constitution) -> Result<(), Viola
             return Err(Violation::BondInvalid);
         }
         // single-use: unique among bonds AND disjoint from token-tx inputs.
-        if !consumed.insert((d.id, d.lock.clone(), d.type_script.clone())) {
+        if !consumed.insert((d.id, d.lock.clone(), d.type_script.clone(), d.data.clone())) {
             return Err(Violation::BondInvalid);
         }
     }
