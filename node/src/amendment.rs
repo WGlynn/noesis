@@ -319,7 +319,7 @@ fn check_mix(m: &Mix) -> Result<(), ObligationBreach> {
     // invented floor): contribution stays the dominant axis, so a buyable-governance capture cannot tilt
     // the NCI mix toward capital-rule. (Finality safety is separately fenced by the LOCKED FINALITY_MIX +
     // MIN_DIM_BPS; this bounds the OVERALL NCI mix the socket governs, which those do not.)
-    if m.pos > m.pom + 1e-9 {
+    if m.pos > m.pom {
         return Err(ObligationBreach::CapitalOutweighsContribution {
             pos_e4: (m.pos * 10_000.0).round() as i64,
             pom_e4: (m.pom * 10_000.0).round() as i64,
@@ -565,6 +565,22 @@ mod tests {
         let new = Mix { pow: 0.20, pos: 0.40, pom: 0.40 }; // pos == pom is the allowed boundary
         let a = Amendment::AmendMix { old: NCI, new };
         assert!(verify_amendment(&c, &a).is_ok(), "pos == pom is the knife-edge, allowed");
+    }
+
+    #[test]
+    fn mix_capital_outweighing_within_epsilon_rejected() {
+        let c = base();
+        // pos exceeds pom by 1e-10 — capital DOES outweigh contribution, violating `pos <= pom`.
+        // ANTI-THEATER: the old `+ 1e-9` axiom tolerance let this tilt validate ⇒ GREEN when it must be RED.
+        let new = Mix { pow: 0.3999999999, pos: 0.3000000001, pom: 0.3000000000 };
+        let a = Amendment::AmendMix { old: NCI, new };
+        assert!(
+            matches!(
+                verify_amendment(&c, &a),
+                Err(ObligationBreach::CapitalOutweighsContribution { .. })
+            ),
+            "any pos > pom, however small, breaks the anti-plutocracy axiom"
+        );
     }
 
     // --- authority classification: measure -> Contribution, dials -> Stewardship ---
