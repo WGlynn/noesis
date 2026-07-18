@@ -255,6 +255,17 @@ impl BlockLog {
     /// Load every block in order. A blank line is skipped; a malformed line is a hard error (a
     /// corrupt log must fail loudly, never silently drop a block and diverge).
     pub fn load(&self) -> io::Result<Vec<Block>> {
+        // Guard against unbounded reads: a multi-gigabyte (corrupt or hostile) log must fail loudly
+        // rather than OOM the node. "Send me your block log, I'll replay it" is an attack surface.
+        const MAX_BLOCKLOG_SIZE: u64 = 1 << 30; // 1 GiB
+        let file_size = std::fs::metadata(&self.path)?.len();
+        if file_size > MAX_BLOCKLOG_SIZE {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("block log exceeds maximum size of {MAX_BLOCKLOG_SIZE} bytes"),
+            ));
+        }
+
         let data = std::fs::read_to_string(&self.path)?;
         let mut out = Vec::new();
         for line in data.lines() {

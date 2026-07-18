@@ -113,3 +113,23 @@ fn a_corrupt_log_line_fails_loudly() {
 
     let _ = std::fs::remove_file(&tmp);
 }
+
+#[test]
+fn an_oversized_log_is_rejected_before_reading() {
+    // Regression: `load()` must not read an arbitrarily large file into memory (OOM/DoS).
+    // "Send me your block log, I'll replay it" makes the log size attacker-controlled.
+    // Use a sparse file: `set_len` past the 1 GiB guard costs no real disk on common filesystems.
+    let tmp = std::env::temp_dir().join("noesis_persist_roundtrip_oversized.jsonl");
+    let _ = std::fs::remove_file(&tmp);
+    let f = std::fs::File::create(&tmp).expect("create sparse log");
+    f.set_len((1 << 30) + 1).expect("extend past the size guard"); // 1 GiB + 1 byte
+    drop(f);
+
+    let err = BlockLog::new(&tmp).load();
+    assert!(
+        err.is_err(),
+        "an oversized block log must be rejected up front, never fully read into memory"
+    );
+
+    let _ = std::fs::remove_file(&tmp);
+}
