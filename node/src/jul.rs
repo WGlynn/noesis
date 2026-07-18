@@ -51,7 +51,7 @@ pub const COINBASE_ID_BIT: u64 = 1 << 63;
 /// The deterministic coinbase cell id for a block at `height` — the PRODUCER's reward. Never sets
 /// [`SPLIT_SLICE_BIT`] (requires `height < 2^62`, astronomical), so it is disjoint from every slice id.
 pub fn coinbase_id(height: u64) -> u64 {
-    COINBASE_ID_BIT | height
+    COINBASE_ID_BIT | (height & 0x3fff_ffff_ffff_ffff)
 }
 
 /// Second reserved bit, set ONLY on coinbase SLICE cells (the N-way split recipients, inc-M3-3). Keeps a
@@ -256,6 +256,22 @@ mod tests {
         // decay ≤ 1 ALWAYS ⇒ never mints more than the flat reward (conservation-safe).
         for elapsed in [0u64, hl / 2, hl, 5 * hl, 100 * hl] {
             assert!(reward_with_decay(work, p, elapsed, hl) <= flat);
+        }
+    }
+
+    // ============ Coinbase id-space disjointness ============
+
+    #[test]
+    fn coinbase_id_never_collides_with_slice_id_at_extreme_heights() {
+        // A producer coinbase_id must NEVER set SPLIT_SLICE_BIT (bit 62), or it could collide with a
+        // slice id and let two coinbase cells share an id. Regression for heights ≥ 2^62, where the
+        // raw `COINBASE_ID_BIT | height` would leak height's bit 62 into the slice-id half.
+        for height in [0u64, 1, 1 << 53, (1 << 62) - 1, 1 << 62, (1 << 62) + 7, u64::MAX] {
+            let pid = coinbase_id(height);
+            assert_eq!(pid & SPLIT_SLICE_BIT, 0, "coinbase_id set SPLIT_SLICE_BIT at height {height}");
+            assert_ne!(pid & COINBASE_ID_BIT, 0, "coinbase_id must stay in the reserved half");
+            // Explicit collision witness: at height 2^62 the raw impl equalled slice 0's id.
+            assert_ne!(pid, coinbase_slice_id(height, 0), "producer id collided with slice 0 at height {height}");
         }
     }
 }
