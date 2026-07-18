@@ -77,7 +77,12 @@ pub enum ConfirmationTier {
 /// is discarded if the interval's ordering block does not absorb these sub-blocks (revertible).
 fn provisional_live(ledger: &Ledger, prior: &[SubBlock]) -> Vec<Cell> {
     let mut live = ledger.token_cells.clone();
-    for sub in prior {
+    // Fold the prior sub-blocks in `seq` order — the SAME total order `absorb` uses — so the provisional
+    // overlay is receipt-order-independent and cannot drift from the deterministic absorption (a multi-hop
+    // soft-chain retires-then-produces, so the fold order changes the live set on unsorted input).
+    let mut ordered: Vec<&SubBlock> = prior.iter().collect();
+    ordered.sort_by_key(|s| s.seq);
+    for sub in ordered {
         for tx in &sub.txs {
             for inp in &tx.inputs {
                 live.retain(|c| {

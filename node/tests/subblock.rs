@@ -190,6 +190,45 @@ fn fast_tier_matches_settlement_conservation() {
     // coinbase-squat gates ⇒ both txs passed validation ⇒ both asserts RED before the single-source.
 }
 
+/// The provisional overlay must be RECEIPT-ORDER-INDEPENDENT, exactly as `absorb` is: it must fold the
+/// prior sub-blocks in `seq` order, not input order. A multi-hop soft-chain retires-then-produces, so an
+/// unsorted fold computes a DIFFERENT live set and `validate_sub_block` would accept/reject the SAME
+/// sub-block differently depending on how the prior chain was delivered — a determinism divergence from
+/// the absorption the security analysis relies on.
+#[test]
+fn provisional_overlay_is_seq_ordered_not_input_ordered() {
+    let coin = tok(1, 100, ALICE, ISS);
+    let ledger = ledger_with(5, &[(ALICE, 100)], vec![coin.clone()]);
+
+    // A valid two-hop soft-chain: sub0 ALICE→BOB (out id 2), sub1 spends BOB's out (id 2) → CAROL (out id 3).
+    let s0 = sub(5, 0, ALICE, vec![transfer(coin, BOB, 2)]);
+    let bob_coin = tok(2, 100, BOB, ISS); // == s0's output
+    let s1 = sub(5, 1, ALICE, vec![transfer(bob_coin, CAROL, 3)]);
+
+    // The next sub-block (seq 2) RE-SPENDS BOB's intermediate output (id 2). In the correct seq-ordered
+    // fold s1 already RETIRED id 2 (it hopped it to CAROL), so re-spending it is a soft-chain double-spend
+    // ⇒ MUST be rejected. `sub.seq == prior.len()` holds regardless of prior order, so the only thing that
+    // can change the verdict is the fold order of the overlay.
+    let bob_coin_again = tok(2, 100, BOB, ISS); // == s0's output, already retired by s1
+    let s2 = sub(5, 2, ALICE, vec![transfer(bob_coin_again, CAROL, 4)]);
+
+    // Prior delivered IN ORDER ⇒ the double-spend of the retired intermediate is rejected.
+    assert_eq!(
+        validate_sub_block(&ledger, &[s0.clone(), s1.clone()], &s2, 0),
+        Err(SubBlockViolation::TxInvalidOrDoubleSpend),
+        "re-spending an intermediate output a later sub-block already retired is a double-spend"
+    );
+    // Prior delivered OUT OF ORDER (same chain, shuffled) ⇒ MUST get the SAME verdict (seq-ordered fold).
+    assert_eq!(
+        validate_sub_block(&ledger, &[s1, s0], &s2, 0),
+        Err(SubBlockViolation::TxInvalidOrDoubleSpend),
+        "receipt order of the prior soft-chain must not change validation — the overlay is seq-ordered"
+    );
+    // ANTI-THEATER: fold the prior in INPUT order ⇒ the shuffled case processes s1 before s0, so it retires
+    // id 2 (absent, no-op) BEFORE s0 produces it ⇒ id 2 is left live ⇒ the double-spend is wrongly ACCEPTED
+    // ⇒ the second assert goes RED. This is the exact absorb()/provisional_live() determinism divergence.
+}
+
 /// The honest UX contract read side: a finalized output is `Final`; a sub-block output is `SoftConfirmed`
 /// (revertible); an unknown id is neither. Final outranks Soft (the transition is monotone).
 #[test]
