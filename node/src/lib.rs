@@ -4608,6 +4608,7 @@ pub mod dispute {
             slashes.push((who.clone(), amt));
             total_slashed += amt;
         }
+        slashes.sort_by(|a, b| a.0.cmp(&b.0)); // canonical identity order -> deterministic
         let bounty = p.beta.clamp(0.0, 1.0) * total_slashed;
         Settlement {
             canceled,
@@ -4683,6 +4684,7 @@ pub mod dispute {
             slashes.push((who.clone(), amt));
             total_slashed += amt;
         }
+        slashes.sort_by(|a, b| a.0.cmp(&b.0)); // canonical identity order -> deterministic
         let bounty = p.beta.clamp(0.0, 1.0) * total_slashed;
         Settlement {
             canceled,
@@ -5651,6 +5653,25 @@ pub mod dispute {
             let s = resolve_refuted(&mut entries, &c, &P, &shares);
             assert_eq!(s.slashes.len(), 1, "innocent zero-share certifier skipped");
             assert_eq!(s.slashes[0].0, vec![5u8], "only the causal certifier is slashed");
+        }
+
+        #[test]
+        fn refuted_slashes_are_in_canonical_identity_order_regardless_of_input() {
+            // Consensus-determinism regression: two honest nodes with the same certifier
+            // set but different input orderings must emit byte-identical Settlement.slashes.
+            // Pre-fix the slash list mirrored `certifier_shares` order ⇒ serialized/hashed
+            // settlements diverged. Post-fix slashes sort by identity before returning.
+            let mk = |entries: &mut Vec<VestingEntry>, shares: &[(Vec<u8>, f64)]| {
+                let c = Challenge { target: 7, challenger: vec![1], bond: 2.0, opened_epoch: 101 };
+                resolve_refuted(entries, &c, &P, shares).slashes
+            };
+            let mut ea = vec![VestingEntry { cell_id: 7, amount: 10.0, realized_epoch: 100 }];
+            let mut eb = vec![VestingEntry { cell_id: 7, amount: 10.0, realized_epoch: 100 }];
+            let a = mk(&mut ea, &[(vec![9u8], 6.0), (vec![5u8], 4.0)]);
+            let b = mk(&mut eb, &[(vec![5u8], 4.0), (vec![9u8], 6.0)]);
+            assert_eq!(a, b, "slash order must not depend on certifier_shares input order");
+            let keys: Vec<Vec<u8>> = a.iter().map(|(w, _)| w.clone()).collect();
+            assert_eq!(keys, vec![vec![5u8], vec![9u8]], "sorted ascending by identity");
         }
 
         #[test]
