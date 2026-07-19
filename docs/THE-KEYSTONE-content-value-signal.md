@@ -47,16 +47,27 @@ piece is one thing: **an oracle-free signal of content value.**
 
 ## The keystone and its wrapper
 
-The keystone is the content-value signal `v(S)` itself. Around it, the rest is a wrapper Noesis has
-*already built* — the keystone just makes the wrapper load-bearing:
+The keystone is the oracle-free content-value **signal** — but with one correction the honest data
+forces (`data/crates/RESULTS.md`): the signal that does the work is **not a learned model that predicts
+value**. A learned predictive `v(S)` is null three times on real data (decisively on the non-degenerate
+crates.io graph, 0.5201 vs 0.5167 proxy, inside the noise band). The oracle-free content-value signal
+that actually holds is the **structural layered defense** — and it is *built*, not open. Around it, the
+rest is a wrapper:
 
 | Layer | Answers | Status |
 |---|---|---|
-| **Peer-prediction (PEG/SD)** | *What is the content actually worth?* (the truth signal — IS/feeds `v(S)`) | 🔬 designed |
+| **Structural defense** (submodular coverage · Myerson-restriction · semantic floor · Hodge slash · identity pricing) | *Is this worth anything, or is it noise / a ring?* — makes gaming unprofitable | ✅ **built + demonstrated 253/253** (vs constructed adversaries) |
+| **Peer-prediction (PEG/SD)** | *What is the content actually worth?* (elicited truth signal — upside on top) | 🔬 designed · 2 open theorems |
 | **Harberger self-assessment** | *What value do you CLAIM, and what do you stake on it?* (self-`V` + rent + slash-at-risk) | 🔬 design direction |
 | **Dispute market** | *Adjudicate the gap:* `V` − peer-score = the slashable overclaim | ✅ built (`docs/DISPUTE-SLASHING.md`) |
 | **Soulbound identity + one-time leaf** | *Who, and once* | ✅ built (`node/src/rpc.rs`) |
 | **PoW / issuance** | *Objective ordering, Sybil-cost, money (JUL)* | ✅ built (`pow_enforced`) |
+
+So the moat is *built*, not pending; the learned predictive model is upside, not foundation; and the
+genuine open problem is the built defense's robustness against a real **adaptive** adversary (constructed
+fixtures pass; an adaptive one is untested) — not a missing predictor. "Oracle-free" carries its caveat:
+no *immediate per-decision* oracle; the design anchors on *aggregate* realized outcomes that retrain the
+value function over time.
 
 Harberger and peer-prediction are **composable and complementary** (Will 2026-07-19), not rivals:
 peer-prediction scores the *content*, Harberger prices the *claim*, the dispute market is where they
@@ -71,22 +82,26 @@ reporting costly*; it does not convert capital into PoM. That separation is the 
 
 ## Why this is the good news
 
-The keystone is **isolated**. It sits behind a clean seam (`ValueOracle`, `lib.rs:286`) — swapping the
-value function is a governance-gated version bump, not a consensus rewrite. Everything else is done:
-identity, ordering, PoW, dispute-slashing, vesting, state-rent. So the roadmap is not "many hard
-problems" — it is **one keystone** (learned, oracle-free content value) plus two wrappers around it
-(Harberger stake, peer-prediction elicitation) that are already half-specified and reuse shipped
-machinery.
+The moat is **already built** — the structural layered defense is demonstrated (253/253), and it sits
+behind a clean seam (`ValueOracle`, `lib.rs:286`) so its value function is a governance-gated version
+bump, not a consensus rewrite. Everything else is done too: identity, ordering, PoW, dispute-slashing,
+vesting, state-rent. So the roadmap is not "invent a learned model that scores value" (that predictor is
+null on real data and isn't the moat) — it is three concrete things: **(1)** harden the built defense
+against a real *adaptive* adversary (constructed fixtures pass; adaptive is untested), **(2)** wire the
+structural defense onto the *deployed* franchise (today's testnet ships only the v0 floor), and **(3)**
+admission control at bootstrap. The wrappers (Harberger stake, peer-prediction elicitation) are upside on
+top, reusing shipped machinery.
 
 ## Implications
 
-- **The moat and the Sybil defense are the same investment.** Work on learned `v(S)` pays down all three
-  faces at once; do not scope them as separate tracks.
+- **The moat and the Sybil defense are the same investment — but it's hardening, not inventing.** The
+  structural defense is built; the work is proving it against an adaptive adversary and deploying it, not
+  training a predictor. Do not scope the three faces as separate tracks.
 - **A public permissionless testnet should wait for the wrapper, not the full moat.** Even before
   learned `v(S)`, the go-live knot (turn on owner-auth → enable a submission deposit → cap/allowlist
   standing) bounds farming enough to run publicly. That flip is a deliberate, Will-gated step (PCP).
 - **A private / permissioned single-node testnet is shippable now** — the operator is the only submitter,
-  so the keystone gap is inert.
+  so the Sybil surface is inert.
 
 The keystone is the moat. An oracle-free content-value signal is how you make it impossible to get
 **something (standing) from nothing (noise)** — and with it, Noesis's central claim, that standing
