@@ -109,7 +109,18 @@ impl Screen {
         if self.seen.len() >= MAX_SEEN {
             return; // bounded: stay alive rather than OOM (production = Bloom filter + snapshot)
         }
-        self.seen.extend(coverage(data));
+        // Bound the *result* too: a single large submission can generate many shingles, so cap the
+        // number folded in so the seen-set never exceeds MAX_SEEN (the check above only gates entry).
+        let new_shingles = coverage(data);
+        let available_space = MAX_SEEN.saturating_sub(self.seen.len());
+        self.seen.extend(new_shingles.into_iter().take(available_space));
+    }
+
+    /// Test-only: inject `n` synthetic CovIds so a near-full seen-set can be exercised cheaply
+    /// without recording ~5M real submissions.
+    #[cfg(test)]
+    fn fill_synthetic(&mut self, n: usize) {
+        self.seen.extend(0u64..n as u64);
     }
 }
 
@@ -158,5 +169,26 @@ mod tests {
             Err(Reject::Unoriginal { .. }) => {}
             other => panic!("expected Unoriginal from external seed, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn record_near_full_never_exceeds_max_seen() {
+        // Regression: a single large submission recorded when the seen-set is near MAX_SEEN must not
+        // push the set over the bound. The len() >= MAX_SEEN gate only blocks entry; extend() must be
+        // capped to the remaining space. Pre-fill to MAX_SEEN - 5, then record a payload that yields
+        // many more than 5 new shingles.
+        let mut s = Screen::new();
+        s.fill_synthetic(MAX_SEEN - 5);
+        assert!(s.seen.len() < MAX_SEEN);
+        // A varied, non-repetitive payload well over 5 distinct shingles.
+        let payload: Vec<u8> = (0u32..4096).flat_map(|i| i.to_le_bytes()).collect();
+        assert!(coverage(&payload).len() > 5, "test payload must generate > 5 shingles");
+        s.record(&payload);
+        assert!(
+            s.seen.len() <= MAX_SEEN,
+            "seen-set exceeded MAX_SEEN after record: {} > {}",
+            s.seen.len(),
+            MAX_SEEN
+        );
     }
 }
