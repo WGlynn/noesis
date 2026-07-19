@@ -32,18 +32,30 @@ between what is built, what is designed, and what is still open. A single status
 - **Built and tested** at the reference layer: the contribution-conservation core (value flows along
   provenance, sybil / padding / collusion drive to zero), Proof-of-Mind weighted finalization, the
   dispute and slashing mechanics, and the on-chain rules running as type-scripts inside CKB-VM. The
-  Rust implementation is exercised by **316 passing tests** (253 reference + 63 integration).
+  Rust implementation is exercised by a **358-test host suite** (including the 253 reference
+  structural-defense tests) plus integration suites (two-node join, durable restart, reorg rollback,
+  header binding).
 - **Designed, not yet built**: the cross-chain *convergence adapter* that actually lets a rival chain
   reverse-fork in. The non-zero-sum claim is a design thesis resting on a built conservation core and an
   unbuilt adapter. Claimable attribution is likewise designed, with consent guardrails (provenance is a
   fact, standing is inert until claimed, an explicit right to disclaim, and no unconsented payout).
-- **Open, and honestly inconclusive**: where value is scored by a *learned* function, that learned
-  measure has **not** yet been shown to beat a fixed structural proxy on real data. Its first real-data
-  test (DeepFunding) came back null: unsupported, not refuted. The faithful version of that test is the
-  next real experiment, not a settled result.
+- **Open, sharpening**: where value is scored by a *learned* function, the story has moved. On
+  DeepFunding jury labels, a learned measure over graph-topology features came back **null** (both the
+  quick proxy and the faithful set-level provenance-DAG port, ~0.54 vs a 0.50 floor). But a
+  **rich-feature** judge — real repo popularity, age, and funding history — predicts the same human
+  pairwise judgments at **0.68** held-out, so that null was a *feature-selection* artifact, not an
+  ML-judgement failure (`data/deepfunding/RESULTS-RICH-JUDGE.md`). Caveats we keep loud: the signal is
+  popularity-heavy, a repo-disjoint re-check is the open rigor step, and predicting *honest* labels
+  still does not test the *adversarial* un-gameability the moat actually claims — which rests on the
+  structural defense (built and tested). Net: the learned value layer is now **demonstrated upside**,
+  not a flat null; the moat itself is the structural defense, unchanged.
 
-There is no public network yet. This is a reference implementation, pre-launch. We would rather you back
-an honest design than an overclaimed demo.
+A live single-node public **testnet** now exists: the node serves its own wallet UI, mines and finalizes
+real signed contributions, and lets them build on each other — the provenance DAG, visible live. Honest
+caveats: it is single-node, the hosted URL may be ephemeral, and JUL on it is worthless by construction
+(low difficulty). Decentralized multi-producer consensus is under active build (designed, with the first
+increments — a reorgeable ledger and parent-block commitments — shipped). We would rather you back an
+honest design than an overclaimed demo.
 
 ---
 

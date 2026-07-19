@@ -278,14 +278,22 @@ collusion is *designed* — the stochastic-dominance result below removes the ri
 loophole but the symmetric lie is a *joint* deviation it does not by itself eliminate, so
 this half is closed only by a bonded information-score backstop, not yet proven. For (3),
 the retraining harness is wired but *data-blocked* (needs real outcome-preference data),
-the convergence theorem is open, and the first real-data test of the learned measure (on
-Ethereum Deep Funding jury labels) did not yet show the learned value beating a fixed
-structural proxy under the available graph proxies — unsupported, not refuted (the test
-used single-repo proxy features over a dependency graph, not the set-level features over a
-provenance DAG the measure is defined on), so a faithful provenance-feature port is the
-open test. **HCE today is therefore a result for property (1) and the cyclic half of
-property (2), and a labeled conjecture for the full three properties** — claimed as a
-named conjecture with its demonstrated core marked, not as a finished theorem.
+the convergence theorem is open, and the real-data tests of the learned measure (on
+Ethereum Deep Funding jury labels) split cleanly by feature set. Over *graph-topology*
+features the learned value did **not** beat a fixed structural proxy — both the single-repo
+proxy over the dependency graph and the faithful set-level provenance-DAG port returned
+~0.54 held-out pairwise accuracy vs a 0.50 floor (null, not refuted). But a **rich-feature**
+judge — real repo popularity, age, and funding history, features neither graph test used —
+predicts the same jury pairwise preferences at **0.68** held-out, so the null was a
+feature-selection artifact rather than an ML-judgement failure. Two honest bounds on that
+result: the signal is popularity-heavy, and a repo-disjoint split (vs the current pair
+split) is the open rigor step. Crucially, this is *predictive* validity on **honest** labels
+— it does not, and cannot on static honest data, test the **adversarial** un-gameability the
+moat actually claims, which rests on the demonstrated structural defense.
+**HCE today is therefore a result for property (1) and the cyclic half of property (2), a
+predictively-valid-but-not-yet-adversarially-tested learned measure for property (3), and a
+labeled conjecture for the full three together** — claimed as a named conjecture with its
+demonstrated core marked, not as a finished theorem.
 
 **Proof template for the self-report layer.** Two published results supply a template.
 Peer Elicitation Games (Chen et al., arXiv:2505.13636, 2025) prove a training-free game

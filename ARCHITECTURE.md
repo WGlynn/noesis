@@ -98,9 +98,14 @@ Pipeline (all `node/src/lib.rs`): `temporal_novelty` (`:89`) → `pom_scores` (`
 - Anti-gaming defenses are projections of one invariant (see `docs/ISOMORPHISM-INVARIANCE-VS.md`):
   within-identity λ^r, cross-identity μ^m, joint ρ^j damping; `attribution_circulation` +
   `attribution_cycle_energy` (Helmholtz–Hodge) → `collusion_slash`; θ_sim near-dup floor.
-- **🔬 open / THE moat:** learned `v(S)` on real DeepFunding labels (first real-data test
-  returned NULL, ROADMAP (ww)); general isomorphism-invariance gate (cand-A). Un-gameability is
-  claimed for *demonstrated* vectors only, never as a finished proof.
+- **🔬 open / THE moat:** learned `v(S)` on real DeepFunding labels — graph-topology features
+  returned NULL (both proxy + faithful set-level port, ~0.54; RESULTS-FAITHFUL), but a **rich-feature**
+  judge (stars/age/funding) predicts jury pairwise prefs at **0.68** vs the 0.54 null
+  (`data/deepfunding/RESULTS-RICH-JUDGE.md`) ⇒ predictively valid on honest labels, pending a
+  repo-disjoint re-check; signal is popularity-heavy. NB: honest-label prediction ≠ the *adversarial*
+  un-gameability the moat claims (that rests on the structural defense, 253/253). General
+  isomorphism-invariance gate (cand-A) still open. Un-gameability claimed for *demonstrated* vectors
+  only, never as a finished proof.
 
 ## Security model — see `SECURITY.md` (read it; don't paraphrase from here)
 
