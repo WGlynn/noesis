@@ -47,7 +47,7 @@ pub mod fungible {
             .iter()
             .filter(|c| same_token(c, code_hash, args))
             .map(amount)
-            .sum()
+            .fold(0u128, |acc, val| acc.saturating_add(val))
     }
 
     /// ERC-20 transfer invariant: output supply == input supply. Pure function of the tx.
@@ -217,6 +217,16 @@ mod tests {
         assert!(!fungible::conserves(&inp, &out, &FT, b"USD"));
         // and the mint path rejects it too, because the minter is not the issuer
         assert!(!fungible::mint_or_conserve(&inp, &out, &FT, b"USD", b"alice"));
+    }
+
+    #[test]
+    fn fungible_total_saturates_on_overflow() {
+        // Adversarial: many cells whose sum exceeds u128::MAX. A wrapping .sum() could
+        // wrap DOWN and let conserves()/mint_or_conserve() pass a forged supply. Saturating
+        // pins the total at u128::MAX so the overflow can never masquerade as a small number.
+        let big = (u128::MAX / 9) + 1;
+        let cells: Vec<Cell> = (0..10).map(|_| ft(b"USD", b"alice", big)).collect();
+        assert_eq!(fungible::total(&cells, &FT, b"USD"), u128::MAX);
     }
 
     #[test]
