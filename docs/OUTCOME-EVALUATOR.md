@@ -95,7 +95,11 @@ learned semantic floor, Role C) remains research.
   (mean delta +0.0021 over 20 seeds, wins 11/20, both ~0.56 vs a 0.50 floor). The "learned measure
   beats a fixed proxy / closes the Goodhart gap" claim is therefore **unsupported, NOT refuted**:
   the test used single-repo PROXY features over a DEPENDENCY graph, not the set-level features over
-  a PROVENANCE DAG this harness scores; the `load_prefs` data seam IS validated end-to-end. No doc
+  a PROVENANCE DAG this harness scores; the `load_prefs` data seam IS validated end-to-end.
+  **Update (`data/deepfunding/RESULTS-RICH-JUDGE.md`):** a *rich-feature* judge (repo
+  popularity/age/funding, not structural features) predicts the same jury prefs at **0.68** held-out,
+  so the null is specific to *structural* features — but that is popularity-heavy prediction on
+  *honest* labels, still not the *adversarial* un-gameability the moat claims. No doc
   may state the moat / un-gameability / Goodhart-closure as demonstrated. Adaptive-stability
   (HCE property 3) is DESIGNED / CONJECTURE, with this note attached. See the status ledger.
 - Outcome-set LABELS at scale, faithfully ported (the model + the held-out harness are built; the

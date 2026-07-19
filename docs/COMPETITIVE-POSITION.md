@@ -72,7 +72,11 @@ space, and it is genuinely uncontested.
   the learned model did NOT reliably beat the best fixed structural proxy (mean delta +0.0021
   over 20 seeds, wins 11/20). Honest frame: **unsupported, NOT refuted** — the test used
   single-repo proxy features over a dependency graph, not the set-level features over a
-  provenance DAG the reference harness scores; the faithful feature port is the open test. No
+  provenance DAG the reference harness scores. **Update (`data/deepfunding/RESULTS-RICH-JUDGE.md`):**
+  the faithful set-level port ALSO returned null on structural features, but a *rich-feature* judge
+  (repo popularity/age/funding) predicts the same jury prefs at **0.68** held-out — so the null is
+  specific to *structural* features. That is popularity-heavy prediction on *honest* labels, still not
+  the *adversarial* un-gameability the moat claims (which rests on the structural defense). No
   part of the doc may treat un-gameability / Goodhart-closure as demonstrated. Structured-but-
   valueless novelty remains the open 🔬 core bet. The economic dissolutions for the static and
   cyclic cases are a RESULT (built + tested); the adaptive/Goodhart-robust property is a

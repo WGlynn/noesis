@@ -148,9 +148,12 @@ together** (pairwise comparisons aggregated into a comparable scalar; see
 `POM-CONSENSUS.md` and the value-aggregation design). The aggregation math is tractable;
 the open frontier is the *quality of the inputs* — the value-oracle itself.
 
-> **Honest status: the value-oracle is the core open problem.** The first real-data test
-> of the learned value measure came back inconclusive, not confirming. The math that turns
-> comparisons into weights is standard; getting honest comparisons to feed it is the work.
+> **Honest status: the value-oracle is the core open problem.** The first real-data tests
+> of the learned value measure over *structural* features came back null. A *rich-feature* judge
+> (repo popularity/age/funding) does predict jury preferences at 0.68 held-out
+> (`data/deepfunding/RESULTS-RICH-JUDGE.md`) — but that is popularity-heavy prediction on *honest*
+> labels, not the *adversarial* un-gameability the oracle needs. The math that turns comparisons into
+> weights is standard; getting honest, un-gameable comparisons to feed it is the work.
 
 ## Where this sits in the product
 
