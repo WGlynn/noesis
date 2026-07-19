@@ -201,6 +201,11 @@
         accept=".rs,.js,.ts,.tsx,.jsx,.py,.go,.c,.h,.cpp,.cc,.hpp,.sol,.move,.md,.txt,.json,.toml,.yaml,.yml,.sh,.java,.rb,.php,.swift,.kt,.lua,.sql,text/*" />
       <span id="file-label">📎 Upload a code file — or drop it here. It reads into your contribution to review, then sign.</span>
     </label>
+    <label class="buildon" for="parent" style="display:flex;align-items:center;gap:8px;margin:4px 0 10px;font-size:.9em;opacity:.85">Build on
+      <select id="parent" style="flex:1;background:rgba(255,255,255,.05);color:inherit;border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:6px 8px">
+        <option value="">— nothing (foundational)</option>
+      </select>
+    </label>
     <button id="send">Sign &amp; submit</button>
     <div id="toast" class="toast"></div>
   </section>
@@ -215,6 +220,27 @@
     </div>
     <div class="board" id="board"></div>
   </section>
+
+  <!-- ============ Contribution graph (provenance DAG) ============ -->
+  <section class="card">
+    <h2>Contribution graph</h2>
+    <p style="margin-top:-6px;opacity:.7;font-size:.9em">Each contribution, what it builds on, and how many built on it — the on‑chain provenance that connects a contribution to whether it mattered.</p>
+    <div class="dag" id="dag"></div>
+  </section>
+  <style>
+    .dag{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+    .dnode{border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px 12px;background:rgba(255,255,255,.02)}
+    .dnode.you{border-color:rgba(120,180,255,.5);background:rgba(120,180,255,.06)}
+    .dhead{display:flex;align-items:center;gap:8px;font-size:.92em}
+    .dhead .dim{opacity:.6}
+    .dhead .nov{margin-left:auto;opacity:.7;font-size:.85em}
+    .dprev{opacity:.8;font-size:.88em;margin:6px 0;white-space:pre-wrap;word-break:break-word;max-height:3.2em;overflow:hidden}
+    .dedges{display:flex;gap:10px;font-size:.82em;flex-wrap:wrap}
+    .edge{padding:2px 8px;border-radius:999px}
+    .edge.up{background:rgba(255,200,120,.12);color:#ffce8a}
+    .edge.down{background:rgba(120,255,180,.12);color:#8affc0}
+    .edge.root{opacity:.5}
+  </style>
 
   <footer>
     <div class="cfg">
@@ -359,6 +385,54 @@
     }).join("");
   }
 
+  let contribs = [];
+  function escapeHtml(s) { return String(s).replace(/[<>&"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c])); }
+  function hx(a) { a = String(a || ""); return a.length > 12 ? a.slice(0, 6) + "…" + a.slice(-4) : a; }
+  function isMine(hex) { return wallet && (hex === wallet.address || hex === String(wallet.address).replace(/^0x/, "")); }
+
+  function renderDag(items) {
+    const el = $("dag");
+    if (!el) return;
+    if (!items.length) { el.innerHTML = '<div class="empty">No contributions yet — the graph grows as people build on each other.</div>'; return; }
+    const sorted = items.slice().sort((a, b) => (b.downstream - a.downstream) || (b.id - a.id));
+    el.innerHTML = sorted.map((c) => {
+      const you = isMine(c.contributor);
+      const prov = (c.parent !== null && c.parent !== undefined)
+        ? `<span class="edge up" title="builds on contribution #${c.parent}">↑ builds on #${c.parent}</span>`
+        : '<span class="edge root">● foundational</span>';
+      const down = c.downstream > 0 ? `<span class="edge down" title="${c.downstream} contributions build on this">↓ ${c.downstream} built on this</span>` : "";
+      const yg = you ? '<span class="metag">you</span>' : "";
+      return `<div class="dnode${you ? " you" : ""}">
+        <div class="dhead"><b class="mono">#${c.id}</b> <span class="mono dim">${hx(c.contributor)}</span>${yg}
+          <span class="nov" title="novelty score">ν ${c.novelty}</span></div>
+        <div class="dprev">${escapeHtml(c.preview)}</div>
+        <div class="dedges">${prov}${down}</div>
+      </div>`;
+    }).join("");
+  }
+
+  function populateParents(items) {
+    const sel = $("parent");
+    if (!sel) return;
+    const cur = sel.value;
+    const opts = ['<option value="">— nothing (foundational)</option>'].concat(
+      items.slice().sort((a, b) => b.id - a.id).map((c) => `<option value="${c.id}">#${c.id} · ${escapeHtml(c.preview.slice(0, 40))}</option>`)
+    );
+    sel.innerHTML = opts.join("");
+    if (cur) sel.value = cur;
+  }
+
+  async function refreshDag() {
+    try {
+      const r = await fetch(apiBase() + "/contributions", { cache: "no-store" });
+      if (!r.ok) return;
+      const j = await r.json();
+      contribs = j.contributions || [];
+      renderDag(contribs);
+      populateParents(contribs);
+    } catch (e) { /* an older node without /contributions — ignore */ }
+  }
+
   async function refresh() {
     try {
       const r = await fetch(apiBase() + "/state", { cache: "no-store" });
@@ -366,6 +440,7 @@
       const s = await r.json();
       render(s);
       setLive("up", `live · height ${s.height} · ${s.jul_issued} JUL`);
+      refreshDag();
     } catch (e) {
       setLive("down", "node unreachable — is `noesisd --serve-api` running?");
     }
@@ -400,6 +475,9 @@
         auth: sig.auth.map((a) => C.hexEncode(a)),
         data: data
       };
+      // optional provenance: the contribution this one builds on (forms the DAG + downstream events)
+      const parentSel = $("parent");
+      if (parentSel && parentSel.value) body.parent = Number(parentSel.value);
       const r = await fetch(apiBase() + "/submit", {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
       });
