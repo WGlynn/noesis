@@ -1,10 +1,27 @@
-# The Keystone — three Noesis problems are one missing primitive
+# Something From Nothing — the oracle-free content-value primitive
 
-> One-pager, 2026-07-19. Thesis: the value moat, the honest-self-report obligation, and the deployed
-> testnet's Sybil surface are **not three problems — they are one hole seen from three sides.** Close a
-> single primitive (an oracle-free signal of *content value*) and all three close at once. Everything
-> around it — identity, ordering, PoW, the economic wrappers — is already built. Status discipline:
-> ✅ built · 🟡 designed · 🔬 open — never round up.
+> One-pager, 2026-07-19. **The headline: an oracle-free signal of content value is how you solve the
+> "something out of nothing" problem** — and it is the single keystone behind three Noesis problems that
+> look separate. Everything around it — identity, ordering, PoW, the economic wrappers — is already
+> built. Status discipline: ✅ built · 🟡 designed · 🔬 open — never round up.
+
+## The something-out-of-nothing problem
+
+Every open system that rewards contribution faces the counterfeiter: someone who manufactures the
+*appearance* of value from worthless input — noise, padding, self-dealing — and walks off with real
+reward. Minting standing from junk is making **something from nothing.**
+
+Bitcoin solved the *monetary* version: you cannot mint coins from nothing, because a block costs energy
+(PoW). Noesis faces the harder version — you cannot mint **mind-value** (standing, recognition) from
+nothing. The naive fix is an **oracle**: a judge (a human, a model, a committee) that rules what counts
+as valuable. But an oracle is an external authority — an airgap, and airgaps are capturable. It does not
+solve something-from-nothing; it *relocates* it to whoever controls the oracle.
+
+So the whole game is to distinguish genuine value from noise **without an oracle** — intrinsically, by
+construction, with no external truth authority to capture. That is
+[[dissolution-over-solution-meta-pattern]] applied to value itself: do not *solve* the value-oracle
+problem, make it *unnecessary*. An **oracle-free content-value signal** is the primitive that does it —
+and it is one primitive, wearing three masks.
 
 ## The three faces
 
@@ -71,5 +88,6 @@ machinery.
 - **A private / permissioned single-node testnet is shippable now** — the operator is the only submitter,
   so the keystone gap is inert.
 
-The keystone is the moat. Close the content-value signal and Noesis's central claim — that standing
-reflects genuine contribution — becomes true by construction.
+The keystone is the moat. An oracle-free content-value signal is how you make it impossible to get
+**something (standing) from nothing (noise)** — and with it, Noesis's central claim, that standing
+reflects genuine contribution, becomes true by construction rather than by trust.
