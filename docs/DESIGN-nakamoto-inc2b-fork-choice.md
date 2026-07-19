@@ -1,6 +1,6 @@
-# DESIGN — inc-2b: the fork choice (heaviest PoS+PoM finality support) — ⚑ WILL REVIEW BEFORE BUILD
+# DESIGN — inc-2b: the fork choice (heaviest PoS+PoM finality support) — ✅ RATIFIED (Will 2026-07-19), NOT YET BUILT
 
-> Status: **ready-for-critique, NOT built.** Extends `DESIGN-multi-producer-nakamoto.md` (topology B,
+> Status: **decisions ratified, ready to build.** Extends `DESIGN-multi-producer-nakamoto.md` (topology B,
 > fork-choice option (ii) ratified 2026-07-19). inc-1 (reorgeable ledger, `node/src/reorg.rs`) and
 > inc-2a (`Block.parent_hash`, the fork-tree link) shipped. This designs the piece inc-1 left a
 > placeholder for: **what weight picks the canonical fork.** Consensus-critical ⇒ design-gate first.
@@ -35,7 +35,17 @@ the chain. The SAME PoS+PoM weights drive both fork choice (GHOST) and finalizat
 two layers are consistent by construction — the fork the validators are building toward is the fork they
 will finalize.
 
-## 2. ⚑ Decisions for Will
+## 2. ✅ Decisions — RATIFIED (Will 2026-07-19, "go with the leans")
+All four leans below are adopted as ratified. Build 2b-i/2b-ii against them; do NOT re-litigate.
+1. **Vote weight:** raw PoS+PoM weight for GHOST speed; the anti-concentration floor (`MIN_DIM_BPS`)
+   gates **finalization only**, not fork choice.
+2. **Vote transport:** a **separate lightweight attestation gossip channel** (validators must be able to
+   vote without producing a block).
+3. **Non-producing validators vote:** **yes** — LMD-GHOST needs the whole validator set attesting.
+   Confirms the attestation layer is genuinely new consensus data.
+4. **Tie-break:** lowest block hash (deterministic), matching inc-1's reorg tie rule.
+
+### Original ⚑ (for reference; superseded by the ratification above)
 1. **Vote weight = which dims exactly?** PoS+PoM per `FINALITY_MIX` (⅓:⅔)? Apply the anti-concentration
    floor (`MIN_DIM_BPS`) per-vote in GHOST, or only at the finalization checkpoint? (Lean: raw PoS+PoM
    weight for GHOST speed; anti-concentration only gates *finalization*, not fork choice.)
