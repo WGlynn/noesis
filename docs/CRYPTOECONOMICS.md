@@ -146,7 +146,7 @@ Will 2026-06-11: name each token by its proof, transparently.
 
 | Proof | Token | Earned by | Role |
 |---|---|---|---|
-| **Proof of Mind** | **PoM** (= Noeum, the byte) | verified contribution (temporal-novelty) | state-capacity: 1 PoM = 1 byte. Tradable (medium of exchange for state). |
+| **Proof of Mind** | **PoM-standing** (soulbound) → mints **state-bytes** | verified contribution (temporal-novelty) | soulbound consensus weight; the state-bytes it mints (1 byte each) are the tradable medium of exchange for state — the weight itself is never tradable. |
 | **Proof of Stake/Participation** | **VIBE** | voting + validating | governance / consensus franchise |
 | **Proof of Work** | **JUL** | SHA-256 mining, energy-pegged | money / stability layer |
 

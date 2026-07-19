@@ -60,7 +60,7 @@ flowchart TD
   CONTRIB["Block of thought (contribution)"] --> VAL["Value: temporal-novelty × learned quality<br/>sybil / padding / collusion → 0"]
   VAL --> POM["Proof-of-Mind score<br/>(accumulated synergy value)"]
   POM --> STAND["SOULBOUND standing<br/>consensus weight + right-to-mint"]
-  POM --> BYTES["TRANSFERABLE state-bytes<br/>medium of exchange (1 Noeum = 1 byte)"]
+  POM --> BYTES["mints TRANSFERABLE state-bytes<br/>medium of exchange (1 state-byte = 1 byte of state)"]
   STAND --> CONS["PoM-weighted finalization<br/>(2/3, retention-decay, quorum floor)"]
   CONS --> ENF["The chain disciplines the model"]
   ENF -.-> CONTRIB
@@ -131,8 +131,10 @@ determinism comes from canonical fixed-point arithmetic.
 - **The honest status of every claim:** [`internal/STATUS-LEDGER.md`](internal/STATUS-LEDGER.md).
 - **The plan:** [`ROADMAP.md`](ROADMAP.md).
 
-> Naming: **Noēsis** is the network (the act of mind). **Noeum** is the unit (1 Noeum = 1 byte of state
-> = 1 PoM unit). Core inspiration: Nervos CKB.
+> Naming: **Noēsis** is the network (the act of mind). Consensus weight is **PoM-standing** —
+> soulbound and unpurchasable. It mints a separate, transferable state unit, **state-bytes**
+> (1 state-byte = 1 byte of on-chain state) — the tradable capacity, never the weight. Core
+> inspiration: Nervos CKB.
 
 ## License
 

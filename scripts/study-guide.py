@@ -44,7 +44,7 @@ READ_ORDER = [
 
 GLOSSARY = {
     "PoM (Proof of Mind)": "verified, synergy-weighted contribution as consensus weight, replacing Proof of Work.",
-    "Noeum": "the unit — 1 Noeum = 1 byte of state = 1 PoM unit.",
+    "state-bytes": "the transferable state unit MINTED BY PoM-standing — 1 state-byte = 1 byte of on-chain state; the soulbound PoM-standing (consensus weight) is never these bytes.",
     "temporal-novelty": "value = coverage novel vs earlier-committed blocks (commit-reveal order); strategyproof by construction.",
     "floored novelty": "temporal-novelty after the similarity floor zeroes near-duplicates.",
     "realized-flow gate (v5)": "value = floored_novelty x g(downstream_flow); quality is a realized GATE, not a predicted boost.",
