@@ -217,15 +217,22 @@ does not convert capital into recognition. That separation is the entire content
 | Commit-reveal ordering | strategyproof value order | ✅ built |
 | PoW / issuance | objective ordering, Sybil-cost, money (JUL) | ✅ built |
 | Value seam (`ValueOracle`) | oracle-free obligation, swap point | ✅ built (interface + tests) |
-| v0 novelty + similarity floor | duplication defense (the floor) | ✅ built |
-| Dispute market (challenge/verdict/slash, escalation) | adjudicate the claim gap | ✅ built |
+| v0 novelty + similarity floor | duplication defense (the deployed testnet floor) | ✅ built + **deployed** |
+| v5–v8 value factors + structural defense (semantic/entropy floor, Hodge-residual slash, v6 identity pricing) | multi-factor value + anti-relabel defenses | ✅ built + tested (behind the seam; **not** the deployed testnet franchise) |
+| Dispute market (challenge/verdict/slash, escalation court) | adjudicate the claim gap | ✅ built |
 | State-rent / vesting | carrying cost substrate for a self-assessed price | ✅ present |
 | Harberger self-assessed claim price | stake the self-report | 🟡 designed |
 | Peer-prediction content signal (PEG/SD) | oracle-free content value | 🟡 designed · 🔬 2 open theorems |
 | **Learned, oracle-free `v(S)`** | **the keystone** | **🔬 open, data-gated** |
 
 The security of the whole against the counterfeiter reduces to the last row. Every other component is
-built or designed; the residual open problem is a single primitive.
+built or designed; the residual open problem is a single primitive. Note the built/deployed distinction:
+the multi-factor value functions and the structural anti-relabel defenses are implemented and tested,
+but the *deployed testnet* intake franchise runs only the v0 floor — so a public permissionless launch
+needs an interim economic/admission brake, whose adversarial failure envelope is measured (driving the
+real scorer) in `v0-sybil-failure-envelope-2026-07-19.md`: with a per-identity cap, captured standing is
+≈ F/(N+F), so a per-identity cap alone loses to costless keygen and an allowlist / proof-of-personhood
+bounding identity count is the load-bearing bootstrap brake.
 
 ## 7. Open problems
 
