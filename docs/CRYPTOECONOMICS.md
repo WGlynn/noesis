@@ -5,8 +5,12 @@
 
 ## The model
 
-**1 PoM = 1 byte of on-chain state.** Storage is the scarce resource (CKB's
-insight); PoM is the right to occupy it. Your accumulated PoM is your state budget.
+**1 PoM-standing = the right to mint 1 byte of on-chain state.** Storage is the scarce
+resource (CKB's insight). Your **PoM-standing** is that right — the soulbound, unbuyable
+consensus weight — and it mints **state-bytes** (1 byte each) that, once minted, trade
+freely. The standing is never the bytes: you cannot sell your weight, only the transferable
+capacity it produces. (Shorthand "1 PoM = 1 byte" means this 1:1 mint right, not that
+standing itself is the tradable byte.)
 
 ## Port / reinterpret / augment
 
@@ -169,7 +173,7 @@ not from holding PoM-bytes — else buyable bytes = buyable consensus. Pin this 
   (cf. Lawson-floor) or a minimum-capacity grant per active contributor. 🟡
 - **Decay rate / half-life:** a parameter (cf. the contribution-graph decay) — set by
   how fast "state relevance" ages. 🔬
-- **Bridge to a tradable unit:** is PoM itself transferable as the byte-token, or is
-  there a separate liquid layer (cf. JUL=money / VIBE=gov / state-rent split)? Likely a
-  three-role split as in the existing token architecture. 🟡
+- **Bridge to a tradable unit (RESOLVED):** PoM-standing is soulbound and is NEVER the
+  byte-token; the transferable layer is the separate **state-bytes** it mints. Three-role
+  split ratified: JUL=money / VIBE=gov / state-bytes=capital. ✅
 - ties: [P·dual-cap-monetary-architecture] · [F·jul-is-primary-liquidity] · CKB state-rent · [P·cell-knowledge-architecture].
