@@ -241,7 +241,12 @@ Sybil rings, dispute slashing makes lying negative-EV — which is built and dem
 learned model is upside on top, not the foundation. The genuine residual is therefore the **robustness of
 that built defense against a real *adaptive* adversary** (constructed gaming fixtures pass; an adaptive,
 co-evolving attacker is untested — HCE-3) plus the general graph-isomorphism theorem — neither of which is
-unblocked by more data.
+unblocked by more data. Two reproducible simulations, driving the real value functions, make this
+concrete: `node/examples/sybil_sim.rs` shows the deployed v0 franchise is farmable (share ≈ F/(N+F)),
+and `node/examples/moat_sim.rs` shows the structural identity-pricing layer closing a fresh-key Sybil
+ring that v0 and v5 pay (v0 pays 61, v5 leaks 28.3, v6 pays 0) — with the honest symmetry that the same
+layer under-pays an *isolated honest newcomer* at cold-start, which is why the deployed floor plus
+admission control bridge bootstrap.
 
 Note the built/deployed distinction: the structural defense and the multi-factor value functions are
 implemented and tested, but the *deployed testnet* intake franchise runs only the v0 floor — so a public
