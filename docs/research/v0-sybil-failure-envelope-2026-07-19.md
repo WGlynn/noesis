@@ -112,6 +112,26 @@ not value*, designed to dissolve as the realized-value moat comes online. The el
 reviewer would want does not yet exist in an oracle-free form — and saying so is more useful than
 manufacturing one.
 
+## Edge case — the sincere over-reporter (and the visionary false-negative)
+
+A self-assessed price assumes over-reporting is *cynical*. What if it is *sincere* — the reporter truly
+believes worthless content is valuable (delusion), or is right but ahead of consensus?
+
+- **Sincerely wrong, and wrong (delusion).** The mechanism is intent-agnostic by design and this is
+  correct: it prices the claim against adjudicated value, never against honesty-of-belief. A sincere
+  over-reporter is slashed exactly like a fraudster — the protocol cannot diagnose a mind (that would be
+  an oracle into intent) and should not; the commons is protected regardless of *why* the content is
+  worthless, and the reporter can only lose what they staked (bounded).
+- **Sincerely "wrong" by current consensus, but actually right (the visionary).** This is the real
+  danger — value keyed on *present* opinion punishes work that is early. Two design forces push back:
+  the moat is **realized downstream value over time** ("did another mind build on it"), not opinion — so
+  genuinely valuable work is vindicated when it is used, not when it is voted on; and Differential
+  Incompleteness treats a persistent value dispute as **diagnostic of a missing dimension** (resolve by
+  *completing* the value function, not by slashing). **Residual, open: recognition-lag vs the settlement
+  window.** If value is realized slower than the vesting/dispute window `W`, the visionary is slashed
+  before the use that would vindicate them arrives. Any finite-time value settlement has this failure
+  mode; `W` is a dial with no setting right for every case.
+
 ## Honest limits of this simulation
 
 - It models the **intake franchise** (novelty + θ_sim + cap), not the full stack; the dispute market and
