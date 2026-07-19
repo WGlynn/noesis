@@ -70,6 +70,11 @@ load-bearing bootstrap brake.
 downstream-flow gate), so cross-citation among farmer identities changes nothing — share at N=10, F=10
 is 50.7% with or without collusion. Collusion first bites at the v5+ realized-flow layer, not here.
 
+## v0's stated guarantee (adopt verbatim)
+
+**v0 provides bounded identity capture — not value measurement, and not anti-collusion.** (Label
+crystallized in review, 2026-07-19.) Everything below is that sentence, shown.
+
 ## The envelope, stated plainly
 
 1. **The cap is necessary but not sufficient.** It bounds per-identity damage; it does not bound total
@@ -83,6 +88,29 @@ is 50.7% with or without collusion. Collusion first bites at the v5+ realized-fl
 4. **These are training wheels.** They relax as the moat (learned oracle-free `v(S)`) and the dispute
    market — which make cheap content negative-EV structurally rather than by admission control — come
    online with graph history.
+
+## The admission rule — an open decision, not a solved one
+
+Since identity-count control is the load-bearing brake, the natural next question is *what admission
+rule bounds the trickle, and what makes an identity eligible.* We do not publish a specific rule yet,
+and the honesty here matters: **any admission rule is itself an authority — the same airgap the design
+exists to dissolve, moved up one level.** Worse, at bootstrap there is **no oracle-free legitimacy
+signal** to key it on, because legitimacy in this system *is* realized contribution value, which does
+not exist until the graph has history. So admission necessarily imports an external signal; the honest
+move is to name which one and its failure mode, not to dress it as structural.
+
+| Candidate | Eligibility signal | Honest failure mode |
+|---|---|---|
+| Founder-curated allowlist | operator judgment | capturable authority; does not scale |
+| Bounded-fan-out invites | an admitted identity vouches for ≤ k more | Sybil-able if invites leak or the seed colludes |
+| External proof-of-personhood | third-party uniqueness (BrightID/Worldcoin-class) | heavy external oracle; privacy + its own capture surface |
+| Per-identity proof-of-work | real compute per identity | only shifts the budget line a funded farmer can still cross |
+
+**Current lean (not locked):** founder curation for the genuine first cohort → bounded-fan-out invites
+as it grows, published explicitly as a *temporary, bounded-harm authority that gates identity count and
+not value*, designed to dissolve as the realized-value moat comes online. The eligibility signal a
+reviewer would want does not yet exist in an oracle-free form — and saying so is more useful than
+manufacturing one.
 
 ## Honest limits of this simulation
 
