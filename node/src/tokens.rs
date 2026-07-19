@@ -164,7 +164,11 @@ pub mod multi {
         let mut m: HashMap<u32, u128> = HashMap::new();
         for c in cells.iter().filter(|c| same_token(c, code_hash, args)) {
             if let Some((id, amt)) = entry(c) {
-                *m.entry(id).or_insert(0) += amt;
+                // saturating: a crafted set of cells whose amounts sum past u128::MAX must not
+                // wrap a total down and let conserves() falsely balance (forged supply). Mirrors
+                // fungible::total; byte-identical for any real (non-overflowing) token set.
+                let slot = m.entry(id).or_insert(0);
+                *slot = slot.saturating_add(amt);
             }
         }
         m

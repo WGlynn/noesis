@@ -254,7 +254,10 @@ pub fn pom_scores(cells_in_commit_order: &[Cell]) -> HashMap<Vec<u8>, u64> {
     let vals = temporal_novelty(cells_in_commit_order);
     let mut pom: HashMap<Vec<u8>, u64> = HashMap::new();
     for (c, v) in cells_in_commit_order.iter().zip(vals) {
-        *pom.entry(c.type_script.args.clone()).or_insert(0) += v;
+        // saturating: standing must never wrap to a small value on u64 overflow (mirrors the
+        // token-total clamps); byte-identical for any real novelty aggregate.
+        let slot = pom.entry(c.type_script.args.clone()).or_insert(0);
+        *slot = slot.saturating_add(v);
     }
     pom
 }
@@ -309,7 +312,10 @@ pub fn pom_scores_with_oracle<O: ValueOracle>(
     let vals = oracle.cell_values(cells_in_commit_order, theta_sim_q16);
     let mut pom: HashMap<Vec<u8>, u64> = HashMap::new();
     for (c, v) in cells_in_commit_order.iter().zip(vals) {
-        *pom.entry(c.type_script.args.clone()).or_insert(0) += v;
+        // saturating: standing must never wrap to a small value on u64 overflow (mirrors the
+        // token-total clamps); byte-identical for any real novelty aggregate.
+        let slot = pom.entry(c.type_script.args.clone()).or_insert(0);
+        *slot = slot.saturating_add(v);
     }
     pom
 }
