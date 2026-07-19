@@ -90,6 +90,11 @@ struct WBlock {
     /// `bonds`/`timestamp`/`pow`/`coinbase`.
     #[serde(default)]
     subblock_root: Option<[u8; 32]>,
+    /// Parent-block commitment (inc-2a). `#[serde(default)]` ⇒ pre-inc-2a block logs (no field) decode
+    /// as `None`, preserving byte-identical restart/replay — the same additive precedent as
+    /// `subblock_root`/`bonds`/`timestamp`.
+    #[serde(default)]
+    parent_hash: Option<[u8; 32]>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -149,6 +154,7 @@ fn w_block(b: &Block) -> WBlock {
             .map(|bd| WBond { for_cell: bd.for_cell, deposit: w_cell(&bd.deposit), auth: bd.auth.clone() })
             .collect(),
         subblock_root: b.subblock_root,
+        parent_hash: b.parent_hash,
     }
 }
 
@@ -203,6 +209,7 @@ fn r_block(b: WBlock) -> Result<Block, WireError> {
             .map(|bd| Bond { for_cell: bd.for_cell, deposit: r_cell(bd.deposit), auth: bd.auth })
             .collect(),
         subblock_root: b.subblock_root,
+        parent_hash: b.parent_hash,
     })
 }
 

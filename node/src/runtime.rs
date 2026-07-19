@@ -614,6 +614,17 @@ pub struct Block {
     /// verifier recomputes it over the block's own re-included txs ([`subblock::verify_absorption_root`]); it
     /// also enables light-client inclusion proofs against the header.
     pub subblock_root: Option<[u8; 32]>,
+    /// Parent-block commitment (inc-2a, `docs/DESIGN-multi-producer-nakamoto.md`): the predecessor
+    /// block's [`header_digest`]. Under topology B (multi-producer Nakamoto), a fork TREE needs each
+    /// block to name which block it extends — canonical order alone (coords) links cells WITHIN a
+    /// block, never blocks across a fork. `None` ⇒ no parent claimed (pre-inc-2a blocks + the
+    /// genesis-child) ⇒ replay-parity preserved (the `subblock_root`/`timestamp`/`pow` additive
+    /// precedent). Bound into [`header_digest`] option-tagged, so under `pow_enforced` a solved seal
+    /// cannot be re-parented onto a different predecessor (moving a block between forks changes its
+    /// header ⇒ its work no longer counts on the new fork). INERT ADDITIVE for now: the field is
+    /// carried + bound, but the fork-choice path that READS it (heaviest PoS+PoM finality support,
+    /// topology (ii)) is inc-2b — no consensus path reads it yet, never folded into `state_digest`.
+    pub parent_hash: Option<[u8; 32]>,
 }
 
 impl Block {
@@ -634,6 +645,7 @@ impl Block {
             timestamp: None,
             bonds: Vec::new(),
             subblock_root: None,
+            parent_hash: None,
         }
     }
 
@@ -679,6 +691,14 @@ impl Block {
     /// only binds their [`subblock::subblock_txs_root`] into the header so the PoW seal proves the set.
     pub fn with_subblock_root(mut self, root: [u8; 32]) -> Block {
         self.subblock_root = Some(root);
+        self
+    }
+
+    /// Name this block's parent by its [`header_digest`] (inc-2a builder; `None` by default). Under
+    /// topology B this is what places the block on a specific fork; bound into the header so the PoW
+    /// seal proves the parent (a re-parented block is a different block).
+    pub fn with_parent_hash(mut self, parent: [u8; 32]) -> Block {
+        self.parent_hash = Some(parent);
         self
     }
 }
@@ -820,6 +840,18 @@ pub fn header_digest(b: &Block) -> [u8; 32] {
         Some(root) => {
             buf.push(1);
             buf.extend_from_slice(&root);
+        }
+    }
+    // inc-2a: bind the parent-block commitment (option-tagged like `subblock_root`/`timestamp`:
+    // 0 = none, 1 + 32 bytes = present). Under `pow_enforced` this makes the seal a PROOF over the
+    // parent — a solved hash cannot be re-parented onto a different predecessor, so a block's work
+    // counts on exactly the fork it was mined for (the topology-B fork-tree integrity property). Inert
+    // when `None` (every pre-inc-2a block ⇒ byte-identical digest ⇒ replay-parity).
+    match b.parent_hash {
+        None => buf.push(0),
+        Some(parent) => {
+            buf.push(1);
+            buf.extend_from_slice(&parent);
         }
     }
     noesis_core::pow::hash(&buf)
