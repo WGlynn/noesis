@@ -4604,7 +4604,10 @@ pub mod dispute {
             if *share <= 0.0 {
                 continue;
             }
-            let amt = p.lambda * share + p.alpha;
+            // λ,α clamped to non-negative: a misconfigured (negative) restitution or
+            // deterrence param can never make a slash NEGATIVE and burn a mint into
+            // existence. Mirrors the β,γ clamps below — byte-identical for valid (≥0) params.
+            let amt = p.lambda.max(0.0) * share + p.alpha.max(0.0);
             slashes.push((who.clone(), amt));
             total_slashed += amt;
         }
@@ -4680,7 +4683,9 @@ pub mod dispute {
             if *share <= 0.0 || !convicts(who) {
                 continue;
             }
-            let amt = p.lambda * share + p.alpha;
+            // λ,α clamped to non-negative (see resolve_refuted): a negative param can
+            // never produce a NEGATIVE slash. Byte-identical for valid (≥0) params.
+            let amt = p.lambda.max(0.0) * share + p.alpha.max(0.0);
             slashes.push((who.clone(), amt));
             total_slashed += amt;
         }
@@ -5685,6 +5690,26 @@ pub mod dispute {
             let u = resolve_upheld(&c, &bad);
             assert!(u.burned >= 0.0, "upheld path: clamped γ keeps burn non-negative");
             assert!(u.author_compensation <= c.bond, "compensation bounded by the bond");
+        }
+
+        #[test]
+        fn negative_lambda_alpha_cannot_produce_a_negative_slash() {
+            // Backlog neg-alpha-refuted: a misconfigured (negative) restitution λ or
+            // deterrence α must never make a slash negative — that would drive total_slashed
+            // (and hence burned) below zero, breaking the mint↔sink conservation law.
+            let bad = Params { window: 10, lambda: -1.0, alpha: -10.0, beta: 0.0, gamma: 0.0 };
+            let mut entries = vec![VestingEntry { cell_id: 7, amount: 20.0, realized_epoch: 100 }];
+            let c = Challenge { target: 7, challenger: vec![1], bond: 4.0, opened_epoch: 101 };
+            let s = resolve_refuted(&mut entries, &c, &bad, &[(vec![5u8], 5.0)]);
+            for (_, amt) in &s.slashes {
+                assert!(*amt >= 0.0, "negative λ/α must not yield a negative slash");
+            }
+            assert!(s.burned >= 0.0, "conservation: burned stays non-negative under negative λ,α");
+            // Valid (non-negative) params are unaffected: λ=1,α=0.5,share=5 ⇒ amt = 5.5.
+            let good = Params { window: 10, lambda: 1.0, alpha: 0.5, beta: 0.0, gamma: 0.0 };
+            let mut e2 = vec![VestingEntry { cell_id: 7, amount: 20.0, realized_epoch: 100 }];
+            let g = resolve_refuted(&mut e2, &c, &good, &[(vec![5u8], 5.0)]);
+            assert_eq!(g.slashes, vec![(vec![5u8], 5.5)], "valid params: byte-identical behavior");
         }
 
         #[test]
