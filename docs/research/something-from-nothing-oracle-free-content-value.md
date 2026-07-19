@@ -21,8 +21,11 @@ argue the oracle-free requirement, and present an architecture in which an oracl
 function `v(S)` feeds soulbound standing, wrapped by three composable layers — peer-prediction to score
 content, a self-assessed (Harberger-style) price to stake the claim, and a dispute market to adjudicate
 the gap — under a load-bearing separation invariant: **payment must never buy standing**. We report
-which parts are implemented and isolate the single open primitive — a learned, oracle-free `v(S)` — on
-which the whole reduces. We position the work carefully against the useful-work, subjective-consensus,
+which parts are implemented — the moat is the built structural defense, demonstrated against constructed
+adversaries — and correct a seductive but false reduction: a *learned* `v(S)` that predicts value is
+**null on real data**, so the residual is not a missing predictor but the built defense's robustness
+against a real *adaptive* adversary. ("Oracle-free" throughout means no immediate per-decision oracle;
+the design anchors on aggregate realized outcomes that retrain the value function over time.) We position the work carefully against the useful-work, subjective-consensus,
 and reputation-consensus lineages, several of which pre-empt weaker versions of our claims.
 
 ## 1. Introduction
@@ -223,24 +226,38 @@ does not convert capital into recognition. That separation is the entire content
 | State-rent / vesting | carrying cost substrate for a self-assessed price | ✅ present |
 | Harberger self-assessed claim price | stake the self-report | 🟡 designed |
 | Peer-prediction content signal (PEG/SD) | oracle-free content value | 🟡 designed · 🔬 2 open theorems |
-| **Learned, oracle-free `v(S)`** | **the keystone** | **🔬 open, data-gated** |
+| **Structural layered defense** (submodular coverage · Myerson-restriction · semantic floor · Hodge-residual slash · identity pricing · endorsement/escalation slashing) | **the moat** — makes gaming unprofitable, terminating in a Bitcoin-51%-class global-capture assumption | ✅ built + demonstrated (253/253) vs *constructed* adversaries |
+| Learned *predictive* `v(S)` (a model that beats the fixed structural proxy at predicting reuse) | quality *upside*, **not** the moat | 🔬 **NULL ×3** on real non-degenerate data (crates.io, 299k crates) — not load-bearing |
 
-The security of the whole against the counterfeiter reduces to the last row. Every other component is
-built or designed; the residual open problem is a single primitive. Note the built/deployed distinction:
-the multi-factor value functions and the structural anti-relabel defenses are implemented and tested,
-but the *deployed testnet* intake franchise runs only the v0 floor — so a public permissionless launch
-needs an interim economic/admission brake, whose adversarial failure envelope is measured (driving the
-real scorer) in `v0-sybil-failure-envelope-2026-07-19.md`: with a per-identity cap, captured standing is
-≈ F/(N+F), so a per-identity cap alone loses to costless keygen and an allowlist / proof-of-personhood
+**Correcting a natural but wrong reduction (this is the honest result, `data/crates/RESULTS.md`).** It
+is tempting to say security "reduces to a learned, oracle-free `v(S)`." It does not. A learned model
+that *predicts* downstream reuse better than the fixed structural proxy is **null three times** — twice
+on DeepFunding (a topology artefact) and, decisively, once on the non-degenerate crates.io graph (learned
+0.5201 vs proxy 0.5167, inside the ±0.0144 noise band). The four structural features explain only a
+sliver of realized reuse, and no learned scoring of them reliably beats the proxy. So the moat is **not**
+a missing predictor. The moat is the **structural layered defense** — submodularity kills padding,
+Myerson-restriction kills disconnected rings, the semantic floor kills noise, identity pricing kills
+Sybil rings, dispute slashing makes lying negative-EV — which is built and demonstrated (253/253). The
+learned model is upside on top, not the foundation. The genuine residual is therefore the **robustness of
+that built defense against a real *adaptive* adversary** (constructed gaming fixtures pass; an adaptive,
+co-evolving attacker is untested — HCE-3) plus the general graph-isomorphism theorem — neither of which is
+unblocked by more data.
+
+Note the built/deployed distinction: the structural defense and the multi-factor value functions are
+implemented and tested, but the *deployed testnet* intake franchise runs only the v0 floor — so a public
+permissionless launch needs an interim admission brake, whose adversarial failure envelope is measured
+(driving the real scorer) in `v0-sybil-failure-envelope-2026-07-19.md`: with a per-identity cap, captured
+standing is ≈ F/(N+F), so the cap alone loses to costless keygen and an allowlist / proof-of-personhood
 bounding identity count is the load-bearing bootstrap brake.
 
 ## 7. Open problems
 
-1. **The keystone: a learned, oracle-free `v(S)`.** A value model trained on real contribution outcomes
-   that (i) satisfies the seam's determinism contract, (ii) is not gameable by the vectors v0 leaves
-   open (novel-worthlessness, structured-but-valueless, self-report rings), and (iii) can be run or
-   verified oracle-free (e.g. via the peer-prediction substrate or succinct verification). This is the
-   moat and it is open.
+1. **Adaptive-adversary robustness of the structural defense (the real residual).** The layered defense
+   is demonstrated against *constructed* gaming fixtures (253/253) and reproduces directionally on real
+   crates.io feature distributions, but it has not been measured against a real *adaptive* adversary that
+   co-evolves with the retraining dynamic (HCE-3, adaptive-stability / Goodhart-robustness). The learned
+   *predictive* `v(S)` that was expected to strengthen it is null three times on real, non-degenerate
+   data — quality upside, not the moat. The open problem is adaptive robustness, not a better predictor.
 2. **Anti-plutocratic pricing.** The `V →` standing-weight relation must not let a self-priced claim
    scale franchise weight, or §5.4 is violated. Formalizing the safe class of pricing maps is open.
 3. **Peer-prediction on a provenance graph.** Graph-generalization and inner-equilibrium uniqueness for
@@ -259,11 +276,15 @@ anything," and the counterfeiter attacks exactly there — making standing from 
 nothing. An oracle cannot answer it without becoming the new thing to capture; the answer must be
 oracle-free. We have framed the problem, argued the constraint, positioned it honestly against the
 useful-work, subjective-consensus, and reputation lineages, and given an architecture that satisfies the
-oracle-free constraint for its wrapper and reduces the residual to one open primitive — a learned,
-oracle-free content-value signal, stake-wrapped by a self-assessed price and adjudicated by a dispute
-market, under the invariant that payment never buys standing. The keystone is the moat: close the
-content-value signal and the claim that standing reflects genuine contribution becomes true by
-construction rather than by trust.
+oracle-free constraint for its wrapper. The moat is the **structural layered defense** — built and
+demonstrated against constructed adversaries — stake-wrapped by a self-assessed price and adjudicated by
+a dispute market, under the invariant that payment never buys standing. Honesty demands a caveat we
+carry throughout: "oracle-free" means **no immediate per-decision oracle**; the design does anchor on
+*aggregate* realized outcomes, which retrain the value function over time. And it demands a correction to
+the seductive story: the moat is *not* a learned model that predicts value — that predictor is null on
+real data — it is the structure that makes gaming unprofitable. The residual is that defense's robustness
+against a real adaptive adversary. Close *that*, and the claim that standing reflects genuine contribution
+becomes true by construction rather than by trust.
 
 ## References (verified in the novelty audit; not exhaustive)
 
