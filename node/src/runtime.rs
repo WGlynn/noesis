@@ -180,6 +180,12 @@ impl Default for Constitution {
 /// The replicated state: finalized cells in canonical commit order, the novelty index
 /// over their coverage, the PoM standing each contributor has earned, and the height.
 /// Two honest nodes applying the same finalized blocks hold equal [`Ledger::state_digest`].
+///
+/// `Clone` is load-bearing for the reorgeable tip (`crate::reorg`, DESIGN-multi-producer-nakamoto):
+/// a finality snapshot is a FULL clone, so a reorg restores every finalized-state field structurally
+/// (§3.4 — standing + novelty roll back with the chain, guaranteed by cloning the whole state rather
+/// than hand-maintained per-field undo). All fields are already owned + cloneable.
+#[derive(Clone)]
 pub struct Ledger {
     /// finalized cells, globally canonical (height ascending, then in-block shuffle slot).
     pub cells: Vec<Cell>,
@@ -1337,7 +1343,7 @@ pub(crate) fn txs_conserve_and_single_use(live: &[Cell], txs: &[TokenTx]) -> boo
 /// thread the `Ledger` + measurement params explicitly instead of `&mut self`. DETERMINISTIC:
 /// identical `(state, block, params)` ⇒ identical next state. Uses `&mut` purely as a zero-copy impl
 /// detail of the owned-in/owned-out [`apply_block`]; it performs no I/O, reads no clock/rand/float.
-fn apply_transition(state: &mut Ledger, b: &Block, params: &Constitution) {
+pub(crate) fn apply_transition(state: &mut Ledger, b: &Block, params: &Constitution) {
     // TOKEN STATE TRANSITION (over the SEPARATE `token_cells` set, never `cells`):
     //   (a) CROSS-BLOCK single-use — retire each consumed token input (UTXO retirement), so a later
     //       block's existence check fails for an already-spent cell; then

@@ -117,6 +117,13 @@ pub mod store;
 /// converges to the structural defense (`docs/DESIGN-authorityless-contribution-value.md` §5).
 pub mod screen;
 
+/// reorg — inc-1 of multi-producer Nakamoto (`docs/DESIGN-multi-producer-nakamoto.md`): the reorgeable
+/// PoW tip beneath the PoS+PoM finality gadget. A FINALIZED snapshot is immutable; the reorgeable
+/// suffix above it can be swapped for a heavier valid one (heaviest-cumulative-work fork choice). A
+/// snapshot is a full `Ledger` clone, so a reorg rolls back EVERY finalized-state field — standing,
+/// novelty index, tokens, work clock — structurally (§3.4), not by hand-maintained per-field undo.
+pub mod reorg;
+
 /// A CKB-style script: a RISC-V program (by code hash) + its arguments. VM success
 /// = valid. Lock scripts gate ownership; type scripts gate state transitions.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -8217,6 +8224,11 @@ pub mod smt {
 
     /// Off-VM maintainer of the index (the consensus-derived state). Node hashes are
     /// stored sparsely; absent nodes are the height's empty hash.
+    ///
+    /// `Clone` supports the reorgeable-tip snapshot (`crate::reorg`): both fields are plain owned
+    /// data (a `HashMap` of `Copy` hashes + a fixed empty-hash array), so a clone is a cheap exact
+    /// copy of the novelty state — what lets a reorg roll the index back with the rest of the ledger.
+    #[derive(Clone)]
     pub struct NoveltyIndex {
         nodes: HashMap<(usize, u64), Hash>, // (height, prefix-above-height) -> hash
         empty: [Hash; DEPTH + 1],
