@@ -93,7 +93,7 @@ impl ChainSpec {
     /// (`CONTROL_BINDING_ACTIVE` etc.) stay `false` until the deploy-coupled go-live flip (Will-gated).
     ///
     /// JUL ON TESTNET (the resolved design — dial the PARAMETER, never the MECHANISM): PoW stays fully
-    /// in consensus (`pow_enforced = true`) so the testnet tests the REAL security model, and JUL mints
+    /// in consensus (`pow_enforced = true`) so the testnet tests the real PoW / issuance security model, and JUL mints
     /// from work through the exact same path as mainnet (`block_work → reward_for_work`). The money layer
     /// is genuinely exercised. But because difficulty is LOW, the energy behind a block is a few thousand
     /// CPU hashes (microseconds, no GPU, no meaningful electricity) — so testnet JUL is a
@@ -101,8 +101,16 @@ impl ChainSpec {
     /// a testnet). The energy-peg is an EMERGENT property of HIGH (mainnet) difficulty, not a coded flag;
     /// lowering difficulty makes JUL a test token with ZERO consensus change. NEVER set
     /// `pow_enforced = false` to "save power" — that removes PoW from consensus, breaks the
-    /// genesis-admission invariants, and stops the testnet testing the real thing. Honest scope: low
-    /// difficulty ⇒ low Sybil-cost / cheap blocks, which is expected and correct FOR a testnet.
+    /// genesis-admission invariants, and stops the testnet testing the real thing. Honest scope (do NOT
+    /// round up): low difficulty ⇒ low Sybil-cost / cheap blocks, expected FOR a testnet. AND, SEPARATELY,
+    /// the PoM CONTRIBUTION FRANCHISE ships at the v0 novelty floor (`pom_scores_with_similarity_floor_q16`):
+    /// it rewards first-appearance coverage and zeroes only near-DUPLICATES, so novel-but-worthless content
+    /// still earns standing, and it is farmable at ~zero cost while `submission_deposit = 0` and the on-VM
+    /// bindings are `false`. So testnet PoM standing is NOT yet a Sybil-resistant signal — the deployed path
+    /// tests the FLOOR (identity + near-dup + PoW), never the value moat (learned v(S), 🔬 open). A public
+    /// PERMISSIONLESS testnet therefore wants the go-live knot (`CONTROL_BINDING_ACTIVE` flip →
+    /// `submission_deposit > 0`, + per-identity standing cap or an allowlist) first. Audit:
+    /// `docs/SYBIL-SURFACE-deployed-franchise-2026-07-19.md`.
     pub fn testnet() -> Self {
         let constitution = Constitution { pow_enforced: true, work_clock_ceiling: 1 << 40, ..Default::default() };
 
