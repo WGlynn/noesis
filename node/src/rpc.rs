@@ -314,11 +314,19 @@ fn read_http_request(read_half: TcpStream) -> std::io::Result<(String, String, V
     let path = parts.next().unwrap_or("").to_string();
 
     let mut content_length = 0usize;
+    // Bound the number of header lines so a client cannot exhaust memory by sending
+    // millions of header lines before the terminating blank line (DoS defense).
+    const MAX_HEADERS: usize = 100;
+    let mut header_count = 0usize;
     loop {
         let mut line = String::new();
         let n = reader.read_line(&mut line)?;
         if n == 0 || line.trim_end().is_empty() {
             break; // end of headers (blank line) or EOF
+        }
+        header_count += 1;
+        if header_count > MAX_HEADERS {
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "too many headers"));
         }
         if let Some(v) = line.to_ascii_lowercase().strip_prefix("content-length:") {
             content_length = v.trim().parse().unwrap_or(0);
