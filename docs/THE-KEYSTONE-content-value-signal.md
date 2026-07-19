@@ -51,9 +51,10 @@ The keystone is the oracle-free content-value **signal** — but with one correc
 forces (`data/crates/RESULTS.md`): the signal that does the work is **not a learned model that predicts
 value**. A learned predictive `v(S)` over *structural* features is null three times on real data
 (decisively on the non-degenerate crates.io graph, 0.5201 vs 0.5167 proxy, inside the noise band). A
-*rich-feature* judge (repo popularity/age/funding) does predict jury preferences at 0.68 held-out
-(`data/deepfunding/RESULTS-RICH-JUDGE.md`) — but that is popularity-heavy prediction on *honest* labels,
-which is the wrong instrument for an adversarial-robustness claim, so it does not change the conclusion:
+*rich-feature* judge (repo popularity/age/funding) beats the null — ~0.60 on the honest repo-disjoint
+split (the 0.68 pair-split was partly repo-overlap inflation; `data/deepfunding/RESULTS-RICH-JUDGE.md`) —
+but that is a modest, popularity-heavy signal on *honest* labels, the wrong instrument for an
+adversarial-robustness claim, so it does not change the conclusion:
 the oracle-free content-value signal that actually holds is the **structural layered defense** — and it
 is *built*, not open. Around it, the rest is a wrapper:
 

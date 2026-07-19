@@ -42,13 +42,14 @@ between what is built, what is designed, and what is still open. A single status
 - **Open, sharpening**: where value is scored by a *learned* function, the story has moved. On
   DeepFunding jury labels, a learned measure over graph-topology features came back **null** (both the
   quick proxy and the faithful set-level provenance-DAG port, ~0.54 vs a 0.50 floor). But a
-  **rich-feature** judge — real repo popularity, age, and funding history — predicts the same human
-  pairwise judgments at **0.68** held-out, so that null was a *feature-selection* artifact, not an
-  ML-judgement failure (`data/deepfunding/RESULTS-RICH-JUDGE.md`). Caveats we keep loud: the signal is
-  popularity-heavy, a repo-disjoint re-check is the open rigor step, and predicting *honest* labels
+  **rich-feature** judge — real repo popularity, age, and funding history — does predict jury
+  preferences better than the graph-topology null. On the honest **repo-disjoint** split (no repo
+  shared between train and test) it generalizes at **~0.60** — above the 0.50 floor and edging the 0.54
+  structural null, but a *modest, popularity-driven* margin (the 0.68 pair-split figure was partly
+  repo-overlap inflation; `data/deepfunding/RESULTS-RICH-JUDGE.md`). And predicting *honest* labels
   still does not test the *adversarial* un-gameability the moat actually claims — which rests on the
-  structural defense (built and tested). Net: the learned value layer is now **demonstrated upside**,
-  not a flat null; the moat itself is the structural defense, unchanged.
+  structural defense (built and tested). Net: a **modest real signal above the null**, popularity-shaped
+  — *upside, not the moat*; the moat itself is the structural defense, unchanged.
 
 A live single-node public **testnet** now exists: the node serves its own wallet UI, mines and finalizes
 real signed contributions, and lets them build on each other — the provenance DAG, visible live. Honest

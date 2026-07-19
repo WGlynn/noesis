@@ -284,10 +284,11 @@ features the learned value did **not** beat a fixed structural proxy — both th
 proxy over the dependency graph and the faithful set-level provenance-DAG port returned
 ~0.54 held-out pairwise accuracy vs a 0.50 floor (null, not refuted). But a **rich-feature**
 judge — real repo popularity, age, and funding history, features neither graph test used —
-predicts the same jury pairwise preferences at **0.68** held-out, so the null was a
-feature-selection artifact rather than an ML-judgement failure. Two honest bounds on that
-result: the signal is popularity-heavy, and a repo-disjoint split (vs the current pair
-split) is the open rigor step. Crucially, this is *predictive* validity on **honest** labels
+predicts the same jury pairwise preferences above the null — on the honest **repo-disjoint**
+split (no repo shared between train and test) it generalizes at **~0.60** (the 0.68 pair-split
+figure was partly repo-overlap inflation), a *modest, popularity-driven* margin over the 0.54
+null and the 0.50 floor. So the null was a feature-selection artifact, but the true generalizing
+signal is small, not a strong learned oracle. Crucially, this is *predictive* validity on **honest** labels
 — it does not, and cannot on static honest data, test the **adversarial** un-gameability the
 moat actually claims, which rests on the demonstrated structural defense.
 **HCE today is therefore a result for property (1) and the cyclic half of property (2), a

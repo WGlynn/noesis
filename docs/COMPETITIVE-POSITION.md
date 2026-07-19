@@ -74,8 +74,9 @@ space, and it is genuinely uncontested.
   single-repo proxy features over a dependency graph, not the set-level features over a
   provenance DAG the reference harness scores. **Update (`data/deepfunding/RESULTS-RICH-JUDGE.md`):**
   the faithful set-level port ALSO returned null on structural features, but a *rich-feature* judge
-  (repo popularity/age/funding) predicts the same jury prefs at **0.68** held-out — so the null is
-  specific to *structural* features. That is popularity-heavy prediction on *honest* labels, still not
+  (repo popularity/age/funding) beats the null — on the honest repo-disjoint split it generalizes at
+  **~0.60** (the 0.68 pair-split was partly repo-overlap inflation) — so the null is specific to
+  *structural* features. That is a modest, popularity-heavy signal on *honest* labels, still not
   the *adversarial* un-gameability the moat claims (which rests on the structural defense). No
   part of the doc may treat un-gameability / Goodhart-closure as demonstrated. Structured-but-
   valueless novelty remains the open 🔬 core bet. The economic dissolutions for the static and

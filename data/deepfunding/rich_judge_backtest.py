@@ -155,6 +155,37 @@ def run_ml_judge(kept_pairs, feats, label):
     return out
 
 
+def run_ml_judge_disjoint(all_pairs, feats, n_seeds=N_SEEDS):
+    """REPO-DISJOINT held-out accuracy (the honest hard test): partition REPOS 80/20; train only on
+    pairs whose BOTH repos are train-repos, test only on pairs whose BOTH repos are test-repos. No repo
+    appears in both, so the model cannot lean on a repo it has already seen. Test pairs are few (only
+    pairs among the ~20% held-out repos), so report n and expect more noise."""
+    repos = sorted({r for p in all_pairs for r in p if r in feats})
+    out = {"logistic": [], "gbm": [], "test_pairs": []}
+    for seed in range(n_seeds):
+        rng = np.random.default_rng(4321 + seed)
+        perm = rng.permutation(len(repos))
+        n_test = max(1, int(round(len(repos) * 0.20)))
+        test_repos = {repos[i] for i in perm[:n_test]}
+        train_repos = {repos[i] for i in perm[n_test:]}
+        train = [(w, l) for (w, l) in all_pairs if w in train_repos and l in train_repos]
+        test = [(w, l) for (w, l) in all_pairs if w in test_repos and l in test_repos]
+        if not test or not train:
+            continue
+        out["test_pairs"].append(len(test))
+        out["logistic"].append(held_out_accuracy(
+            LogisticRegression(fit_intercept=False, C=1.0, max_iter=2000), feats, train, test))
+        out["gbm"].append(held_out_accuracy(
+            GradientBoostingClassifier(n_estimators=120, max_depth=3, learning_rate=0.1, random_state=seed),
+            feats, train, test))
+    res = {}
+    for k in ("logistic", "gbm"):
+        a = np.array(out[k])
+        res[k] = (a.mean(), a.std())
+    res["avg_test_pairs"] = float(np.mean(out["test_pairs"])) if out["test_pairs"] else 0.0
+    return res
+
+
 def bradley_terry_strengths(pairs, repos, iters=8000, lr=0.5, reg=1e-3):
     """Per-repo BT latent strength MLE from ALL pairs (no features): maximize Σ log σ(s_w - s_l)."""
     rlist = sorted(repos)
@@ -217,6 +248,19 @@ def main():
     p("")
     p(f"(reference: RESULTS-FAITHFUL learned 4-graph-feature model = {baseline_null:.4f}; 1-SE noise band on a "
       "~465-pair split ≈ ±0.023.)\n")
+
+    # (A-disjoint) the honest hard test: repo-disjoint split on the full feature set.
+    dj = run_ml_judge_disjoint(kept_full, full_feats)
+    p("## (A-disjoint) REPO-DISJOINT held-out accuracy — the honest hard test (full feature set, 20 seeds)")
+    p("No repo appears in both train and test, so the model cannot lean on a repo it has already seen.")
+    p(f"Avg test pairs per split: {dj['avg_test_pairs']:.0f} (small ⇒ noisier than the pair-split above).")
+    p("| model | mean acc | std | vs pair-split | vs 0.50 floor |")
+    p("|---|---|---|---|---|")
+    for model, pairsplit in (("logistic", 0.6364), ("gbm", 0.6840)):
+        m, sd = dj[model]
+        print(f"[A-disjoint] {model:9s}: {m:.4f} (std {sd:.4f})")
+        p(f"| {model} | **{m:.4f}** | {sd:.4f} | {m - pairsplit:+.4f} | {m - 0.5:+.4f} |")
+    p("")
 
     # (B) pairwise-value validity vs funding
     strengths = bradley_terry_strengths(pairs, repos)

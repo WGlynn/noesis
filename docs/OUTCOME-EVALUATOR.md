@@ -97,9 +97,10 @@ learned semantic floor, Role C) remains research.
   the test used single-repo PROXY features over a DEPENDENCY graph, not the set-level features over
   a PROVENANCE DAG this harness scores; the `load_prefs` data seam IS validated end-to-end.
   **Update (`data/deepfunding/RESULTS-RICH-JUDGE.md`):** a *rich-feature* judge (repo
-  popularity/age/funding, not structural features) predicts the same jury prefs at **0.68** held-out,
-  so the null is specific to *structural* features — but that is popularity-heavy prediction on
-  *honest* labels, still not the *adversarial* un-gameability the moat claims. No doc
+  popularity/age/funding, not structural features) beats the null — on the honest repo-disjoint split
+  it generalizes at **~0.60** (the 0.68 pair-split was partly repo-overlap inflation), so the null is
+  specific to *structural* features — but that is a modest, popularity-heavy signal on *honest* labels,
+  still not the *adversarial* un-gameability the moat claims. No doc
   may state the moat / un-gameability / Goodhart-closure as demonstrated. Adaptive-stability
   (HCE property 3) is DESIGNED / CONJECTURE, with this note attached. See the status ledger.
 - Outcome-set LABELS at scale, faithfully ported (the model + the held-out harness are built; the

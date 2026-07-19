@@ -100,10 +100,10 @@ Pipeline (all `node/src/lib.rs`): `temporal_novelty` (`:89`) → `pom_scores` (`
   `attribution_cycle_energy` (Helmholtz–Hodge) → `collusion_slash`; θ_sim near-dup floor.
 - **🔬 open / THE moat:** learned `v(S)` on real DeepFunding labels — graph-topology features
   returned NULL (both proxy + faithful set-level port, ~0.54; RESULTS-FAITHFUL), but a **rich-feature**
-  judge (stars/age/funding) predicts jury pairwise prefs at **0.68** vs the 0.54 null
-  (`data/deepfunding/RESULTS-RICH-JUDGE.md`) ⇒ predictively valid on honest labels, pending a
-  repo-disjoint re-check; signal is popularity-heavy. NB: honest-label prediction ≠ the *adversarial*
-  un-gameability the moat claims (that rests on the structural defense, 253/253). General
+  judge (stars/age/funding) beats the null — on the honest **repo-disjoint** split it generalizes at
+  **~0.60** (the 0.68 pair-split was partly repo-overlap inflation; `data/deepfunding/RESULTS-RICH-JUDGE.md`)
+  ⇒ a *modest, popularity-driven* real signal on honest labels. NB: honest-label prediction ≠ the
+  *adversarial* un-gameability the moat claims (that rests on the structural defense, 253/253). General
   isomorphism-invariance gate (cand-A) still open. Un-gameability claimed for *demonstrated* vectors
   only, never as a finished proof.
 
