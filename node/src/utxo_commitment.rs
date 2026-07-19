@@ -26,6 +26,7 @@ use crate::{Cell, Script};
 use sparse_merkle_tree::{
     default_store::DefaultStore, traits::Hasher, CompiledMerkleProof, SparseMerkleTree, H256,
 };
+use std::collections::HashSet;
 
 /// Domain-separated blake2b personalization for the UTXO SMT's internal node hashing — distinct
 /// from the novelty SMT (`noesis-smt-v1`), the tx digest (`noesis-tx-v1`), and the Lamport lock
@@ -184,6 +185,19 @@ impl UtxoCommitment {
             touched.push(k);
             old_leaves.push((k.into(), [0u8; 32])); // absent before
             new_leaves.push((k.into(), k.into())); // present after
+        }
+        // Reject a malformed transition where the SAME utxo_key appears twice across spends+creates
+        // (e.g. the identical cell in both arrays): that would push two contradictory leaf entries
+        // for one key (present->absent AND absent->present), producing an inconsistent witness. A
+        // cell cannot be both spent and created in one block, so this is a caller-invariant break.
+        {
+            let mut seen_keys = HashSet::new();
+            for k in &touched {
+                assert!(
+                    seen_keys.insert(*k),
+                    "duplicate utxo_key in transition: same cell in both spends and creates"
+                );
+            }
         }
         // the compiled multi-proof is taken from the PRE-state tree; the SMT co-path it captures is
         // invariant under changing only the touched leaves, so the same proof recomputes both roots.
@@ -434,6 +448,17 @@ mod tests {
         let mut t3 = w.clone();
         t3.new_leaves[0].1 = t3.new_leaves[0].0; // bob's key -> "present" after
         assert!(!verify_transition(&t3), "must not be able to claim a spent coin survived");
+    }
+
+    #[test]
+    #[should_panic(expected = "duplicate utxo_key in transition")]
+    fn transition_rejects_same_cell_in_spends_and_creates() {
+        // A cell cannot be both spent and created in one block. Feeding the identical cell to both
+        // arrays would push two contradictory leaf entries for one key (present->absent AND
+        // absent->present), yielding an inconsistent witness. The transition must reject it.
+        let mut c = UtxoCommitment::from_cells(&sample());
+        let dup = cell(5, b"alice", b"100");
+        let _ = c.transition(&[dup.clone()], &[dup]);
     }
 
     /// Phase-2 measurement (NOT a correctness gate). Reproduce with:
