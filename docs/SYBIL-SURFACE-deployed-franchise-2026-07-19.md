@@ -134,12 +134,21 @@ buy at `V`" leg is meaningless — you cannot sell a mind's contribution. Hence 
 the anti-plutocracy floor, `runtime.rs` `MIN_DIM_BPS`). The self-assessed price only makes *dishonest
 reporting costly*; it does not convert JUL/CKB into PoM. That separation is the whole augmentation.
 
-**Open questions (do not round up):** (a) the `V → standing-weight` map must stay anti-plutocratic (a
-self-priced claim that directly scales franchise weight re-introduces the capital-buys-consensus hole);
-(b) relation to the PEG/SD peer-prediction template — competing mechanism or composable (Harberger
-prices the *claim*, peer-prediction scores the *content*; plausibly complementary); (c) rent
-denomination and the griefing surface of adversarial challenges. This is a 🔬 design direction for
-`HCE-2-selfreport`, not a built or proven mechanism.
+**Relation to PEG/SD peer-prediction — RATIFIED composable + complementary (Will 2026-07-19):** the two
+mechanisms fix each other's hole and stack, they do not compete. **Peer-prediction scores the CONTENT**
+(an oracle-free truthful signal of what a contribution is actually worth); **Harberger prices the
+CLAIM** (the contributor's self-declared `V`, carrying rent + slash-at-risk). **The dispute market is
+where they meet:** the gap between the self-declared `V` and the peer-scored content value is the
+slashable overclaim. Neither closes `HCE-2-selfreport` alone — Harberger without a truth signal has no
+principled definition of "wrong" to challenge against (peer-prediction supplies it); peer-prediction
+without stake has no teeth (Harberger's self-priced bond supplies it). Plausibly the peer-prediction
+score IS (or feeds) the `v(S)` oracle at the value seam, and Harberger rides the dispute/vesting layer.
+
+**Remaining open questions (do not round up):** (a) the `V → standing-weight` map must stay
+anti-plutocratic (a self-priced claim that directly scales franchise weight re-introduces the
+capital-buys-consensus hole); (b) rent denomination and the griefing surface of adversarial challenges;
+(c) the exact `V`-vs-peer-score gap function the dispute verdict adjudicates. This is a 🔬 design
+direction for `HCE-2-selfreport`, not a built or proven mechanism.
 
 ## Recommendations
 
