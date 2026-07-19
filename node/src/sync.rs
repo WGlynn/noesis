@@ -56,7 +56,8 @@ impl std::fmt::Display for SyncError {
 impl std::error::Error for SyncError {}
 
 /// SEED side: answer one joiner. Reads its `GET_BLOCKS` request, streams every block in order, then a
-/// `DONE` marker. `blocks` is the seed's canonical block log (e.g. from `wire::BlockLog::load`).
+/// `DONE` marker. `blocks` is the seed's canonical block log (e.g. from `store::load_blocks` — the
+/// durable length-framed log the live node persists).
 pub fn serve(peer: &mut Peer, blocks: &[Block]) -> Result<(), SyncError> {
     let req = peer.recv()?;
     if req.first().copied() != Some(TAG_GET_BLOCKS) {

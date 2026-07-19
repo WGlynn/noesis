@@ -3,8 +3,10 @@
 //! Three modes (dispatched on argv):
 //!   * `noesisd` — T0 local devnet: one process boots an honest genesis, produces + finality-gates +
 //!     applies a scripted chain, and prints its state.
-//!   * `noesisd --listen [addr]` — T1 SEED: build that chain, then bind `addr` (default an OS ephemeral
-//!     port) and serve the canonical block log to any joiner over framed TCP. "A network you can join."
+//!   * `noesisd --listen [addr] [store]` — T1 SEED: serve a canonical block log to any joiner over
+//!     framed TCP (default `addr` = an OS ephemeral port). With `store` it serves the DURABLE log the
+//!     `--serve-api` node persisted (slice-5b unify — ONE on-disk chain); with no store it builds the
+//!     scripted honest chain in-memory (the zero-config demo). "A network you can join."
 //!   * `noesisd --connect <addr>` — T1 JOINER: boot a fresh genesis, dial the seed, pull + re-validate +
 //!     replay its block log, and converge to a byte-identical digest.
 //!
@@ -173,16 +175,53 @@ fn run_devnet() {
     println!("JUL issued from mined work (energy-anchored, no pre-mine): {jul} JUL over {} blocks.", blocks.len());
 }
 
-/// `--listen [addr]` — the SEED. Build the canonical chain, then serve its block log to any joiner.
-/// Prints `DIGEST <...>` (its converged state) and `LISTENING <addr>` (the bound address, resolved
-/// from an ephemeral `:0` if given) so a joiner — or the two-node test — can find it. Then loops
-/// accepting joiners and serving each the whole log (slice-4 `serve`). Runs until killed.
-fn run_listen(addr: &str) {
+/// Which genesis a store-backed / durable mode boots, selected by `NOESIS_NET` (default dev = safe
+/// local; `testnet` for the public chain). Single-sourced so a store-backed `--listen` and
+/// `--serve-api` can never disagree on which chain-zero the SAME on-disk log replays against.
+fn spec_from_env() -> ChainSpec {
+    match std::env::var("NOESIS_NET").as_deref() {
+        Ok("testnet") => ChainSpec::testnet(),
+        Ok("dev") | Err(_) => ChainSpec::dev(),
+        Ok(other) => {
+            eprintln!("noesisd: unknown NOESIS_NET={other:?} (use 'dev' or 'testnet')");
+            std::process::exit(2);
+        }
+    }
+}
+
+/// `--listen [addr] [store]` — the SEED. Serve a canonical block log to any joiner. Prints `DIGEST
+/// <...>` (its converged state) and `LISTENING <addr>` (the bound address, resolved from an ephemeral
+/// `:0` if given) so a joiner — or the two-node test — can find it, then loops serving each joiner the
+/// whole log (slice-4 `serve`). Runs until killed.
+///
+/// slice-5b UNIFY: with a `store` path, the seed serves the DURABLE chain the `--serve-api` node
+/// persisted (`store::load_blocks`, the length-framed log) — ONE on-disk chain, not a second scripted
+/// driver. With no store (the zero-config demo), it builds the scripted honest chain in-memory.
+fn run_listen(addr: &str, store: Option<&str>) {
     println!("noesisd --listen — Noesis T1 seed node");
-    let (seed, blocks) = build_chain(false);
-    println!("seeded honest chain: {} blocks, height {}.", blocks.len(), seed.ledger.height);
+    let (digest, blocks) = match store {
+        Some(path) => {
+            let spec = spec_from_env();
+            let (node, blocks) = noesis::store::load_blocks(std::path::Path::new(path), &spec)
+                .unwrap_or_else(|e| {
+                    eprintln!("noesisd: failed to open chain store {path}: {e}");
+                    std::process::exit(1);
+                });
+            if blocks.is_empty() {
+                println!("durable store {path} empty/absent — serving an empty chain (height 0).");
+            } else {
+                println!("serving durable chain from {path}: {} blocks, height {}.", blocks.len(), node.ledger.height);
+            }
+            (digest_string(&node), blocks)
+        }
+        None => {
+            let (seed, blocks) = build_chain(false);
+            println!("seeded honest chain (scripted demo): {} blocks, height {}.", blocks.len(), seed.ledger.height);
+            (digest_string(&seed), blocks)
+        }
+    };
     // Machine-readable convergence anchor (a joiner must reproduce this exactly).
-    println!("DIGEST {}", digest_string(&seed));
+    println!("DIGEST {digest}");
 
     let listener = Listener::bind(addr).unwrap_or_else(|e| {
         eprintln!("noesisd: failed to bind {addr}: {e}");
@@ -246,7 +285,10 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     match args.get(1).map(String::as_str) {
         None => run_devnet(),
-        Some("--listen") => run_listen(args.get(2).map(String::as_str).unwrap_or("127.0.0.1:0")),
+        Some("--listen") => run_listen(
+            args.get(2).map(String::as_str).unwrap_or("127.0.0.1:0"),
+            args.get(3).map(String::as_str),
+        ),
         Some("--connect") => {
             let addr = args.get(2).unwrap_or_else(|| {
                 eprintln!("noesisd --connect needs a <addr> (e.g. 127.0.0.1:9944)");
@@ -258,14 +300,7 @@ fn main() {
             // Which genesis this durable node boots is selected by NOESIS_NET (default dev = safe
             // local). A public testnet node sets NOESIS_NET=testnet so a stranger who joins boots the
             // ONE testnet block-zero (distinct chain_id ⇒ testnet blocks never cross to dev/mainnet).
-            let spec = match std::env::var("NOESIS_NET").as_deref() {
-                Ok("testnet") => ChainSpec::testnet(),
-                Ok("dev") | Err(_) => ChainSpec::dev(),
-                Ok(other) => {
-                    eprintln!("noesisd: unknown NOESIS_NET={other:?} (use 'dev' or 'testnet')");
-                    std::process::exit(2);
-                }
-            };
+            let spec = spec_from_env();
             noesis::rpc::serve_api(
                 args.get(2).map(String::as_str).unwrap_or("127.0.0.1:9955"),
                 args.get(3).map(String::as_str).unwrap_or("noesis-chain.log"),
@@ -275,7 +310,7 @@ fn main() {
         Some(other) => {
             eprintln!("noesisd: unknown mode {other:?}");
             eprintln!("usage: noesisd                    # T0 devnet (produce a chain locally)");
-            eprintln!("       noesisd --listen [addr]    # T1 seed (default 127.0.0.1:0)");
+            eprintln!("       noesisd --listen [addr] [store]  # T1 seed (default 127.0.0.1:0; store ⇒ serve the durable log)");
             eprintln!("       noesisd --connect <addr>   # T1 joiner (sync from a seed)");
             eprintln!("       noesisd --serve-api [addr] [store]  # live HTTP API + embedded UI (NOESIS_NET=dev|testnet, default dev)");
             std::process::exit(2);
