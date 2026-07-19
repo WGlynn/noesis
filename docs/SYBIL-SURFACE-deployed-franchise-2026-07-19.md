@@ -100,6 +100,47 @@ The economic Sybil brake is also off, and cannot be turned on independently:
 So the novelty-only franchise **and** the zero submission cost are the *same* deferred milestone. Each
 alone is farmable; together the surface is wide open.
 
+## Candidate direction — augmented Harberger self-assessment (the honest-self-reporting axis)
+
+The novel-but-worthless farm is fundamentally a **self-reporting** failure: the contributor asserts
+"this is valuable" and the v0 franchise cannot price the claim. That is exactly the **named-open
+obligation `HCE-2-selfreport`** (`COMPETITIVE-POSITION.md:151`, `internal/STATUS-LEDGER.md`) — the
+single-identity self-report ring the current Cheng-Friedman sybil-escape does *not* close. It is today
+proof-templated via peer-elicitation (PEG / SD-Peer-Prediction) — **designed, two open theorems, not
+proven.** Harberger self-assessment is a distinct, arguably more direct mechanism family for the same
+obligation, and it composes with machinery Noesis already ships.
+
+**Classic Harberger (COST):** self-assess value `V` → pay carrying tax `t·V` → anyone may buy at `V`.
+Honesty is forced from both sides (declare low → bought cheap; declare high → overtaxed).
+
+**Why it needs augmenting here:** PoM standing is **soulbound / non-transferable**, so the "anyone can
+buy at `V`" leg is meaningless — you cannot sell a mind's contribution. Hence *augmented* Harberger:
+
+- Self-assessed value `V` carries a cost — state-rent proportional to `V` (Noesis already has state-rent),
+  or the existing **vesting bond scales with `V`** (`DISPUTE-SLASHING.md` §2: value vests at `E+W`,
+  challengeable while unvested).
+- `V` sets the **slash-at-risk**: replace "buy at `V`" with **"challenge at `V`"** — a refuted claim is
+  slashed proportional to the value the contributor *themselves* declared, through the dispute market
+  already in code (`node/src/lib.rs` `dispute`, `Challenge(X, bond B)` → PoM-weighted verdict → slash).
+- Equilibrium: junk declared high → high rent + high slash on challenge (junk is refutable) = negative-EV;
+  junk declared low → little standing gained; honest value at true `V` → proportional rent, survives
+  challenge, no slash. Honesty is the profitable report. This is [[honesty-as-structural-load-bearing-property]]
+  + the economic-filter ≡ honesty-filter coincidence, and [[augmented-mechanism-design-paper]] applied
+  (augment Harberger's price discovery with the challenge market; do not replace the market).
+
+**The load-bearing constraint (what makes it safe, not just clever):** paying the Harberger rent must
+**NOT buy standing.** Standing is earned by the contribution *surviving* challenge, never by the payment
+— else capital purchases franchise weight and the PoM ⊥ PoS invariant breaks (PoM must not mint PoS;
+the anti-plutocracy floor, `runtime.rs` `MIN_DIM_BPS`). The self-assessed price only makes *dishonest
+reporting costly*; it does not convert JUL/CKB into PoM. That separation is the whole augmentation.
+
+**Open questions (do not round up):** (a) the `V → standing-weight` map must stay anti-plutocratic (a
+self-priced claim that directly scales franchise weight re-introduces the capital-buys-consensus hole);
+(b) relation to the PEG/SD peer-prediction template — competing mechanism or composable (Harberger
+prices the *claim*, peer-prediction scores the *content*; plausibly complementary); (c) rent
+denomination and the griefing surface of adversarial challenges. This is a 🔬 design direction for
+`HCE-2-selfreport`, not a built or proven mechanism.
+
 ## Recommendations
 
 A **local / permissioned** single-node testnet is fine as-is (the operator is the only submitter). For
