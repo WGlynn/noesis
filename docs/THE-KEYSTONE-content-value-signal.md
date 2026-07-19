@@ -1,0 +1,75 @@
+# The Keystone — three Noesis problems are one missing primitive
+
+> One-pager, 2026-07-19. Thesis: the value moat, the honest-self-report obligation, and the deployed
+> testnet's Sybil surface are **not three problems — they are one hole seen from three sides.** Close a
+> single primitive (an oracle-free signal of *content value*) and all three close at once. Everything
+> around it — identity, ordering, PoW, the economic wrappers — is already built. Status discipline:
+> ✅ built · 🟡 designed · 🔬 open — never round up.
+
+## The three faces
+
+1. **The moat (🔬 open).** Noesis's un-gameability rests on a value function `v(S)` that measures what a
+   contribution is *worth*. The shipped franchise is only the v0 novelty heuristic
+   (`temporal_novelty` + θ_sim near-duplicate floor, `node/src/lib.rs`). It rewards *newness*, not
+   *worth*. The learned `v(S)`-on-real-labels is the standing open mile (`docs/DESIGN-value-oracle-seam.md`).
+
+2. **Honest self-report (🔬 open — `HCE-2-selfreport`).** A single identity can self-report its own
+   contribution as valuable and there is no principled way to price the claim
+   (`docs/COMPETITIVE-POSITION.md:151`). Currently proof-templated via peer-elicitation (PEG /
+   SD-Peer-Prediction) — designed, two open theorems, not proven.
+
+3. **The deployed Sybil surface (audited 2026-07-19).** On the live testnet, `POST /submit` is sound
+   (real XMSS signature, one-time-leaf replay, near-duplicate floor). But because the franchise scores
+   *novelty* not *worth*, **varied random junk scores maximally** at ~zero cost
+   (`submission_deposit = 0`; θ_sim = 0.95; 4-byte FNV shingles). PoM standing is farmable
+   (`docs/SYBIL-SURFACE-deployed-franchise-2026-07-19.md`).
+
+**They are the same hole.** Novelty ≠ value; farming novel junk, self-reporting junk as valuable, and
+minting standing from junk are all "the protocol cannot tell worthwhile from worthless." The missing
+piece is one thing: **an oracle-free signal of content value.**
+
+## The keystone and its wrapper
+
+The keystone is the content-value signal `v(S)` itself. Around it, the rest is a wrapper Noesis has
+*already built* — the keystone just makes the wrapper load-bearing:
+
+| Layer | Answers | Status |
+|---|---|---|
+| **Peer-prediction (PEG/SD)** | *What is the content actually worth?* (the truth signal — IS/feeds `v(S)`) | 🔬 designed |
+| **Harberger self-assessment** | *What value do you CLAIM, and what do you stake on it?* (self-`V` + rent + slash-at-risk) | 🔬 design direction |
+| **Dispute market** | *Adjudicate the gap:* `V` − peer-score = the slashable overclaim | ✅ built (`docs/DISPUTE-SLASHING.md`) |
+| **Soulbound identity + one-time leaf** | *Who, and once* | ✅ built (`node/src/rpc.rs`) |
+| **PoW / issuance** | *Objective ordering, Sybil-cost, money (JUL)* | ✅ built (`pow_enforced`) |
+
+Harberger and peer-prediction are **composable and complementary** (Will 2026-07-19), not rivals:
+peer-prediction scores the *content*, Harberger prices the *claim*, the dispute market is where they
+meet. Neither closes `HCE-2` alone — Harberger without a truth signal has no principled "wrong" to
+challenge against; peer-prediction without stake has no teeth. Together, honest reporting becomes the
+profitable report.
+
+**The load-bearing constraint:** paying Harberger rent must **never buy standing.** Standing is earned
+by a contribution *surviving* challenge, not by payment — else capital purchases franchise weight and
+the PoM ⊥ PoS anti-plutocracy floor breaks (`runtime.rs` `MIN_DIM_BPS`). The price makes *dishonest
+reporting costly*; it does not convert capital into PoM. That separation is the whole design.
+
+## Why this is the good news
+
+The keystone is **isolated**. It sits behind a clean seam (`ValueOracle`, `lib.rs:286`) — swapping the
+value function is a governance-gated version bump, not a consensus rewrite. Everything else is done:
+identity, ordering, PoW, dispute-slashing, vesting, state-rent. So the roadmap is not "many hard
+problems" — it is **one keystone** (learned, oracle-free content value) plus two wrappers around it
+(Harberger stake, peer-prediction elicitation) that are already half-specified and reuse shipped
+machinery.
+
+## Implications
+
+- **The moat and the Sybil defense are the same investment.** Work on learned `v(S)` pays down all three
+  faces at once; do not scope them as separate tracks.
+- **A public permissionless testnet should wait for the wrapper, not the full moat.** Even before
+  learned `v(S)`, the go-live knot (turn on owner-auth → enable a submission deposit → cap/allowlist
+  standing) bounds farming enough to run publicly. That flip is a deliberate, Will-gated step (PCP).
+- **A private / permissioned single-node testnet is shippable now** — the operator is the only submitter,
+  so the keystone gap is inert.
+
+The keystone is the moat. Close the content-value signal and Noesis's central claim — that standing
+reflects genuine contribution — becomes true by construction.
