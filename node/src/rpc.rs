@@ -183,6 +183,42 @@ impl ServerState {
         })
     }
 
+    /// The per-contribution view — the CONNECTION made visible. Each finalized contribution with its
+    /// provenance (`parent`: what it built on) and its DOWNSTREAM usage (`downstream`: how many later
+    /// contributions built on it) — the on-chain events that connect a contribution to whether it
+    /// mattered. `novelty` is the temporal-novelty score (aligned to canonical commit order). Read-only
+    /// projection of the finalized ledger; touches no consensus. This is what a corroboration/curation
+    /// frontend consumes: you cannot corroborate what you cannot see.
+    fn contributions_json(&self) -> Value {
+        let cells = &self.node.ledger.cells;
+        // Temporal-novelty per cell, index-aligned (ledger.cells is canonical commit order).
+        let novelty = crate::temporal_novelty(cells);
+        // Downstream fan-in: how many finalized cells name each cell as their provenance parent.
+        let mut downstream: std::collections::HashMap<u64, u64> = std::collections::HashMap::new();
+        for c in cells {
+            if let Some(p) = c.parent {
+                *downstream.entry(p).or_insert(0) += 1;
+            }
+        }
+        let items: Vec<Value> = cells
+            .iter()
+            .enumerate()
+            .map(|(i, c)| {
+                let preview: String = String::from_utf8_lossy(&c.data).chars().take(80).collect();
+                json!({
+                    "id": c.id,
+                    "contributor": hex_encode(&c.type_script.args),
+                    "preview": preview,
+                    "parent": c.parent,
+                    "downstream": downstream.get(&c.id).copied().unwrap_or(0),
+                    "novelty": novelty.get(i).copied().unwrap_or(0),
+                    "timestamp": c.timestamp,
+                })
+            })
+            .collect();
+        json!({ "height": self.node.ledger.height, "count": items.len(), "contributions": items })
+    }
+
     /// Ingest a SIGNED contribution and try to finalize a block from it. The submitter proves control
     /// of their `address` (a real hash-based key) by signing `contribution_digest(address, index,
     /// data)` — no plaintext-handle theater; standing accrues only to a key someone actually holds.
@@ -192,10 +228,21 @@ impl ServerState {
         address: [u8; 32],
         data: &str,
         sig: noesis_core::xmss::Signature,
+        parent: Option<u64>,
     ) -> Result<u64, String> {
         use noesis_core::xmss;
         if data.is_empty() {
             return Err("data must be non-empty".into());
+        }
+        // Provenance link (optional): a contribution may declare the finalized contribution it BUILDS
+        // ON, so downstream usage — the on-chain event that a prior contribution mattered — can form.
+        // Reject a dangling parent (it must name an existing finalized contribution). A real link only
+        // ever CREDITS the ancestor's downstream flow (`value_v5`/`flow_gate`), never inflates the
+        // child; fake-lineage value-spoofs are closed separately at the value layer (semantic floor).
+        if let Some(p) = parent {
+            if !self.node.ledger.cells.iter().any(|c| c.id == p) {
+                return Err(format!("parent {p} names no finalized contribution"));
+            }
         }
         let index = sig.index;
         // 1. Cryptographic authorization: the signature must verify under this address over the exact
@@ -228,7 +275,7 @@ impl ServerState {
             id,
             lock: Script { code_hash: [0u8; 32], args: pack_lock_args(&address, index) },
             type_script: Script { code_hash: [1u8; 32], args: address.to_vec() },
-            parent: None,
+            parent,
             timestamp: id,
             data: data.as_bytes().to_vec(),
         };
@@ -277,6 +324,7 @@ pub fn handle_request(
         ("GET", "/") | ("GET", "/index.html") => (200, "text/html; charset=utf-8", INDEX_HTML.as_bytes().to_vec()),
         ("GET", "/crypto.js") => (200, "application/javascript; charset=utf-8", CRYPTO_JS.as_bytes().to_vec()),
         ("GET", "/state") => out(200, state.state_json()),
+        ("GET", "/contributions") => out(200, state.contributions_json()),
         ("POST", "/submit") => {
             let parsed: Result<Value, _> = serde_json::from_slice(body);
             let v = match parsed {
@@ -287,7 +335,9 @@ pub fn handle_request(
                 Ok(t) => t,
                 Err(e) => return out(400, json!({ "error": e })),
             };
-            match state.submit_signed(address, &data, sig) {
+            // Optional provenance: the id of the finalized contribution this one builds on.
+            let parent = v.get("parent").and_then(Value::as_u64);
+            match state.submit_signed(address, &data, sig, parent) {
                 Ok(height) => {
                     let mut resp = state.state_json();
                     resp["finalized"] = json!(true);
@@ -556,5 +606,44 @@ mod tests {
         assert_eq!(s4, 204);
         // nothing finalized ⇒ height still 0
         assert_eq!(state_of(&handle_request(&mut st, "GET", "/state", b"").2)["height"], 0);
+    }
+
+    #[test]
+    fn contributions_expose_provenance_and_downstream_events() {
+        let mut st = ServerState::new();
+        // A: a foundational contribution (no parent). First submit ⇒ cell id 1.
+        let alice = [0x33u8; 32];
+        assert_eq!(
+            handle_request(&mut st, "POST", "/submit", &signed_body(&alice, 0, "a foundational idea about tidal energy capture at estuaries")).0,
+            200
+        );
+        // B builds ON A via the live API (parent = 1) ⇒ cell id 2.
+        let bob = [0x44u8; 32];
+        let mut b: Value = serde_json::from_slice(&signed_body(&bob, 0, "wave-lensing lattices and lunar-phase timing, a separate downstream method")).unwrap();
+        b["parent"] = json!(1);
+        assert_eq!(handle_request(&mut st, "POST", "/submit", b.to_string().as_bytes()).0, 200);
+
+        let (status, _ct, body) = handle_request(&mut st, "GET", "/contributions", b"");
+        assert_eq!(status, 200);
+        let v = state_of(&body);
+        let items = v["contributions"].as_array().unwrap();
+        assert_eq!(items.len(), 2);
+        // B names A as its provenance — the link formed through the live API (was impossible before).
+        let b_item = items.iter().find(|c| c["id"] == 2).unwrap();
+        assert_eq!(b_item["parent"], 1);
+        // A now has one downstream event: B built on it — a contribution connected to an "actual event".
+        let a_item = items.iter().find(|c| c["id"] == 1).unwrap();
+        assert_eq!(a_item["downstream"], 1);
+    }
+
+    #[test]
+    fn a_dangling_parent_is_rejected() {
+        let mut st = ServerState::new();
+        let carol = [0x55u8; 32];
+        let mut body: Value = serde_json::from_slice(&signed_body(&carol, 0, "an idea claiming to build on a contribution that does not exist")).unwrap();
+        body["parent"] = json!(999);
+        let (status, _ct, resp) = handle_request(&mut st, "POST", "/submit", body.to_string().as_bytes());
+        assert_eq!(status, 400);
+        assert!(state_of(&resp)["error"].as_str().unwrap().contains("names no finalized contribution"));
     }
 }
