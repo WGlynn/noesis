@@ -1,0 +1,1355 @@
+{
+  "generated_from": 99,
+  "count": 337,
+  "note": "Questions templated from the headings of the current Noēsis doc corpus. Deterministic; the UI shuffles + flows them seeded by chain height.",
+  "questions": [
+    {
+      "q": "How does l1 Separation of powers (RPS minimality) actually work?",
+      "source": "docs/COHERENCE-LAWS.md"
+    },
+    {
+      "q": "How does rejected approaches (and why) actually work?",
+      "source": "docs/T7-CROSS-CELL-SIMILARITY.md"
+    },
+    {
+      "q": "How does the two artifacts that demonstrate it actually work?",
+      "source": "docs/transparency-privacy-grounding.md"
+    },
+    {
+      "q": "What breaks if t6 (preserved, keep the doors welded) is wrong?",
+      "source": "docs/VIBESWAP-THESIS-FIDELITY.md"
+    },
+    {
+      "q": "How does gap to \"impeccable\" (the v0.1 v0.2 work-list) actually work?",
+      "source": "docs/REFERENCE-NODE-STATUS.md"
+    },
+    {
+      "q": "What would an adversary do against handoff for the team that builds it?",
+      "source": "docs/DESIGN-jul-stability-tiers.md"
+    },
+    {
+      "q": "Is proof of work has a real home here built, designed, or still open?",
+      "source": "docs/NOESIS-FOR-DUMMIES.md"
+    },
+    {
+      "q": "What breaks if the one paragraph is wrong?",
+      "source": "docs/TOKENOMICS.md"
+    },
+    {
+      "q": "Why is sub-Block Security Assumptions, Threats, Mitigations load-bearing?",
+      "source": "docs/research/sub-block-security.md"
+    },
+    {
+      "q": "Where does boundaries (restated) bottom out?",
+      "source": "docs/phase3-zk-plan.md"
+    },
+    {
+      "q": "How does building Blocks and Public Goods actually work?",
+      "source": "docs/research/stable-base-money-ergon-rationale.md"
+    },
+    {
+      "q": "How does proof of Mind consensus + the Theory-of-Mind mapping (PRIVATE) actually work?",
+      "source": "docs/POM-CONSENSUS.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"Dissolving the open-model trilemma via coordination (Will, 2026-06-11)\"?",
+      "source": "docs/POM-CONSENSUS.md"
+    },
+    {
+      "q": "How does the idea actually work?",
+      "source": "docs/research/crpc-second-meta-consensus-sketch.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"State-bytes the capital layer (1 PoM = 1 byte)\"?",
+      "source": "docs/TOKENOMICS.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"L6 Closed value-provenance\"?",
+      "source": "docs/COHERENCE-LAWS.md"
+    },
+    {
+      "q": "What breaks if sybil surface of the deployed testnet franchise audit 2026-07-19 is wrong?",
+      "source": "docs/SYBIL-SURFACE-deployed-franchise-2026-07-19.md"
+    },
+    {
+      "q": "Why is build & test load-bearing?",
+      "source": "README.md"
+    },
+    {
+      "q": "Is the vesting window W is the one load-bearing parameter built, designed, or still open?",
+      "source": "docs/POM-FINALITY-TEMPORALITY.md"
+    },
+    {
+      "q": "How does draft section outline actually work?",
+      "source": "docs/research/contribution-measurement-dissolves-redistribution-SEED.md"
+    },
+    {
+      "q": "Is noesis Foundation Package built, designed, or still open?",
+      "source": "docs/_RODNEY-FOUNDATION-COVER-2026-07-02.md"
+    },
+    {
+      "q": "How does the model actually work?",
+      "source": "docs/CRYPTOECONOMICS.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"One honest limit\"?",
+      "source": "docs/research/the-rules-can-be-wrong.md"
+    },
+    {
+      "q": "Is the clever part: you can't cheat it built, designed, or still open?",
+      "source": "docs/NOESIS-FOR-DUMMIES.md"
+    },
+    {
+      "q": "What would an adversary do against the spine: composition, not weights?",
+      "source": "docs/CONSENSUS-REVIEW.md"
+    },
+    {
+      "q": "How does the something-out-of-nothing problem actually work?",
+      "source": "docs/THE-KEYSTONE-content-value-signal.md"
+    },
+    {
+      "q": "How does design theses (forward-looking) actually work?",
+      "source": "docs/PAPERS.md"
+    },
+    {
+      "q": "Is authority split (unchanged) built, designed, or still open?",
+      "source": "docs/T7-CROSS-CELL-SIMILARITY.md"
+    },
+    {
+      "q": "Where does the claim (Will, 2026-06-11) bottom out?",
+      "source": "docs/COORDINATION-SCHELLING.md"
+    },
+    {
+      "q": "What would an adversary do against b. Agentic dispute resolution / truthful elicitation?",
+      "source": "docs/research/FRONTIER-BRIEF-2026-06-23.md"
+    },
+    {
+      "q": "Is smallest first grain I-adaptive-1 (two-round loop, pin RED-as-designed) built, designed, or still open?",
+      "source": "docs/DESIGN-adaptive-adversary-instrument.md"
+    },
+    {
+      "q": "What would an adversary do against the load-bearing invariant: consensus weight cannot be bought?",
+      "source": "docs/TOKENOMICS.md"
+    },
+    {
+      "q": "What would an adversary do against repo layout?",
+      "source": "ARCHITECTURE.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"The two big claims\"?",
+      "source": "docs/NOESIS-LITEPAPER.md"
+    },
+    {
+      "q": "What breaks if poM, finality, and the temporality problem is wrong?",
+      "source": "docs/POM-FINALITY-TEMPORALITY.md"
+    },
+    {
+      "q": "How does poM-standing the soulbound franchise actually work?",
+      "source": "docs/TOKENOMICS.md"
+    },
+    {
+      "q": "What breaks if foundational research (the Glynn series) is wrong?",
+      "source": "docs/PAPERS.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"The decision\"?",
+      "source": "docs/DESIGN-jul-stability-tiers.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"Mechanism deep-dives\"?",
+      "source": "docs/README.md"
+    },
+    {
+      "q": "What would an adversary do against §10 The decision table (the numbers Will ratifies)?",
+      "source": "docs/DESIGN-M3-jul-economics.md"
+    },
+    {
+      "q": "Is the composition and the endgame it serves built, designed, or still open?",
+      "source": "docs/Pragma Overlaps/noesis-pragma-overlap.md"
+    },
+    {
+      "q": "Is noesis the papers built, designed, or still open?",
+      "source": "docs/PAPERS.md"
+    },
+    {
+      "q": "What would an adversary do against l12 hardening devil's-advocate pass (2026-06-11)?",
+      "source": "docs/COHERENCE-LAWS.md"
+    },
+    {
+      "q": "What breaks if backlog / design frontier added 2026-07-03 is wrong?",
+      "source": "ROADMAP.md"
+    },
+    {
+      "q": "What would an adversary do against you're already credited before you even sign up?",
+      "source": "docs/NOESIS-FOR-DUMMIES.md"
+    },
+    {
+      "q": "Is the fix-chain (each fix reveals the next attack) built, designed, or still open?",
+      "source": "docs/CONSENSUS-REVIEW.md"
+    },
+    {
+      "q": "Is feedback entries built, designed, or still open?",
+      "source": "docs/whitepaper/EVOLUTION-LOG.md"
+    },
+    {
+      "q": "Is a block that made 184 billion coins built, designed, or still open?",
+      "source": "docs/research/the-rules-can-be-wrong.md"
+    },
+    {
+      "q": "Why is §8 Correspondence-triad check (mechanism-design gate) load-bearing?",
+      "source": "docs/DESIGN-M3-jul-economics.md"
+    },
+    {
+      "q": "How does start here (plain-language, shortest first) actually work?",
+      "source": "docs/README.md"
+    },
+    {
+      "q": "What breaks if whitepaper Evolution Log Proof of Mind is wrong?",
+      "source": "docs/whitepaper/EVOLUTION-LOG.md"
+    },
+    {
+      "q": "Why is original (for reference; superseded by the ratification above) load-bearing?",
+      "source": "docs/DESIGN-nakamoto-inc2b-fork-choice.md"
+    },
+    {
+      "q": "Why is the stack (each layer demonstrated, not asserted) load-bearing?",
+      "source": "docs/BLOCK-ECONOMY-SPEC.md"
+    },
+    {
+      "q": "Why is bound A bounded mempool admission cap BUILT (this session) load-bearing?",
+      "source": "docs/RESOURCE-DOS-BOUNDING.md"
+    },
+    {
+      "q": "Is it doesn't fight other projects it invites them built, designed, or still open?",
+      "source": "docs/NOESIS-FOR-DUMMIES.md"
+    },
+    {
+      "q": "How does bitcoin's Missing Wall Clock actually work?",
+      "source": "docs/research/bitcoins-missing-wall-clock.md"
+    },
+    {
+      "q": "What breaks if the binding is wrong?",
+      "source": "docs/INDEX-DEP-CODEHASH-BINDING.md"
+    },
+    {
+      "q": "How does the hierarchy in one line each actually work?",
+      "source": "docs/ZK-SPEC.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"#4 T4: Congestion monetization / fee-market vacuum\"?",
+      "source": "docs/VIBESWAP-THESIS-FIDELITY.md"
+    },
+    {
+      "q": "What breaks if honest status (do not round up) is wrong?",
+      "source": "docs/transparency-privacy-grounding.md"
+    },
+    {
+      "q": "Why is honest tensions load-bearing?",
+      "source": "docs/DISPUTE-SLASHING.md"
+    },
+    {
+      "q": "What would an adversary do against noesis FAQ?",
+      "source": "docs/FAQ.md"
+    },
+    {
+      "q": "What would an adversary do against verified API surfaces (read 2026-06-12)?",
+      "source": "docs/CKB-VM-PORT.md"
+    },
+    {
+      "q": "Is build & repo hygiene built, designed, or still open?",
+      "source": "docs/REFERENCE-NODE-STATUS.md"
+    },
+    {
+      "q": "How does §7 Adversarial defenses (ranked; corrected) actually work?",
+      "source": "docs/DESIGN-M3-jul-economics.md"
+    },
+    {
+      "q": "Why is t1 (preserved, fence the two unbuilt transferable layers) load-bearing?",
+      "source": "docs/VIBESWAP-THESIS-FIDELITY.md"
+    },
+    {
+      "q": "What breaks if the axis that is actually new here: chain AI is wrong?",
+      "source": "docs/research/three-axes-provenance-funding-ai-merger.md"
+    },
+    {
+      "q": "Why is §3 The retarget controller load-bearing?",
+      "source": "docs/DESIGN-M3-jul-economics.md"
+    },
+    {
+      "q": "What breaks if l3 Conservation of proof (GEV) is wrong?",
+      "source": "docs/COHERENCE-LAWS.md"
+    },
+    {
+      "q": "Where does phase 5 Hardening & release bottom out?",
+      "source": "ROADMAP.md"
+    },
+    {
+      "q": "Where does DESIGN Governance authority tiering (who may amend what) bottom out?",
+      "source": "docs/DESIGN-governance-authority-tiering.md"
+    },
+    {
+      "q": "What would an adversary do against §0.1 Ratified decisions (Will-delegated, 2026-07-13)?",
+      "source": "docs/DESIGN-M3-jul-economics.md"
+    },
+    {
+      "q": "Is clawback cascade / self-healing design synthesis (pre-implementation) built, designed, or still open?",
+      "source": "docs/CLAWBACK-CASCADE-SELF-HEALING.md"
+    },
+    {
+      "q": "What would an adversary do against phase 2 Report Compact State (UTXO commitment, no ZK)?",
+      "source": "docs/phase2-commitment-report.md"
+    },
+    {
+      "q": "What breaks if v0's stated guarantee (adopt verbatim) is wrong?",
+      "source": "docs/research/v0-sybil-failure-envelope-2026-07-19.md"
+    },
+    {
+      "q": "What would an adversary do against entanglement table (merged, all finders)?",
+      "source": "docs/rulebook-map.md"
+    },
+    {
+      "q": "What breaks if consensus vs. Finality THE distinction (do not conflate) is wrong?",
+      "source": "ARCHITECTURE.md"
+    },
+    {
+      "q": "Where does noesis documentation index bottom out?",
+      "source": "docs/README.md"
+    },
+    {
+      "q": "Is amendment log built, designed, or still open?",
+      "source": "docs/COHERENCE-LAWS.md"
+    },
+    {
+      "q": "What breaks if a closing observation is wrong?",
+      "source": "docs/decorrelated-adversarial-review.md"
+    },
+    {
+      "q": "What breaks if the instruments is wrong?",
+      "source": "docs/TOKENOMICS.md"
+    },
+    {
+      "q": "Where does DESIGN The Committee-Attested Wall-Clock (Phase-2 timestamp source) bottom out?",
+      "source": "docs/DESIGN-committee-attested-clock.md"
+    },
+    {
+      "q": "How does on-VM PoM-weighted finalization (PRIVATE) design, ready to build actually work?",
+      "source": "docs/ON-VM-FINALIZATION.md"
+    },
+    {
+      "q": "What would an adversary do against noesis Reference Node v0.1 status?",
+      "source": "docs/REFERENCE-NODE-STATUS.md"
+    },
+    {
+      "q": "Where does JUL the money layer bottom out?",
+      "source": "docs/whitepaper/noesis-cryptoeconomics.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"Positioning Noesis: three neighbors, one gap\"?",
+      "source": "docs/research/three-axes-provenance-funding-ai-merger.md"
+    },
+    {
+      "q": "How does research inputs actually work?",
+      "source": "docs/whitepaper/EVOLUTION-LOG.md"
+    },
+    {
+      "q": "Why is fig 8 Mint sink conservation (why supply closes) load-bearing?",
+      "source": "docs/VISUALS.md"
+    },
+    {
+      "q": "How does critical-qa (2026-06-12, pre-#2 3 rounds, 1 design change) actually work?",
+      "source": "docs/T7-CROSS-CELL-SIMILARITY.md"
+    },
+    {
+      "q": "Is fit 4 private provenance / account-link (selective disclosure) built, designed, or still open?",
+      "source": "docs/ZK-INTEGRATION.md"
+    },
+    {
+      "q": "What would an adversary do against on-VM / execution (CKB-VM)?",
+      "source": "docs/README.md"
+    },
+    {
+      "q": "Why is the tiers authority mapped to what is governed load-bearing?",
+      "source": "docs/DESIGN-governance-authority-tiering.md"
+    },
+    {
+      "q": "How does fig 6 Fair launch: genesis-burn vs chain-reset actually work?",
+      "source": "docs/VISUALS.md"
+    },
+    {
+      "q": "Where does t2 Contribution chain, not possession chain preserved bottom out?",
+      "source": "docs/VIBESWAP-THESIS-FIDELITY.md"
+    },
+    {
+      "q": "What breaks if noesis Rulebook Map Stateless-Verification Engagement, Phase 0 is wrong?",
+      "source": "docs/rulebook-map.md"
+    },
+    {
+      "q": "Is stable Money built, designed, or still open?",
+      "source": "docs/research/stable-base-money-ergon-rationale.md"
+    },
+    {
+      "q": "How does sequencing for a fresh window actually work?",
+      "source": "docs/phase4-fv-plan.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"The contract a replacement MUST preserve\"?",
+      "source": "docs/DESIGN-value-oracle-seam.md"
+    },
+    {
+      "q": "What would an adversary do against l11 Coordination-layer integrity ≥ max coordinated attack surface?",
+      "source": "docs/COHERENCE-LAWS.md"
+    },
+    {
+      "q": "Where does north-star voice (already approved) bottom out?",
+      "source": "docs/whitepaper/HANDOFF-readability-v1.5.md"
+    },
+    {
+      "q": "What would an adversary do against #2 T5: Risk-layer plutocracy (bonded-individualism + burn-to-holders)?",
+      "source": "docs/VIBESWAP-THESIS-FIDELITY.md"
+    },
+    {
+      "q": "What would an adversary do against (B) Multi-producer Nakamoto research build, NOT a testnet increment?",
+      "source": "docs/DESIGN-live-gossip.md"
+    },
+    {
+      "q": "What would an adversary do against retention-decay attack surface (NCI verification, 2026-06-11)?",
+      "source": "docs/POM-CONSENSUS.md"
+    },
+    {
+      "q": "Is the threat (precise) built, designed, or still open?",
+      "source": "docs/RESOURCE-DOS-BOUNDING.md"
+    },
+    {
+      "q": "How does the invariants hold each has a named, passing test actually work?",
+      "source": "docs/REFERENCE-NODE-STATUS.md"
+    },
+    {
+      "q": "What would an adversary do against role Separation as a Design Law?",
+      "source": "docs/research/role-separation-as-design-law.md"
+    },
+    {
+      "q": "What would an adversary do against state-bytes the capital layer?",
+      "source": "docs/whitepaper/noesis-cryptoeconomics.md"
+    },
+    {
+      "q": "Why is VIBESWAP NOESIS THESIS FIDELITY load-bearing?",
+      "source": "docs/VIBESWAP-THESIS-FIDELITY.md"
+    },
+    {
+      "q": "What breaks if FB-001 CKBased.bit (CKB community) 2026-06-19 ~09:43 CT is wrong?",
+      "source": "docs/whitepaper/EVOLUTION-LOG.md"
+    },
+    {
+      "q": "What would an adversary do against tie-in: fair launch (Will's open question, 2026-06-11)?",
+      "source": "docs/COORDINATION-SCHELLING.md"
+    },
+    {
+      "q": "What would an adversary do against honest status + open questions (do not invent)?",
+      "source": "docs/DESIGN-governance-authority-tiering.md"
+    },
+    {
+      "q": "What breaks if the three faces is wrong?",
+      "source": "docs/THE-KEYSTONE-content-value-signal.md"
+    },
+    {
+      "q": "Is the reference model (what we are porting) built, designed, or still open?",
+      "source": "docs/ON-VM-FINALIZATION.md"
+    },
+    {
+      "q": "How does anti-plutocracy: the indirect-capture attack surfaces (longer brief) actually work?",
+      "source": "docs/anti-plutocracy-attack-surfaces-2026-07-17.md"
+    },
+    {
+      "q": "Is lever A production-cost anchor (Ergon-style; the long-run value) built, designed, or still open?",
+      "source": "docs/DESIGN-jul-money-layer.md"
+    },
+    {
+      "q": "Where does the value layer reuses this machinery (2026-06-12) bottom out?",
+      "source": "docs/POM-CONSENSUS.md"
+    },
+    {
+      "q": "What would an adversary do against noesis Attack / Defense (partner-facing)?",
+      "source": "docs/ATTACK-DEFENSE.md"
+    },
+    {
+      "q": "Where does appendix file:line a finder could NOT verify (honesty) bottom out?",
+      "source": "docs/rulebook-map.md"
+    },
+    {
+      "q": "Is verification run (2026-07-02, on this machine) built, designed, or still open?",
+      "source": "docs/REFERENCE-NODE-STATUS.md"
+    },
+    {
+      "q": "What would an adversary do against replay-parity evidence (the gate)?",
+      "source": "docs/phase1-extraction-report.md"
+    },
+    {
+      "q": "How does t7 Cross-cell similarity floor ON-VM (design, PRIVATE) actually work?",
+      "source": "docs/T7-CROSS-CELL-SIMILARITY.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"The core move\"?",
+      "source": "docs/NOESIS-LITEPAPER.md"
+    },
+    {
+      "q": "Is consensus Review PoM-weighted finalization (PRIVATE, stealth) built, designed, or still open?",
+      "source": "docs/CONSENSUS-REVIEW.md"
+    },
+    {
+      "q": "What would an adversary do against defensive audit attacker-choosable inputs (PRIVATE)?",
+      "source": "docs/SECURITY-AUDIT-attacker-choosable-inputs.md"
+    },
+    {
+      "q": "Why is upheld path (verdict = genuine) load-bearing?",
+      "source": "docs/DISPUTE-SLASHING.md"
+    },
+    {
+      "q": "What breaks if edge case the sincere over-reporter (and the visionary false-negative) is wrong?",
+      "source": "docs/research/v0-sybil-failure-envelope-2026-07-19.md"
+    },
+    {
+      "q": "How does t3 MEV / ordering-extraction elimination AT-RISK actually work?",
+      "source": "docs/VIBESWAP-THESIS-FIDELITY.md"
+    },
+    {
+      "q": "What breaks if l2 Soulbound franchise: no capital consensus is wrong?",
+      "source": "docs/COHERENCE-LAWS.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"The gap (live)\"?",
+      "source": "docs/INDEX-DEP-CODEHASH-BINDING.md"
+    },
+    {
+      "q": "What would an adversary do against anti-theater proof?",
+      "source": "docs/DESIGN-value-oracle-seam.md"
+    },
+    {
+      "q": "What would an adversary do against the thesis (one paragraph)?",
+      "source": "docs/research/contribution-measurement-dissolves-redistribution-SEED.md"
+    },
+    {
+      "q": "What would an adversary do against measured numbers (honest)?",
+      "source": "docs/phase2-commitment-report.md"
+    },
+    {
+      "q": "Where does proof of Mind (PoM) the score bottom out?",
+      "source": "docs/POM-CONSENSUS.md"
+    },
+    {
+      "q": "How does c. Agents + blockchains (rails, identity, reputation) actually work?",
+      "source": "docs/research/FRONTIER-BRIEF-2026-06-23.md"
+    },
+    {
+      "q": "What breaks if the corrected branch analysis is wrong?",
+      "source": "docs/DESIGN-M3-jul-economics.md"
+    },
+    {
+      "q": "Where does l9 Core / nucleolus stability bottom out?",
+      "source": "docs/COHERENCE-LAWS.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"Trust statement (required, stated plainly)\"?",
+      "source": "docs/phase2-commitment-report.md"
+    },
+    {
+      "q": "Is slashing & commit-reveal (AFK item 4) built, designed, or still open?",
+      "source": "docs/POM-CONSENSUS.md"
+    },
+    {
+      "q": "What breaks if coding a Body for Humanity is wrong?",
+      "source": "docs/research/coding-a-body-for-humanity.md"
+    },
+    {
+      "q": "Is attack 1 \"I'll sell (or lend) my key\" built, designed, or still open?",
+      "source": "docs/ATTACK-DEFENSE.md"
+    },
+    {
+      "q": "How does noesis Litepaper actually work?",
+      "source": "docs/NOESIS-LITEPAPER.md"
+    },
+    {
+      "q": "What breaks if manufacturing a Periphery the solution shape for wash-discernment is wrong?",
+      "source": "docs/DESIGN-periphery-solution.md"
+    },
+    {
+      "q": "What breaks if boundaries (restated every report) is wrong?",
+      "source": "docs/phase1-extraction-report.md"
+    },
+    {
+      "q": "What breaks if a. Decentralized LLM / proof-of-X consensus is wrong?",
+      "source": "docs/research/FRONTIER-BRIEF-2026-06-23.md"
+    },
+    {
+      "q": "Where does surface 1 Delegation (renting the franchise) bottom out?",
+      "source": "docs/anti-plutocracy-attack-surfaces-2026-07-17.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"Tier legend\"?",
+      "source": "ROADMAP.md"
+    },
+    {
+      "q": "How does appendix for you, not to be read aloud actually work?",
+      "source": "docs/boardy-call-2026-07-17.md"
+    },
+    {
+      "q": "How does THE RULES (do / don't) actually work?",
+      "source": "docs/whitepaper/HANDOFF-readability-v1.5.md"
+    },
+    {
+      "q": "Is full session context built, designed, or still open?",
+      "source": "docs/whitepaper/HANDOFF-readability-v1.5.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"Sections still to rewrite (intro = DONE/exemplar)\"?",
+      "source": "docs/whitepaper/HANDOFF-readability-v1.5.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"Value measure v(S) the moat\"?",
+      "source": "ARCHITECTURE.md"
+    },
+    {
+      "q": "What would an adversary do against VIBE issuance earned by validation (proposal, not yet decided)?",
+      "source": "docs/DESIGN-governance-authority-tiering.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"Honest status of the two oracles\"?",
+      "source": "docs/DESIGN-value-oracle-seam.md"
+    },
+    {
+      "q": "Is ordered code increments built, designed, or still open?",
+      "source": "docs/T7-CROSS-CELL-SIMILARITY.md"
+    },
+    {
+      "q": "How does §11 Honest gaps ( open, carried forward) actually work?",
+      "source": "docs/DESIGN-M3-jul-economics.md"
+    },
+    {
+      "q": "Where does SEED \"Measured Contribution Dissolves the Redistribution Dichotomy\" bottom out?",
+      "source": "docs/research/contribution-measurement-dissolves-redistribution-SEED.md"
+    },
+    {
+      "q": "What breaks if decorrelated Adversarial Review (DAR) is wrong?",
+      "source": "docs/decorrelated-adversarial-review.md"
+    },
+    {
+      "q": "What breaks if the keystone: no circular self-reference is wrong?",
+      "source": "docs/POM-FINALITY-TEMPORALITY.md"
+    },
+    {
+      "q": "How does the Coordination Schelling Point inward and outward consensus (PRIVATE) actually work?",
+      "source": "docs/COORDINATION-SCHELLING.md"
+    },
+    {
+      "q": "Where does start here bottom out?",
+      "source": "README.md"
+    },
+    {
+      "q": "Is §4 Emission + the N-way coinbase split (incl. L-INFRA) built, designed, or still open?",
+      "source": "docs/DESIGN-M3-jul-economics.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"Structure vs parameters vs moat (the closing discipline)\"?",
+      "source": "docs/DESIGN-governance-authority-tiering.md"
+    },
+    {
+      "q": "Why is honest limits of this simulation load-bearing?",
+      "source": "docs/research/v0-sybil-failure-envelope-2026-07-19.md"
+    },
+    {
+      "q": "Where does the observation bottom out?",
+      "source": "docs/decorrelated-adversarial-review.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"Noesis Crypto-Economics\"?",
+      "source": "docs/whitepaper/noesis-cryptoeconomics.md"
+    },
+    {
+      "q": "Why is DESIGN Never-halt liveness: the stall detector load-bearing?",
+      "source": "docs/DESIGN-never-halt-liveness.md"
+    },
+    {
+      "q": "Why is naming read this to avoid the thread's confusion load-bearing?",
+      "source": "docs/TOKENOMICS.md"
+    },
+    {
+      "q": "How does tokenomics three tokens, one soulbound standing actually work?",
+      "source": "docs/TOKENOMICS.md"
+    },
+    {
+      "q": "How does fit 1 proving the finality verdict (succinctness) actually work?",
+      "source": "docs/ZK-SPEC.md"
+    },
+    {
+      "q": "What would an adversary do against HANDOFF v1.5 viral-readability rewrite (resume here)?",
+      "source": "docs/whitepaper/HANDOFF-readability-v1.5.md"
+    },
+    {
+      "q": "What would an adversary do against the thesis the airgap, and why this is hard?",
+      "source": "docs/boardy-call-2026-07-17.md"
+    },
+    {
+      "q": "What would an adversary do against mechanism (three pieces, one load-bearing)?",
+      "source": "docs/DISPUTE-SLASHING.md"
+    },
+    {
+      "q": "Where does the keystone and its wrapper bottom out?",
+      "source": "docs/THE-KEYSTONE-content-value-signal.md"
+    },
+    {
+      "q": "Why is cryptoeconomics 1 PoM = 1 byte of state (PRIVATE) load-bearing?",
+      "source": "docs/CRYPTOECONOMICS.md"
+    },
+    {
+      "q": "What would an adversary do against the finding (recap)?",
+      "source": "docs/TEMPORAL-ORDER-ONCHAIN.md"
+    },
+    {
+      "q": "Is dispute-window endorsement-slashing design (pre-implementation) built, designed, or still open?",
+      "source": "docs/DISPUTE-SLASHING.md"
+    },
+    {
+      "q": "What would an adversary do against noesis Visuals (PRIVATE, stealth)?",
+      "source": "docs/VISUALS.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"Two value problems don't conflate them\"?",
+      "source": "docs/TOKENOMICS.md"
+    },
+    {
+      "q": "How does the honest architecture read this before we attack anything actually work?",
+      "source": "docs/boardy-call-2026-07-17.md"
+    },
+    {
+      "q": "How does one-line summary for a skeptic actually work?",
+      "source": "docs/ATTACK-DEFENSE.md"
+    },
+    {
+      "q": "Why is key sources (verified, primary unless noted) load-bearing?",
+      "source": "docs/research/RELATED-WORK-NOVELTY-AUDIT-2026-06-19.md"
+    },
+    {
+      "q": "Where does reverse-Fork Convergence the agnostic contribution-merge substrate bottom out?",
+      "source": "docs/CONVERGENCE-REVERSE-FORK.md"
+    },
+    {
+      "q": "Why is the problem load-bearing?",
+      "source": "docs/NOESIS-LITEPAPER.md"
+    },
+    {
+      "q": "Is the spine why un-gameability is a completeness problem built, designed, or still open?",
+      "source": "docs/boardy-call-2026-07-17.md"
+    },
+    {
+      "q": "Is #5 T1: JUL-before-stabilizer + sequencing inversion built, designed, or still open?",
+      "source": "docs/VIBESWAP-THESIS-FIDELITY.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"Fit 4 private provenance and account-link (privacy)\"?",
+      "source": "docs/ZK-SPEC.md"
+    },
+    {
+      "q": "Why is noesis, for normal people load-bearing?",
+      "source": "docs/NOESIS-FOR-DUMMIES.md"
+    },
+    {
+      "q": "Is temporal-novelty's ordering source VERIFIED 2026-06-13 built, designed, or still open?",
+      "source": "docs/SECURITY-AUDIT-attacker-choosable-inputs.md"
+    },
+    {
+      "q": "Is the Verified Rulebook built, designed, or still open?",
+      "source": "docs/VERIFIED-RULEBOOK.md"
+    },
+    {
+      "q": "What would an adversary do against slashing is forward-only (same as PoS)?",
+      "source": "docs/POM-FINALITY-TEMPORALITY.md"
+    },
+    {
+      "q": "What breaks if port / reinterpret / augment is wrong?",
+      "source": "docs/CRYPTOECONOMICS.md"
+    },
+    {
+      "q": "How does fit 3 private novelty check (privacy) actually work?",
+      "source": "docs/ZK-SPEC.md"
+    },
+    {
+      "q": "How does the envelope, stated plainly actually work?",
+      "source": "docs/research/v0-sybil-failure-envelope-2026-07-19.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"Fit 3 novelty as a ZK set-non-membership proof\"?",
+      "source": "docs/ZK-INTEGRATION.md"
+    },
+    {
+      "q": "How does repository layout actually work?",
+      "source": "README.md"
+    },
+    {
+      "q": "How does the rules can be wrong in two ways actually work?",
+      "source": "docs/research/the-rules-can-be-wrong.md"
+    },
+    {
+      "q": "Is adversarial-loop log (RSAW newest first) built, designed, or still open?",
+      "source": "ROADMAP.md"
+    },
+    {
+      "q": "Where does fit 2 private / confidential contribution scoring (zkML-adjacent) bottom out?",
+      "source": "docs/ZK-INTEGRATION.md"
+    },
+    {
+      "q": "Why is phase 1 Report The Extraction (pure applyblock) load-bearing?",
+      "source": "docs/phase1-extraction-report.md"
+    },
+    {
+      "q": "What breaks if poM consensus why decentralization becomes realistic is wrong?",
+      "source": "docs/POM-CONSENSUS.md"
+    },
+    {
+      "q": "How does deploy dependency (the honest gate) actually work?",
+      "source": "docs/INDEX-DEP-CODEHASH-BINDING.md"
+    },
+    {
+      "q": "What breaks if fallback: Nakamoto-Infinity as a backup consensus (Will, 2026-06-11) is wrong?",
+      "source": "docs/POM-CONSENSUS.md"
+    },
+    {
+      "q": "Where does the thesis bottom out?",
+      "source": "docs/CONVERGENCE-REVERSE-FORK.md"
+    },
+    {
+      "q": "Why is appendix sharding math (rejected mitigation, kept for the record) load-bearing?",
+      "source": "docs/T7-CROSS-CELL-SIMILARITY.md"
+    },
+    {
+      "q": "Why is d. Substrate (zkML/opML/TEE, contribution measurement, Goodhart) load-bearing?",
+      "source": "docs/research/FRONTIER-BRIEF-2026-06-23.md"
+    },
+    {
+      "q": "Why is loops (self-perpetuating, private) load-bearing?",
+      "source": "ROADMAP.md"
+    },
+    {
+      "q": "How does t1 Coordination primitive, not a casino preserved actually work?",
+      "source": "docs/VIBESWAP-THESIS-FIDELITY.md"
+    },
+    {
+      "q": "How does l4 Mint sink balance actually work?",
+      "source": "docs/COHERENCE-LAWS.md"
+    },
+    {
+      "q": "Is honest status ledger built, designed, or still open?",
+      "source": "docs/VERIFIED-RULEBOOK.md"
+    },
+    {
+      "q": "Why is noesis ZK integration design (core protocol) load-bearing?",
+      "source": "docs/ZK-INTEGRATION.md"
+    },
+    {
+      "q": "Is the intersection, not a fourth product built, designed, or still open?",
+      "source": "docs/research/three-axes-provenance-funding-ai-merger.md"
+    },
+    {
+      "q": "How does #6 T6/T2: Parameter-layer and oracle-door re-entry actually work?",
+      "source": "docs/VIBESWAP-THESIS-FIDELITY.md"
+    },
+    {
+      "q": "What would an adversary do against fig 4 Consensus stack?",
+      "source": "docs/VISUALS.md"
+    },
+    {
+      "q": "Is anti-plutocracy check (the property Will set as the bar) built, designed, or still open?",
+      "source": "docs/DESIGN-governance-authority-tiering.md"
+    },
+    {
+      "q": "Why is edge 2 coalition gaming load-bearing?",
+      "source": "docs/boardy-call-2026-07-17.md"
+    },
+    {
+      "q": "Why is layer C collusion is named and slashable (slash‑wiring ) load-bearing?",
+      "source": "docs/DESIGN-authorityless-contribution-value.md"
+    },
+    {
+      "q": "How does the Uncomputable Answer actually work?",
+      "source": "docs/research/the-uncomputable-answer.md"
+    },
+    {
+      "q": "How does value strategyproofness adversary finding + fix (2026-06-11) actually work?",
+      "source": "docs/POM-CONSENSUS.md"
+    },
+    {
+      "q": "How does the Block Economy PRIVATE (2026-06-11) actually work?",
+      "source": "docs/BLOCK-ECONOMY-SPEC.md"
+    },
+    {
+      "q": "Why is two structural bounds (defense-in-depth) load-bearing?",
+      "source": "docs/RESOURCE-DOS-BOUNDING.md"
+    },
+    {
+      "q": "How does the fix dissolve producer-favorable ordering at two scales actually work?",
+      "source": "docs/TEMPORAL-ORDER-ONCHAIN.md"
+    },
+    {
+      "q": "Where does §0 TL;DR and the one ruling that unblocks everything bottom out?",
+      "source": "docs/DESIGN-M3-jul-economics.md"
+    },
+    {
+      "q": "Why is the seal work is a PROOF, not a claim load-bearing?",
+      "source": "docs/DESIGN-pow-work-dimension.md"
+    },
+    {
+      "q": "What would an adversary do against §6 Reserve (Lever B): ship OFF, activate LAST?",
+      "source": "docs/DESIGN-M3-jul-economics.md"
+    },
+    {
+      "q": "Why is the math bridge, term for term load-bearing?",
+      "source": "docs/Pragma Overlaps/noesis-pragma-overlap.md"
+    },
+    {
+      "q": "How does t2 (preserved, guard the residuals) actually work?",
+      "source": "docs/VIBESWAP-THESIS-FIDELITY.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"The one sentence to drive toward\"?",
+      "source": "docs/REFERENCE-NODE-STATUS.md"
+    },
+    {
+      "q": "Where does honest status bottom out?",
+      "source": "docs/NOESIS-LITEPAPER.md"
+    },
+    {
+      "q": "Where does surface 2 Sybil identities (manufacturing standing by splitting) bottom out?",
+      "source": "docs/anti-plutocracy-attack-surfaces-2026-07-17.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"Phase 0 Foundation (DONE this session)\"?",
+      "source": "ROADMAP.md"
+    },
+    {
+      "q": "How does t4 GEV elimination at the protocol level preserved actually work?",
+      "source": "docs/VIBESWAP-THESIS-FIDELITY.md"
+    },
+    {
+      "q": "Where does per-claim verdicts bottom out?",
+      "source": "docs/research/RELATED-WORK-NOVELTY-AUDIT-2026-06-19.md"
+    },
+    {
+      "q": "Is first, what Bitcoin really did (and didn't do) built, designed, or still open?",
+      "source": "docs/NOESIS-FOR-DUMMIES.md"
+    },
+    {
+      "q": "How does measured Contribution Dissolves the Redistribution Dichotomy actually work?",
+      "source": "docs/research/contribution-measurement-dissolves-redistribution.md"
+    },
+    {
+      "q": "Why is l8 Contributor floor load-bearing?",
+      "source": "docs/COHERENCE-LAWS.md"
+    },
+    {
+      "q": "Where does consensus, briefly bottom out?",
+      "source": "docs/NOESIS-LITEPAPER.md"
+    },
+    {
+      "q": "Where does the Rules Can Be Wrong bottom out?",
+      "source": "docs/research/the-rules-can-be-wrong.md"
+    },
+    {
+      "q": "How does fig 7 ToM ETM PoM (closing the airgap) actually work?",
+      "source": "docs/VISUALS.md"
+    },
+    {
+      "q": "What breaks if test plan (ckb-vm integration, fresh session) is wrong?",
+      "source": "docs/INDEX-DEP-CODEHASH-BINDING.md"
+    },
+    {
+      "q": "Where does threat target (Will, 2026-07-19) bottom out?",
+      "source": "docs/research/v0-sybil-failure-envelope-2026-07-19.md"
+    },
+    {
+      "q": "What breaks if a receipt, so this is not vibes is wrong?",
+      "source": "docs/Pragma Overlaps/noesis-pragma-overlap.md"
+    },
+    {
+      "q": "How does honest boundaries actually work?",
+      "source": "docs/research/role-separation-as-design-law.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"Phase 2 Recursion & flow\"?",
+      "source": "ROADMAP.md"
+    },
+    {
+      "q": "How does attack 2 \"Reusing standing every block: isn't that inflation?\" actually work?",
+      "source": "docs/ATTACK-DEFENSE.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"Execution-layer tier marks (2026-06-12, story-loop + roadmap-advance)\"?",
+      "source": "ROADMAP.md"
+    },
+    {
+      "q": "What breaks if DESIGN the Pragma layer: Constitution-amendment coherence (the socket) is wrong?",
+      "source": "docs/DESIGN-pragma-layer-amendment-coherence.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"L5 Strategyproof minting\"?",
+      "source": "docs/COHERENCE-LAWS.md"
+    },
+    {
+      "q": "Is the idea in one line built, designed, or still open?",
+      "source": "docs/NOESIS-LITEPAPER.md"
+    },
+    {
+      "q": "What breaks if security Policy is wrong?",
+      "source": "SECURITY.md"
+    },
+    {
+      "q": "How does the Noesis Manifesto actually work?",
+      "source": "docs/MANIFESTO.md"
+    },
+    {
+      "q": "What would an adversary do against build order (fresh session)?",
+      "source": "docs/ON-VM-FINALIZATION.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"Tests RED GREEN (7, all passing)\"?",
+      "source": "docs/phase2-commitment-report.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"DESIGN M3: JUL economics (the money layer)\"?",
+      "source": "docs/DESIGN-M3-jul-economics.md"
+    },
+    {
+      "q": "Where does isomorphism-invariance gate for v(S) design pass (OPEN RESEARCH) bottom out?",
+      "source": "docs/ISOMORPHISM-INVARIANCE-VS.md"
+    },
+    {
+      "q": "How does (A) Single-producer + live replicas RECOMMENDED for testnet actually work?",
+      "source": "docs/DESIGN-live-gossip.md"
+    },
+    {
+      "q": "What breaks if the full thesis is wrong?",
+      "source": "docs/README.md"
+    },
+    {
+      "q": "Why is the seam in code load-bearing?",
+      "source": "docs/DESIGN-value-oracle-seam.md"
+    },
+    {
+      "q": "What breaks if poM has two faces, on two clocks is wrong?",
+      "source": "docs/POM-FINALITY-TEMPORALITY.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"The open question that is worth a paper\"?",
+      "source": "docs/Pragma Overlaps/noesis-pragma-overlap.md"
+    },
+    {
+      "q": "What breaks if net verdict is wrong?",
+      "source": "docs/research/RELATED-WORK-NOVELTY-AUDIT-2026-06-19.md"
+    },
+    {
+      "q": "Why is l12 Composition before weighting (AND over OR) load-bearing?",
+      "source": "docs/COHERENCE-LAWS.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"Boundaries (load-bearing)\"?",
+      "source": "docs/VERIFIED-RULEBOOK.md"
+    },
+    {
+      "q": "What breaks if two orthogonal axes is wrong?",
+      "source": "docs/transparency-privacy-grounding.md"
+    },
+    {
+      "q": "Where does two halves of one thing bottom out?",
+      "source": "docs/research/the-rules-can-be-wrong.md"
+    },
+    {
+      "q": "What breaks if process per pass is wrong?",
+      "source": "docs/whitepaper/HANDOFF-readability-v1.5.md"
+    },
+    {
+      "q": "Where does edge 1 small-network plagiarism, the cold-start problem bottom out?",
+      "source": "docs/boardy-call-2026-07-17.md"
+    },
+    {
+      "q": "What would an adversary do against security & adversarial?",
+      "source": "docs/README.md"
+    },
+    {
+      "q": "Where does proof of Mind: a value chain for verified contribution bottom out?",
+      "source": "docs/NOESIS-LITEPAPER.md"
+    },
+    {
+      "q": "What breaks if findings & status is wrong?",
+      "source": "docs/CONSENSUS-REVIEW.md"
+    },
+    {
+      "q": "What breaks if the variance is larger than it looks is wrong?",
+      "source": "docs/decorrelated-adversarial-review.md"
+    },
+    {
+      "q": "What would an adversary do against phase 4 Verification of the Rulebook (formal verification): PLAN?",
+      "source": "docs/phase4-fv-plan.md"
+    },
+    {
+      "q": "Is the mechanism: committed index + complete per-shingle classification built, designed, or still open?",
+      "source": "docs/T7-CROSS-CELL-SIMILARITY.md"
+    },
+    {
+      "q": "How does the two edges that make or break it actually work?",
+      "source": "docs/COORDINATION-SCHELLING.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"The honest caveat (load-bearing)\"?",
+      "source": "docs/research/contribution-measurement-dissolves-redistribution-SEED.md"
+    },
+    {
+      "q": "What would an adversary do against build order?",
+      "source": "docs/ZK-INTEGRATION.md"
+    },
+    {
+      "q": "Where does a node's experience bottom out?",
+      "source": "docs/VERIFIED-RULEBOOK.md"
+    },
+    {
+      "q": "Is this thesis IS a role separation (the design-law spine) built, designed, or still open?",
+      "source": "docs/research/contribution-measurement-dissolves-redistribution-SEED.md"
+    },
+    {
+      "q": "How does the gap the franchise rewards noise maximally actually work?",
+      "source": "docs/SYBIL-SURFACE-deployed-franchise-2026-07-19.md"
+    },
+    {
+      "q": "Where does three tokens (orthogonal roles) see docs/TOKENOMICS.md bottom out?",
+      "source": "ARCHITECTURE.md"
+    },
+    {
+      "q": "How does EDGE 1 Small-network plagiarism (the cold-start problem) actually work?",
+      "source": "docs/boardy-edge-cases-2026-07-17.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"Honest open items\"?",
+      "source": "docs/CRYPTOECONOMICS.md"
+    },
+    {
+      "q": "What breaks if step 2 Differential testing is wrong?",
+      "source": "docs/phase4-fv-plan.md"
+    },
+    {
+      "q": "What would an adversary do against fig 2 Two-cell mint: soulbound standing vs transferable capacity?",
+      "source": "docs/VISUALS.md"
+    },
+    {
+      "q": "What would an adversary do against the honest part (what's done, what isn't)?",
+      "source": "docs/NOESIS-FOR-DUMMIES.md"
+    },
+    {
+      "q": "How does attack-class defense matrix actually work?",
+      "source": "SECURITY.md"
+    },
+    {
+      "q": "What would an adversary do against noesis one page?",
+      "source": "docs/NOESIS-ONEPAGER.md"
+    },
+    {
+      "q": "Where does the claim bottom out?",
+      "source": "docs/VERIFIED-RULEBOOK.md"
+    },
+    {
+      "q": "Why is resource-DoS bounding design + build status load-bearing?",
+      "source": "docs/RESOURCE-DOS-BOUNDING.md"
+    },
+    {
+      "q": "What breaks if l7 Append-only, slashable is wrong?",
+      "source": "docs/COHERENCE-LAWS.md"
+    },
+    {
+      "q": "What would an adversary do against CKB-VM PORT the on-VM PoM type-script (verified-API design, PRIVATE)?",
+      "source": "docs/CKB-VM-PORT.md"
+    },
+    {
+      "q": "How does mindCoin ($MIND) actually work?",
+      "source": "docs/MINDCOIN-FOUNDING.md"
+    },
+    {
+      "q": "How does honest tensions / open actually work?",
+      "source": "docs/ON-VM-FINALIZATION.md"
+    },
+    {
+      "q": "Is layer A literal repetition is already worth zero built, designed, or still open?",
+      "source": "docs/DESIGN-authorityless-contribution-value.md"
+    },
+    {
+      "q": "Why is the claim in one line load-bearing?",
+      "source": "docs/transparency-privacy-grounding.md"
+    },
+    {
+      "q": "What would an adversary do against noesis runs this as a repeated design law?",
+      "source": "docs/research/role-separation-as-design-law.md"
+    },
+    {
+      "q": "Where does foundational why PoM is soulbound (non-negotiable) bottom out?",
+      "source": "docs/ATTACK-DEFENSE.md"
+    },
+    {
+      "q": "Where does the transparency<->privacy factoring in Noesis bottom out?",
+      "source": "docs/transparency-privacy-grounding.md"
+    },
+    {
+      "q": "Where does the Adaptive-Adversary Instrument the correctly-specified test for HCE-3 bottom out?",
+      "source": "docs/DESIGN-adaptive-adversary-instrument.md"
+    },
+    {
+      "q": "Why is consensus + money-layer decisions LOCKED 2026-06-20 (Will-ruled) load-bearing?",
+      "source": "ROADMAP.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"Critical path\"?",
+      "source": "ROADMAP.md"
+    },
+    {
+      "q": "How does the spread mechanism, sharpened (DESIGN theses mark as such) actually work?",
+      "source": "docs/COORDINATION-SCHELLING.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"Fig 3 Three powers = rock-paper-scissors equilibrium\"?",
+      "source": "docs/VISUALS.md"
+    },
+    {
+      "q": "Why is security model load-bearing?",
+      "source": "SECURITY.md"
+    },
+    {
+      "q": "Why is the honest limit load-bearing?",
+      "source": "docs/decorrelated-adversarial-review.md"
+    },
+    {
+      "q": "Why is JUL the money layer (designed, not built) load-bearing?",
+      "source": "docs/TOKENOMICS.md"
+    },
+    {
+      "q": "Why is quantified attack (deployed testnet) load-bearing?",
+      "source": "docs/SYBIL-SURFACE-deployed-franchise-2026-07-19.md"
+    },
+    {
+      "q": "How does noesis: what ZK is for (four applications) actually work?",
+      "source": "docs/ZK-SPEC.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"Reporting a vulnerability\"?",
+      "source": "SECURITY.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"The generalization (bug bounties are one instance)\"?",
+      "source": "docs/research/contribution-measurement-dissolves-redistribution-SEED.md"
+    },
+    {
+      "q": "Why is noesis architecture reference (canonical, code-grounded) load-bearing?",
+      "source": "ARCHITECTURE.md"
+    },
+    {
+      "q": "What would an adversary do against stability no profitable fork (AFK item 8)?",
+      "source": "docs/POM-CONSENSUS.md"
+    },
+    {
+      "q": "What breaks if step 1 Property-based tests over applyblock (cheapest; do first) is wrong?",
+      "source": "docs/phase4-fv-plan.md"
+    },
+    {
+      "q": "How does the header commitment and why NO prev-block-hash (Will 2026-07-13) actually work?",
+      "source": "docs/DESIGN-pow-work-dimension.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"Exit-code addition\"?",
+      "source": "docs/INDEX-DEP-CODEHASH-BINDING.md"
+    },
+    {
+      "q": "Why is the law load-bearing?",
+      "source": "docs/research/role-separation-as-design-law.md"
+    },
+    {
+      "q": "Where does forward constraints (deferred, not open) bottom out?",
+      "source": "docs/DESIGN-pow-work-dimension.md"
+    },
+    {
+      "q": "Is the one-sentence version built, designed, or still open?",
+      "source": "docs/NOESIS-FOR-DUMMIES.md"
+    },
+    {
+      "q": "Where does coherence Laws (PRIVATE, stealth) bottom out?",
+      "source": "docs/COHERENCE-LAWS.md"
+    },
+    {
+      "q": "What breaks if essential Complexity: The Organism and the Machine is wrong?",
+      "source": "docs/research/essential-complexity-organism-and-machine.md"
+    },
+    {
+      "q": "Why is phase 3 Consensus load-bearing?",
+      "source": "ROADMAP.md"
+    },
+    {
+      "q": "Why is phase 4 Backwards-enforcement of the model load-bearing?",
+      "source": "ROADMAP.md"
+    },
+    {
+      "q": "What breaks if l13 Per-dimension security-provisioning floor is wrong?",
+      "source": "docs/COHERENCE-LAWS.md"
+    },
+    {
+      "q": "What would an adversary do against the coupling the two open axes are one knot?",
+      "source": "docs/SYBIL-SURFACE-deployed-franchise-2026-07-19.md"
+    },
+    {
+      "q": "Where does RI-002 Second-pass novelty audit (cleared the flagged claims) 2026-06-19 bottom out?",
+      "source": "docs/whitepaper/EVOLUTION-LOG.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"T3 (at-risk) three launch-gates, constitutionalized like MINDIMBPS\"?",
+      "source": "docs/VIBESWAP-THESIS-FIDELITY.md"
+    },
+    {
+      "q": "Where does something From Nothing the oracle-free content-value primitive bottom out?",
+      "source": "docs/THE-KEYSTONE-content-value-signal.md"
+    },
+    {
+      "q": "What would an adversary do against design note the PoW work dimension (M2)?",
+      "source": "docs/DESIGN-pow-work-dimension.md"
+    },
+    {
+      "q": "What breaks if roadmap Proof of Mind value chain (PUBLIC) is wrong?",
+      "source": "ROADMAP.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"VIBE governance\"?",
+      "source": "docs/TOKENOMICS.md"
+    },
+    {
+      "q": "What breaks if adversarial walk (design-time tick) is wrong?",
+      "source": "docs/T7-CROSS-CELL-SIMILARITY.md"
+    },
+    {
+      "q": "How does fixed-point conversion map (the f64 problem, per-function) actually work?",
+      "source": "docs/CKB-VM-PORT.md"
+    },
+    {
+      "q": "Where does refuted path (verdict = garbage) bottom out?",
+      "source": "docs/DISPUTE-SLASHING.md"
+    },
+    {
+      "q": "Where does the v(S) Value-Oracle Seam the blockchain AI boundary bottom out?",
+      "source": "docs/DESIGN-value-oracle-seam.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"L10 Two-axis robustness\"?",
+      "source": "docs/COHERENCE-LAWS.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"The invariant this exists to protect\"?",
+      "source": "docs/DESIGN-governance-authority-tiering.md"
+    },
+    {
+      "q": "Is §2 THE TIMESTAMP PROBLEM (the central fork corrected) built, designed, or still open?",
+      "source": "docs/DESIGN-M3-jul-economics.md"
+    },
+    {
+      "q": "Why is the accumulator decision B (audited, vendored) and why load-bearing?",
+      "source": "docs/phase2-commitment-report.md"
+    }
+  ]
+}

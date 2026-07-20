@@ -228,19 +228,44 @@
     <div class="dag" id="dag"></div>
   </section>
   <style>
-    .dag{display:flex;flex-direction:column;gap:8px;margin-top:8px}
-    .dnode{border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px 12px;background:rgba(255,255,255,.02)}
-    .dnode.you{border-color:rgba(120,180,255,.5);background:rgba(120,180,255,.06)}
-    .dhead{display:flex;align-items:center;gap:8px;font-size:.92em}
-    .dhead .dim{opacity:.6}
-    .dhead .nov{margin-left:auto;opacity:.7;font-size:.85em}
-    .dprev{opacity:.8;font-size:.88em;margin:6px 0;white-space:pre-wrap;word-break:break-word;max-height:3.2em;overflow:hidden}
-    .dedges{display:flex;gap:10px;font-size:.82em;flex-wrap:wrap}
-    .edge{padding:2px 8px;border-radius:999px}
-    .edge.up{background:rgba(255,200,120,.12);color:#ffce8a}
-    .edge.down{background:rgba(120,255,180,.12);color:#8affc0}
+    /* ---- contribution TREE (foundational roots, children nested under what they build on) ---- */
+    .dag{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+    .tnode,.tleaf{border:1px solid rgba(255,255,255,.08);border-radius:10px;background:rgba(255,255,255,.02)}
+    .tnode.you,.tleaf.you{border-color:rgba(120,180,255,.5);background:rgba(120,180,255,.06)}
+    .tnode{padding:0}
+    .tnode>summary{cursor:pointer;padding:10px 12px;list-style:none;display:block}
+    .tnode>summary::-webkit-details-marker{display:none}
+    .tnode>summary::before{content:"▸";display:inline-block;width:14px;opacity:.5;font-size:.8em}
+    .tnode[open]>summary::before{content:"▾"}
+    .tleaf{padding:10px 12px 10px 26px}
+    .thead{display:flex;align-items:center;gap:8px;font-size:.92em}
+    .thead .dim{opacity:.6}
+    .thead .nov{opacity:.7;font-size:.85em}
+    .tprev{opacity:.8;font-size:.88em;margin:6px 0 0 22px;white-space:pre-wrap;word-break:break-word;max-height:3.2em;overflow:hidden}
+    .tkids{display:block;font-size:.78em;opacity:.55;margin:4px 0 0 22px}
+    .tchildren{margin:0 0 8px 20px;padding-left:10px;border-left:1px solid rgba(255,255,255,.09)}
+    .edge{padding:2px 8px;border-radius:999px;font-size:.82em}
+    .edge.down{background:rgba(120,255,180,.12);color:#8affc0;margin-left:auto}
     .edge.root{opacity:.5}
+    /* ---- flowing questions feed (deterministic shuffle, seeded by chain height) ---- */
+    .qfeed{margin-top:8px;height:168px;overflow:hidden;position:relative;
+           border:1px solid rgba(255,255,255,.06);border-radius:10px;background:rgba(255,255,255,.02);
+           -webkit-mask-image:linear-gradient(180deg,transparent,#000 14%,#000 86%,transparent);
+           mask-image:linear-gradient(180deg,transparent,#000 14%,#000 86%,transparent)}
+    .qtrack{position:absolute;left:0;right:0;padding:0 14px;animation:qflow linear infinite;will-change:transform}
+    .qfeed:hover .qtrack{animation-play-state:paused}
+    .qitem{padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:.92em;line-height:1.4}
+    .qitem .qsrc{display:block;opacity:.45;font-size:.76em;margin-top:3px}
+    @keyframes qflow{from{transform:translateY(0)}to{transform:translateY(-50%)}}
+    @media (prefers-reduced-motion: reduce){.qtrack{animation:none}.qfeed{height:auto;max-height:340px;overflow:auto}}
   </style>
+
+  <!-- ============ Open questions from the corpus ============ -->
+  <section class="card">
+    <h2>Open questions from the corpus</h2>
+    <p style="margin-top:-6px;opacity:.7;font-size:.9em">Drawn from the current Noēsis docs, shuffled deterministically and flowing as the chain grows. Pick one and contribute an answer above. <span style="opacity:.6">(hover to pause)</span></p>
+    <div class="qfeed" id="qfeed"><div class="empty" style="padding:12px">loading questions…</div></div>
+  </section>
 
   <footer>
     <div class="cfg">
@@ -390,25 +415,77 @@
   function hx(a) { a = String(a || ""); return a.length > 12 ? a.slice(0, 6) + "…" + a.slice(-4) : a; }
   function isMine(hex) { return wallet && (hex === wallet.address || hex === String(wallet.address).replace(/^0x/, "")); }
 
+  // Build a forest: each contribution nests under the one it builds on (single parent ⇒ a tree).
+  // Foundational contributions (no parent) are roots. Sorted by downstream impact, then age.
+  function buildForest(items) {
+    const byId = new Map(items.map((c) => [c.id, Object.assign({}, c, { children: [] })]));
+    const roots = [];
+    for (const c of byId.values()) {
+      if (c.parent !== null && c.parent !== undefined && byId.has(c.parent)) byId.get(c.parent).children.push(c);
+      else roots.push(c);
+    }
+    const byImpact = (a, b) => (b.downstream - a.downstream) || (a.id - b.id);
+    const rec = (n) => { n.children.sort(byImpact); n.children.forEach(rec); };
+    roots.sort(byImpact); roots.forEach(rec);
+    return roots;
+  }
+  function nodeHtml(c, depth) {
+    const you = isMine(c.contributor);
+    const yg = you ? '<span class="metag">you</span>' : "";
+    const down = c.downstream > 0 ? `<span class="edge down" title="${c.downstream} build on this">↓ ${c.downstream}</span>` : "";
+    const head =
+      `<span class="thead"><b class="mono">#${c.id}</b> <span class="mono dim">${hx(c.contributor)}</span>${yg}` +
+      `<span class="nov" title="novelty score">ν ${c.novelty}</span>${down}</span>` +
+      `<span class="tprev">${escapeHtml(c.preview)}</span>`;
+    if (!c.children.length) return `<div class="tleaf${you ? " you" : ""}">${head}</div>`;
+    const open = depth < 1 ? " open" : ""; // top two levels expanded so growth is visible
+    return `<details class="tnode${you ? " you" : ""}"${open}><summary>${head}` +
+      `<span class="tkids">${c.children.length} built on this</span></summary>` +
+      `<div class="tchildren">${c.children.map((k) => nodeHtml(k, depth + 1)).join("")}</div></details>`;
+  }
   function renderDag(items) {
     const el = $("dag");
     if (!el) return;
-    if (!items.length) { el.innerHTML = '<div class="empty">No contributions yet — the graph grows as people build on each other.</div>'; return; }
-    const sorted = items.slice().sort((a, b) => (b.downstream - a.downstream) || (b.id - a.id));
-    el.innerHTML = sorted.map((c) => {
-      const you = isMine(c.contributor);
-      const prov = (c.parent !== null && c.parent !== undefined)
-        ? `<span class="edge up" title="builds on contribution #${c.parent}">↑ builds on #${c.parent}</span>`
-        : '<span class="edge root">● foundational</span>';
-      const down = c.downstream > 0 ? `<span class="edge down" title="${c.downstream} contributions build on this">↓ ${c.downstream} built on this</span>` : "";
-      const yg = you ? '<span class="metag">you</span>' : "";
-      return `<div class="dnode${you ? " you" : ""}">
-        <div class="dhead"><b class="mono">#${c.id}</b> <span class="mono dim">${hx(c.contributor)}</span>${yg}
-          <span class="nov" title="novelty score">ν ${c.novelty}</span></div>
-        <div class="dprev">${escapeHtml(c.preview)}</div>
-        <div class="dedges">${prov}${down}</div>
-      </div>`;
-    }).join("");
+    if (!items.length) { el.innerHTML = '<div class="empty">No contributions yet — the tree grows as people build on each other.</div>'; return; }
+    el.innerHTML = buildForest(items).map((n) => nodeHtml(n, 0)).join("");
+  }
+
+  // ---- flowing questions feed: deterministic shuffle of doc-corpus questions, seeded by chain height ----
+  let questionsAll = [];
+  function splitmix(seed) {
+    let s = seed >>> 0;
+    return function () {
+      s = (s + 0x9e3779b9) >>> 0; let z = s;
+      z = Math.imul(z ^ (z >>> 16), 0x21f0aaad) >>> 0;
+      z = Math.imul(z ^ (z >>> 15), 0x735a2d97) >>> 0;
+      return ((z ^ (z >>> 15)) >>> 0) / 4294967296;
+    };
+  }
+  function seededShuffle(arr, seed) {
+    const a = arr.slice(), rnd = splitmix(seed);
+    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; }
+    return a;
+  }
+  function renderQuestions() {
+    const el = $("qfeed");
+    if (!el || !questionsAll.length) return;
+    const height = (lastState && lastState.height) | 0;
+    const order = seededShuffle(questionsAll, (Math.imul(height + 1, 2654435761)) >>> 0).slice(0, 40);
+    const item = (x) => `<div class="qitem">${escapeHtml(x.q)}<span class="qsrc mono">${escapeHtml(x.source || "")}</span></div>`;
+    const list = order.map(item).join("");
+    const dur = Math.max(28, order.length * 3); // slower for more questions
+    // duplicate the track so the -50% loop is seamless
+    el.innerHTML = `<div class="qtrack" style="animation-duration:${dur}s">${list}${list}</div>`;
+  }
+  async function refreshQuestions() {
+    if (questionsAll.length) return; // corpus questions load once (then flow, seeded by height at load)
+    try {
+      const r = await fetch(apiBase() + "/questions.json", { cache: "no-store" });
+      if (!r.ok) return;
+      const j = await r.json();
+      questionsAll = j.questions || [];
+      renderQuestions();
+    } catch (e) { /* older node without /questions.json — leave the loading state */ }
   }
 
   function populateParents(items) {
@@ -441,6 +518,7 @@
       render(s);
       setLive("up", `live · height ${s.height} · ${s.jul_issued} JUL`);
       refreshDag();
+      refreshQuestions();
     } catch (e) {
       setLive("down", "node unreachable — is `noesisd --serve-api` running?");
     }
