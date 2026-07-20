@@ -12,22 +12,45 @@
 //!
 //! Run: `cargo run --release -p noesis --example periphery_sim`.
 
+use noesis::vesting::independent_use_gate;
 use noesis::{pom_scores_with_similarity_floor_q16, Cell, Script};
+use std::collections::HashMap;
 
 const THETA_Q16: u64 = 62259; // 0.95 — deployed franchise threshold
 
 fn cell(id: u64, contributor: u8, data: &[u8]) -> Cell {
+    cell_p(id, contributor, None, data)
+}
+fn cell_p(id: u64, contributor: u8, parent: Option<u64>, data: &[u8]) -> Cell {
     Cell {
         id,
         lock: Script { code_hash: [1u8; 32], args: vec![contributor] },
         type_script: Script { code_hash: [0xB0; 32], args: vec![contributor] },
-        parent: None,
+        parent,
         timestamp: id,
         data: data.to_vec(),
     }
 }
 fn noise(seed: u8, n: u8) -> Vec<u8> {
     (0..n).map(|i| seed.wrapping_add(i.wrapping_mul(41))).collect()
+}
+
+/// A collaboration TREE: identity `ids[i]` builds on `ids[i-1]` (same topology for genuine and wash,
+/// per `node/tests/discernment.rs` — so the ONLY difference the gate sees is capital-independence).
+fn tree(ids: &[u8]) -> Vec<Cell> {
+    ids.iter()
+        .enumerate()
+        .map(|(i, &who)| cell_p(i as u64, who, if i == 0 { None } else { Some(i as u64 - 1) }, &noise(who, 40)))
+        .collect()
+}
+
+/// MEASURED vest fraction: run the built Layer A gate over `cells` with unit per-cell value and the
+/// given capital-cluster map, return (vested / total) — the fraction of harvest that actually vests.
+/// This replaces an ASSUMED vest fraction with the real function's output over a real graph.
+fn measured_vest_fraction(cells: &[Cell], caps: &HashMap<Vec<u8>, u64>) -> f64 {
+    let unit = vec![1u64; cells.len()];
+    let vested: u64 = independent_use_gate(cells, &unit, caps).iter().sum();
+    vested as f64 / cells.len() as f64
 }
 
 /// MEASURED harvest: per-identity standing a novel-junk block earns on the real deployed franchise.
@@ -65,11 +88,28 @@ fn main() {
 
     println!("Design params: rho(rent)={rho}, p_slash(wash)={p_slash}, sigma={sigma}, p_slash(genuine)={genuine_p}\n");
 
-    // ---- The three populations (cap_cost = 0 baseline: no capital posted) ----
-    let ev_genuine = ev(s, 1.0, rho, genuine_p, sigma, 0.0); // vests fully, survives challenge, no capital
-    let ev_wash_closed = ev(s, 0.0, rho, p_slash, sigma, 0.0); // vests 0 (closed ring), pays rent
+    // ---- The three populations. Vest fractions are now MEASURED by running the built Layer A gate
+    //      (independent_use_gate) over real graphs — not assumed. Same 4-node topology for both, so the
+    //      only difference the gate sees is capital-independence. ----
+    let genuine = tree(&[1, 2, 3, 4]); // 4 distinct minds
+    let wash = tree(&[5, 6, 7, 8]); // 4 sybils, same topology
+    // Genuine: each mind is its own capital cluster (real independence).
+    let genuine_caps: HashMap<Vec<u8>, u64> =
+        [(vec![1], 1u64), (vec![2], 2), (vec![3], 3), (vec![4], 4)].into_iter().collect();
+    // Closed wash: all sybils share ONE capital cluster (one actor's keys).
+    let wash_caps: HashMap<Vec<u8>, u64> =
+        [(vec![5], 0u64), (vec![6], 0), (vec![7], 0), (vec![8], 0)].into_iter().collect();
+    let vest_genuine = measured_vest_fraction(&genuine, &genuine_caps);
+    let vest_wash = measured_vest_fraction(&wash, &wash_caps);
+    println!("Vest fractions (MEASURED by independent_use_gate over real graphs, not assumed):");
+    println!("  genuine (4 distinct capital clusters) : {vest_genuine:.3}  (< 1.0: the leaf cell has no");
+    println!("      independent child YET — cold-start symmetry, paid by the novelty floor, not this gate)");
+    println!("  closed wash (1 capital cluster)       : {vest_wash:.3}  (no independent use anywhere)\n");
+
+    let ev_genuine = ev(s, vest_genuine, rho, genuine_p, sigma, 0.0); // measured vest, survives challenge
+    let ev_wash_closed = ev(s, vest_wash, rho, p_slash, sigma, 0.0); // measured vest (0), pays rent
     println!("Population EV per identity (before any capital is posted to fake independence):");
-    println!("  genuine        : {ev_genuine:>8.3}   (vests fully, survives challenge — NET POSITIVE)");
+    println!("  genuine        : {ev_genuine:>8.3}   (vests its realized-use portion, survives challenge — NET POSITIVE)");
     println!("  wash (closed)  : {ev_wash_closed:>8.3}   (Layer A: closed ring vests 0; pays rent — NET NEGATIVE)");
     println!("  => a closed wash-ring is negative-EV by construction: it can never earn independent");
     println!("     downstream use, so it only pays rent. This is the periphery (Layer A) doing the work.\n");
