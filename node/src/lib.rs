@@ -7134,6 +7134,74 @@ pub mod semantic {
 /// mis-trained model cannot mint — `evaluator::tests::corrupt_evaluator_cannot_mint`).
 /// That is what makes a learned signal safe to introduce: the authority boundary, not a
 /// robustness proof about the model.
+/// Layer A of the periphery solution (`docs/DESIGN-periphery-solution.md`): the capital-independent
+/// vesting gate — THE anchor that makes a closed wash-ring earn nothing while genuine work vests.
+///
+/// Honest scope (do not round up): this is a PURE value-layer function, **not** wired into
+/// consensus/finality. Activation is a governance-gated version bump (`docs/DESIGN-value-oracle-seam.md`)
+/// held until the finality decision (`docs/DESIGN-mind-scarcity-asymmetry.md` §5). It does NOT discern
+/// wash from genuine on graph structure — that is provably 0% (`node/examples/wash_sim.rs`,
+/// `node/tests/discernment.rs`). It discerns because it is GIVEN an external capital-independence signal
+/// (the periphery). Independence is anchored in CAPITAL — the un-forgeable substance — never personhood
+/// (a capturable authority). The source of that signal (a capital-cluster oracle) is itself unbuilt 🟡.
+pub mod vesting {
+    use super::Cell;
+    use std::collections::HashMap;
+
+    /// Gate per-cell value on realized use by a capital-INDEPENDENT mind.
+    ///
+    /// - `per_cell_value[i]` — any value scores in commit order (e.g. `value_v8` or a flow gate).
+    /// - `capital_cluster` — identity (`type_script.args`) → capital-cluster id. Two identities are
+    ///   capital-independent iff DIFFERENT cluster. A closed wash ring shares ONE cluster (one actor's
+    ///   capital); genuinely distinct minds have distinct clusters. An identity absent from the map has
+    ///   UNKNOWN capital ⇒ treated as NOT independent (conservative — no free vesting).
+    ///
+    /// Returns per-cell VESTED value: cell `i` vests `per_cell_value[i]` iff it has ≥1 downstream child
+    /// owned by a capital-independent identity; else 0 (no realized independent use yet — the periphery
+    /// has not graded it). NB the honest cold-start symmetry (`moat_sim` scenario 3): a fresh honest cell
+    /// with no independent child yet also vests 0 here — vesting is for the realized-use portion; early
+    /// honest work is paid by the novelty floor, not this gate.
+    pub fn independent_use_gate(
+        cells: &[Cell],
+        per_cell_value: &[u64],
+        capital_cluster: &HashMap<Vec<u8>, u64>,
+    ) -> Vec<u64> {
+        assert_eq!(
+            cells.len(),
+            per_cell_value.len(),
+            "shape-preserving: one value per cell, in commit order"
+        );
+        let id_to_idx: HashMap<u64, usize> =
+            cells.iter().enumerate().map(|(i, c)| (c.id, i)).collect();
+        let cluster = |owner: &[u8]| -> Option<u64> { capital_cluster.get(owner).copied() };
+
+        // A cell has "independent downstream use" iff some child is owned by a different capital cluster.
+        let mut has_independent_use = vec![false; cells.len()];
+        for child in cells {
+            let pid = match child.parent {
+                Some(p) => p,
+                None => continue,
+            };
+            let pi = match id_to_idx.get(&pid) {
+                Some(&i) => i,
+                None => continue,
+            };
+            let parent_owner = cells[pi].type_script.args.as_slice();
+            let child_owner = child.type_script.args.as_slice();
+            let independent = match (cluster(parent_owner), cluster(child_owner)) {
+                (Some(a), Some(b)) => a != b,
+                _ => false,
+            };
+            if independent {
+                has_independent_use[pi] = true;
+            }
+        }
+        (0..cells.len())
+            .map(|i| if has_independent_use[i] { per_cell_value[i] } else { 0 })
+            .collect()
+    }
+}
+
 pub mod outcome {
     use super::{coverage, Cell};
     use std::collections::HashSet;

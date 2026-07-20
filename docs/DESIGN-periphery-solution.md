@@ -38,7 +38,11 @@ wash-ring can mint identities for free but **cannot mint independent capital for
 funded-cartel boundary, now *priced* instead of free.
 
 - Brain analog: the sensory periphery — reward grounded in reality, not in other neurons.
-- Status: floor ✅ built; capital-independent *vesting* gate 🟡 designed (this note).
+- Status: floor ✅ built; capital-independent *vesting gate LOGIC* ✅ built as a pure, tested value-layer
+  function (`node::vesting::independent_use_gate`, `node/tests/discernment.rs` — the first code that
+  SEPARATES wash from genuine, given the external capital signal); the capital-cluster *source* (a
+  capital-independence oracle) and *consensus wiring* remain 🟡 (activation = governance version bump,
+  post-finality, per `DESIGN-value-oracle-seam.md`).
 
 ### Layer B — the pruner: carrying cost + slash-at-risk make patient wash negative-EV
 

@@ -81,6 +81,40 @@ fn wash_tree_is_graph_internally_indistinguishable_from_genuine_pinned_gap() {
 }
 
 #[test]
+fn layer_a_vesting_gate_separates_wash_from_genuine_where_structure_is_blind() {
+    // Layer A (docs/DESIGN-periphery-solution.md): given an EXTERNAL capital-independence signal, the
+    // vesting gate is the FIRST code that separates wash from genuine — closing (with an external
+    // anchor, not graph structure) the gap the test above pins open. It does NOT read structure to
+    // discern; it is GIVEN capital clusters (the periphery). Independence = different capital cluster.
+    use noesis::vesting::independent_use_gate;
+    use std::collections::HashMap;
+
+    let genuine = tree(&[1, 2, 3, 4]); // 4 minds
+    let wash = tree(&[5, 6, 7, 8]); // 4 sybils
+    let unit = vec![1u64; 4]; // flat unit value ⇒ isolate the GATE's effect, not a value fn
+
+    // Genuine: 4 DISTINCT capital clusters (real independent minds).
+    let genuine_caps: HashMap<Vec<u8>, u64> =
+        [(vec![1], 1u64), (vec![2], 2), (vec![3], 3), (vec![4], 4)].into_iter().collect();
+    // Wash: ONE capital cluster (one actor's keys — a closed ring).
+    let wash_caps: HashMap<Vec<u8>, u64> =
+        [(vec![5], 0u64), (vec![6], 0), (vec![7], 0), (vec![8], 0)].into_iter().collect();
+
+    let vested_genuine: u64 = independent_use_gate(&genuine, &unit, &genuine_caps).iter().sum();
+    let vested_wash: u64 = independent_use_gate(&wash, &unit, &wash_caps).iter().sum();
+
+    // Genuine: cells 0,1,2 each have a capital-independent child ⇒ vest; cell 3 is a leaf ⇒ 0 ⇒ total 3.
+    assert_eq!(vested_genuine, 3, "genuine work vests: it has capital-independent downstream use");
+    // Wash: all one cluster ⇒ NO independent use anywhere ⇒ vests nothing.
+    assert_eq!(vested_wash, 0, "closed wash ring (one capital cluster) vests NOTHING — Layer A's anchor");
+    assert!(
+        vested_genuine > vested_wash,
+        "Layer A SEPARATES genuine from wash where every graph-internal signal was blind — because it \
+         is given the external capital-independence signal (the periphery), not because it reads structure"
+    );
+}
+
+#[test]
 fn cyclic_wash_ring_is_caught_by_cycle_energy_positive_control() {
     // The DUMB wash that closes an attribution cycle IS detectable — the structural defense that
     // works, guarded so it can't silently regress to zero. (This is why the frontier is the
