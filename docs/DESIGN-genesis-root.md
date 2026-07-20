@@ -1,107 +1,88 @@
-# DESIGN — the genesis root: how a contribution chain starts — ✅ RATIFIED (Will 2026-07-19)
+# DESIGN — genesis & value-chain lineages: an empty forest, not a rooted tree — ✅ RATIFIED (Will 2026-07-20)
 
-> Status: **design ratified, mainnet-not-yet-built.** Answers "how should a contribution chain start?"
-> (Will 2026-07-19). The testnet already shows a foundational root (`/contributions` id 1, `parent=null`);
-> this doc fixes what that root *should* be and, crucially, what it must **score**. Companions:
-> `first-citizens-ai-genesis-contributors.md`, `DESIGN-bootstrap-admission.md`, `[[project_noesis-genesis-bootstrap-decision]]`.
+> **Supersedes** the 2026-07-19 "genesis root = the codebase snapshot" framing in this same file.
+> That framing **drifted** Noesis from a *general attribution protocol* toward *an on-chain GitHub for
+> Noesis* — Will caught it 2026-07-20. This doc records the correction and the architecture it implies.
+> The drifted version's *durable* insights (roots are unscored; earned-not-premined) survive here,
+> re-applied per-lineage instead of to one privileged root.
 
-## 0. Two genesis, not one
+## 0. The drift, named
 
-The question "what is the first contribution?" conflates two different roots. Separate them and it resolves:
+The prior version equated the genesis root with **the constitution** (general — the *rules* that make
+contribution measurable) and then with **the codebase** (particular — *this repo's source*). That
+equivocation is the whole error. The moment "the root" became "the Noesis codebase," every contribution
+frames as descending from Noesis's own source ⇒ the protocol reads as a ledger of contributions *to
+Noesis*, not a substrate for measuring contribution to **anything**.
 
-1. **Consensus genesis — the rules.** `chain_id`, the consensus mix, the finality rule, the bonded
-   validator set: the `ChainSpec` / `Constitution` every node must agree on to compare state at all.
-   This is the true block zero and it **already exists and is correct** (`node/src/chainspec.rs`).
-2. **Value-DAG genesis — the first *contribution* others build on.** The origin of the provenance forest
-   (`parent` links, `rpc.rs:231`). This is the "empty vs seeded" question the DAG view surfaces.
+**The structural tell (substrate-geometry match).** A general contribution substrate — value across
+*any* domain — is a **forest**: many independent lineages, each with its own origin, heavy-tailed.
+Seeding one privileged root imposes a **single-tree topology on a forest substrate** — a geometry
+mismatch, the First-Available-Trap. A general protocol cannot have one universal genesis contribution
+without becoming about that one thing.
 
-Candidates for (2), decided:
-- **DeFi tools / applications** — ✗ downstream *leaves*, never the root.
-- **Empty / nothing** — honest pure fair-launch (Bitcoin's instinct), but leaves the value DAG *rootless*:
-  every early contribution is an orphan and the downstream-flow measure has nothing to price. Defensible;
-  cold-start.
-- **The constitution / a single commit (the codebase)** — ✅ these are the *same* answer. The codebase is
-  the constitution made concrete: "here are the rules by which contribution is measured, and here is the
-  mechanism that measures it." It is the root everything genuinely descends from.
+## 1. The architecture (ratified)
 
-## 1. The load-bearing theorem — the root must be UNSCORED
+- **Noesis is a substrate hosting a FOREST of independent value-chain lineages.** The provenance graph
+  (`Cell.parent`) is many disjoint/loosely-joined lineages, each grown from its own `parent = None`
+  contributions. There is no single tree and no universal root.
+- **A value chain = a connected component of the provenance graph — EMERGENT, not namespaced.** No
+  registered domains, no privileged roots, no per-domain objects. "Domains" are simply what the graph
+  grows into. This is the maximally-general choice (Will 2026-07-20): the substrate privileges nothing.
+- **Empty genesis.** The block-zero state seeds **no contribution cell**. The rules — `chain_id`, the
+  consensus mix, the finality rule, the bonded validator set — live in `ChainSpec` (`node/src/
+  chainspec.rs`) and are the **consensus-genesis**. They are NOT a contribution in the DAG. (This is why
+  the ledger genuinely starts empty, `genesis_node()` unchanged.)
+- **Noesis's own development is just ONE lineage** on the substrate (dogfooding — [[voluntary-noesis]]),
+  never the substrate's identity. That is the exact line the codebase-root crossed.
 
-Noesis's value function measures **downstream realized flow**: you are worth what later builds on you
-(`value_v5` / `flow_gate`; a parent link only ever CREDITS the ancestor, `rpc.rs:239-240`).
+## 2. What survives from the prior framing (re-applied per-lineage)
 
-Ask what *everything* builds on: the constitution — every contribution is made *under* those rules.
+The unscored-root reasoning was correct; it just applies to **every** lineage's roots, not one:
 
-**⇒ If the genesis root is scored, it becomes the ancestor of the entire DAG, and a downstream-flow
-measure routes ALL value back to it. The authors of the constitution capture everything. That is a
-premine in disguise, and it breaks fair-launch.**
+- **Every `parent = None` root is UNSCORED at origin (standing 0).** Nobody is paid for *being* a root.
+  Value flows only to what is *built upon* (downstream realized flow — `value_v5`/`flow_gate`,
+  `rpc.rs:239-240`). A root earns standing exactly as later contributions in its lineage name it as
+  `parent`. Fair-launch (earned-not-premined) holds by construction — no premine anywhere in the forest.
+- **The "seed the anchor, not the standing" theorem generalizes:** if any root were paid for authoring a
+  lineage's frame, a downstream-flow measure would route that lineage's value back to it — a per-lineage
+  premine. So roots stay unscored. (Mirrors PoW-excluded-from-finality: the frame is not scored inside
+  its own game.)
 
-Therefore the root must be **excluded from the measure**: it sits at the DAG origin, `parent = null`,
-**standing 0** — a founding *record*, not a scored play. It is the **axiom**; you don't pay the axiom,
-you prove theorems on it.
+## 3. `v(S)` — one protocol, not N (universal floor + domain-adaptive learning)
 
-This is the *same structural move Noesis already makes one layer down*: **PoW is excluded from the
-finality mix** (`FINALITY_MIX`, PoW is the reorgeable base) exactly as **the constitution is excluded
-from value scoring** (it is the frame). The consistency is how we know it's right, not arbitrary.
+The measure is what keeps Noesis *general* rather than a framework of per-domain protocols:
 
-## 2. "OG = 0" — what it does and does not mean
+- **Universal structural floor (domain-blind, built):** novelty / Sybil / collusion / "was this realized
+  downstream over time" — `temporal_novelty` → `pom_scores` → the layered defense (253/253 vs constructed
+  adversaries). Nothing here reads a domain.
+- **Domain-adaptive learned prediction (the open moat):** the learned `v(S)` that estimates *realized
+  value* may calibrate to a domain's signal, but it is bounded to advance/evidence roles — it can never
+  *mint*, only estimate. This is where domain enters, on top of a universal floor. Honest status: the
+  learned predictive `v(S)` is null-on-structural-features / ~0.60-rich-feature (upside, not the moat);
+  the moat is the structural floor.
 
-- **0 is the reference point, not a nothing.** Like the origin on a number line: everything is measured
-  *from* it, so it cannot also be a point *on* the scale.
-- **The founders do not get nothing.** They earn standing the *same way everyone else does* — by making
-  real contributions *on top of* the frame (ideas, code, work others build on), which **are** scored.
-  You are paid for what you build within the rules, never for having authored the rules. No rent accrues
-  to protocol-authorship; founders compete on the same field as newcomers.
-- **Precedent:** Satoshi's genesis-block coinbase (50 BTC) is **unspendable by construction**. Bitcoin's
-  origin is a marker, not a payout. Noesis makes the same instinct a rule.
+⇒ **One substrate, one floor, adaptive learning** — not one protocol per domain.
 
-**One line:** *A contribution chain starts with the constitution — the shared rules that make
-contribution measurable — recorded as an unscored foundational root, so provenance has an origin but no
-one is paid for authoring the frame.*
+## 4. Bootstrapping without a privileged root (the fair-launch question, re-posed)
 
-## 3. Does *what* the genesis is affect growth rates?
+Removing the privileged root re-opens the honest genesis-bootstrap question generally: *how do the first
+lineages start fairly when standing is earned, not premined, and no root is privileged?* This is the
+`first-citizens-ai-genesis-contributors.md` / `DESIGN-bootstrap-admission.md` problem, now correctly
+framed as **per-lineage cold-start**, not "seed one universal root." Open; do NOT solve it by privileging.
 
-**In the scoring math: no.** The root is 0, so its content never enters anyone's value calculation.
-Growth is priced by the downstream flow of what's built *on top*, not by the root's nature.
+## 5. The live testnet
 
-**In the growth *dynamics*: yes — three channels, one of which is a real rate lever:**
+The contribution seeded on the live testnet 2026-07-19 (`/contributions` id 1, the "codebase" cell) is
+**just one ordinary contribution in one (Noesis) lineage** — submitted through the normal `/submit`
+path, earning ordinary novelty standing, `parent = None` like any lineage root. It is **not** a protocol
+genesis and carries no special status. Reframed, not privileged. (The demo would show the general case
+better with *diverse* lineages, not only a Noesis-about-Noesis cell — a UX follow-up, not an architecture
+change.)
 
-1. **Presence ≫ content (the dominant effect).** Whether a genesis *exists* matters far more than what
-   it is. With a root, contribution #1 can build on it ⇒ provenance depth ≥ 1 and the downstream-flow
-   mechanism is live from the first move; with an empty genesis everything orphans until a chain
-   organically forms (cold-start drag). *Having* a root accelerates growth; its content barely enters here.
+## 6. Net
 
-2. **Novelty-space occupancy — the one hard rule.** Noesis scores novelty as distance from the
-   already-committed **seen-set** (temporal-novelty + the θ_sim similarity floor over committed shingles).
-   The genesis content seeds that set. A **fat genesis** — dumping the whole codebase as `data` —
-   pre-claims a large slice of novelty space, so every later contribution resembling it scores **0**:
-   you would suppress the exact "build on the protocol" contributions you want. A **thin genesis** (a
-   commit *hash* / source-tree Merkle root — a marker, not a content dump) claims ~nothing and leaves the
-   field open. **⇒ RULE: keep the genesis thin.** This is why §4 specifies `data = commit hash`, not the
-   codebase text. (The ~250-char description seeded on the testnet is borderline-fine; a hash is strictly
-   better for growth.)
-
-3. **Semantic attractor + legitimacy (direction, not rate).** The genesis is the focal point of the whole
-   tree — it orients *what* people build — and signals credible-neutrality ("no one was pre-paid"). A
-   direction-and-trust lever on adoption, not a throughput knob.
-
-**Monetary growth is orthogonal:** JUL emission is driven by PoW difficulty (`genesis_bits`) and
-`reward_for_work` — the genesis *contribution* content has zero effect on issuance.
-
-**Net:** genesis content is a *weak* rate lever, a *strong* direction/legitimacy lever, and carries
-exactly one hard rule — keep it thin (a hash), or it eats novelty space and throttles early growth.
-
-## 4. Implementation (next session — mainnet)
-
-- Bake a genesis contribution cell into `ChainSpec::testnet()`/mainnet genesis ledger: `data` = the repo
-  commit hash / source-tree Merkle root (the codebase snapshot), contributor = a genesis soulbound
-  identity (`chainspec:38` already pairs validators with contributor keys), `parent = None`, **PoM
-  standing 0** (genesis `pom = 0` already; keep the cell out of the scoring path so it is a visible DAG
-  anchor that earns nothing directly).
-- This is a consensus change (alters the block-zero state digest) ⇒ RED-first + parity, not a mid-session
-  flip.
-- Depends on identity-durability (chain-of-roots) so the genesis contributor's soulbound key outlives its
-  256-signature tree — see the CONTINUE.md identity-durability gap.
-- **Testnet caveat (honest):** the live testnet's foundational contribution (`/contributions` id 1) earned
-  ~265 *novelty* standing because the v0 testnet scores every contribution by novelty-at-submission. That
-  is the *right root with the wrong number* — a demo artifact. The genesis-baked mainnet root is the
-  standing-0 design above.
+Nothing in the engine (consensus mix, finality, three tokens, soulbound PoM, `v(S)`) was Noesis-specific;
+the drift lived only at the genesis/DAG-seeding + framing layer. The fix is: **empty forest genesis,
+emergent lineages, no privileged root, Noesis-as-one-lineage.** No code change is required to *be*
+correct (genesis is already empty); the correction is to NOT bake a root, to keep the docs/demo general,
+and to hold the two ratified calls (emergent lineages · universal-floor + adaptive-learned `v(S)`).
