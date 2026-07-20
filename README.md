@@ -50,6 +50,16 @@ between what is built, what is designed, and what is still open. A single status
   still does not test the *adversarial* un-gameability the moat actually claims — which rests on the
   structural defense (built and tested). Net: a **modest real signal above the null**, popularity-shaped
   — *upside, not the moat*; the moat itself is the structural defense, unchanged.
+- **Open, and now named at the root**: the deepest question is *discernment* — telling a genuine
+  contribution from a **wash**: cheap, genuinely-distinct minds building on each other's worthless work.
+  We measured it honestly, and **no purely structural signal separates a competent wash from a real
+  collaboration** (it is the troll/bot problem in a new setting; `node/examples/wash_sim.rs`). So the
+  security base case is the **scarcity of independent minds**, and the answer is to give the network a
+  *periphery*: value vests only on real use by capital-independent minds, a carrying cost prunes patient
+  farming (the asymmetry is *rent*, not time), and the value model grounds on external use. Priced out, a
+  wash-ring is negative-EV down to a Bitcoin-51%-class residual (`node/examples/periphery_sim.rs`). That
+  solution is **designed, with a numeric case** (measured harvest, designed economics) — **not yet
+  built.** We would rather show you the honest open problem and its shape than pretend it is closed.
 
 A live single-node public **testnet** now exists: the node serves its own wallet UI, mines and finalizes
 real signed contributions, and lets them build on each other — the provenance DAG, visible live. Honest

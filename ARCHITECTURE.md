@@ -106,6 +106,16 @@ Pipeline (all `node/src/lib.rs`): `temporal_novelty` (`:89`) → `pom_scores` (`
   *adversarial* un-gameability the moat claims (that rests on the structural defense, 253/253). General
   isomorphism-invariance gate (cand-A) still open. Un-gameability claimed for *demonstrated* vectors
   only, never as a finished proof.
+- **🔬 open / discernment (HCE-4) — the deepest open item.** Relabel-invariance is closed for the
+  demonstrated axes (`node/examples/adaptive_sim.rs`, `g=0`; paraphrase the one live content-proxy gap)
+  but does **not** cover **wash-building** — cheap, genuinely-distinct minds building on each other's
+  worthless content. Measured: **0% graph-internal separation** of wash vs genuine
+  (`node/examples/wash_sim.rs`; cyclic defenses catch only a wash *ring*). Base case = the scarcity of
+  independent minds (`docs/DESIGN-mind-scarcity-asymmetry.md`). Solution shape (🟡 designed) = manufacture
+  a **periphery**: value vests on realized use by *capital-independent* minds + rent/slash prunes patient
+  wash (asymmetry = *rent*, not time) + a `v(S)` grounded on external-use labels
+  (`docs/DESIGN-periphery-solution.md`), which prices a wash-ring negative-EV to a Bitcoin-51%-class
+  residual (`node/examples/periphery_sim.rs`, harvest measured, Layers A+B design params).
 
 ## Security model — see `SECURITY.md` (read it; don't paraphrase from here)
 

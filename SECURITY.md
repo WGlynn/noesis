@@ -53,12 +53,29 @@ to genuinely contribute.
   (`attribution_circulation`); directed k-cycles = Helmholtz–Hodge harmonic energy
   (`attribution_cycle_energy`); both feed a bounded `collusion_slash` that burns ring standing
   while sparing honest builders (griefing-resistant — inbound-only edges can't frame a victim).
-- **🔬 Open:** the learned `v(S)` moat had its first real-data test return **NULL** (did not
-  beat a fixed proxy on real DeepFunding labels — ROADMAP `(ww)`); the faithful provenance-feature
-  port is the open test. And the strongest known hardening, an **isomorphism-invariance gate**
-  (score `v(S)` invariant under structure-preserving relabeling), is an open research problem for
-  coalitional measures (ROADMAP cand-A). We claim un-gameability for the *demonstrated* vectors,
-  not as a finished proof.
+- **🔬 Open — now precisely bounded (the honest core), two nested items:**
+  - *Learned `v(S)` predictive power — upside, not the moat.* On real DeepFunding labels a learned
+    measure over graph-topology features is **null** (~0.54 vs a 0.50 floor); a rich-feature judge
+    (stars/age/funding) beats it at **~0.60** on the honest repo-disjoint split — a modest,
+    popularity-shaped signal on *honest* labels, which is the wrong instrument for an *adversarial*
+    claim. The moat is the **structural defense** (253/253), not the predictor. The general
+    isomorphism-invariance gate (cand-A) stays open; the *demonstrated* relabeling axes are closed —
+    `node/examples/adaptive_sim.rs` drives the real `value_v8` and reports depth-split / forged-edge /
+    novel-content all at `g=0`, with paraphrase (a content-proxy gap) the one live rung.
+  - *Mind-scarcity / wash-building — HCE-4, the deepest open item.* Relabel-invariance does not cover a
+    ring of **genuinely-distinct, cheap minds** that actually build on each other's worthless content.
+    Measured: **no graph-internal discriminant separates a competently-built wash-ring from a genuine
+    collaboration** (`node/examples/wash_sim.rs`, 0% separation; the cyclic defenses catch only a wash
+    *ring*, never a wash *tree*). This is the troll/bot problem, and it is why the security base case is
+    the **scarcity of independent minds**, not any structural signal (`docs/DESIGN-mind-scarcity-asymmetry.md`).
+    *Solution shape (🟡 designed):* manufacture a **periphery** — value vests only on realized use by
+    capital-independent minds (anchor), carrying-cost + slash make patient wash negative-EV (the
+    asymmetry is *rent*, not time), and a `v(S)` grounded on external-use labels ceases to be null
+    (`docs/DESIGN-periphery-solution.md`). *Numeric case (harvest measured, rent/capital design params):*
+    a closed wash-ring is negative-EV by construction, and a capital-faking ring is negative-EV below a
+    named break-even independence-capital, residual = **Bitcoin-51%-class, priced not excluded**
+    (`node/examples/periphery_sim.rs`). We claim un-gameability for the *demonstrated* vectors only, and
+    name wash-building as open with a designed-not-built solution.
 
 ### 2. DoS / spam — split into two distinct threats (be precise here)
 - **Economic spam (point-farming): ✅ built & tested.** Flooding the chain with junk or variations
