@@ -118,10 +118,25 @@ That tension is the open problem, stated cleanly.
 - The 3-axes positioning (`research/three-axes-provenance-funding-ai-merger.md`) rests on the chain→AI
   signal being clean; this note is the precise statement of the condition under which it is
   (independent minds), and therefore a check that positioning must cash, not assume.
-- The next *instrument* grain (after `adaptive_sim`'s generative-search extension) is a **wash-building
-  sim**: a cost model for a ring of genuinely-building sybils vs the personhood + capital price, to
-  measure whether the ring is ≤0 EV — the same "price the ring ≤ 0 before build" gate the corroboration
-  design already mandates (`DESIGN-corroboration.md`).
+- The **wash-building discriminator is built** (`node/examples/wash_sim.rs`) and returns the honest RED:
+  against a genuine collaboration and a competently-built (acyclic) wash operation with *matched* graph
+  statistics, **every shipped graph-internal discriminant is BLIND (0.0% separation)** — value_v8,
+  novelty, synergy all score them identically; `cycle_energy`/`circulation` catch only the *dumb*
+  wash-RING (cyclic), not a wash-TREE that mimics honest collaboration topology. The gap is real and not
+  reducible to current graph-internal math: closing it needs (a) semantic worth (learned v(S), null on
+  structural features), (b) proof-of-personhood (a capturable authority), or (c) realized outside-use
+  (recurses + time-lock). Next grain: `adaptive_sim`'s generative-search extension, and a cost model
+  pricing a wash-ring ≤0 EV against personhood+capital (the "price the ring ≤ 0 before build" gate
+  `DESIGN-corroboration.md` mandates).
+- **The 20-year precedent — this is the troll/bot problem.** Social media has run exactly this
+  experiment: no platform can distinguish a sincere-but-unpopular contributor from a coordinated
+  troll/bot farm on *engagement-graph structure alone*, because trolls generate real-looking engagement.
+  Every fallback maps to the (a)/(b)/(c) above — phone/ID verification (personhood), account
+  age/karma (time-lock), human moderation (oracle) — and every one is gamed at scale. The one
+  structural reason Noesis's target may be *less* hopeless: it discerns on **compounded-upon** (another
+  mind incorporated this), a strictly higher and less-fakeable bar than **attention** (someone saw
+  this). `wash_sim` shows that bar is still graph-internally blind to acyclic wash — better than
+  engagement, not free.
 
 ## 8. The constructive dual — this is the collective-intelligence design problem
 
