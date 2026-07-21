@@ -1,0 +1,111 @@
+//! Peer-prediction theorems, made numeric (grain HCE-2-selfreport). Backs
+//! `docs/DESIGN-harberger-peer-prediction-theorems.md` with running numbers, the way
+//! `periphery_sim.rs` backs the periphery EV model. ANALYTIC + DETERMINISTIC (no RNG): every number is
+//! a closed-form expectation over the signal model, so the run is bit-identical every time.
+//!
+//! HONEST LABELING (load-bearing). The signal model (prior on worth, signal accuracy) and the stake
+//! params (rent, challenge prob, slash) are DESIGN PARAMETERS — the peer-prediction wrapper is 🟡
+//! designed-not-built. This is a parametric proof of the SOLUTION SHAPE for the two open theorems, not a
+//! shipped guarantee. It demonstrates: (T1) Correlated-Agreement separates genuine from collusion ONLY
+//! when the reference set is capital-independent (CI holds) — the same predicate Layer A enforces; and
+//! (T2) the truthful equilibrium is payoff-dominant but NOT unique in the bare inner game (the known
+//! impossibility), and becomes the unique SURVIVING equilibrium once the Harberger stake is priced in.
+//!
+//! Run: `cargo run --release -p noesis --example peer_prediction_sim`.
+
+/// Correlated-Agreement score (Dasgupta-Ghosh / Shnayder et al. spirit): same-task agreement minus the
+/// cross-task (marginal) baseline. Truthful reporting is a best response iff the same-task correlation
+/// (through the shared latent worth) exceeds the marginal agreement — i.e. iff the reference signal is
+/// stochastically relevant AND independent given worth.
+fn ca_score(same_task_agree: f64, cross_task_agree: f64) -> f64 {
+    same_task_agree - cross_task_agree
+}
+
+/// Agreement that two {H,L} reports coincide, given each side's P(H).
+fn agree(p_h_a: f64, p_h_b: f64) -> f64 {
+    p_h_a * p_h_b + (1.0 - p_h_a) * (1.0 - p_h_b)
+}
+
+fn main() {
+    // ---- Signal model (DESIGN PARAMS) ----
+    let prior_high = 0.5_f64; // P(worth = high)
+    let p_h_given_high = 0.9_f64; // an independent honest reporter says H on a high-worth cell w.p. 0.9
+    let p_h_given_low = 0.2_f64; //   ... and on a low-worth (junk) cell w.p. 0.2  (stochastic relevance)
+    let marginal_h = prior_high * p_h_given_high + (1.0 - prior_high) * p_h_given_low;
+
+    println!("== Peer-prediction theorems, numeric (HCE-2-selfreport) ==");
+    println!(
+        "Signal model [DESIGN PARAMS]: P(high)={prior_high}, P(H|high)={p_h_given_high}, P(H|low)={p_h_given_low}, marginal P(H)={marginal_h:.3}\n"
+    );
+
+    // ---- T1: does Correlated-Agreement separate genuine from collusion? Depends on the REFERENCE. ----
+    // Genuine truthful reporter, reference = an INDEPENDENT honest peer (CI holds): same-task agreement is
+    // correlated through the shared worth ω; cross-task agreement is only marginal.
+    let same_genuine = prior_high * agree(p_h_given_high, p_h_given_high)
+        + (1.0 - prior_high) * agree(p_h_given_low, p_h_given_low);
+    let cross_genuine = agree(marginal_h, marginal_h);
+    let score_genuine = ca_score(same_genuine, cross_genuine);
+
+    // A closed ring on a junk (low) cell, reference = an INDEPENDENT honest peer. Ring pumps "H" always;
+    // the honest reference reports H only w.p. P(H|low). Cross-task uses the ring's constant H vs marginal.
+    let same_ring_indep = agree(1.0, p_h_given_low); // ring always-H vs honest-on-junk
+    let cross_ring_indep = agree(1.0, marginal_h);
+    let score_ring_indep = ca_score(same_ring_indep, cross_ring_indep);
+
+    // The SAME ring, but reference = ANOTHER RING MEMBER (CI FAILS — one controller). They fabricate a
+    // fake worth-correlation: coordinate identical reports per task (same-task agree = 1) and coordinate to
+    // differ across tasks (cross-task agree = 0.5). This manufactures the correlation CA rewards.
+    let same_ring_corr = 1.0;
+    let cross_ring_corr = 0.5;
+    let score_ring_corr = ca_score(same_ring_corr, cross_ring_corr);
+
+    println!("T1 (graph-generalization) — CA score by reference-set choice:");
+    println!("  genuine truthful (independent ref)      : {score_genuine:+.3}  (the honest premium = Var_ω of P(H|ω))");
+    println!("  closed ring     (INDEPENDENT ref)       : {score_ring_indep:+.3}  (CI holds ⇒ collusion scores BELOW zero)");
+    println!("  closed ring     (CORRELATED ref, CI✗)   : {score_ring_corr:+.3}  (ring fabricates the correlation ⇒ scores ABOVE genuine)");
+    let sep_indep = score_genuine - score_ring_indep;
+    let sep_corr = score_genuine - score_ring_corr;
+    println!("  separation (genuine − ring): independent ref = {sep_indep:+.3} (>0 ✓ separates) | correlated ref = {sep_corr:+.3} (≤0 ✗ blind)");
+    println!("  => CA separates truth from collusion ONLY on capital-INDEPENDENT references — identically");
+    println!("     Layer A's independent_use_gate predicate. Same condition, bought once.\n");
+
+    // ---- T2: is the truthful equilibrium unique in the bare inner game G0? NO. Priced game G+? YES. ----
+    // G0 (no stake): the all-H uninformative profile is a Nash equilibrium — if every reference always
+    // reports H, any single reporter scores CA(agree(·,1), agree(·,1)) = same − cross where both legs use
+    // the constant reference. same = P(r_i=H), cross = P(r_i=H) ⇒ score = 0 regardless of r_i. No
+    // unilateral improvement ⇒ collusion is an equilibrium, paying 0. Truthful equilibrium pays the premium.
+    let payoff_truthful_eq = score_genuine; // > 0
+    let payoff_collusive_eq = 0.0_f64; // uninformative all-H: everyone scores exactly 0, still Nash
+    println!("T2 (inner-equilibrium uniqueness) — bare inner game G0 (peer-prediction alone, NO stake):");
+    println!("  truthful equilibrium payoff  : {payoff_truthful_eq:+.3}  (payoff-DOMINANT)");
+    println!("  all-H uninformative payoff   : {payoff_collusive_eq:+.3}  (still a Nash equilibrium — no unilateral gain)");
+    println!("  => UNIQUENESS IS FALSE in G0: truth pays more but the collusive equilibrium coexists");
+    println!("     (the known impossibility). So 'unique truthful equilibrium' must be STRUCK as stated.\n");
+
+    // G+ (stake): the CA score's SIGN is the survival gate (and it is ≤0 for the ring precisely because
+    // the protocol draws references from the INDEPENDENT set, T1). score>0 ⇒ the declaration is
+    // peer-supported and survives challenge ⇒ standing V is RETAINED; score≤0 ⇒ unsupported ⇒ the full
+    // declared V is slashed ⇒ standing retained = 0. (Same 1/0 retention logic as periphery_sim's vest.)
+    let rho = 0.30_f64; // Harberger carrying cost as a fraction of declared V  [DESIGN PARAM]
+    let p_challenge = 0.5_f64; // junk is challenged w.p. 0.5                     [DESIGN PARAM]
+    let sigma = 1.0_f64; // slash = full declared V on a successful challenge     [DESIGN PARAM]
+    let genuine_p_challenge = 0.02_f64; // genuine work is (almost) never successfully challenged
+    let v = 1.0_f64; // unit declared value (EV is linear in V; only the sign matters)
+    let retained = |score: f64| if score > 0.0 { 1.0 } else { 0.0 };
+    let ev = |score: f64, p_ch: f64| retained(score) * v - rho * v - p_ch * sigma * v;
+    let ev_ring_plus = ev(score_ring_indep, p_challenge); // score ≤0 (independent ref) ⇒ retained 0 ⇒ pure cost
+    let ev_genuine_plus = ev(score_genuine, genuine_p_challenge); // score >0 ⇒ retained 1 ⇒ net positive
+    println!("T2 — priced game G+ (peer-prediction ⊕ Harberger rent+slash ⊕ dispute):");
+    println!("  ring / collusive EV per identity : {ev_ring_plus:+.3}  (0 peer-support ⇒ over-declare ⇒ rent+slash only ⇒ NEGATIVE)");
+    println!("  genuine truthful EV per identity : {ev_genuine_plus:+.3}  (premium-supported V, survives challenge ⇒ POSITIVE)");
+    println!("  => the stake removes the indifference that made collusion a Nash equilibrium in G0.");
+    println!("     Truthful is the UNIQUE SURVIVING equilibrium of G+ (conditional on ≥1 live challenger).\n");
+
+    // NOTE (calibrated 2026-07-21): this models the SHARED-CONTROLLER channel only. Capital-independence
+    // is NECESSARY-not-sufficient for full CI — shared-prior/herding/semantic-copy/3rd-party-sybil remain.
+    println!("BOTTOM LINE (honest): T1 holds on the capital-independent sub-DAG (Layer A's predicate is the");
+    println!("NECESSARY shared-controller filter, NOT all of CI — other correlations remain, detail-free CA open);");
+    println!("T2 uniqueness is FALSE standalone and RESOLVED by the ratified composition — the stake is");
+    println!("load-bearing, not garnish. Both bottom out at global capital capture (51%-class), priced not");
+    println!("excluded. Signal + stake are design params; the separation and equilibrium SIGNS are the result.");
+}
