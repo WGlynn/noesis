@@ -101,8 +101,50 @@ fn main() {
     println!("  => the stake removes the indifference that made collusion a Nash equilibrium in G0.");
     println!("     Truthful is the UNIQUE SURVIVING equilibrium of G+ (conditional on ≥1 live challenger).\n");
 
-    // NOTE (calibrated 2026-07-21): this models the SHARED-CONTROLLER channel only. Capital-independence
-    // is NECESSARY-not-sufficient for full CI — shared-prior/herding/semantic-copy/3rd-party-sybil remain.
+    // ---- T1-RESIDUAL: what does DETAIL-FREE CA close, of the channels capital-independence does NOT? ----
+    // The calibration (CALIBRATION-ci-argument-2026-07-21.md) listed shared-prior/herding/semantic-copy as
+    // CI-breakers Layer A misses. Detail-free CA = CA with the cross-task (marginal) term subtracted, so it
+    // needs no known prior. It closes a TASK-CONSTANT common bias but NOT a TASK-SPECIFIC ω-external one.
+    // Partition the residual numerically. (Attacker goal: inflate a JUNK cell's CA to ≥ genuine's +0.245.)
+    println!("T1-RESIDUAL — detail-free CA (cross-task subtraction) partitions the leftover CI channels:\n");
+
+    // Channel A — TASK-CONSTANT common bias (a shared belief "work here tends to be good", same on every
+    // task). It inflates same-task AND cross-task agreement EQUALLY ⇒ the CA subtraction cancels it. On a
+    // junk cell it cannot manufacture a task-specific spike ⇒ cannot lift junk to genuine. CA robust.
+    println!("  Channel A: task-CONSTANT common bias (one flavor of 'shared prior') — CA on a JUNK cell:");
+    let junk_honest_ca = score_ring_indep; // -0.35: honest-on-junk baseline (independent ref)
+    for bias in [0.0_f64, 0.25, 0.5, 0.9] {
+        // bias forces H on BOTH same-task and cross-task equally ⇒ contributes 0 to (same − cross).
+        let ca_junk_a = (1.0 - bias) * junk_honest_ca + bias * 0.0;
+        let verdict = if ca_junk_a >= score_genuine { "BEATS genuine ✗" } else { "stays below genuine ✓" };
+        println!("    bias={bias:>4}: CA(junk) = {ca_junk_a:+.3}  ({verdict})");
+    }
+    println!("    => a task-constant bias only ATTENUATES toward 0; it never lifts junk above genuine. CLOSED.\n");
+
+    // Channel B — TASK-SPECIFIC ω-external correlation (herding on a per-cell public signal, or semantic
+    // copying / coordinated sybil reports on THIS cell). It spikes same-task agreement without touching the
+    // cross-task term (the external signal is independent across tasks) ⇒ SURVIVES the subtraction.
+    println!("  Channel B: task-SPECIFIC ω-external correlation (herding / semantic-copy) — CA on a JUNK cell:");
+    let fabricated_ca = score_ring_corr; // +0.5: coordinate-identical-this-task, coordinate-to-differ-across
+    let mut threshold = None;
+    for gamma in [0.0_f64, 0.25, 0.5, 0.7, 0.75, 1.0] {
+        let ca_junk_b = gamma * fabricated_ca + (1.0 - gamma) * junk_honest_ca;
+        let beats = ca_junk_b >= score_genuine;
+        if beats && threshold.is_none() {
+            threshold = Some(gamma);
+        }
+        let verdict = if beats { "BEATS genuine ✗" } else { "below genuine ✓" };
+        println!("    coordination γ={gamma:>4}: CA(junk) = {ca_junk_b:+.3}  ({verdict})");
+    }
+    // Solve the crossover exactly: γ*fab + (1-γ)*honest = genuine  ⇒  γ* = (genuine-honest)/(fab-honest).
+    let gamma_star = (score_genuine - junk_honest_ca) / (fabricated_ca - junk_honest_ca);
+    println!("    => crossover γ* = {gamma_star:.3}: past ~{:.0}% task-specific coordination, JUNK BEATS GENUINE.", 100.0 * gamma_star);
+    println!("       Detail-free CA does NOT close this — it is the true residual (with the 3rd-party-sybil");
+    println!("       gap in the capital proxy). This is the sharpened open problem, not 4 flat channels.\n");
+
+    // NOTE (calibrated 2026-07-21, partitioned 2026-07-21): capital-independence is NECESSARY-not-sufficient
+    // for CI. Detail-free CA additionally closes the TASK-CONSTANT bias channel (above); the residual is
+    // TASK-SPECIFIC ω-external correlation (herding/semantic-copy) + the 3rd-party-sybil capital-proxy gap.
     println!("BOTTOM LINE (honest): T1 holds on the capital-independent sub-DAG (Layer A's predicate is the");
     println!("NECESSARY shared-controller filter, NOT all of CI — other correlations remain, detail-free CA open);");
     println!("T2 uniqueness is FALSE standalone and RESOLVED by the ratified composition — the stake is");
