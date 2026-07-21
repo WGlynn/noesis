@@ -127,3 +127,47 @@ fn cyclic_wash_ring_is_caught_by_cycle_energy_positive_control() {
         "positive control: a cyclic wash ring fires attribution_cycle_energy (the defense that works)"
     );
 }
+
+#[test]
+fn periphery_ev_model_pinned_closed_wash_negative_genuine_positive() {
+    // Pins the periphery-solution EV result (docs/DESIGN-periphery-solution.md, node/examples/periphery_sim.rs)
+    // as a regression guard. With MEASURED harvest (pom_scores) and MEASURED vest fractions (the Layer A gate
+    // over identical-topology graphs), at honest design params a CLOSED WASH RING is negative-EV while GENUINE
+    // work is positive-EV. If a value/gate change ever flips either sign, this fails loudly. The signs hold for
+    // ANY harvest > 0 (genuine coeff 0.75-0.30-0.02 > 0; wash coeff 0-0.30-0.50 < 0), so no magic number is pinned.
+    use noesis::vesting::independent_use_gate;
+    use std::collections::HashMap;
+
+    // MEASURED harvest S: per-identity standing one novel-junk block earns on the deployed franchise.
+    let harvest = *pom_scores_with_similarity_floor_q16(&[cell(0, 1, None, &distinct(1, 0))], THETA_Q16)
+        .get(&vec![1u8])
+        .unwrap_or(&0) as f64;
+    assert!(harvest > 0.0, "control: a novel block earns positive harvest (else the EV signs are vacuous)");
+
+    // MEASURED vest fractions via the gate over identical-topology genuine vs closed-wash graphs.
+    let unit4 = vec![1u64; 4];
+    let genuine = tree(&[1, 2, 3, 4]);
+    let wash = tree(&[5, 6, 7, 8]);
+    let genuine_caps: HashMap<Vec<u8>, u64> =
+        [(vec![1], 1u64), (vec![2], 2), (vec![3], 3), (vec![4], 4)].into_iter().collect();
+    let wash_caps: HashMap<Vec<u8>, u64> =
+        [(vec![5], 0u64), (vec![6], 0), (vec![7], 0), (vec![8], 0)].into_iter().collect();
+    let vest_genuine =
+        independent_use_gate(&genuine, &unit4, &genuine_caps).iter().sum::<u64>() as f64 / 4.0;
+    let vest_wash = independent_use_gate(&wash, &unit4, &wash_caps).iter().sum::<u64>() as f64 / 4.0;
+    assert_eq!(vest_wash, 0.0, "closed wash (one capital cluster) vests nothing — Layer A's anchor");
+    assert!(vest_genuine > 0.0, "genuine work vests its realized-use portion");
+
+    // Honest Layer B design params. EV per identity = S*(vest - rho - p_slash*sigma).
+    let (rho, sigma) = (0.30_f64, 1.0_f64);
+    let ev = |vest: f64, p_slash: f64| harvest * (vest - rho - p_slash * sigma);
+    let ev_genuine = ev(vest_genuine, 0.02); // genuine almost never successfully challenged
+    let ev_wash = ev(vest_wash, 0.5); // junk challenged with prob 0.5
+
+    assert!(ev_genuine > 0.0, "PERIPHERY PIN: genuine is net-positive EV (got {ev_genuine})");
+    assert!(
+        ev_wash < 0.0,
+        "PERIPHERY PIN: a closed wash ring is net-negative EV (got {ev_wash}) — the solution's core claim"
+    );
+    assert!(ev_genuine > ev_wash, "genuine strictly dominates closed wash under the priced periphery");
+}
