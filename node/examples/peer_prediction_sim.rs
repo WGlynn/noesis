@@ -142,9 +142,36 @@ fn main() {
     println!("       Detail-free CA does NOT close this — it is the true residual (with the 3rd-party-sybil");
     println!("       gap in the capital proxy). This is the sharpened open problem, not 4 flat channels.\n");
 
+    // ---- T1-RESIDUAL-BACKSTOP: does requiring the Layer A VEST gate TOO defeat the cheap CA attack? ----
+    // ADVERSARIAL TEST (not a confirmation — the "two residuals compose perfectly" claim is the exact SHAPE
+    // the CI-2 calibration just caught, so measure it, don't assert it). The cheap attack: coordinate to
+    // fool CA (γ=1 ⇒ CA +0.5 > genuine), which costs NO capital. The question: under a CONJUNCTIVE v(S)
+    // (standing = content-support AND realized-independent-use), does vest=0 zero it out?
+    // Vest fractions are the MEASURED periphery result (discernment.rs / periphery_sim): genuine 0.75,
+    // any CAPITAL-CORRELATED set (incl. a coordinating ring) 0.0 — coordination fakes reports, not
+    // capital-independent downstream use.
+    let vest_genuine_frac = 0.75_f64; // measured, periphery_sim
+    let vest_coord_ring_frac = 0.0_f64; // a coordinating ring is capital-correlated ⇒ no independent use
+    // Conjunctive standing = retained(CA) * vest_fraction * V. AND, not weighted sum.
+    let standing = |ca: f64, vest: f64| retained(ca) * vest * v;
+    let standing_genuine = standing(score_genuine, vest_genuine_frac);
+    let standing_coord_cheap = standing(score_ring_corr, vest_coord_ring_frac); // fools CA, vest 0
+    println!("T1-RESIDUAL-BACKSTOP — is the cheap coordination attack defeated by ALSO requiring vest?\n");
+    println!("  Conjunctive v(S) = retained(CA) * vest_fraction (content-support AND realized-independent-use):");
+    println!("    genuine                : CA {score_genuine:+.3} (pass) * vest {vest_genuine_frac} = standing {standing_genuine:.3}  (earns)");
+    println!("    coordinating ring      : CA {score_ring_corr:+.3} (FOOLS CA) * vest {vest_coord_ring_frac} = standing {standing_coord_cheap:.3}  (DEFEATED — cheap coordination earns 0)");
+    println!("  => the vest AND-gate zeroes the cheap CA attack: coordination fakes reports, not");
+    println!("     capital-INDEPENDENT downstream use. To earn standing the ring must ALSO buy independent");
+    println!("     use — the periphery break-even (~9/identity, periphery_sim) ⇒ the SAME 51% floor.\n");
+    println!("  ⚠ LOAD-BEARING ASSUMPTION (calibrate next, do NOT round up): this holds ONLY IF v(S) composes");
+    println!("     CONJUNCTIVELY (both gates required). Under a weighted SUM, high CA partially compensates");
+    println!("     zero vest ⇒ cheap coordination earns partial standing. Conjunctive gating is a DESIGN");
+    println!("     CHOICE that must be made explicit; 'the two residuals compose' is a hypothesis, not proven.\n");
+
     // NOTE (calibrated 2026-07-21, partitioned 2026-07-21): capital-independence is NECESSARY-not-sufficient
-    // for CI. Detail-free CA additionally closes the TASK-CONSTANT bias channel (above); the residual is
+    // for CI. Detail-free CA additionally closes the TASK-CONSTANT bias channel; the residual is
     // TASK-SPECIFIC ω-external correlation (herding/semantic-copy) + the 3rd-party-sybil capital-proxy gap.
+    // That residual is BACKSTOPPED by the Layer A vest gate — IF v(S) is conjunctive (assumption, above).
     println!("BOTTOM LINE (honest): T1 holds on the capital-independent sub-DAG (Layer A's predicate is the");
     println!("NECESSARY shared-controller filter, NOT all of CI — other correlations remain, detail-free CA open);");
     println!("T2 uniqueness is FALSE standalone and RESOLVED by the ratified composition — the stake is");

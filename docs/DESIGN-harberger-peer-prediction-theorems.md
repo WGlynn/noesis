@@ -178,3 +178,12 @@ terminates where the whole stack terminates: at global capital capture, priced n
    (plus the 3rd-party-sybil gap in the capital proxy) — not the four flat channels the calibration
    listed, but a named, measured one. Closing it is genuinely open (the "correlated signals" problem;
    Kong–Schoenebeck-style assumptions `[verify]`).
+4. **Backstop hypothesis (measured, assumption flagged — do NOT round up):** the cheap coordination
+   attack that fools CA (γ>0.70, **no capital**) earns **zero** standing if v(S) *also* requires the
+   Layer A vest gate — coordination fakes reports, not capital-independent downstream use, so
+   `standing = retained(CA) · vest = +0.5 · 0 = 0` (`peer_prediction_sim.rs` T1-RESIDUAL-BACKSTOP). This
+   forces the ring back up to the independent-capital 51% floor. **BUT this holds only under
+   CONJUNCTIVE composition** (both gates required); under a weighted sum, high CA partially compensates
+   zero vest and cheap coordination earns partial standing. Conjunctive gating is a *design choice* that
+   must be made explicit, and "the two residuals compose" is the next claim to CALIBRATE — it is the
+   exact shape (X's residual = Y's strength) the CI-2 calibration just caught overstated.
