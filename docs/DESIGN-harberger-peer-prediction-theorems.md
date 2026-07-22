@@ -178,12 +178,28 @@ terminates where the whole stack terminates: at global capital capture, priced n
    (plus the 3rd-party-sybil gap in the capital proxy) — not the four flat channels the calibration
    listed, but a named, measured one. Closing it is genuinely open (the "correlated signals" problem;
    Kong–Schoenebeck-style assumptions `[verify]`).
-4. **Backstop hypothesis (measured, assumption flagged — do NOT round up):** the cheap coordination
-   attack that fools CA (γ>0.70, **no capital**) earns **zero** standing if v(S) *also* requires the
-   Layer A vest gate — coordination fakes reports, not capital-independent downstream use, so
-   `standing = retained(CA) · vest = +0.5 · 0 = 0` (`peer_prediction_sim.rs` T1-RESIDUAL-BACKSTOP). This
-   forces the ring back up to the independent-capital 51% floor. **BUT this holds only under
-   CONJUNCTIVE composition** (both gates required); under a weighted sum, high CA partially compensates
-   zero vest and cheap coordination earns partial standing. Conjunctive gating is a *design choice* that
-   must be made explicit, and "the two residuals compose" is the next claim to CALIBRATE — it is the
-   exact shape (X's residual = Y's strength) the CI-2 calibration just caught overstated.
+4. **Backstop hypothesis — CALIBRATED and DOWNGRADED** (`CALIBRATION-backstop-conjunctive-2026-07-21.md`,
+   10-agent cross-check). The first-pass claim — "cheap coordination (γ>0.70, no capital) earns zero
+   standing because v(S) *also* requires the Layer A vest gate" — was overstated three ways, and it
+   *was* the same X's-residual=Y's-strength shape the CI-2 calibration caught:
+   - **Not built.** `standing = retained(CA)·vest` is a *design proposal*, not the running value
+     function. `value_v5..v8` (`lib.rs:1182-1445`) compose `novelty · flow_gate` and gate the seed on
+     **soulbound standing (≥ FLOOR)**, never on `independent_use_gate` (which has exactly one hit in
+     `lib.rs` — its own definition at 7164 — and is not wired into consensus).
+   - **Leaks to a semi-funded ring** (BK-1 overstated). "vest=0 for the ring" is a strictly-*closed*-ring
+     special case. A ring that rents **one** 3rd-party distinct-cluster identity vests that cell in full
+     (the gate is a binary per-cell cluster-id compare, `lib.rs:7191-7200`), earning partial standing
+     cheaply — `retained(+0.5)·0.25 = 0.25` — well below any 51% capture.
+   - **Quantity conflation** (BK-2 unsound): the per-identity vesting break-even (~9/identity) is **not**
+     the network-51% floor; the doc must not equate them.
+   - **What survives (BK-3, sound):** *if* v(S) composed conjunctively it would leak under a weighted sum
+     — a correct conditional. And the built value layer **is** multiplicative (`novelty · flow_gate`,
+     v8 outcome factor ∈[0,1] multiply-only-lowers), so the conjunctive *structure* is real; it just
+     gates on standing, not capital-independence.
+   **Reconciliation:** peer-prediction is a candidate for the **v8 outcome factor** (the built oracle-free
+   content floor), not a separate mechanism; the deployed anti-coordination defense is the **standing-vest
+   gate** ("an unvested identity pumps nothing", `value_v7`); and the real open residual is the built
+   system's own pinned gap — a *vested* identity certifying garbage
+   (`adversary::vested_certifier_endorsing_garbage_open_gap`), closed only by the learned v(S) on real
+   realized-use labels (the crown-jewel open). This whole backstop episode was itself an instance of the
+   §2 lesson: re-deriving, under new names, a composition the value layer already ships.

@@ -142,39 +142,44 @@ fn main() {
     println!("       Detail-free CA does NOT close this — it is the true residual (with the 3rd-party-sybil");
     println!("       gap in the capital proxy). This is the sharpened open problem, not 4 flat channels.\n");
 
-    // ---- T1-RESIDUAL-BACKSTOP: does requiring the Layer A VEST gate TOO defeat the cheap CA attack? ----
-    // ADVERSARIAL TEST (not a confirmation — the "two residuals compose perfectly" claim is the exact SHAPE
-    // the CI-2 calibration just caught, so measure it, don't assert it). The cheap attack: coordinate to
-    // fool CA (γ=1 ⇒ CA +0.5 > genuine), which costs NO capital. The question: under a CONJUNCTIVE v(S)
-    // (standing = content-support AND realized-independent-use), does vest=0 zero it out?
-    // Vest fractions are the MEASURED periphery result (discernment.rs / periphery_sim): genuine 0.75,
-    // any CAPITAL-CORRELATED set (incl. a coordinating ring) 0.0 — coordination fakes reports, not
-    // capital-independent downstream use.
+    // ---- T1-RESIDUAL-BACKSTOP: CORRECTED by CALIBRATION-backstop-conjunctive-2026-07-21.md ----
+    // My first pass claimed a conjunctive vest gate defeats the cheap coordination attack (standing → 0).
+    // The 10-agent calibration found TWO overclaims + a not-built premise; this section now shows them.
+    //
+    //  (a) NOT BUILT. The conjunctive v(S) = retained(CA)*vest is a DESIGN PROPOSAL, not the running value
+    //      function. value_v5..v8 (lib.rs:1182-1445) compose novelty * flow_gate and gate the SEED on
+    //      soulbound STANDING (>= FLOOR), NOT on independent_use_gate. Grep: `independent_use_gate` has
+    //      exactly ONE hit in lib.rs — its own definition (7164); its docstring says NOT wired into
+    //      consensus. So "v(S) requires the capital-independence vest" credits nothing deployed.
+    //  (b) BK-1 OVERSTATED. "vest=0 for the ring" is a strictly-CLOSED-ring special case. A SEMI-FUNDED
+    //      ring that rents ONE 3rd-party distinct-cluster identity to build on ONE of its cells vests that
+    //      cell in FULL — independent_use_gate is a binary per-cell cluster-id compare (lib.rs:7191-7200),
+    //      so one distinct-cluster child ⇒ full vest on that cell. Partial standing, bought cheaply.
+    //  (c) BK-2 UNSOUND. Do NOT conflate the per-identity vesting break-even (~9/identity, periphery_sim)
+    //      with the NETWORK 51% floor — different quantities. The dual attack (coordinate CA for free +
+    //      rent one distinct-cluster sybil) defeats BOTH gates well below any 51% capture.
     let vest_genuine_frac = 0.75_f64; // measured, periphery_sim
-    let vest_coord_ring_frac = 0.0_f64; // a coordinating ring is capital-correlated ⇒ no independent use
-    // Conjunctive standing = retained(CA) * vest_fraction * V. AND, not weighted sum.
-    let standing = |ca: f64, vest: f64| retained(ca) * vest * v;
-    let standing_genuine = standing(score_genuine, vest_genuine_frac);
-    let standing_coord_cheap = standing(score_ring_corr, vest_coord_ring_frac); // fools CA, vest 0
-    println!("T1-RESIDUAL-BACKSTOP — is the cheap coordination attack defeated by ALSO requiring vest?\n");
-    println!("  Conjunctive v(S) = retained(CA) * vest_fraction (content-support AND realized-independent-use):");
-    println!("    genuine                : CA {score_genuine:+.3} (pass) * vest {vest_genuine_frac} = standing {standing_genuine:.3}  (earns)");
-    println!("    coordinating ring      : CA {score_ring_corr:+.3} (FOOLS CA) * vest {vest_coord_ring_frac} = standing {standing_coord_cheap:.3}  (DEFEATED — cheap coordination earns 0)");
-    println!("  => the vest AND-gate zeroes the cheap CA attack: coordination fakes reports, not");
-    println!("     capital-INDEPENDENT downstream use. To earn standing the ring must ALSO buy independent");
-    println!("     use — the periphery break-even (~9/identity, periphery_sim) ⇒ the SAME 51% floor.\n");
-    println!("  ⚠ LOAD-BEARING ASSUMPTION (calibrate next, do NOT round up): this holds ONLY IF v(S) composes");
-    println!("     CONJUNCTIVELY (both gates required). Under a weighted SUM, high CA partially compensates");
-    println!("     zero vest ⇒ cheap coordination earns partial standing. Conjunctive gating is a DESIGN");
-    println!("     CHOICE that must be made explicit; 'the two residuals compose' is a hypothesis, not proven.\n");
+    let vest_closed_ring = 0.0_f64; // strictly-closed ring: no independent child ⇒ vests nothing
+    let vest_semifunded = 0.25_f64; // rents 1 distinct-cluster identity ⇒ 1 of 4 ring cells vests FULL
+    let standing = |ca: f64, vest: f64| retained(ca) * vest * v; // the (designed, not-built) conjunctive form
+    println!("T1-RESIDUAL-BACKSTOP — CORRECTED: the vest backstop is designed-not-built AND leaks to a semi-funded ring:\n");
+    println!("  Conjunctive v(S) = retained(CA)*vest is a DESIGN PROPOSAL (value_v5..v8 gate on STANDING, not this gate):");
+    println!("    genuine                    : CA {score_genuine:+.3} * vest {vest_genuine_frac}  = standing {:.3}  (earns)", standing(score_genuine, vest_genuine_frac));
+    println!("    strictly-closed ring       : CA {score_ring_corr:+.3} * vest {vest_closed_ring}  = standing {:.3}  (defeated — but this is the SPECIAL CASE)", standing(score_ring_corr, vest_closed_ring));
+    println!("    SEMI-FUNDED ring (rent 1)  : CA {score_ring_corr:+.3} * vest {vest_semifunded} = standing {:.3}  (LEAKS — cheap, one 3rd-party identity, << 51%)", standing(score_ring_corr, vest_semifunded));
+    println!("  => the backstop only zeroes the STRICTLY-closed ring; a semi-funded ring buys partial vest cheaply.");
+    println!("     And none of this is deployed: the built anti-coordination defense is the STANDING-vest gate");
+    println!("     ('an unvested identity pumps nothing', value_v7) + semantic + outcome floors, composed");
+    println!("     MULTIPLICATIVELY. The real open residual is the built system's own pinned gap — a VESTED");
+    println!("     identity certifying garbage (adversary::vested_certifier_endorsing_garbage_open_gap),");
+    println!("     closed only by the learned v(S) on REAL realized-use labels (the crown-jewel open).\n");
+    println!("  RECONCILIATION: peer-prediction here is a candidate for the v8 OUTCOME factor (an oracle-free");
+    println!("     content floor, ∈[0,1], multiply-only-lowers) — NOT a separate mechanism. My backstop had");
+    println!("     re-derived, under new names, a composition the value layer already ships differently.\n");
 
-    // NOTE (calibrated 2026-07-21, partitioned 2026-07-21): capital-independence is NECESSARY-not-sufficient
-    // for CI. Detail-free CA additionally closes the TASK-CONSTANT bias channel; the residual is
-    // TASK-SPECIFIC ω-external correlation (herding/semantic-copy) + the 3rd-party-sybil capital-proxy gap.
-    // That residual is BACKSTOPPED by the Layer A vest gate — IF v(S) is conjunctive (assumption, above).
-    println!("BOTTOM LINE (honest): T1 holds on the capital-independent sub-DAG (Layer A's predicate is the");
-    println!("NECESSARY shared-controller filter, NOT all of CI — other correlations remain, detail-free CA open);");
-    println!("T2 uniqueness is FALSE standalone and RESOLVED by the ratified composition — the stake is");
-    println!("load-bearing, not garnish. Both bottom out at global capital capture (51%-class), priced not");
-    println!("excluded. Signal + stake are design params; the separation and equilibrium SIGNS are the result.");
+    println!("BOTTOM LINE (honest, calibrated): T1 — capital-independence is the NECESSARY shared-controller");
+    println!("filter (not all of CI; detail-free CA closes task-constant bias, task-specific correlation open).");
+    println!("T2 — uniqueness FALSE standalone, resolved by the stake (built as multiplicative floors in v5..v8).");
+    println!("BACKSTOP — DESIGNED-not-built + leaks to a semi-funded ring; the deployed defense is standing-vest,");
+    println!("the real residual is the vested-certifier-garbage gap. Everything bottoms out at 51%-class capture.");
 }
