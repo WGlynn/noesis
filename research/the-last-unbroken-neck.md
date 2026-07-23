@@ -119,4 +119,6 @@ None of these overturn the conclusion. They mark its edges, which is where an ho
 
 ---
 
-*This is Part 1 of a series. Part 2, "Fairness Is a Substrate, Not an App," asks the question this one leaves open: if positive-sum coordination is the frontier, why has a free and well-capitalized market not simply produced it? The answer is not that the people are bad, and it is not that the good mechanism is unfunded. It is that an extractive base cannibalizes any fair thing built on top of it, which is why fairness has to be built at the base or not at all.*
+*This is Part 1 of a series. Part 2, "Fairness Is a Substrate, Not an App," asks the question this one leaves open: if positive-sum coordination is the frontier, why has a free and well-capitalized market not simply produced it? The answer is not that the people are bad, and it is not that the good mechanism is unfunded. It is that a fair thing built on an extractive base inherits the extraction it depends on, which is why fairness has to be built at the base or not at all.*
+
+*Acknowledgment: the concession that separates ordinary adoption frictions from incentive design, in "Where this could be wrong," came from Boardy's review. He caught the original line claiming liquidity network effects simply are an incentive structure, and the paper is more defensible for the correction.*

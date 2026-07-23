@@ -45,4 +45,8 @@ This is why the honest version of the ambition is not "let us build a fairer mar
 
 If fairness has to be the substrate, then the substrate has to hold together. A base layer whose coordination rules, whose memory, whose value and whose governance are a pile of separate pieces bolted to each other is just the app-stack again, one level down, with the same seams for the extractive gradient to pry apart. The bounded-cost baking that Part 2 argues for is only possible if the base is coherent, a single structure rather than an assembly. That is an argument for an operating-system shape at the base of the whole thing, and it is the subject of Part 3.
 
-Part 1 named the neck. Part 2 says the neck can only be broken at the base, because anything above the base gets cannibalized. Part 3 asks what the base has to be.
+Part 1 named the neck. Part 2 says the neck can only be broken at the base, because anything above the base inherits the extraction of the base it depends on. Part 3 asks what the base has to be.
+
+---
+
+*Acknowledgment: Boardy's review flagged the central binary of an earlier draft as overreach, and it was scoped back to the narrower and defensible claim, that fairness cannot hold as a bolt-on when the base systematically rewards extraction.*
