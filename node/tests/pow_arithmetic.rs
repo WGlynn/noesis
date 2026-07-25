@@ -15,7 +15,7 @@ use noesis_core::pow::{
 
 fn empty_block(pow: Option<PowSeal>) -> Block {
     // A wire test needs a Block value, not a consensus-valid one (encode/decode never validates).
-    Block { height: 7, cells: vec![], coords: vec![], token_txs: vec![], coinbase: None, pow, timestamp: None, bonds: vec![], subblock_root: None }
+    Block { height: 7, cells: vec![], coords: vec![], token_txs: vec![], coinbase: None, pow, timestamp: None, bonds: vec![], subblock_root: None, parent_hash: None }
 }
 
 // ---- core target math ----
