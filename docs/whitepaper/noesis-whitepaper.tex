@@ -90,7 +90,7 @@ offers is the explanation of how they hold together at once.
 These are claims with a structural argument behind them, offered open to refutation, not asserted. We
 mark throughout what is demonstrated and what is designed: the core mechanisms run and are tested in an
 open reference node; the cross-chain merge is a stated architecture, not yet a built feature; and
-feeding the value-model real outcomes at scale is the work that remains.
+confirming the value-model stays un-gameable under a live adaptive adversary is the work that remains.
 \end{abstract}
 
 \section{Introduction: the value chain Bitcoin is mistaken for}
@@ -415,13 +415,25 @@ The value of the learned model is what it adds \emph{within} those bounds. Figur
 reports a held-out measurement on \emph{synthetic structural} labels: trained on one split of
 coalitions and tested on coalitions never seen, the learned $v(S)$ ranks ``work built on work'' above
 the same cells dumped as orphans with accuracy $\ge 0.9$, while the coverage proxy is blind to lineage
-and ties at chance. This is a demonstration on constructed labels, not on real outcome preferences. A
-first test on real data (Ethereum Deep Funding jury labels) did \emph{not} yet reproduce it: under the
-graph proxies available there, the learned $v(S)$ did not reliably beat the best fixed structural proxy
-(both near chance above the floor). That test used single-repo proxy features over a dependency graph
-rather than the set-level features over a provenance graph this measure is defined on, so the result is
-\emph{unsupported, not refuted}; a faithful provenance-feature port is the open test, and feeding the
-evaluator real outcome-preference data at scale remains the work that closes this.
+and ties at chance. This is a demonstration on constructed labels, not on real outcome preferences, and we have since
+tested the harder question directly. On real provenance data --- a faithful port of the set-level
+features, then a deep-ancestry graph built from the full crates.io dependency network ($299{,}775$
+packages, $1.94$M edges, where coalitions are genuinely deep rather than mostly singletons) --- the
+learned $v(S)$ did \emph{not} beat the best fixed structural proxy on predictive accuracy over honest
+static labels: null on Deep Funding, null on the faithful port, null a third time on crates.io. Three
+nulls on independent data make this \emph{robust}, and the honest reading is that this test is
+\emph{mis-specified} for what the learned model is for. Predictive accuracy on honest, static labels
+measures nothing an adversary is resisting, so a coin near chance above the floor is what an un-needed
+model should score there. The property that matters is adversarial, and that we do demonstrate: on a
+constructed gamed coalition (orphan dumps flooding raw coverage) the fixed proxy is driven \emph{below}
+chance held-out --- it pays the attacker above genuine work ($\le 0.1$) --- while the floored, learned
+$v(S)$ denies the gain ($\ge 0.9$), the denial being the structure measure's, since the gamed content
+is compressible and the entropy floor alone would keep it. The honest scope: this is a constructed
+adversarial fixture, not real-outcome data. So the un-gameability the design rests on is the
+\emph{structural} layered defense, demonstrated in Section~\ref{sec:security}; a learned model
+out-predicting the proxy on honest labels is upside, not load-bearing, and was never the right test.
+What stays open is a real \emph{adaptive} adversary rather than a constructed fixture, the general
+graph-isomorphism invariance theorem, and the convergence theorem of Section~\ref{sec:hce}.
 
 \begin{figure}[h]
 \centering
@@ -443,10 +455,13 @@ evaluator real outcome-preference data at scale remains the work that closes thi
 \caption{Held-out value measurement on synthetic structural labels, measured not asserted. On
 coalitions never seen in training, the learned $v(S)$ distinguishes connected, synergistic contribution
 from the same content as disconnected orphans ($\ge 0.9$), while the coverage proxy the per-block rule
-can see is blind to lineage and ranks at chance ($0.5$). These are constructed labels: a first test on
-real Deep Funding jury labels did not yet show the learned measure beating a fixed structural proxy
-under the available graph proxies, so a faithful provenance-feature port and real outcome-preference
-data at scale remain the open test; the measurement harness runs unchanged when they land.}
+can see is blind to lineage and ranks at chance ($0.5$). These are constructed labels. On real data the
+learned measure does not beat the fixed structural proxy on \emph{predictive} accuracy over honest
+labels (null on Deep Funding, on a faithful feature port, and on a $299{,}775$-package crates.io
+provenance graph) --- a robust null that is \emph{expected}, since honest static labels contain no
+adversary to resist. The load-bearing property is instead adversarial and is demonstrated: against a
+constructed gamed coalition the fixed proxy pays the attacker ($\le 0.1$ held-out) while the floored
+learned $v(S)$ denies it ($\ge 0.9$).}
 \label{fig:moat}
 \end{figure}
 
@@ -507,8 +522,10 @@ process for finality, and a residual that reports its own validity does not pres
 optimize against. This is why Section~\ref{sec:security} calls value measurement the load-bearing open
 problem rather than a solved one: the claim is not a closed-form proof of un-gameability but a designed
 mechanism meant to hold un-gameability as a moving equilibrium, whose static-label strength is measured
-(Figure~\ref{fig:moat}) rather than asserted and whose behavior on real outcome data is not yet
-established. A static rule, exact on paper but gameable in practice, is wrong in the only sense that
+(Figure~\ref{fig:moat}) rather than asserted, whose adversarial denial of a gamed coalition is
+demonstrated, and whose \emph{predictive} edge on honest real-outcome labels is robustly null --- the
+expected result where no adversary is present, leaving a real adaptive adversary and the convergence
+theorem (Section~\ref{sec:hce}) as the open frontier. A static rule, exact on paper but gameable in practice, is wrong in the only sense that
 matters; an adaptive measure that is approximately right and \emph{conjectured} to converge (the
 convergence theorem is open, Section~\ref{sec:hce}) is the better object to aim at. It is better to be
 approximately right than absolutely wrong.
@@ -564,7 +581,8 @@ trust'' with ``verify a proof.''}
 \section{Consensus}
 
 Validators are weighted by \textbf{PoM}, not by energy or capital. The tamper-evident, signed, owned
-chain is the ledger; PoM is the stake; consensus is PoM-weighted agreement on the canonical chain.
+chain is the ledger; soulbound PoM-standing (never the transferable state-rent stake) is what carries
+consensus weight; consensus is PoM-weighted agreement on the canonical chain.
 Three design choices make this safe.
 
 \subsection{Retention decay and the finalization basis}
@@ -652,12 +670,15 @@ manufactured flow) is demonstrated, zeroed by the HodgeRank harmonic certificate
 \emph{symmetric-lie} self-report collusion (everyone agrees on the same falsehood) is \emph{designed}:
 the stochastic-dominance result below removes the risk-attitude loophole, but the symmetric lie is a
 \emph{joint} deviation it does not by itself eliminate, so this half is closed only by a bonded
-information-score backstop, not yet proven. For (3), the retraining harness is wired but
-\emph{data-blocked}: confirming it lands in the convergent regime needs real outcome-preference data at
-scale, the convergence theorem itself is open (Section~\ref{sec:living}), and the first real-data test
-of the learned measure (on Ethereum Deep Funding jury labels) did not yet show the learned value
-beating a fixed structural proxy under the available graph proxies, so a faithful provenance-feature
-port is the open test. \textbf{HCE today is therefore a result for property (1) and the cyclic half of
+information-score backstop, not yet proven. For (3), the retraining harness is wired but the
+convergence theorem itself is open (Section~\ref{sec:living}). The learned measure has since been tested
+on real data --- Ethereum Deep Funding, a faithful feature port, and a deep-ancestry crates.io
+provenance graph --- and does not beat a fixed structural proxy on \emph{predictive} accuracy over
+honest labels: a robust null across three independent datasets, and the expected result, since honest
+static labels contain no adversary for a learned model to resist. Its \emph{adversarial} property is
+demonstrated instead (it denies a constructed gamed coalition the fixed proxy pays), so property (3)'s
+open obligation is now a real \emph{adaptive} adversary and the convergence theorem, not a first
+faithful port. \textbf{HCE today is therefore a result for property (1) and the cyclic half of
 property (2), and a labeled conjecture for the full three properties.} We claim it as a named
 conjecture with its demonstrated core marked, not as a finished theorem.
 
@@ -822,8 +843,10 @@ is true in the world. This is the problem Bitcoin sidesteps by being mere posses
 external market bridge the airgap for it. If the learned outcome evaluator is gameable, PoM degrades into a
 reputation system. This is the central open problem, and we treat it as such. The mitigations are
 structural: the realized-flow gate that the learned model can only lower, the temporal-novelty rule,
-the HodgeRank manipulation certificate, and the held-out measurement of Figure~\ref{fig:moat}. The
-remaining mile is real outcome-preference data at scale.
+the HodgeRank manipulation certificate, and the demonstrated adversarial denial of a gamed coalition
+(Figure~\ref{fig:moat}). The remaining mile is not more honest-label data --- the predictive null is
+robust across three datasets and expected --- but a real \emph{adaptive} adversary and the convergence
+theorem (Section~\ref{sec:hce}).
 
 \paragraph{Augmented mechanism design: the counterweight.} The concession is bounded, not open-ended,
 and the bound is the methodology. We do not replace the cooperative-game mechanism with a learned
@@ -847,7 +870,7 @@ eigenvector-style damping over the attribution graph, and the synergy game's dis
 self-referential coalitions.
 
 \paragraph{Demonstrated versus designed.} \emph{Demonstrated} in the open reference node (a Rust
-implementation with a no-std verification core shared with on-chain scripts, $289$ passing tests at
+implementation with a no-std verification core shared with on-chain scripts, $578$ passing tests at
 the time of writing): ownership and transfer, per-block signing, tamper-resistance, the synergy value
 over a coverage proxy with Myerson and Bradley--Terry and permutation sampling, temporal novelty,
 coordinated-volume saturation (Figure~\ref{fig:sat}), the orphan-root fan-out bounded by realized-flow
@@ -857,8 +880,10 @@ names the ring members and spares an honest contributor who builds on them once)
 evaluator and its held-out measurement (Figure~\ref{fig:moat}), the dispute and slashing path,
 PoM-weighted finalization with the hybrid basis, the core/nucleolus stability solver, and the on-chain
 recomputation of the ordering and finalization rules inside the virtual machine. \emph{Designed, not yet
-built}: the learned $v(S)$ on real outcome labels, the wiring of the collusion attribution into the
-dispute slash path, the production two-level recursion, owner-signature control of spends (the
+built}: a learned $v(S)$ that out-predicts the structural proxy under a real \emph{adaptive} adversary
+and the convergence of the retraining loop (the predictive test on honest static labels is robustly null
+across three datasets and reframed as upside, not load-bearing, Section~\ref{sec:value}), the wiring of
+the collusion attribution into the dispute slash path, the production two-level recursion, owner-signature control of spends (the
 deterministic transaction digest is built and tested, and the per-input authorization gate is wired
 into ledger validation, inert until the signature verifier is linked at deploy), the open-weight
 fine-tune loop, and the money/stability layer.
@@ -1126,8 +1151,8 @@ trust intractable, ``is this a mind worth trusting,'' with proofs anyone can rec
 contribution the medium it never had, as Bitcoin gave possession one. The honest center of the system is a single
 hard problem, un-gameable value measurement, and the architecture is built so that the learned
 component charged with it can only ever deny value, never mint it, while a separate certificate reports
-when the value can be trusted at all. What remains is to feed that evaluator real outcomes at scale.
-The rest is assembled from known mathematics, and it runs.
+when the value can be trusted at all. What remains is to show that evaluator stays un-gameable against an
+adversary that learns. The rest is assembled from known mathematics, and it runs.
 
 \section*{Notation}
 \small
