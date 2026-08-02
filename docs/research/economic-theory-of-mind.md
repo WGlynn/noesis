@@ -1,0 +1,47 @@
+# Economic Theory of Mind
+
+*Will Glynn. August 2026.*
+
+A mind is an economy. What it keeps, what it forgets, and what it surfaces at the right moment is not managed by storage. It is priced. This one move, treating cognition as an allocation problem under scarcity rather than a storage problem under capacity, is the whole of the Economic Theory of Mind, and it turns out to generate working systems on three very different substrates: a human mind, an AI's working memory, and a blockchain's state. The version that survives adversaries is the one worth building, and that is the one I am building.
+
+## The reduction ETM refuses
+
+Every standard account of memory management treats a held thought as an item to be stored, compressed, or ranked, and prices it in isolation. A cache uses recency: keep what was touched last (least-recently-used eviction). Information theory uses surprise: keep what carries the most bits. Modern machine attention uses a learned weight: keep what the current query points at. These are not wrong so much as impoverished, and they fail in the same place. They price the item alone, when the worth of a held idea is relational. A fact is valuable because of what else you are holding, what it lets you derive, what later thinking builds on top of it. A brilliant lemma is worthless in a mind that has forgotten the theorem it serves. A stray detail is precious the moment it becomes the keystone of an argument. Recency cannot see this. Bits cannot see this. A query-time weight cannot see this, because the value was created earlier, by a relationship, not at the moment of retrieval.
+
+That relational, forward-flowing worth is an economic quantity, not an information-theoretic one. Which is the claim: to manage a mind well you have to price its contents the way a functioning economy prices goods, by scarcity, by ongoing usefulness, and by position in a web of dependency, rather than by any property the item carries on its own.
+
+## The mechanism
+
+Three parts do the work. Scarcity is the precondition: a mind has finite attention, finite working memory, finite context, and finite state. Nothing interesting happens without the constraint, because with unlimited room you never have to decide what a thought is worth. Rent is the allocation rule: a thought earns its place by continuing to contribute, and stops paying when it stops mattering, so eviction becomes a question of who has quit paying rather than who arrived least recently. And value flows along a provenance graph: ideas that enable other ideas accrue the worth of what they enabled, so credit lands on the load-bearing thought rather than the loudest or the latest one.
+
+Out of those three, coherence emerges. A mind becomes sharp not when it holds the most, but when the right things are commonly known across its parts and everything that is held is paying for itself. The felt experience of a clear mind is an economy that has cleared: supply of attention meeting demand from the thoughts that actually earn it, with no dead weight squatting on scarce room.
+
+## Three substrates, one theory
+
+The reason to trust this rather than admire it is that the same mechanism, implemented honestly, works on three substrates that share nothing except being minds under scarcity.
+
+The first substrate is human cognition, my own, where the theory started as an observation about how a working mind actually curates itself: it does not run a cache, it runs a market, promoting and demoting ideas by their live contribution to whatever it is trying to do.
+
+The second substrate is an AI's working memory, and here the theory is not a metaphor but a running system. I built a memory architecture for an AI collaborator (the system I call JARVIS) that governs what persists across sessions by exactly these rules. A primitive earns its way into long-term memory by demonstrated, repeated usefulness, pays rent to stay, and is pruned when it stops being applied, with credit flowing to the primitives that other primitives are built on. It is the Economic Theory of Mind implemented on the context window of a large language model, and it is the difference between an assistant that forgets you every morning and one that compounds. It runs. It is running as I write this.
+
+The third substrate is blockchain state, and this is Noesis. A public ledger is a shared mind under hard scarcity: block space and state are finite, and the whole question of the chain is what deserves to persist and what it is worth. Noesis prices state the way ETM says a mind should. It uses state-rent on a cell model (the substrate is Nervos CKB's design: Rust, the RISC-V virtual machine, the cell model) so that persistence costs something and dead weight is pruned. It sources a block's value from the realized downstream flow it enables, value along the provenance graph, rather than from the balance its owner happens to hold. And it earns the right to finalize through a Proof-of-Mind score, so influence goes to demonstrated contribution rather than to purchased stake. The cheapest way to gain standing is to actually contribute. That is ETM as a consensus rule.
+
+One theory, three minds. The same shape (scarcity, rent, value along a graph) because the same problem: how does a bounded mind decide what is worth keeping.
+
+## Why the adversarial substrate is the real test
+
+On a private substrate you can afford to be sloppy about the accounting, because you are the only one gaming it, and you mostly do not want to. In my own head, or in an AI I alone use, the pricing can be approximate and self-corrected by good faith. A public substrate removes that luxury. The instant the pricing of contribution controls real value, someone will try to fake contribution to capture it, and the mechanism has to be un-gameable rather than merely reasonable. This is why Noesis is the hardest of the three and also the most important. It forces the Economic Theory of Mind to become rigorous, because an adversary is standing by to exploit every place where the price of a thought diverges from its true worth.
+
+That pressure is what makes the design honest in a structural sense rather than a hopeful one. In Noesis, dishonesty is made unprofitable by construction: every security-critical input is re-derived from consensus rather than accepted as an actor claims it, collusion rings are caught on the shape of the contribution graph alone and slashed, and commit-reveal timestamp priority means the record of a contribution exists before anyone can claim it, so a fresh identity minted to game the system is worth zero. The adversary is not a nuisance to be patched around. The adversary is the thing that turns a philosophy of mind into a protocol.
+
+## The honest edge, and why it is evidence
+
+A real theory earns trust by predicting where its own hard problem will sit, and then being right. The Economic Theory of Mind predicts one deep failure common to all three substrates: the wash. A mind can be fooled by thoughts that are individually plausible and collectively worthless, a coherent train of reasoning that arrives nowhere. An AI memory can be polluted by fluent filler that reads like insight and pays no real rent. And a contribution chain can be attacked by a ring of genuinely distinct but worthless work citing itself into the appearance of value. It is the same problem in three costumes: telling a genuine contribution from competent noise.
+
+Noesis names this as its deepest open problem rather than hiding it. We measured it honestly and found that no purely structural signal cleanly separates a competent wash from a real collaboration, so the security base case is the scarcity of independent minds, and the answer under construction is to give the network a periphery: value vests only on real use by capital-independent minds, a carrying cost prunes patient farming, and the value model grounds on external use so that a contribution nobody ever uses is worth nothing no matter how decorated its citations. That solution is designed with a numeric case and is not yet built, and saying so plainly is part of the method. The point for this essay is narrower and stronger: a theory that correctly locates the hard problem in the same place across a human mind, an AI's memory, and a public ledger is describing something real, not reaching for a metaphor.
+
+## What is actually built
+
+The Economic Theory of Mind is not an armchair position. It has generated two working systems. JARVIS is a running AI memory economy that compounds across sessions instead of resetting. Noesis is a Proof-of-Mind value chain with a Rust reference implementation exercised by a 358-test suite, covering the contribution-conservation core, Proof-of-Mind weighted finalization, and dispute and slashing mechanics running as on-chain rules inside the virtual machine, with a live single-node testnet that mines and finalizes real signed contributions and shows the provenance graph as it forms. The convergence mechanism that lets a rival chain merge in rather than compete, the learned quality signal, and the periphery that prices out the wash are honestly still ahead of us, and are marked as such.
+
+The scarcity that defines a mind is not storage. It is worth. Price worth correctly and the mind coheres; price it wrong and it rots, whether the mind is a person, a model, or a chain. The Economic Theory of Mind is the discipline of pricing it correctly, and Noesis is the proof that it can be done on the one substrate that refuses to let you cheat.
