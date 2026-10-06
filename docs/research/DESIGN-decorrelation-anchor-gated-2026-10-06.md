@@ -110,6 +110,44 @@ is a ceiling (51%-class, priced), not a proof of exclusion, and it carries a gen
   "window exists *conditional on an unbuilt T2 enforcement reaching q > 0.5*." The collusive-throttle
   equilibrium is the live threat, now quantified — not a footnote.
 
+## 5.5 Pushing on T2 — the throttle reduces to the TIME anchor (the honest consolidation)
+
+The adaptive pass (§5) left the whole result resting on "break the collusive-throttle equilibrium
+(reach `q > 0.5`)." Pushing on that:
+
+1. **The throttle is worth-blindness re-instantiated.** A throttling ring reports chance-level
+   prediction; an honest independent reports chance-level because it genuinely cannot predict. The two are
+   **observationally identical on the report** — they differ only in a hidden capability. No mechanism
+   reading only the prediction reports can separate them (the same impossibility as the interior wash,
+   one layer out). So T2-by-report cannot catch the throttle. The existing T2 result
+   (`peer_prediction_sim.rs:72-102`) makes truthful the unique *surviving* equilibrium only "conditional
+   on ≥1 live challenger" — and a challenger needs *evidence* the reporter threw the prediction, which the
+   report alone cannot supply.
+
+2. **The only escape is post-hoc, over the clawback window.** You cannot tell at report-time, but over
+   time you can check whether the "independent" adopters' *realized novel outputs actually diverged*.
+   Honest independents diverge (different minds); a throttling ring's outputs stay controller-correlated
+   **unless the ring actually runs K divergent minds** (= A9). This detection is a `similarity`+`novelty`
+   computation (both built, worth-blind — cycle 4), evaluated at clawback/re-open time, not at mint.
+
+3. **Consequence (honest downgrade of the "three independent tolls" framing):** the decorrelation anchor's
+   *enforcement* is the TIME anchor. Decorrelation is not a fully independent third toll — it is the
+   **readout that time provides**. The genuinely uncorrelated tolls reduce to **{capital, time}**, with
+   time doing double duty: provisional-finality clawback *and* throttle-detection via realized-divergence.
+   This consolidates the frontier (fewer independent axes than `resolving-worth-blindness §2.2` claimed)
+   rather than adding one.
+
+4. **Ceiling unchanged, reached via time not reward.** Gaming realized-divergence = run K genuinely
+   divergent minds across the window = A9, priced. A patient ring that injects divergent-looking realized
+   noise pays toward that same A9 cost. So the throttle is broken by time at the cost of forcing A9 — the
+   same ceiling, now reached through the time anchor instead of the reward `R`.
+
+Status: 🔬 reduction *argument*, not proven; the latency cost is real (you learn late, bounded by how long
+correlation takes to manifest), and the realized-divergence statistic has the same
+specificity/noise-injection design surface as §4.1. Next cheap check: a longitudinal sim —
+honest-set-diverges vs throttling-ring-stays-correlated over N periods — to see whether a cheap
+realized-divergence readout separates them before forcing full A9.
+
 ## 6. Design-sharpening loop (self-critique → fix, to convergence)
 
 ### Cycle 1 — the fatal flaw in §2: a *passive* statistic is Goodhart one level up

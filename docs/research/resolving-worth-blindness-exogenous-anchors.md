@@ -78,7 +78,11 @@ but each with a real, independent cost.
   (a passive statistic is Goodhart one level up); `decorrelation_sim.rs` shows a separating window exists
   in the toy model; independent of the worth oracle (scoring recurses to similarity + novelty, both built,
   not to worth). Still 🔬 — elicitation unbuilt, inherits the T2 scaffold, ceiling = A7 collapses into A9
-  priced. The time and capital anchors exist in designed form (re-open trigger; Layer A).
+  priced. The time and capital anchors exist in designed form (re-open trigger; Layer A). **Consolidation
+  (design doc §5.5):** on closer analysis the decorrelation anchor is *not* a fully independent third toll
+  — breaking its collusive-throttle equilibrium reduces to the TIME anchor (realized-divergence over the
+  clawback window). The genuinely uncorrelated tolls reduce to {capital, time}, with time doing double
+  duty. Fewer independent axes than this section first claimed.
 
 ### 2.3 Accept the time-toll: provisional finality + clawback
 If you cannot know worth at mint, do not finalize worth at mint. Mint provisionally, let realized-use
