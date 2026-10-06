@@ -162,7 +162,7 @@ The numbers reproduce exactly, but only *one* input is measured, and the rest ca
   cold-start symmetry, at the frontier the gate *cannot distinguish a fresh honest cell from a wash
   cell* (both vest 0); early honest work is paid by the novelty floor, not this gate.
 - **The +19.35 / −36.00 sign gap is driven by an assumed slash asymmetry** (`p_slash` wash = 0.5 vs
-  genuine = 0.02, `periphery_sim.rs:85`), which presupposes a challenge process that *already tells junk
+  genuine = 0.02, `periphery_sim.rs:85-87`), which presupposes a challenge process that *already tells junk
   from genuine* — the exact discernment Section 2 shows is impossible on-graph. So a per-decision judge
   re-enters through the dispute/slash door, and what adjudicates a challenge (and whether that
   adjudication is itself boundary-anchored) is an open assumption, not a closed one.

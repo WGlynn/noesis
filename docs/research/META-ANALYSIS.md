@@ -139,12 +139,13 @@ repeatedly borne out, to know precisely and in advance where the wash lives.
 
 ## 5. Tensions & drift (the honest problems)
 
-1. **Anchor drift — PARTIALLY FIXED 2026-10-06.** Docs agreed on the *values* of the core constants but
+1. **Anchor drift — FIXED 2026-10-06.** Docs agreed on the *values* of the core constants but
    cited different file:line anchors. Re-pinned this pass against HEAD: `role-separation` (FINALITY_MIX,
    NCI), `boundary` (the independence-gate / vesting anchors), and `learned-value-seed` (~17 value-layer
-   anchors). **Still pending:** the example-sim anchors in `boundary`
-   (`periphery_sim.rs` / `peer_prediction_sim.rs` / `wash_sim.rs`), not re-verified this pass. Rule of
-   thumb unchanged: defer any number to `ARCHITECTURE.md` + source, not a note's inline citation.
+   anchors). The example-sim anchors in `boundary` (`periphery_sim.rs` / `peer_prediction_sim.rs` /
+   `wash_sim.rs`) were re-verified against source: four were correct; one (`periphery_sim.rs:85` → `:85-87`)
+   was tightened so both cited slash values fall in range. Rule of thumb unchanged: defer any number to
+   `ARCHITECTURE.md` + source, not a note's inline citation.
 2. **Test-count drift.** "358-test suite", "253/253", "337 passing tests", "339" appear across docs for
    different things (full suite vs reference-node subset vs an older snapshot) with no stated
    reconciliation. One sentence pinning what each counts would remove the confusion.
