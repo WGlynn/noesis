@@ -73,8 +73,12 @@ built interior stack, which composes multiplicatively over *worth-blind* factors
 acyclic wash): deep in count, flat in effect. Exogenous-anchor conjunction is the opposite — few factors,
 but each with a real, independent cost.
 - Status: 🔬 the **decorrelation anchor is the genuinely open piece** — capital-independence does not
-  touch herding / shared-prior / semantic-copy (the A7 column, blank in §2.5). This is where the next
-  real design cycle goes. The time and capital anchors exist in designed form (re-open trigger; Layer A).
+  touch herding / shared-prior / semantic-copy (the A7 column, blank in §2.5). **Designed 2026-10-06**
+  (`DESIGN-decorrelation-anchor-gated-2026-10-06.md`): an *active* bond-on-mutual-unpredictability filter
+  (a passive statistic is Goodhart one level up); `decorrelation_sim.rs` shows a separating window exists
+  in the toy model; independent of the worth oracle (scoring recurses to similarity + novelty, both built,
+  not to worth). Still 🔬 — elicitation unbuilt, inherits the T2 scaffold, ceiling = A7 collapses into A9
+  priced. The time and capital anchors exist in designed form (re-open trigger; Layer A).
 
 ### 2.3 Accept the time-toll: provisional finality + clawback
 If you cannot know worth at mint, do not finalize worth at mint. Mint provisionally, let realized-use

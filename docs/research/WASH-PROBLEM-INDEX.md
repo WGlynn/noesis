@@ -128,6 +128,11 @@ once. But against the acyclic wash (A4) **every built floor is worth-blind** →
 the product is ≈1.0 → the stack is blind. `1 × 1 × 1 = 1`. The stack is deep in count, flat in effect on
 A4. Only a factor that *sees worth* — the learned `v(S)` (#8, unbuilt) — can pull the product toward zero.
 
+**Decorrelation anchor (the A7 blank column) — designed 2026-10-06.** The one genuinely-open axis now has
+a design candidate: an *active* bond-on-mutual-unpredictability filter (`DESIGN-decorrelation-anchor-gated-2026-10-06.md`,
+`node/examples/decorrelation_sim.rs`). Toy-model window exists, independent of the worth oracle, ceiling =
+A7 collapses into A9 priced. Still 🔬 (elicitation unbuilt; inherits the T2 scaffold).
+
 **Verdict.** Not additive. ~5 genuinely independent layers cover the *closed* cases across distinct axes
 (identity/topology/capital-closed/time/genesis) — this slice is real and demonstrated on real data. But
 everything touching the *funded* wash (A5–A8, A10) AND-depends on one unbuilt thing: the capital-cluster
