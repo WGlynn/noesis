@@ -74,7 +74,7 @@ flowchart LR
   C --> D["× learned quality<br/>v = novelty × (1 + q)"]
   D --> E["Myerson value<br/>(provenance DAG, synergy)"]
   E --> F["PoM standing<br/>SOULBOUND · consensus weight"]
-  E --> G["State-bytes<br/>TRANSFERABLE · 1 PoM = 1 byte"]
+  E --> G["State-bytes<br/>TRANSFERABLE · 1 standing unit mints 1 byte"]
   F --> H["PoM-weighted consensus"]
   G --> I["Medium of exchange<br/>buy storage, not consensus"]
   classDef sb fill:#1f2937,stroke:#60a5fa,color:#e5e7eb;
@@ -225,7 +225,8 @@ demonstrated. Diagrams: `VISUALS.md` Fig 5; full treatment: `COORDINATION-SCHELL
 ## 6. Consensus
 
 Weight validators by **PoM**: agreement on the canonical chain is PoM-weighted. The
-tamper-evident, signed, owned chain is the ledger; PoM is the stake. To make the
+tamper-evident, signed, owned chain is the ledger; soulbound PoM-standing (never the
+transferable state-rent stake) is what validators are weighted by. To make the
 mechanism defection-proof — no validator coalition profits by deviating — a **core /
 nucleolus** stability constraint is imposed over the PoM-weighted coalition game. This
 is added precisely because consensus requires it; for pure attribution it is
@@ -233,7 +234,7 @@ unnecessary (mechanisms are composed by required property, not kitchen-sinked).
 
 ```mermaid
 flowchart TD
-  CHAIN["Tamper-evident signed owned chain<br/>(the ledger)"] --> W["PoM-weighted agreement<br/>(stake = accumulated Myerson value)"]
+  CHAIN["Tamper-evident signed owned chain<br/>(the ledger)"] --> W["PoM-weighted agreement<br/>(weight = accumulated Myerson value in soulbound standing)"]
   W --> STAB["Core / nucleolus stability<br/>no validator coalition profits by deviating"]
   STAB --> FIN["Finalization"]
   FIN -. liveness fallback .-> NI["Nakamoto-Infinity"]

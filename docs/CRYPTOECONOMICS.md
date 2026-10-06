@@ -119,7 +119,7 @@ flowchart LR
 | Role | Instrument here | Proof |
 |---|---|---|
 | **franchise** (consensus weight + right to mint) | **PoM-standing**, SOULBOUND | Proof of Mind |
-| **capital / state** | **state-bytes** (PoM-minted, transferable; 1 = 1 byte) | (minted by PoM) |
+| **capital / state** | **state-bytes** (minted by PoM-standing, transferable; 1 = 1 byte) | (minted by PoM-standing) |
 | **money / medium-of-exchange** | **JUL** (fiat-stable, PoW-objective) | **Proof of Work** |
 | **governance** | **VIBE** | (governance) |
 
@@ -144,7 +144,12 @@ eliminated. So the honest answer to "do we need PoW?": *not for consensus/state;
 comes with JUL when we add the money layer.* The two proofs coexist cleanly, each doing
 the one thing it's actually good at.
 
-## Token↔proof mapping — Will's cleaner version (PROPOSAL, verify before coding)
+## Token↔proof mapping — Will's cleaner version (PROPOSAL — NOT ADOPTED; see "Bridge to a tradable unit (RESOLVED)" below)
+
+> Note: this proposal used bare "PoM" for the tradable byte. The canonical model does NOT.
+> PoM-standing is soulbound and is NEVER the byte; the transferable layer is the separate
+> state-bytes it mints. The lines below are kept for history only.
+
 
 Will 2026-06-11: name each token by its proof, transparently.
 

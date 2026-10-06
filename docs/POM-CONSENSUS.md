@@ -27,8 +27,8 @@ Weight validators by **PoM**, not energy (PoW) or capital (PoS):
   PoM because they produced no verifiable, pivotal contribution. Splitting one
   mind into many accounts does not multiply PoM (the synergy game discounts the
   redundant copies — same diagnostic as the block-value fix).
-- **Stake = demonstrated mind.** The thing at risk is your accumulated proof of
-  contribution, which can only be earned, not bought. Slashing = revoking PoM for
+- **What is at risk = demonstrated mind.** The thing slashed is your accumulated soulbound
+  standing (proof of contribution), which can only be earned, not bought. Slashing = revoking PoM for
   proven-bad blocks (caught hallucinations, refuted attestations).
 - **Stability (no profitable fork).** Add a **core / nucleolus** stability
   constraint over the PoM-weighted coalition game so no validator coalition can
@@ -36,7 +36,8 @@ Weight validators by **PoM**, not energy (PoW) or capital (PoS):
   not by social trust. (This is the "add a stability concept only when consensus
   needs it" piece from the math roadmap.)
 
-The chain (tamper-evident, signed, owned) is the ledger; PoM is the stake;
+The chain (tamper-evident, signed, owned) is the ledger; soulbound PoM-standing (not the
+transferable state-rent stake) is what carries consensus weight;
 consensus = PoM-weighted agreement on the canonical chain. That is a decentralized
 network whose security comes from *proven thinking*.
 

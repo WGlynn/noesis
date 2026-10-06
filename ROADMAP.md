@@ -33,6 +33,28 @@
    `internal/DESIGN-joint-decay-damping-rate.md`. Code comments + patent line 233 relabeled to match.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-08-12 (crates-grounding)** — REAL-DATA DEMONSTRATION ✅ (recorded by pom-roadmap-advance;
+  result produced 2026-07-30 burn-down, lived only in `data/crates/RESULTS-PERIPHERY.md`, unlogged here
+  until now). **The vesting `independent_use_gate` (`node/src/lib.rs:7164`) separates self-owned
+  dependency rings from genuine cross-owner reuse on REAL crates.io data, not a synthetic fixture.**
+  Source: crates.io dump `2026-07-15-020010`; owner sets from `crate_owners.csv` (338,926 owner rows /
+  299,764 crates); the built gate rule unchanged, run over 1,940,612 reverse-dep edges. **Measured
+  (never rounded up):** of 111,689 crates with a known-owner reverse-dep, **21.2% genuine** (>=1
+  cross-owner reuse) / **78.8% closed** (100% same-owner); vested value/crate genuine **69.36** vs
+  closed **0.00**; the gate strips **15.4%** of all ecosystem reuse as same-owner self-inflation. Real
+  closed rings caught in the wild (owner 373951: 2,875 self edges, 0 external => vests 0), genuine large
+  projects vest high (owner 980: 7,023 external => high). **Moves the ledger: vesting-gate / Layer-A
+  `fixture-demonstrated -> real-data-demonstrated`** (given an independence signal). **HONEST SCOPE — 🔬
+  STILL OPEN, sharpened to one word:** the independence signal here is IDENTITY-independence (crates.io
+  ownership = a Sybilable GitHub identity), NOT capital-independence — a wash-builder under N distinct
+  accounts still reads independent and would vest. No adaptive adversary (naturally-occurring clusters,
+  not an attacker optimizing against the rule). On-chain `capital_cluster` (`node/src/lib.rs:7167`)
+  remains the unbuilt, forgeable-at-cost oracle. So this proves the MACHINE works given a clean
+  independence signal; the whole remaining moat is making that signal COST CAPITAL, not a free identity.
+  The learned-v(S) predictive null (2026-06-23 ww) is unchanged and unaffected — a different instrument
+  (separation-given-independence, not prediction-on-honest-labels). **HELD (not pushed):** the working
+  tree is dirty with in-flight unreviewed moat work (faithful-port, ρ/φ relabel, finalization-typescript
+  edit) — nothing committed/pushed this tick; the tree needs Will's review/commit decision.
 - **2026-07-12 (ρ)** — FRAMING-CORRECTED ✅ (**in-flight, UNCOMMITTED — pending Will review**) — **ρ/φ
   numerology honesty-fix.** Council (Holland lens) flagged `RHO = 1/φ` as numerology. A background RSAW
   loop relabeled it across code + docs: `flow::RHO` + `settlement_fixed::RHO_Q32` comments now state the
@@ -1665,3 +1687,7 @@ that can be gamed.
 
 ## Backlog / design frontier — added 2026-07-03
 - **Verifiable reduction / export layer** (`internal/VERIFIABLE-REDUCTION-AND-EXPORT-LAYER.md`): the reducer between contribution and consensus, and PoM-as-a-consumed-layer for other chains. Origin Will + Tom/Pragma. One primitive (faithful-and-checkable makes PoM both computable AND exportable). Rests on the same open verifiability edge as learned v(S). Forks: reducer richness · standing-registry vs per-block · shared-security vs advisory-signal (lean: signal-first).
+
+- pom-roadmap fire 2026-07-23 01:17 | NO INCREMENT (COMMANDMENT 0.5 fresh-context guard) | context saturated (3h36m, ~18 cron fires, Part-3 trilogy + OPH build) => forcing a moat increment = low-quality work on the highest-value private project. Self-perpetuate + defer per [[context-freshness-guard-for-build-crons]]. C0 ok (68495651 0.52d, no recreate/prune). Next increment = fresh session. (Note: pointer still says "stealth/local-only" but Noesis is PUBLIC since 2026-06-29 — stale framing, defer decision unaffected.) Silent success.
+
+- pom-roadmap fire 2026-07-23 07:17 | NO INCREMENT (COMMANDMENT 0.5 fresh-context guard) | 9h36m/551k deepest saturation => moat increment deferred to fresh session [[context-freshness-guard-for-build-crons]]. C0 ok (68495651 <5d). Silent success.

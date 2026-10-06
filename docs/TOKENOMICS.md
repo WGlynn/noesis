@@ -58,7 +58,7 @@ flowchart LR
 | Function | Instrument | Transferable? | Proof / how earned | Status |
 |---|---|---|---|---|
 | **Franchise** — consensus weight + right to mint | **PoM-standing** | **No (soulbound)** | Proof of Mind: verified novel contribution | core, built (reference layer) |
-| **Capital / state** | **state-bytes** (1 PoM = 1 byte) | Yes | Minted by PoM-standing, then trades freely | core, built (reference layer) |
+| **Capital / state** | **state-bytes** (1 standing unit mints 1 byte) | Yes | Minted by PoM-standing, then trades freely | core, built (reference layer) |
 | **Money / medium of exchange** | **JUL** | Yes | Proof of Work (energy-pegged, Ergon-style) | **designed, NOT built** |
 | **Governance** | **VIBE** | Yes | Voting + validating | designed |
 

@@ -17,7 +17,7 @@ flowchart LR
   C --> D["× learned quality<br/>value = novelty × (1 + q)"]
   D --> E["Myerson value<br/>(intra-block co-authors, synergy)"]
   E --> F["PoM-standing<br/>SOULBOUND — consensus weight + right to mint"]
-  E --> G["State-bytes<br/>TRANSFERABLE — 1 PoM = 1 byte"]
+  E --> G["State-bytes<br/>TRANSFERABLE — 1 standing unit mints 1 byte"]
   F --> H["Consensus<br/>(PoM-weighted)"]
   G --> I["Medium of exchange<br/>buy storage, not consensus"]
   F -.decay (state-rent sink).-> J["Reclaim<br/>stale standing decays"]

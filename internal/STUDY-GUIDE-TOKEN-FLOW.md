@@ -17,7 +17,7 @@ contribution.** That single split is the whole design.
 | Instrument | What it is | Earned by | Transferable? | Role / what it does | Status |
 |---|---|---|---|---|---|
 | **PoM-standing** | Proof-of-Mind: your accumulated, verified novel contribution | **contributing** (novel value that survives the similarity floor + vesting) | **NO — soulbound** | **consensus weight** + the right to mint state-bytes + governs the *measure* | ✅ ref |
-| **state-bytes** | on-chain storage capacity (CKB's insight ported: 1 PoM = 1 byte) | **minted by PoM-standing**, then trades freely | Yes | the **capital / PoS** layer — you stake it to validate; decay = state-rent + supply sink | ✅ ref |
+| **state-bytes** | on-chain storage capacity (CKB's insight ported: 1 unit of standing mints 1 byte) | **minted by PoM-standing**, then trades freely | Yes | the **capital / PoS** layer — you stake it to validate; decay = state-rent + supply sink | ✅ ref |
 | **JUL** | energy-pegged money (Ergon-style proportional design) | **Proof-of-Work** (mining / energy) | Yes | the **money / medium of exchange**; the PoW consensus layer | 🟡 designed |
 | **VIBE** | governance instrument | **validating** (operating consensus) — ⚑ *proposal*, was unspecified | Yes | **governance** — votes on the operational dials; orthogonal to the consensus cycle | 🟡 designed |
 

@@ -1,0 +1,14 @@
+{
+  "n_crates_with_reverse_deps": 111693,
+  "n_with_known_owner": 111689,
+  "n_reverse_dep_crates_without_owner": 4,
+  "genuine_frac (>=1 independent reuse)": 0.2119,
+  "closed_frac (reuse 100% same-owner)": 0.7881,
+  "raw_reverse_dep_edges (known-owner)": 1940612,
+  "vested_edges (independent-owner only)": 1641831,
+  "self_owned_inflation_stripped_frac": 0.154,
+  "mean_indep_frac_genuine": 0.7925,
+  "mean_indep_frac_closed": 0.0,
+  "separation_genuine_vested_per_crate": 69.358,
+  "separation_closed_vested_per_crate": 0.0
+}
