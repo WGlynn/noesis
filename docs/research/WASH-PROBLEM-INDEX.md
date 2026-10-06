@@ -8,6 +8,13 @@
 >
 > This is a working map for us, not a contribution paper. The authoritative numbers live in
 > `ARCHITECTURE.md` + source; this file only points at them.
+>
+> **Reproduction (2026-10-06):** the three sims were re-run today and match verbatim — `wash_sim`
+> (124/124 BLIND, ring cycle-energy 4.0), `periphery_sim` (S=45, genuine vest 0.750 / wash 0.000,
+> EV +19.35 / −36.00, break-even 9.00), `peer_prediction_sim` (genuine CA +0.245, ring −0.350,
+> separation +0.595, semi-funded leak standing 0.250, crossover γ*=0.70). The crates.io figures (§2
+> row 12) were verified against the cached result `data/crates/graph/periphery_grounding.json`; they
+> were **not** re-run from the raw dump (the multi-GB `db-dump.tar.gz` is not present locally).
 
 ## 0. Honest floor (read this first)
 
