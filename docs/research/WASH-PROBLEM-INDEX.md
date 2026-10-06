@@ -63,6 +63,77 @@ distributional claim. Spec: `docs/DESIGN-mind-scarcity-asymmetry.md`; test pin:
 | 15 | **v0 Sybil failure envelope + bootstrap admission** | bootstrap | honest map of the *deployed* v0 (farmable; captured share ≈ F/(N+F)); per-identity cap + initial allowlist as the load-bearing brakes | ✅ measured RED; allowlist 🟡 | `docs/research/v0-sybil-failure-envelope-2026-07-19.md`, `docs/SYBIL-SURFACE-deployed-franchise-2026-07-19.md`, `docs/DESIGN-bootstrap-admission.md` | admission control is an *imported* authority (honest) |
 | 16 | **Vested-certifier-endorsing-garbage gap** (the built system's own pin) | residual | names the real residual: a *vested* identity certifying junk | 🔬 OPEN, pinned | `lib.rs:4608` (`adversary::vested_certifier_endorsing_garbage_open_gap`) | closed only by #8 (learned `v(S)` on real labels) |
 
+## 2.5 Defensive stacking — are they additive? (no)
+
+Defense is only *additive* if each approach covers an attack the others miss. Mapped against the attack
+taxonomy, the "16" collapses: 3 are not defenses, 3 are guards on one mechanism, 3 are serially
+*dependent* on one gate, and the built composition is multiplicative — which, on the core attack, stays
+blind. The genuinely independent layer count is ~5, not 16.
+
+**Attack axes** (from boundary §7 ledger + the `wash_sim` verdict):
+
+| | Attack | Axis |
+|---|---|---|
+| A1 | Free-keygen sybil (unfunded identities) | identity |
+| A2 | Relabel / re-encode existing content | content-identity |
+| A3 | Dumb wash-**ring** (cyclic self-citation) | topology |
+| A4 | **Acyclic wash-tree** (novel garbage, one actor, honest topology) | **core open** |
+| A5 | Semi-funded ring (rent ONE distinct cluster/cell) | capital |
+| A6 | Capital-splitting whale | capital |
+| A7 | Shared-prior / herding / semantic-copy "independents" | correlation |
+| A8 | Third-party-sybil (rent, not majority) | capital-proxy |
+| A9 | Funded-majority cartel (51%-class) | resource |
+| A10 | **Vested** identity certifies garbage | insider |
+| A11 | Patient wash (wait out time filters) | time |
+
+**Coverage matrix.** `B`=built-covers · `D`=designed · `O`=open/unbuilt · `L`=leaks (sees it, lets it
+through) · `·`=blind/NA:
+
+| # Approach | A1 | A2 | A3 | A4 | A5 | A6 | A7 | A8 | A9 | A10 | A11 | net |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 Cyclic defenses | · | · | B | · | · | · | · | · | · | · | · | A3 only |
+| 2 value_v5..v8 (composition) | B | · | B | · | · | · | · | · | · | · | · | carrier, blind on A4 |
+| 3 Soulbound + fresh-vest-0 | **B** | · | · | · | · | · | · | · | · | · | · | identity floor |
+| 4 Capital-indep gate (Layer A) | · | · | B | **B**(closed) | **L** | **L** | · | L | · | · | · | hinge; logic B, oracle 🟡 |
+| 5 Layer B rent+slash | · | · | · | D | D | · | · | · | D | · | D | depends on #4 |
+| 6 Dispute/slash market | · | · | · | B† | · | · | · | · | · | B† | · | enforces #5; needs judge |
+| 7 Peer-prediction CA | · | · | · | · | · | · | D(partial) | · | · | · | · | depends on #4 refs → #8 seat |
+| 8 Learned v(S) (the moat) | · | O | · | **O** | O | O | O | O | · | **O** | · | OPEN — the one worth-signal |
+| 9 Iso-invariance gate | · | O | · | · | · | · | · | · | · | · | · | guard on #8 |
+| 10 Solver guard | · | · | · | · | · | · | · | · | · | D | · | guard on #8 |
+| 11 Seen-vectors anti-recycle | · | D | · | · | · | · | · | · | · | · | D | guard on #8 |
+| 12 Crates.io grounding | — | — | — | — | — | — | — | — | — | — | — | evidence for #4, not a defense |
+| 13 Attestation-exogeneity | — | — | — | — | — | — | — | — | — | — | — | theory (why exogenous) |
+| 14 Re-open trigger | · | · | · | D | · | · | · | · | · | D | D | temporal backstop (Tier2→#4) |
+| 15 Bootstrap allowlist | B | · | · | · | B | · | · | B | · | · | · | genesis scaffold (imported authority) |
+| 16 Vested-certifier gap | · | · | · | · | · | · | · | · | · | **O** | · | this IS A10 — the attack, not a defense |
+
+†#6 only "covers" A4/A10 by *assuming* an adjudicator that already tells junk from genuine — re-importing
+the discernment A4 proves impossible on-graph.
+
+**The four buckets:**
+- **A — orthogonal / additive (real defense-in-depth):** #3 (A1), #1 (A3), #4-closed (A4-closed), #14
+  (time), #15 (genesis). ~5 layers on 5 distinct axes.
+- **B — serial / dependent (NOT additive, share #4's failure):** #5, #6, #7. Layer-B's vest fraction *is*
+  #4's output; CA's T1 holds *only* on #4's independent references; dispute is #5's enforcement arm.
+  Break #4 and all three fall — a single point of failure, not depth.
+- **C — one seat + its guards (not parallel defenses):** #8 is the moat; #9/#10/#11 are gates *on* #8.
+  Counting them as four defenses quadruple-counts one unbuilt thing.
+- **D — not defenses:** #12 (evidence for #4), #13 (theory), #16 (the residual attack A10 itself).
+
+**The composition crux.** The built layers compose **multiplicatively**
+(`novelty × flow_gate × standing_gate × semantic_floor × outcome_floor`). That is the right shape for one
+property — *any* floor can veto a bad mint to zero, so minting junk requires fooling *every* floor at
+once. But against the acyclic wash (A4) **every built floor is worth-blind** → each returns ≈1.0 →
+the product is ≈1.0 → the stack is blind. `1 × 1 × 1 = 1`. The stack is deep in count, flat in effect on
+A4. Only a factor that *sees worth* — the learned `v(S)` (#8, unbuilt) — can pull the product toward zero.
+
+**Verdict.** Not additive. ~5 genuinely independent layers cover the *closed* cases across distinct axes
+(identity/topology/capital-closed/time/genesis) — this slice is real and demonstrated on real data. But
+everything touching the *funded* wash (A5–A8, A10) AND-depends on one unbuilt thing: the capital-cluster
+oracle feeding #8. A 17th idea buys coverage only if it attacks a blank column (A7/A8/A9 funded
+correlation) *without* routing through #4's oracle; otherwise it just lengthens the dependency chain.
+
 ## 3. Status rollup
 
 - **✅ BUILT and doing real work:** interior defenses (#1,2), soulbound + fresh-vest-0 (#3), Layer-A gate
