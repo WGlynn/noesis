@@ -15,6 +15,7 @@
 
 ## Read in this order (if new to the corpus)
 
+0. `how-to-read-noesis.md` — **start here.** An epistemic orientation: how the project thinks (one bet; the status tags; the named hard problem; "real but uncomputable"), so you read everything below correctly.
 1. `economic-theory-of-mind.md` — the parent frame. Mind = economy (scarcity / rent / value-along-a-graph), on three substrates (human cognition, JARVIS memory, blockchain state). The whole program in one move.
 2. `something-from-nothing-oracle-free-content-value.md` — the technical hub. The something-from-nothing problem, the oracle-free requirement, the architecture, and the honest status (moat = structural defense; learned predictor NULL ×3). If you read one mechanism paper, read this.
 3. `essential-complexity-organism-and-machine.md` — the design philosophy (elegance = generative parsimony; organism vs machine; the reduction test). Also the corpus's strictest self-auditor.
