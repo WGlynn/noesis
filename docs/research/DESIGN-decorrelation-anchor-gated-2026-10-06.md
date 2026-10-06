@@ -140,6 +140,21 @@ equilibrium problem (T2), so it needs the same stake+dispute scaffold already de
 — i.e. the decorrelation anchor is *not* a free-standing mechanism, it reuses the T2 resolution
 (`peer_prediction_sim.rs:72-102`). No new structural break found in this cycle ⇒ converged.
 
+### Cycle 4 — the load-bearing check: does the elicitation recurse to *worth*? (No)
+If scoring "did A predict B's novel work" needed a worth judgment, the anchor would collapse back onto
+the unbuilt worth oracle and would NOT be an independent third toll — killing the additivity claim. It
+does not. Scoring prediction accuracy is `similarity(predicted_X, realized_Y)` — a *match*, worth-blind:
+"did A guess WHAT B would do," not "was it good." The ingredients are all worth-blind and mostly built:
+- **similarity** — `pom_scores_with_similarity_floor_q16` (built; used in `periphery_sim.rs`),
+- **novelty** (to restrict to *novel* work) — `temporal_novelty` (built; used in `wash_sim.rs`),
+- **time** (B's work must be realized to score the prediction) — the clawback/provisional-finality window.
+
+None is the worth oracle. So the decorrelation anchor is the **most buildable** of the three tolls and is
+genuinely independent of the capital oracle and the learned `v(S)`. Residual (a real design knob, not a
+recursion): the prediction must be *specific* enough that chance-matching is hard — "B will produce
+something novel" is free; "B will produce novel work near region Z" is not. Specificity is the tuning
+surface; it does not reintroduce worth.
+
 **Sharpened verdict (supersedes §4's net):** the decorrelation anchor should be an **active
 bond-on-mutual-unpredictability filter**, not a passive divergence statistic — because only the active
 form resists the offline-Goodhart defeat that kills every observational measure. In active form it is a
