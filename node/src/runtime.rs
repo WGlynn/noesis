@@ -2797,6 +2797,46 @@ mod tests {
     }
 
     #[test]
+    fn standing_and_finality_are_structural_novelty_only_no_value_layer_leak() {
+        // FENCE (ADR §8 / §8.1 + docs/DESIGN-novelty-split-structural-vs-value.md): the finality
+        // franchise must be a PURE function of STRUCTURAL novelty (coverage + the Q16.16 similarity
+        // floor) over the finalized cells, with NOTHING from the value layer (the value_v5..v8
+        // learned/outcome factor, or any CRPC judgment) reaching it. This is the decorrelation the
+        // binding-sufficiency "correlated failure domain" argument requires: finality's projection
+        // must not be the same gamed quantity reward pays on, so a wash deviation that games reward
+        // cannot, by that fact alone, also game the franchise.
+        //
+        // We pin it as a reproducibility identity: standing and the finality bridge are reproducible
+        // from the structural oracle ALONE. If anyone later wires a value_v*-gated term into standing,
+        // this identity breaks and the test fails -- the concrete, checkable form of "never wired in".
+        // HONEST SCOPE: this fences the value layer OUT of finality (decorrelation). It does NOT make
+        // the gated structural quantity un-gameable -- coverage-novelty is gain-covering only inside
+        // the canonicalization frontier (near-duplicates, via the similarity floor); wash across
+        // semantically-equivalent re-encodings stays open and is contained by vesting + dispute +
+        // anti-concentration, not by this fence.
+        let mut node = Node::new(0, vec![v(0, 0.0, 100.0, 100.0)], Constitution::default());
+        for h in 1..=6u64 {
+            node.apply(&carrier_for(h, format!("c{}", h).as_bytes()));
+        }
+        // (1) live standing == the structural-novelty-only oracle over the finalized cells.
+        let structural = crate::pom_scores_with_similarity_floor_q16(
+            &node.ledger.cells, node.constitution.theta_sim_q16);
+        assert_eq!(
+            node.ledger.pom, structural,
+            "standing must equal the structural-novelty oracle -- no value-layer term may leak in"
+        );
+        // (2) the finality bridge is the SAME structural quantity, filtered to cleared+unrefuted cells
+        //     (W=0 here ⇒ all clear). Finality reads structural novelty, never a learned/CRPC value.
+        let bridge: std::collections::BTreeMap<Vec<u8>, u64> =
+            node.finality_pom_weight().into_iter().collect();
+        let structural_bt: std::collections::BTreeMap<Vec<u8>, u64> = structural.into_iter().collect();
+        assert_eq!(
+            bridge, structural_bt,
+            "finality_pom_weight must be the structural oracle over cleared cells -- value layer fenced out"
+        );
+    }
+
+    #[test]
     fn multi_hop_token_flow_across_blocks() {
         // A→B→C: a value cell owned by alice moves to bob, then bob's RECEIVED cell moves to carol
         // in a later block. The second hop is only possible because `apply` persisted bob's output.
