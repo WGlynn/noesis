@@ -68,12 +68,12 @@ minds. Independence is anchored in capital rather than personhood, because perso
 authority and capital is harder to forge cheaply.
 
 Stated at the point of the claim, not deferred to a status section: what is **built** is the vesting
-gate that *consumes* this signal (`node/src/lib.rs:7147`, `pub mod vesting::independent_use_gate`). What
+gate that *consumes* this signal (`node/src/lib.rs:7306`, `pub mod vesting::independent_use_gate`). What
 is **not built** is the capital-cluster *source* that would establish "distinct origin" on-chain
-(`lib.rs:7146`, verbatim: "The source of that signal (a capital-cluster oracle) is itself unbuilt"). So
+(`lib.rs:7305`, verbatim: "The source of that signal (a capital-cluster oracle) is itself unbuilt"). So
 "you can check the using identity's capital is a distinct origin, on-chain, no opinion" is a *design
 target*, not a current fact. Today the gate is a single per-cell cluster-id comparison
-(`lib.rs:7191-7192`): `(Some(a), Some(b)) => a != b`. That is also why capital-independence is *pricing,
+(`lib.rs:7351`): `(Some(a), Some(b)) => a != b`. That is also why capital-independence is *pricing,
 not Sybil resistance*: a whale who splits real capital into distinct clusters passes `a != b` on every
 edge and vests fully. It converts a free Sybil into a per-identity capital toll; it does not exclude it.
 
@@ -182,10 +182,10 @@ cheapest real attack is far below it. One table, so the boundary is legible rath
 
 | Attack | Gate verdict | Attacker cost | Handling / file:line |
 |---|---|---|---|
-| Free-keygen Sybil (mint identities) | stopped | fresh identity vests 0 | soulbound + vest gate, `lib.rs:7147` |
+| Free-keygen Sybil (mint identities) | stopped | fresh identity vests 0 | soulbound + vest gate, `lib.rs:7306` |
 | Strictly-closed wash-ring | priced negative | rent + slash, EV −36 | `periphery_sim.rs`, vest 0 by construction |
 | **Semi-funded ring (rent ONE distinct cluster)** | **LEAKS** | one 3rd-party identity per vested cell | `peer_prediction_sim.rs:154-170`, `a != b` |
-| Capital-splitting whale | priced, not stopped | ~9.00 capital / identity | `lib.rs:7191`, `a != b` accepts split capital |
+| Capital-splitting whale | priced, not stopped | ~9.00 capital / identity | `lib.rs:7351`, `a != b` accepts split capital |
 | Shared-prior / herding / semantic-copy "independent" builders | **open** | ~free past coordination γ*≈0.70 | `CALIBRATION-ci-argument`, pass `a != b` |
 | Third-party-sybil | **open** | rent, not majority | `CALIBRATION-ci-argument`, capital proxy gap |
 | Funded-majority cartel | priced (51%-class) | out-resource honest majority | Section 4a residual |
@@ -205,14 +205,14 @@ retained). So "51%-class" is the *funded-majority* residual, not the frontier.
 
 - **Built and tested:** the interior structural defenses, demonstrated 253/253 against *constructed*
   (not adaptive) adversaries (253 is the reference-node subset of a 359-test suite); the
-  capital-independent vesting gate *logic* (`lib.rs:7147 pub mod vesting::independent_use_gate`,
+  capital-independent vesting gate *logic* (`lib.rs:7306 pub mod vesting::independent_use_gate`,
   `node/tests/discernment.rs`) — but built as a pure function with exactly one call site (its own
   definition), **not wired into consensus**; the deployed value layer (`value_v5..v8`) gates on soulbound
   *standing*, not on this gate; the dispute market (`docs/DISPUTE-SLASHING.md`); soulbound identity and
   one-time leaf (`node/src/rpc.rs`, `runtime.rs`); the deterministic `ValueOracle` seam and its
   fixed-point novelty scorer (`lib.rs`).
 - **Designed, not built:** Layer A's capital-independence *source* (the on-chain distinct-origin
-  oracle, `lib.rs:7146`); Layer B's Harberger self-assessed rent; Layer C's `v(S)` retrained on
+  oracle, `lib.rs:7305`); Layer B's Harberger self-assessed rent; Layer C's `v(S)` retrained on
   realized-use labels.
 - **Open:** the recursion base case (Section 4a); the semi-funded-ring leak and the shared-prior /
   third-party-sybil channels (Section 7); the learned `v(S)` on a real external signal (null on

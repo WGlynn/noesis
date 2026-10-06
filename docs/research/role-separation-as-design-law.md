@@ -48,10 +48,10 @@ was written.
 
 - **PoW's two jobs, split.** Bitcoin's PoW does ordering-*security* AND issuance/liveness/Sybil-cost
   at once. Noesis excludes PoW from finality — `FINALITY_MIX = { pow: 0.0, pos: 1/3, pom: 2/3 }`
-  (`node/src/runtime.rs:1195`) — because PoW is reorgeable, so safety must not depend on it. PoW's
+  (`node/src/runtime.rs:1607`) — because PoW is reorgeable, so safety must not depend on it. PoW's
   role is reduced to JUL issuance + liveness + per-block Sybil-cost; finality-safety runs on PoS+PoM.
   (Overall consensus weight is still 3-dimensional: `NCI = { pow: 0.10, pos: 0.30, pom: 0.60 }`,
-  `node/src/lib.rs:3820` — PoW is separated *only* from the finality-safety role, not from consensus.)
+  `node/src/lib.rs:4022` — PoW is separated *only* from the finality-safety role, not from consensus.)
 - **The clock's two jobs, split.** Reading physical time and securing the chain have opposite
   requirements (one wants an external fact, the other must never trust one). The committee-attested
   clock feeds *only* difficulty, never the finality path (`FINALITY_MIX.pow == 0`), so total clock

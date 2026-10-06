@@ -6,7 +6,7 @@
 > Turns `internal/RESEARCH-learned-vs-from-merged-prs.md` (commit `593bdc8`) into a build plan, executed.
 > Reconciled first against `internal/STATUS-LEDGER.md` MOAT-1, `internal/MVP-SCOPE-JULY-2026.md` R1, and
 > the value code — per [[verify-before-rebuild]]. Prior art it does NOT re-derive: the DeepFunding harness
-> (`data/deepfunding/`), the `ValueOracle` seam (`node/src/lib.rs:283`), the adversarial test (2026-07-02),
+> (`data/deepfunding/`), the `ValueOracle` seam (`node/src/lib.rs:293`), the adversarial test (2026-07-02),
 > and the structural layered defense (proven, 253/253).
 
 ## 0. Reconciliation — what was already known, and the one thing that was open
@@ -16,7 +16,7 @@ the faithful `coalition_features` port), and went **NULL both times**. The faith
 (`data/deepfunding/RESULTS-FAITHFUL.md`) diagnosed the cause exactly, and it was **not** a label
 problem — it was a **topology** problem:
 
-> ANCESTOR closure (the SHIPPED object, `lib.rs:7092`): **singletons 95/115** ⇒ f1/f2/f3 DEGENERATE.
+> ANCESTOR closure (the SHIPPED object, `lib.rs:7378`): **singletons 95/115** ⇒ f1/f2/f3 DEGENERATE.
 
 For 95 of 115 judged DeepFunding repos the provenance-ancestor coalition is `{r}` alone (they are
 graph leaves), so synergy / connectedness / depth collapse to constants and the exact shipped quantity
@@ -48,18 +48,18 @@ the Sybil-resistance design already depend on. These are the constraints the lea
 
 | # | constraint | source | why it is load-bearing |
 |---|---|---|---|
-| B1 | **pure + deterministic**: same `(cells, θ)` ⇒ bit-identical output on every replica (no floats on the consensus path, no wall-clock, no map-iteration-order dependence) | `ValueOracle` contract, `lib.rs:278-282` | replicas must agree on ONE canonical `v(S)`; nondeterminism forks the chain |
-| B2 | **integer output, exactly one value per input cell, in commit order** | `lib.rs:284-286` | the aggregator (`pom_scores_with_oracle`, `lib.rs:304`) sums per-cell value into per-contributor standing |
-| B3 | **submodular** coverage value: a redundant contribution adds little (`v(S)=|union coverage|`) | `synergy` module, `lib.rs:3283`, 3301 | padding / duplication cannot inflate value; diminishing returns is the anti-spam property |
-| B4 | **Myerson-restricted**: value only from provenance-CONNECTED sub-coalitions (`v^g(S)` = sum of `v` over connected components under parent edges) | `lib.rs:3284`, 3340 `v_graph` | a disconnected coalition (forged/unrelated cells) cannot pool value; provenance is required to co-earn |
-| B5 | **anonymity-RELAXED — NOT symmetric** | Sybil-resistance design; `value_v6` identity pricing `lib.rs:1219`; SCOPE-CF | a *fresh* identity is worth zero by construction; a symmetric (anonymous) value function would let a ring mint standing by renaming ⇒ symmetry is deliberately broken |
-| B6 | **the 4 set-features are the only interface to structure** — breadth `ln(1+|union|)`, synergy `|union|/Σ|indiv|`, connectedness `frac(parent∈S)`, depth `longest-parent-chain/|S|` | `coalition_features`, `lib.rs:7092-7133` | all four are on-chain-derivable, need no oracle; the LABELS carry the outside signal (`lib.rs:7091`) |
-| B7 | **floor can only LOWER, never rescue** — semantic floor AND-composes, incompressible-noise content ⇒ 0 regardless of structure | `v_outcome_floored`, `lib.rs:7216-7235` | structure cannot manufacture value from noise; single-sourced from the intake floor so a cell the chain won't mint can't score |
-| B8 | **serialisable to a fixed canonical artifact, governance-pinned** (a version bump on the Constitution measurement-amendment frame, like `theta_sim_q16`), NOT a runtime plugin | `lib.rs:272-276` | the whole network agrees on ONE `v(S)`; a per-node model re-introduces the authority the design removed |
+| B1 | **pure + deterministic**: same `(cells, θ)` ⇒ bit-identical output on every replica (no floats on the consensus path, no wall-clock, no map-iteration-order dependence) | `ValueOracle` contract, `lib.rs:293` | replicas must agree on ONE canonical `v(S)`; nondeterminism forks the chain |
+| B2 | **integer output, exactly one value per input cell, in commit order** | `lib.rs:296` | the aggregator (`pom_scores_with_oracle`, `lib.rs:314`) sums per-cell value into per-contributor standing |
+| B3 | **submodular** coverage value: a redundant contribution adds little (`v(S)=|union coverage|`) | `synergy` module, `lib.rs:3301` | padding / duplication cannot inflate value; diminishing returns is the anti-spam property |
+| B4 | **Myerson-restricted**: value only from provenance-CONNECTED sub-coalitions (`v^g(S)` = sum of `v` over connected components under parent edges) | `lib.rs:3354` `v_graph` | a disconnected coalition (forged/unrelated cells) cannot pool value; provenance is required to co-earn |
+| B5 | **anonymity-RELAXED — NOT symmetric** | Sybil-resistance design; `value_v6` identity pricing `lib.rs:1232`; SCOPE-CF | a *fresh* identity is worth zero by construction; a symmetric (anonymous) value function would let a ring mint standing by renaming ⇒ symmetry is deliberately broken |
+| B6 | **the 4 set-features are the only interface to structure** — breadth `ln(1+|union|)`, synergy `|union|/Σ|indiv|`, connectedness `frac(parent∈S)`, depth `longest-parent-chain/|S|` | `coalition_features`, `lib.rs:7378` | all four are on-chain-derivable, need no oracle; the LABELS carry the outside signal (`lib.rs:7378`) |
+| B7 | **floor can only LOWER, never rescue** — semantic floor AND-composes, incompressible-noise content ⇒ 0 regardless of structure | `v_outcome_floored`, `lib.rs:7502` | structure cannot manufacture value from noise; single-sourced from the intake floor so a cell the chain won't mint can't score |
+| B8 | **serialisable to a fixed canonical artifact, governance-pinned** (a version bump on the Constitution measurement-amendment frame, like `theta_sim_q16`), NOT a runtime plugin | `lib.rs:293` | the whole network agrees on ONE `v(S)`; a per-node model re-introduces the authority the design removed |
 
 **Consequence for the model class:** the learned object is NOT a free-form net. It is a learned
 *scoring of the four structural features* (the shipped Bradley-Terry estimator, `outcome::train`
-`lib.rs:7143`), composed with the coverage/provenance structure that already enforces B3–B5, and floored
+`lib.rs:7429`), composed with the coverage/provenance structure that already enforces B3–B5, and floored
 by B7. Training changes the 4 weights; it cannot change the box. Determinism (B1) is met by fixed-point
 / fixed-seed integer inference at deploy — training happens off-chain, only the pinned weight blob ships.
 
@@ -113,7 +113,7 @@ richly testable.
 ## 2. The model (Phase 2) — box-constrained learned scoring
 
 _Trainer: `data/crates/moat_test.py`. Mirrors `outcome::{coalition_features, train, v_outcome,
-pairwise_accuracy}` (`lib.rs:7078-7206`) EXACTLY, ANCESTOR direction._
+pairwise_accuracy}` (`lib.rs:7364`) EXACTLY, ANCESTOR direction._
 
 Learn `f(coalition_features(ancestor-coalition(r))) → value` with the shipped Bradley-Terry estimator on
 preference pairs derived from the reuse label (winner = the more-reused crate). Constrained to the
@@ -164,8 +164,8 @@ use the SCC-condensation rule or it forks replicas.
 
 ## 4. Integration + honest labelling (Phase 4)
 
-The canonical weight artifact drops into the `ValueOracle` seam (`lib.rs:283`) as `LearnedOracleV1`,
-selected by a governance-pinned protocol version (B8); `NoveltyOracleV0` (`lib.rs:293`) remains the
+The canonical weight artifact drops into the `ValueOracle` seam (`lib.rs:293`) as `LearnedOracleV1`,
+selected by a governance-pinned protocol version (B8); `NoveltyOracleV0` (`lib.rs:303`) remains the
 pre-seed fallback. **Launch copy NEVER claims the moat until Phase 3 passes on real data** (MVP-SCOPE:
 "Launch copy = floor only, never 'un-gameable value chain'"). The STATUS-LEDGER MOAT-1 row is updated
 with whatever Phase 3 actually shows — this document does not pre-write the verdict.
@@ -187,6 +187,6 @@ with whatever Phase 3 actually shows — this document does not pre-write the ve
 does not beat the proxy predictively has no reason to replace `NoveltyOracleV0` on the live path, and
 launch copy stays **floor-only**. What this program delivers is the *instrument and the dataset* to keep
 testing the moat honestly, plus the canonical cycle rule any future multi-parent `v(S)` needs. The
-`ValueOracle` seam (`lib.rs:283`) remains the drop-in point when/if an adversarial-robustness win on a
+`ValueOracle` seam (`lib.rs:293`) remains the drop-in point when/if an adversarial-robustness win on a
 real adaptive adversary is demonstrated.
 <!-- PHASE4-STATUS:END -->
