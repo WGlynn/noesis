@@ -1,6 +1,6 @@
 # Noēsis
 
-### Every blockchain is fighting the same war: to be THE chain. Noesis is the first one that ends it.
+### Every blockchain is fighting the same war: to be THE chain. Noesis is designed to end it, not win it.
 
 Other chains compete winner-take-all to be the money, the standard, the one that wins. Builders pick
 sides. Communities split in forks. Rivals claw at the same liquidity and attention. Underneath the
