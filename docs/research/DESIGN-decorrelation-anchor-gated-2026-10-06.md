@@ -91,11 +91,16 @@ is a ceiling (51%-class, priced), not a proof of exclusion, and it carries a gen
   fail-closed/multiplicative here; must be proven before any soft layer ships).
 - 🟡 **Composes with:** the time toll (re-opening trigger / provisional finality) and the capital toll
   (Layer A) as the third of three uncorrelated anchors required jointly.
-- **Next cheap step:** a `decorrelation_sim.rs` that builds (i) a genuine diverse adopter set, (ii) a
-  coordinated K-puppet set in distinct clusters, (iii) a simulated-divergent-noise set, runs a candidate
-  `D`, and prints the separation — the numeric RED, the way `wash_sim`/`periphery_sim` did for the earlier
-  layers. That tells us whether any cheap `D` separates (i) from (ii) without killing niche-genuine (i'),
-  before a line of consensus code is written.
+- **Done (2026-10-06):** `node/examples/decorrelation_sim.rs` — the numeric check on the ACTIVE form.
+  Result: a separating window **exists** in the toy model. Bonding on NOVEL-work mutual prediction, at
+  reward `R > 2.222 = (V+sigma)/reward_frac(ring)`, the ring is forced to reveal (`D=0`) while
+  genuine-independent, niche-genuine(novel), and a truly-divergent farm all pass (`D=1`). The
+  filter-coincidence is numeric: the ring's cost is forfeited prediction reward (knowledge, not capital);
+  the honest adopter forfeits the same reward for free. Honest caveats carried in the sim output:
+  novel-prediction elicitation is UNBUILT (and may partially recurse to worth); the window only makes
+  *individual* reveal dominant, so it inherits the T2 collusive-equilibrium problem + stake/dispute
+  scaffold; `R` is a paid subsidy; toy, no adaptive adversary. Shape holds; ceiling unchanged (A7 → A9,
+  priced). Deterministic, no `noesis` imports (does not depend on the uncommitted `lib.rs`).
 
 ## 6. Design-sharpening loop (self-critique → fix, to convergence)
 
