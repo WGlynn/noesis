@@ -10,7 +10,9 @@ value moved around, or burned outright.
 Noesis changes what is being competed for. Its consensus does not reward owning a scarce slot. It
 measures **contribution**, and contribution adds up instead of running out. So a rival chain does not
 lose to Noesis. It converges in, and keeps everything it built. We call it a **reverse fork**: merging
-in instead of splitting off. The adoption war is not won. It is dissolved.
+in instead of splitting off. The adoption war is not won — the design aims to *dissolve* it, but the
+convergence adapter that would realize this is not yet built (see status below). It is a direction, not
+a shipped result.
 
 **And your contribution is already here.** Noesis maps the existing contribution graph, every
 open-source repo and every contributor, before anyone joins. You do not start from zero. You claim what
@@ -30,7 +32,8 @@ The most important thing a young protocol can be is honest about its own status.
 between what is built, what is designed, and what is still open. A single status ledger is the authority.
 
 - **Built and tested** at the reference layer: the contribution-conservation core (value flows along
-  provenance, sybil / padding / collusion drive to zero), Proof-of-Mind weighted finalization, the
+  provenance; sybil, padding, and *cyclic* collusion drive to zero — but a competently-built *acyclic*
+  wash does not, and is the named open problem below), Proof-of-Mind weighted finalization, the
   dispute and slashing mechanics, and the on-chain rules running as type-scripts inside CKB-VM. The
   Rust implementation is exercised by a **358-test host suite** (including the 253 reference
   structural-defense tests) plus integration suites (two-node join, durable restart, reorg rollback,
@@ -57,7 +60,11 @@ between what is built, what is designed, and what is still open. A single status
   security base case is the **scarcity of independent minds**, and the answer is to give the network a
   *periphery*: value vests only on real use by capital-independent minds, a carrying cost prunes patient
   farming (the asymmetry is *rent*, not time), and the value model grounds on external use. Priced out, a
-  wash-ring is negative-EV down to a Bitcoin-51%-class residual (`node/examples/periphery_sim.rs`). That
+  closed wash-ring is negative-EV — but the cheapest real attack is a *semi-funded* ring that rents one
+  independent identity and leaks far below any majority, the herding / shared-prior channel is open, and
+  the economics rests on an *unbuilt* capital-independence oracle, so the residual is not cleanly
+  "51%-class" (`node/examples/periphery_sim.rs`, and the full tally in
+  `docs/research/WASH-PROBLEM-INDEX.md`). That
   solution is **designed, with a numeric case** (measured harvest, designed economics) — **not yet
   built.** We would rather show you the honest open problem and its shape than pretend it is closed.
 
@@ -80,7 +87,7 @@ surface is dissolved, not patched.
 
 ```mermaid
 flowchart TD
-  CONTRIB["Block of thought (contribution)"] --> VAL["Value: temporal-novelty × learned quality<br/>sybil / padding / collusion → 0"]
+  CONTRIB["Block of thought (contribution)"] --> VAL["Value: temporal-novelty × learned quality<br/>sybil / padding / cyclic-collusion → 0; acyclic wash: open"]
   VAL --> POM["Proof-of-Mind score<br/>(accumulated synergy value)"]
   POM --> STAND["SOULBOUND standing<br/>consensus weight + right-to-mint"]
   POM --> BYTES["mints TRANSFERABLE state-bytes<br/>medium of exchange (1 state-byte = 1 byte of state)"]
@@ -97,7 +104,8 @@ flowchart TD
 
 Every security-critical input the chain consumes is re-derived from consensus, never accepted as the
 transaction assembler claims it. This is the recurring *do not let the attacker choose the input*
-invariant. Collusion rings are caught on graph topology alone and slashed. Theft is made structurally
+invariant. *Cyclic* collusion rings are caught on graph topology alone and slashed; a competently-built *acyclic*
+wash is not — no purely structural signal separates it (the open problem named above). Theft is made structurally
 hard by commit-reveal timestamp priority: the record exists before any claim, so a fresh identity is
 worth zero. The design goal throughout is structural honesty, where dishonesty is unprofitable by
 construction rather than discouraged by policy.
