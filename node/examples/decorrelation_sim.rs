@@ -100,19 +100,42 @@ fn main() {
         println!("  {:<32} | {:^7} | {:<9} | {:+.3}", p.name, d, verdict, ev);
     }
 
-    println!("\nFILTER-COINCIDENCE (the point): the ring's cost is NOT capital — it is the forfeited reward it");
+    // ---- ADAPTIVE ADVERSARY (HCE-3): the ring optimizes its REAL objective — vest the wash — not the
+    // prediction-game EV. It can THROTTLE (report <= tau) for free, and a deliberate throttle is
+    // indistinguishable from an honest adopter's genuine inability to predict. So the static "window"
+    // above only bites if the ring is TEMPTED by reward R to reveal; an adaptive ring indifferent to R
+    // just throttles and passes. The only thing that stops it is the T2 scaffold FORCING informative
+    // reporting (catching a deliberate throttle). This is the honest downgrade the static view hid. ----
+    let w = 1.0_f64; // value to the ring of vesting the wash cell by passing D=1
+    let sigma_t = 1.0_f64; // T2 penalty if a deliberate (collusive, uninformative) throttle is caught
+    let q_star = w / (w + sigma_t);
+    println!("\nADAPTIVE ADVERSARY (HCE-3) — the ring throttles (reports <= tau) to vest the wash for free:");
+    println!("  q=0 (no T2 scaffold, throttle undetectable): ring reports tau, D=1, wash VESTS => WINDOW DEFEATED.");
+    println!("  T2 catches a deliberate throttle w.p. q  =>  throttle EV = (1-q)*W - q*sigma_t  [W={w}, sigma_t={sigma_t}]:");
+    for q in [0.0_f64, 0.25, 0.50, 0.75] {
+        let throttle_ev = (1.0 - q) * w - q * sigma_t;
+        let verdict = if throttle_ev <= 0.0 { "throttle unprofitable => anchor holds" } else { "throttle profitable => LEAKS" };
+        println!("    q={q:>5.3}: throttle EV = {throttle_ev:+.3}  ({verdict})");
+    }
+    println!("  => the window is CONDITIONAL on the T2 scaffold achieving q > {q_star:.3} (catch a deliberate");
+    println!("     throttle more than half the time). The static section ASSUMED the ring plays the prediction");
+    println!("     game; an adaptive ring plays the collusive-throttle equilibrium. Honest dependency: T2, not R.\n");
+
+    println!("FILTER-COINCIDENCE (the point): the ring's cost is NOT capital — it is the forfeited reward it");
     println!("could have earned BECAUSE it genuinely can predict its own output. The honest independent");
     println!("forfeits that same reward for FREE (it never had the predictability). Same stake: free for the");
     println!("honest, costly for the ring. The cost axis is KNOWLEDGE, uncorrelated with capital.\n");
 
-    println!("BOTTOM LINE (honest, parametric): a separating window EXISTS in this toy model — bond on");
+    println!("BOTTOM LINE (honest, parametric + ADAPTIVE): the static window exists ONLY if the ring plays
+   the prediction game; adaptively it is DEFEATED by collusive-throttle unless T2 catches a throttle
+   w.p. q > {q_star:.3}. GIVEN that, bond on");
     println!("NOVEL-work mutual prediction, set R > {r_star_ring:.3}, and the ring is forced to reveal (D=0)");
     println!("while genuine and niche-genuine pass (D=1). The simulated farm passes ONLY by actually being K");
     println!("divergent minds (= A9, the funded ceiling, priced). CAVEATS, not rounded away: (1) the");
-    println!("elicitation+scoring of 'novel-work prediction' is UNBUILT and may partially recurse to the");
-    println!("worth signal; (2) the ring can coordinate on the collusive all-throttle equilibrium — R >");
-    println!("R*(ring) only makes INDIVIDUAL reveal dominant, so this inherits the T2 stake+dispute scaffold");
-    println!("(peer_prediction_sim.rs); (3) R is a paid subsidy; (4) toy, no adaptive adversary. So: the");
-    println!("shape holds and the window is real; the load-bearing unbuilt piece is honest novel-prediction");
-    println!("elicitation, and the ceiling is unchanged (A7 collapses into A9, priced).");
+    println!("elicitation+scoring of 'novel-work prediction' is UNBUILT (but recurses to similarity+novelty,");
+    println!("both built — NOT to worth); (2) the collusive all-throttle equilibrium is the live threat —");
+    println!("QUANTIFIED above: the window needs the T2 scaffold to reach q > {q_star:.3}; (3) R is a paid");
+    println!("subsidy; (4) still a toy — closed-form, ONE adaptive axis (the throttle), not a full");
+    println!("best-response search over content/noise injection. Honest state: the static window is real but");
+    println!("NOT adaptively robust alone; it is CONDITIONAL on the unbuilt T2 scaffold (q > {q_star:.3}).");
 }

@@ -97,10 +97,18 @@ is a ceiling (51%-class, priced), not a proof of exclusion, and it carries a gen
   genuine-independent, niche-genuine(novel), and a truly-divergent farm all pass (`D=1`). The
   filter-coincidence is numeric: the ring's cost is forfeited prediction reward (knowledge, not capital);
   the honest adopter forfeits the same reward for free. Honest caveats carried in the sim output:
-  novel-prediction elicitation is UNBUILT (and may partially recurse to worth); the window only makes
-  *individual* reveal dominant, so it inherits the T2 collusive-equilibrium problem + stake/dispute
-  scaffold; `R` is a paid subsidy; toy, no adaptive adversary. Shape holds; ceiling unchanged (A7 → A9,
-  priced). Deterministic, no `noesis` imports (does not depend on the uncommitted `lib.rs`).
+  novel-prediction elicitation is UNBUILT (but recurses to similarity + novelty, both built — NOT to
+  worth, cycle 4); `R` is a paid subsidy. Deterministic, no `noesis` imports (does not depend on the
+  uncommitted `lib.rs`).
+- **Adaptive-adversary pass (2026-10-06, same sim, HCE-3):** the static window is **not adaptively robust
+  on its own.** A ring optimizing its *real* objective (vest the wash, not the prediction-game payoff)
+  simply **throttles** — reports accuracy ≤ τ, indistinguishable from an honest adopter's genuine
+  inability — and vests for free. The static "window" only bit because it assumed the ring was tempted by
+  reward `R` to reveal. So the honest dependency is **not** `R` but the **T2 scaffold**: the window holds
+  only if T2 catches a deliberate (collusive, uninformative) throttle with probability `q > W/(W+σ_t)`
+  (= 0.5 at `W=σ_t=1`). Below that, the anchor leaks. This downgrades the earlier "window exists" to
+  "window exists *conditional on an unbuilt T2 enforcement reaching q > 0.5*." The collusive-throttle
+  equilibrium is the live threat, now quantified — not a footnote.
 
 ## 6. Design-sharpening loop (self-critique → fix, to convergence)
 
