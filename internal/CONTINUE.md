@@ -4,11 +4,243 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
-## 🚀🚀🚀 NEXT-WINDOW = **DEPLOY THE DURABLE PUBLIC TESTNET** (Will picked this 2026-07-16; rotate to a fresh window to actually deploy)
+## 🧭 2026-07-20 — ARCHITECTURE CORRECTION (Will "spot on"): general attribution substrate = a FOREST, NOT a rooted tree — SUPERSEDES the genesis-codebase-root plan
 
-> **The single-node public testnet is CODE-COMPLETE and deployable NOW.** HEAD==origin==`2a8dc24`. This
-> window shipped: learned-v(S) crates moat (`5d1a084`), self-serving frontend `GET /` (`81e7959`),
-> `go-live.sh` (`71e4ef0`), **`ChainSpec::testnet()` + `NOESIS_NET` spec selection (`2a8dc24`)**.
+> **Will caught a drift 2026-07-20:** the "genesis root = the Noesis codebase" direction (ratified
+> 2026-07-19, below) was narrowing Noesis from a *general attribution protocol* into *an on-chain GitHub
+> for Noesis*. STOPPED before any code was written (only investigation done — no ChainSpec edit). Root
+> cause: I equated "constitution" (general rules) with "the codebase" (this repo). Re-derived from goals
+> with Will; both forks landed:
+> - **A value chain = a connected component of the provenance graph — EMERGENT, not namespaced.** No
+>   registered domains, no privileged roots. Substrate hosts a FOREST of independent lineages.
+> - **`v(S)` = universal structural floor (domain-blind, built 253/253) + domain-adaptive learned
+>   prediction (bounded advance/evidence, the open moat).** One protocol, not N.
+> - **Empty genesis** (rules live in `ChainSpec`, NOT as a DAG contribution). **Noesis's own dev = ONE
+>   lineage**, not the substrate's identity. Unscored-roots / OG=0 / earned-not-premined SURVIVE, applied
+>   PER-LINEAGE (every `parent=None` root is unscored; nobody paid for authoring a lineage's frame).
+>
+> **DONE:** rewrote `docs/DESIGN-genesis-root.md` to the forest/empty-genesis framing (supersedes the
+> codebase-root version in-place, honest trail). **The genesis is ALREADY empty in code ⇒ no code change
+> needed to BE correct** — the correction is: do NOT bake a root, keep docs/demo general. **NEXT:** the
+> live-testnet demo shows only the one Noesis-about-Noesis cell (reads as GitHub-for-Noesis) — a UX
+> follow-up is to show DIVERSE lineages (not an architecture change). The 2026-07-19 genesis-root block
+> below is SUPERSEDED — do not build it. inc-2b / identity-durability / corroboration are UNAFFECTED.
+>
+> **GOAL-FRAME PINNED (Will 2026-07-20, 3 axes):** Noesis = general provenance/IP ∪ public-goods-funding
+> (Gitcoin/hypercerts/deepfunding) ∪ **AI↔blockchain merger** (v(S)=learned model in consensus; chain =
+> verifiable provenance-of-mind training signal; "blocks=training signal"; ≡ canon triple-intersection).
+> Differentiator across all analogues = un-gameable oracle-free measurement. Test every design decision:
+> "keeps it GENERAL, and serves the merger?" Memory: `project_noesis-is-general-provenance-plus-public-
+> goods-funding.md` (the anchor). **Honest hinge (don't regress):** the AI-merger axis (learned v(S) +
+> retrain loop) is the DEEPEST differentiator AND the LEAST-built — crown jewel = frontier (v(S) 🔬 open,
+> null/~0.60; built moat = structural floor 253/253).
+> **PAPER:** `docs/research/three-axes-provenance-funding-ai-merger.md` — positioning note (ran
+> /marginal-contribution: cut ~60% redundancy vs WHITEPAPER/something-from-nothing/OUTCOME-EVALUATOR/
+> first-citizens; weight on the 3-neighbor positioning + chain→AI differentiator). **UNCOMMITTED — awaiting
+> Will's read** before commit+push (his articulation, public-facing). HEAD==origin==`b523b59` (the doc
+> correction; paper not yet committed).
+
+## 🧵 2026-07-19 (night, wind-down) — inc-2b fork-choice DECISIONS RATIFIED + permanent-deploy blocked on Will's fly card
+
+> **Will's session frame:** "we've built enough — get Noesis running, close this out." No new consensus
+> code shipped this session (deliberate wind-down). Two concrete outcomes:
+>
+> 1. **PERMANENT DEPLOY — the ONE blocker is Will's fly.io card (verified, hard block).** Ran
+>    `./scripts/fly-deploy.sh`; `fly apps create` fails with *"We need your payment information"*
+>    (Request ID 01KXY91JEBF218YVE74N0XKMJE). fly auth = `willglynn123@gmail.com` (good). **Will's
+>    30-sec action → add a card at https://fly.io/dashboard/will-111/billing, then re-run
+>    `./scripts/fly-deploy.sh`** (idempotent, self-verifying — creates app+durable volume, deploys,
+>    confirms `/state` before printing the public URL). Free-tier alt (no card): `cloudflared tunnel
+>    login` → a stable named tunnel (free, but PC-bound, not always-on).
+> 2. **inc-2b fork-choice: all 4 ⚑ RATIFIED with the leans (Will "go with the leans", 2026-07-19)** —
+>    `docs/DESIGN-nakamoto-inc2b-fork-choice.md` §2 flipped from review-gate to ✅ ratified: (1) raw
+>    PoS+PoM weight for GHOST, anti-concentration gates finalization only; (2) separate lightweight
+>    attestation gossip; (3) non-producing validators vote (yes); (4) tie-break = lowest block hash.
+>    **NEXT SESSION builds without re-litigating:** 2b-i (`Vote{validator,target_hash}` + LMD
+>    latest-vote store + equivocation slash wired to `finalizes_with_equivocation_guard`) → 2b-ii
+>    (GHOST traversal over `reorg`'s block pool, swap `try_reorg`'s `.work` comparator to
+>    `ghost_weight`) → inc-3 (`finalizes_pos_pom`→`reorg::finalize_to`) → inc-4 (gossip).
+>
+> **Live-node state (unchanged, informational):** the ephemeral tunnel node (`noesisd.exe` +
+> `cloudflared.exe` still running from the prior session) answers publicly but is at **height 0** — no
+> durable `noesis-testnet.log` loaded, so it reset to genesis. The permanent fly deploy (durable volume)
+> is the real fix; don't reseed the ephemeral one. **Corroboration (item 3) UNTOUCHED** — still needs
+> Will's stake-size (#2) + scoring-family (#3) answers + the adversarial ring-sim before any build.
+>
+> **⚠ DESIGN GAP surfaced by Will 2026-07-19 (identity durability — PRE-MAINNET, not a testnet blocker):**
+> The soulbound identity == wallet address == the XMSS Merkle root (`rpc.rs:41`, `onchain/noesis-core/
+> src/lib.rs:977`), and that root is **capped at 256 lifetime signatures** (`lib.rs:993` `H = 8` ⇒ `2^8`
+> one-time Lamport leaves). Two failure modes: **(a) exhaustion** — after 256 contributions the tree is
+> dead AND standing is soulbound to that exact address with NO rotation path, so accrued PoM standing is
+> trapped in a corpse key; **(b) state-loss** — XMSS is stateful (`lib.rs:983`), `used_index`
+> (`rpc.rs:65`) enforces strictly-increasing leaf index, so a wallet that loses its counter (cleared
+> browser storage / 2nd device) either reuses a leaf (catastrophic OTS reuse → forgeable) or regresses
+> and is locked out of its own identity. Fine for the testnet demo; fatal for the long-lived-accumulating-
+> standing thesis. **Fix space:** (1) raise `H` — band-aid, hits a browser-keygen wall (`2^H` OTS
+> keygens); (2) hyper-tree XMSS^MT / SPHINCS⁺-style — near-unbounded sigs, lazy subtree keygen; (3) **the
+> load-bearing one — decouple identity from a single key:** a successor/rotation link where the old tree's
+> final leaf attests a NEW root bound to the SAME soulbound identity ⇒ identity = a CHAIN of roots,
+> standing outlives any one key, and the same primitive gives state-loss recovery. #3 is mandatory
+> pre-mainnet regardless of #1/#2. Current docs do NOT flag this — capture + address next session.
+>
+> **✅ DESIGN DIRECTION RATIFIED — genesis DAG root = codebase snapshot (Will 2026-07-19, "this all makes
+> sense"):** the provenance DAG currently starts empty, but value flows ONLY through `parent` links
+> (`rpc.rs:239-240`, credits ancestor downstream flow) ⇒ an all-orphans DAG measures ZERO downstream
+> value; the "build-off" chain has no foundation. FIX: seed a **genesis contribution cell = the codebase
+> snapshot** (`data` = repo commit hash / source-tree Merkle root, e.g. `eee60e5`; contributor = the
+> genesis soulbound identities already in `chainspec:38`; `parent = None` ⇒ the true root). **LOAD-BEARING
+> GUARDRAIL — seed the ANCHOR, not the standing:** the root starts at PoM standing **0** (fair-launch
+> axiom preserved, `chainspec` genesis `pom=0`); the founders earn standing ONLY as real contributions
+> name it `parent` (measured downstream flow, same mechanism as every node) — a starting bonus would be a
+> premine and is FORBIDDEN. This resolves the genesis-bootstrap tension (`first-citizens-ai-genesis-
+> contributors.md`, designed-not-built): a genuine DAG foundation + earned-not-premined intact + honest
+> ("the codebase is the one contribution that provably exists at t=0" — the something-from-nothing seed).
+> Depends on the identity-durability fix (#3 chain-of-roots) for the genesis contributors' soulbound keys.
+> NEXT SESSION: build the genesis-codebase-root against these guardrails; fold into `first-citizens` +
+> `[[project_noesis-genesis-bootstrap-decision]]` + `DESIGN-bootstrap-admission.md`.
+> **⇒ FULL RATIFIED REASONING (committed): `docs/DESIGN-genesis-root.md`** — the two-genesis distinction
+> (consensus-genesis=ChainSpec vs value-DAG-genesis=root contribution), the **unscored-root theorem** (a
+> downstream-flow measure whose root is scored routes ALL value to the root ⇒ premine ⇒ root MUST be
+> standing 0, mirroring PoW-excluded-from-finality), "OG=0 = Satoshi's unspendable genesis coinbase," and
+> the **growth-rate analysis** (§3): presence≫content dissolves cold-start; the ONE hard rule = **keep
+> genesis THIN (a commit hash, not a content dump)** or a fat seen-set eats novelty space and throttles
+> early growth; content is a direction/legitimacy lever, not a rate knob; JUL emission is PoW-orthogonal.
+> Implementation (§4): bake a standing-0 `parent=None` genesis cell with `data = commit hash` into
+> `ChainSpec` genesis ledger (consensus change ⇒ RED-first + parity), depends on identity-durability.
+> Live-testnet #1 = right root, wrong number (novelty-scored 265; demo artifact).
+
+## 🌐 2026-07-19 (eve) — NOESIS IS LIVE + contribution-connection + DAG view + moat flip + docs honest — HEAD==origin==`321dbb7`
+
+> **FULL session handoff: `~/Desktop/SESSION-HANDOFF-2026-07-19-noesis-live-and-honest.md`** (newest; auto-refreshes SESSION_STATE). Live-deploy details + restart: `~/Desktop/NOESIS-IS-LIVE-2026-07-19.md`.
+>
+> **LIVE public testnet:** https://symposium-baseball-specify-onto.trycloudflare.com (single-node, ephemeral URL, live while Will's PC + bg tasks up — node `bq6uyhh50`, tunnel `b1cxlrh7u`). chain_id 0x7e57.
+> **Shipped after the Nakamoto block below (6 more commits, HEAD `321dbb7`):** `6109393` contribution↔events
+> connection (`/submit` takes `parent`, `GET /contributions`) · `f0b1df6` frontend DAG view · `f3a63c1`
+> rich-feature ML-judge backtest (**flips the moat null → 0.68**, `data/deepfunding/RESULTS-RICH-JUDGE.md`) ·
+> `e906ed9`+`321dbb7` docs brought honest to the flip + live testnet (README/WHITEPAPER/ARCHITECTURE + 4 secondary).
+> **⚠ Permanent deploy BLOCKED on Will:** fly.io needs a credit card (verified 2×) → add at
+> https://fly.io/dashboard/will-111/billing then `./scripts/fly-deploy.sh`. **Open rigor step:** repo-disjoint
+> split on the 0.68 backtest. Nakamoto next = inc-2b fork-choice design note (Will-gated).
+
+## 🌳 2026-07-19 (PM) — MULTI-PRODUCER NAKAMOTO started + slice-5b unify — HEAD==origin==`3dcae29`, lib 356 green
+
+> Recap (human-legible): `sessions/2026-07-19-multi-producer-nakamoto-slice5b.md`. Interactive w/ Will.
+>
+> **Shipped (all pushed to `master`, WGlynn identity, reversible):**
+> - `cc81fe5` **slice-5b pt1 (unify)** — `--listen [addr] [store]` now serves the DURABLE log
+>   (`store::load_blocks`, single-sources the fail-closed replay; `load_chain` = thin wrapper). Killed
+>   the scripted-seed / durable-node split; scripted demo kept as the zero-config fallback. Reconciled a
+>   real bug: durable store is length-framed (`store::append_block`), NOT the newline-JSON `wire::BlockLog`.
+> - `575b548` **design docs** — `docs/DESIGN-live-gossip.md` (topology fork) + `docs/DESIGN-multi-producer-nakamoto.md`.
+> - `929abad` **inc-1 reorgeable ledger** (`node/src/reorg.rs` `ReorgTip`) — snapshot=full `Ledger` clone
+>   ⇒ §3.4 (standing+novelty roll back with the chain) is STRUCTURAL, not per-field undo. `Ledger` +
+>   `NoveltyIndex` now derive `Clone`; `apply_transition` → `pub(crate)`. Test `reorg_rollback.rs`:
+>   reorg == byte-identical fresh replay of the winner + lighter-fork-loses + finality-floor-rejects-rewrite.
+> - `3dcae29` **inc-2a parent commitment** — `Block.parent_hash` (parent's `header_digest`), bound into
+>   `header_digest` option-tagged (mirrors `subblock_root`). Inert-additive; old logs decode as `None`.
+>   Test `parent_hash_binding.rs`. REVERSES the 2026-07-13 "no prev-hash" call (correct for single-producer;
+>   B reopens it — a fork TREE needs parent linkage).
+>
+> **⚑ DECISIONS RATIFIED (Will 2026-07-19 — do NOT re-litigate; full text DESIGN-multi-producer-nakamoto.md §5):**
+> (1) **Topology B** (multi-producer Nakamoto) over A (single-producer replicas). (2) **Fork choice =
+> heaviest PoS+PoM FINALITY SUPPORT (LMD-GHOST-style), NOT heaviest PoW work** — keeps PoW
+> finality-excluded / non-ordering, honors the 2026-07-13 thesis. (3) `checkpoint_interval` = a
+> configurable PARAMETER (cadence-agnostic, tune-when-live). (4) standing+novelty roll back with the chain
+> (§3.4, mandatory). (5) open CPU mining on testnet. (6) finality floor = the reorg bound, no separate cap.
+>
+> **▶ NEXT — inc-2b = the fork choice itself (design-heavy, Will-gated, DON'T build blind):** two sub-parts —
+> (2b-i) a vote/attestation model (validator latest-vote → a `block_hash`, gossiped; NEW consensus data —
+> the gadget `finalizes_pos_pom` currently takes a flat `voters_for`, no per-fork attribution); (2b-ii) GHOST
+> traversal weighting those votes over the fork tree, which SWAPS inc-1's placeholder heaviest-WORK
+> comparator (`try_reorg`: `cand.work > tip.work`) to finality-support. **Write the inc-2b design note for
+> Will's review BEFORE coding** (same discipline as the topology choice). Then inc-3 (wire `finalizes_pos_pom`
+> as the checkpoint calling `reorg::finalize_to`) → inc-4 (live gossip).
+>
+> **STILL THE NORTH STAR (unchanged, ships WITHOUT any Nakamoto work):** DEPLOY the single-node testnet —
+> turnkey, one `fly auth login` → `./scripts/fly-deploy.sh`. A live chain is the fastest path to a better one.
+> **Also open:** Boardy update draft ready `Desktop/boardy-update-2026-07-19.md` (Will delivers — reflects the
+> moat correction). The "is the value question sinking us" worry was addressed in-session: no — floor holds,
+> frontier sharpened, overclaim cut (honesty discipline working).
+
+## 🧭 2026-07-19 — SOMETHING-FROM-NOTHING arc + Sybil sim + **MOAT CORRECTION** (HEAD==origin==`7cc3cd8`+)
+
+> Recap: `sessions/2026-07-19-something-from-nothing-and-the-moat-correction.md`. Interactive w/ Will +
+> Boardy (external reviewer) in the loop.
+>
+> **What shipped (all pushed to `master`):** audited the deployed testnet franchise
+> (`docs/SYBIL-SURFACE-deployed-franchise-2026-07-19.md`); named the *something-from-nothing* problem +
+> the oracle-free requirement (one-pager `docs/THE-KEYSTONE-content-value-signal.md`, PhD paper
+> `docs/research/something-from-nothing-oracle-free-content-value.md`); folded in Harberger⊕peer-prediction
+> (composable, ratified — `[[augmented-harberger-honest-self-reporting]]`); ran a real adversarial sim
+> (`node/examples/sybil_sim.rs`, envelope `docs/research/v0-sybil-failure-envelope-2026-07-19.md`);
+> spec'd bootstrap admission (`docs/DESIGN-bootstrap-admission.md`).
+>
+> **⚠ THE CORRECTION (load-bearing, don't regress):** today's writeups first OVERSTATED the moat as "a
+> learned oracle-free v(S)." Corrected against `data/crates/RESULTS.md`: the learned **predictive** v(S)
+> is **NULL ×3** (decisive on crates.io non-degenerate) ⇒ upside, NOT the moat. **The moat = the built
+> STRUCTURAL layered defense (demonstrated 253/253).** Open frontier = a real *adaptive* adversary
+> (HCE-3) + general graph-iso theorem. Oracle-free caveat: no immediate per-decision oracle. Memory:
+> `[[noesis-dimensions-dont-disappear]]`.
+>
+> **Sim result:** v0 franchise = novelty-only ⇒ farmer share ≈ F/(N+F); per-identity cap loses to free
+> keygen; **allowlist bounding identity count is the load-bearing bootstrap brake** (deposit ≈ theater on
+> worthless testnet JUL). v0 guarantee = **bounded identity capture, not value measurement/anti-collusion**.
+>
+> **Also shipped later in session:** `node/examples/moat_sim.rs` — empirical moat validation on the REAL
+> value fns (fresh-key ring: v0 pays 61, v5 leaks 28.3, v6 pays **0**; newcomer paid 18.9; cold-start
+> symmetry). Paper cites both sims. `docs/DESIGN-bootstrap-admission.md` — founder-curation→bonded-invite
+> spec. Sincere-over-reporter edge captured in the envelope doc + `[[augmented-harberger-honest-self-reporting]]`
+> (delusion slashed=fraud; visionary false-negative = the real danger; residual = recognition-lag vs W).
+>
+> **Open for Will (next):** admission family choice (lean: founder-curation→bonded invites) + go-live knot
+> flip (PCP); paper venue (arXiv/ethresearch) + Fortytwo primary-read; **the adaptive-adversary harness =
+> the real next research build** (needs Will able to sanity-check flow/standing semantics — don't run blind).
+> HEAD==origin==`5da0ca1`.
+
+## 🛡️ 2026-07-18 — 15-loop TRP/RSI SHIPPED: 10 bugs fixed + pushed, HEAD==origin==`bfdf796`, suite 548→**556 green (re-verified)**
+
+> Autonomous adversarial audit-verify-fix, 70 agents / ~3.4h / cargo-gated. **10 fixes committed+pushed**
+> (loops 1,3,4,5,6,9,11,12,14,15): 2 critical (subblock `provisional_live` seq-order double-spend
+> `1e67893`; coinbase_id ≥2^62 collision `db1924d`) + 8 high (bond single-use 4-tuple `ed31d38`;
+> refuted-slash canonical sort `697c999`; anti-plutocracy strict pos≤pom `b715870`; BlockLog OOM `699a1e6`;
+> HTTP header DoS `3d64c50`; MAX_SEEN bypass `6f35643`; utxo dup-key assert `9d9cc5e`; u128 total saturate
+> `bfdf796`). All minimal + regression-tested + reversible (`git revert`); WGlynn identity, no AI trailer;
+> do-not-sweep set untouched. **Recap: `sessions/2026-07-18-trp-rsi-15-loops.md`.**
+>
+> **⚑ WILL-REVIEW (committed but consensus-adjacent — all reversible):** (1) anti-plutocracy `b715870`
+> (amendment guard, safe-direction tightening — verified it gates mix-AMENDMENTS not per-block); (2) bond
+> single-use widen `ed31d38`; (3) utxo dup-key assert `9d9cc5e` (new panic path — confirm the invariant).
+> **⚑ loop-10 — RESOLVED as INERT (Will 2026-07-18, "chain isn't even live yet"):** the
+> `clock_enforced` false→true restart divergence is a MIGRATION-only footgun. Testnet genesis ships
+> `clock_enforced=false` (chainspec.rs:91, runtime.rs:173) + Phase-2 committee-clock is 🟡 not built ⇒
+> defect is INERT on the shipping config (no live chain, nothing to migrate). Decision: DO NOTHING now;
+> do NOT build activation_height (B = YAGNI, no live chain to upgrade). When/if Phase-2 clock wiring
+> lands, fold the ~3-line fail-loud genesis guard (forbid false→true toggle, mirroring the
+> `clock_enforced⇒pow_enforced` assert at runtime.rs:930) INTO that unit per
+> [[interdependent-enforcement-ships-together]]. NOT a launch blocker. loop-2 was
+> a FALSE alarm, correctly refused (no action). **BACKLOG — reachable items CLEARED (2026-07-18):** neg-alpha slash pair FIXED
+> (`959c3ad`, both `resolve_refuted` + `_guarded` clamp λ,α≥0) + `multi::totals` (u128) & `pom_scores`
+> (u64) overflow saturated (`21afa2c`, mirrors loop-15 `fungible::total`). HEAD==origin==`21afa2c`, suite
+> 557 green. REMAINING = only >4GB-input truncation edges (`append_block`/`utxo_key` length-prefix,
+> `decode_block` JSON alloc, `screen::check` temp HashSet) — unreachable in practice, pure hardening,
+> deprioritized. Full ledger in the 15-loop recap.
+
+## 🚀🚀🚀 NEXT-WINDOW = **DEPLOY THE DURABLE PUBLIC TESTNET** — now TURNKEY, blocked ONLY on Will's `fly auth login`
+
+> **DEPLOY SCAFFOLD SHIPPED + VERIFIED (2026-07-18, HEAD==origin==`281edbb`).** The single-node HTTP
+> testnet is code-complete AND the fly.io deploy path is now committed and locally verified end-to-end:
+> release binary builds clean at HEAD (3.4s incremental), the node serves `GET /state`
+> (chain_id=0x7e57 testnet, pow_enforced, JUL issuing) and `GET /` (embedded wallet UI). fly's
+> `/state` healthcheck WILL pass. **The deploy is now literally two commands (Will's fly.io creds — NOT
+> autonomous):** `fly auth login` (Continue with GitHub) → `./scripts/fly-deploy.sh` (idempotent:
+> creates app + durable volume, deploys, then verifies `/state` answers before printing the public URL).
+> Files: `Dockerfile` (multi-stage, `include_str!`s frontend/index.html) + `fly.toml` (durable volume,
+> always-on, /state healthcheck) + `scripts/fly-deploy.sh` + `.dockerignore`. Recap:
+> `sessions/2026-07-18-deploy-scaffold-verified-and-committed.md`.
+>
+> **Prior-window context (still true):** learned-v(S) crates moat (`5d1a084`), self-serving frontend
+> `GET /` (`81e7959`), `go-live.sh` (`71e4ef0`, local run), `ChainSpec::testnet()` + `NOESIS_NET`
+> (`2a8dc24`), real 4-block local chain mined 07-16 (`noesis-chain.log`).
 >
 > **JUL-on-testnet DECIDED (Will 2026-07-16, do NOT re-litigate):** dial the PARAMETER (`genesis_bits`
 > LOW), never the MECHANISM. `pow_enforced` stays true (testnet tests the real security model) + JUL

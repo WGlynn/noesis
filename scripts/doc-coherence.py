@@ -141,6 +141,68 @@ def test_count_violations(root: str, count: int | None) -> list[str]:
     return bad
 
 
+def pointer_violations(root: str) -> list[str]:
+    """Every `file.rs:NN` code-pointer in a doc must actually resolve: the symbol the
+    doc pairs with that pointer must occur AT that line in the code. This is the machine
+    enforcement of ARCHITECTURE.md's own load-bearing mandate ("open the cited file:line
+    and read the constant"). Line numbers drift on every edit above them; a stale pointer
+    lands a trusting reader on unrelated code -- the exact 2026-07-12 finding. Here it
+    becomes a gate: a pointer that no longer resolves FAILS instead of rotting silently.
+
+    Matching is deliberately conservative to avoid false positives:
+      - the pointer must be `path.rs:NN` (a .rs file with a line), and
+      - a backticked symbol (`NCI`, `FINALITY_MIX`, `dim_ok`, ...) must appear on the same
+        doc line. We check that this symbol occurs on the cited code line (a small +/- window
+        absorbs the off-by-a-few from a definition spanning lines / attribute above the item).
+    Docs with no such pointers, or pointers whose symbol we cannot isolate, are skipped."""
+    # `path/to/file.rs:NN`  -- capture the (possibly abbreviated) file and the line
+    ptr = re.compile(r"`([\w./-]+\.rs):(\d+)`")
+    # a plausible code symbol in backticks on the same line (const/fn/type-ish identifiers)
+    sym = re.compile(r"`([A-Za-z_][A-Za-z0-9_]*)`")
+    # Docs abbreviate paths (`lib.rs`, `src/lib.rs` == `node/src/lib.rs`). Resolve a cited
+    # path against the actual .rs files by suffix; a path that matches exactly one real file
+    # is checkable, anything ambiguous/unresolvable is SKIPPED (out of scope for a pointer-
+    # staleness gate -- flagging it would be a false-positive flood that gets the gate muted).
+    real_rs = [f for f in code_files(root) if f.endswith(".rs")]
+    WINDOW = 3  # tolerate a definition/attribute a few lines off the exact cite
+    src_cache: dict[str, list[str]] = {}
+
+    def resolve(rel: str) -> str | None:
+        rel = rel.lstrip("./")
+        matches = [f for f in real_rs if f == rel or f.endswith("/" + rel)]
+        return matches[0] if len(matches) == 1 else None
+
+    def lines_for(rel: str) -> list[str]:
+        if rel not in src_cache:
+            with open(os.path.join(root, rel), encoding="utf-8") as f:
+                src_cache[rel] = f.read().splitlines()
+        return src_cache[rel]
+
+    bad: list[str] = []
+    for d in docs(root):
+        with open(os.path.join(root, d), encoding="utf-8") as f:
+            for i, line in enumerate(f, 1):
+                for pm in ptr.finditer(line):
+                    target = resolve(pm.group(1))
+                    if target is None:
+                        continue  # ambiguous/unresolvable path -> not this gate's job
+                    lineno = int(pm.group(2))
+                    src = lines_for(target)
+                    # symbols named on this doc line, minus any file token (`...rs`)
+                    syms = [s for s in sym.findall(line) if not s.endswith("rs")]
+                    if not syms:
+                        continue  # no symbol to anchor on -> can't check, skip
+                    lo, hi = max(1, lineno - WINDOW), min(len(src), lineno + WINDOW)
+                    window_text = "\n".join(src[lo - 1:hi])
+                    # a pointer resolves if ANY symbol the doc line names is found near the cite
+                    if not any(re.search(rf"\b{re.escape(s)}\b", window_text) for s in syms):
+                        bad.append(
+                            f"{d}:{i} pointer {pm.group(0)} is STALE -- "
+                            f"none of {syms} found at {target}:{lineno} (+/-{WINDOW})"
+                        )
+    return bad
+
+
 def law_violations(root: str) -> list[str]:
     """Structural guard on COHERENCE-LAWS.md: the numbered laws must be contiguous
     (L1..LN, no gaps or dupes) so a careless edit cannot silently delete or renumber a
@@ -201,6 +263,7 @@ def main() -> int:
 
     problems.extend(name_violations(root))
     problems.extend(test_count_violations(root, cargo_test_count(root)))
+    problems.extend(pointer_violations(root))
     problems.extend(law_violations(root))
 
     if problems:
