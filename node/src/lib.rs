@@ -3706,24 +3706,53 @@ pub mod flow {
     }
 
     /// N-contributor intra-block recursion: Shapley shares over the submodular
-    /// coverage-union sub-game among a cell's contributor payloads. Reuses
-    /// [`super::synergy`] (plain submodular Shapley, sampled) one level down — literally the
-    /// same machinery scoring intra-block authors that scores inter-block cells. Deterministic.
-    pub fn recurse_shares(parts: &[&[u8]], samples: usize) -> Vec<f64> {
-        use super::{Script};
-        let cells: Vec<Cell> = parts
+    /// coverage-union sub-game among a cell's contributor payloads — the same value it once
+    /// obtained by permutation SAMPLING (`synergy::sampled_value(.., false)`), now computed
+    /// EXACTLY. Delegates to [`nsvg_shares`], the set-cover Shapley closed form (Sivill &
+    /// Flach 2023): exact (zero sampling variance), deterministic, `O(Σ|cov_i|)`. The
+    /// `samples` argument the sampled version took is gone — the closed form needs no budget.
+    /// (No production call site consumed this yet; it is the intra-block scorer the settlement
+    /// path will use. The prior sampler stays reachable via `synergy::sampled_value` and its
+    /// convergence to this exact value is pinned by `sampled_coverage_shapley_converges`.)
+    pub fn recurse_shares(parts: &[&[u8]]) -> Vec<f64> {
+        nsvg_shares(parts)
+    }
+
+    /// EXACT closed-form twin of [`recurse_shares`] for the submodular coverage-union game
+    /// `v(S) = |∪_{i∈S} coverage(part_i)|` — no permutation sampling.
+    ///
+    /// This is the Shapley Sets recursion (Sivill & Flach 2023, arXiv:2307.01777) collapsed
+    /// to its closed form for THIS value function. The coverage-union game is a SUM of
+    /// per-element unanimity (OR) games: element `e` contributes 1 to `v(S)` iff at least one
+    /// owner of `e` is in `S`. Disjoint-coverage contributor groups are exactly the paper's
+    /// non-separable variable groups (v is additive across them); WITHIN the union game, by
+    /// symmetry + efficiency, each element `e` splits evenly among the `d(e)` parts that cover
+    /// it, so by Shapley additivity over the per-element games:
+    ///
+    ///   φ_i = Σ_{e ∈ cov_i} 1 / d(e)        (the set-cover / "airport" Shapley closed form)
+    ///
+    /// then normalized to shares. This equals the Shapley value `recurse_shares` samples
+    /// (the paper's Shapley-Sets-≡-Shapley-over-grouped-set theorem), but is EXACT (zero
+    /// sampling variance), DETERMINISTIC (no PRNG / permutation-order dependence), and
+    /// `O(Σ |cov_i|)` instead of `O(samples · n²)`. Coverage is taken per part as a SET,
+    /// matching `synergy::v_coverage`'s union semantics (a part's repeated shingle counts once,
+    /// both toward its own `φ_i` and toward `d(e)`).
+    pub fn nsvg_shares(parts: &[&[u8]]) -> Vec<f64> {
+        // Per-part coverage as a set (dedup within a part — union semantics).
+        let cov_sets: Vec<HashSet<CovId>> =
+            parts.iter().map(|p| coverage(p).into_iter().collect()).collect();
+        // d(e) = number of parts whose coverage set contains element e.
+        let mut owners: HashMap<CovId, u64> = HashMap::new();
+        for set in &cov_sets {
+            for &e in set {
+                *owners.entry(e).or_insert(0) += 1;
+            }
+        }
+        let phi: Vec<f64> = cov_sets
             .iter()
-            .enumerate()
-            .map(|(i, p)| Cell {
-                id: i as u64,
-                lock: Script { code_hash: [0u8; 32], args: vec![] },
-                type_script: Script { code_hash: [0u8; 32], args: vec![] },
-                parent: None, // contributors are an unordered coalition (no provenance edges)
-                timestamp: i as u64,
-                data: p.to_vec(),
-            })
+            .map(|set| set.iter().map(|e| 1.0 / owners[e] as f64).sum())
             .collect();
-        super::synergy::shares(&super::synergy::sampled_value(&cells, samples, false))
+        super::synergy::shares(&phi)
     }
 
     #[cfg(test)]
@@ -3802,6 +3831,136 @@ pub mod flow {
         }
 
         #[test]
+        fn nsvg_shares_matches_bruteforce_exact_shapley() {
+            use std::collections::HashSet;
+            // Ground truth: exact Shapley of v(S) = |union of coverage sets|, by enumerating
+            // every permutation (Heap's algorithm), normalized to shares. If the closed form
+            // is right it must match this to float precision on ANY coverage structure.
+            fn brute(parts: &[&[u8]]) -> Vec<f64> {
+                let n = parts.len();
+                let covs: Vec<HashSet<super::super::CovId>> = parts
+                    .iter()
+                    .map(|p| super::super::coverage(p).into_iter().collect())
+                    .collect();
+                let v = |idxs: &[usize]| -> f64 {
+                    let mut u: HashSet<super::super::CovId> = HashSet::new();
+                    for &i in idxs {
+                        u.extend(covs[i].iter().copied());
+                    }
+                    u.len() as f64
+                };
+                fn permute(
+                    k: usize,
+                    perm: &mut Vec<usize>,
+                    phi: &mut Vec<f64>,
+                    count: &mut u64,
+                    v: &dyn Fn(&[usize]) -> f64,
+                ) {
+                    if k <= 1 {
+                        let mut running = Vec::new();
+                        let mut prev = 0.0f64;
+                        for &b in perm.iter() {
+                            running.push(b);
+                            let cur = v(&running);
+                            phi[b] += cur - prev;
+                            prev = cur;
+                        }
+                        *count += 1;
+                        return;
+                    }
+                    for i in 0..k {
+                        permute(k - 1, perm, phi, count, v);
+                        if k % 2 == 0 {
+                            perm.swap(i, k - 1);
+                        } else {
+                            perm.swap(0, k - 1);
+                        }
+                    }
+                }
+                let mut perm: Vec<usize> = (0..n).collect();
+                let mut phi = vec![0.0f64; n];
+                let mut count = 0u64;
+                permute(n, &mut perm, &mut phi, &mut count, &v);
+                for x in phi.iter_mut() {
+                    *x /= count.max(1) as f64;
+                }
+                let tot: f64 = phi.iter().sum();
+                if tot > 0.0 {
+                    for x in phi.iter_mut() {
+                        *x /= tot;
+                    }
+                }
+                phi
+            }
+            let check = |parts: &[&[u8]]| {
+                let exact = nsvg_shares(parts);
+                let bf = brute(parts);
+                let l1: f64 = exact.iter().zip(&bf).map(|(x, y)| (x - y).abs()).sum();
+                assert!(
+                    l1 < 1e-9,
+                    "closed form must equal brute-force exact Shapley (L1={l1}, closed={exact:?}, brute={bf:?})"
+                );
+            };
+            let disjoint: Vec<&[u8]> =
+                vec![b"alpha-bravo-charlie", b"uniform-victor-whiskey", b"lima-mike-november"];
+            let overlapping: Vec<&[u8]> =
+                vec![b"alpha-bravo-charlie-delta", b"charlie-delta-echo-foxtrot", b"foxtrot-golf-hotel"];
+            let nested: Vec<&[u8]> =
+                vec![b"alpha-bravo-charlie-delta-echo", b"alpha-bravo", b"tango-sierra-romeo"];
+            check(&disjoint);
+            check(&overlapping);
+            check(&nested);
+        }
+
+        #[test]
+        fn sampled_coverage_shapley_converges() {
+            // The OLD permutation estimator (synergy::sampled_value, what recurse_shares used
+            // before the flip) converges to the exact closed form as samples grow — the
+            // evidence that delegating recurse_shares to nsvg_shares is safe. (Sampling is
+            // seeded/deterministic, so this L1 is a fixed number, not a flaky one.)
+            let parts: Vec<&[u8]> = vec![
+                b"alpha-bravo-charlie-delta",
+                b"charlie-delta-echo-foxtrot",
+                b"golf-hotel-india-juliet",
+            ];
+            let exact = nsvg_shares(&parts);
+            let cells: Vec<Cell> = parts
+                .iter()
+                .enumerate()
+                .map(|(i, p)| Cell {
+                    id: i as u64,
+                    lock: Script { code_hash: [0u8; 32], args: vec![] },
+                    type_script: Script { code_hash: [0u8; 32], args: vec![] },
+                    parent: None,
+                    timestamp: i as u64,
+                    data: p.to_vec(),
+                })
+                .collect();
+            let sampled =
+                super::super::synergy::shares(&super::super::synergy::sampled_value(&cells, 20000, false));
+            let l1: f64 = exact.iter().zip(&sampled).map(|(x, y)| (x - y).abs()).sum();
+            assert!(l1 < 0.02, "sampled Shapley converges to the exact closed form (L1={l1})");
+        }
+
+        #[test]
+        fn nsvg_shares_disjoint_are_proportional_to_coverage_size() {
+            use std::collections::HashSet;
+            // Fully disjoint coverage => every element has a single owner (d(e)=1), so
+            // phi_i = |cov_i| and shares are exactly proportional to coverage size — the
+            // Shapley-Sets property that separable groups collect their standalone value.
+            let a: &[u8] = b"alpha-bravo-charlie-delta-echo-foxtrot";
+            let b: &[u8] = b"lima-mike";
+            let ca: HashSet<super::super::CovId> = super::super::coverage(a).into_iter().collect();
+            let cb: HashSet<super::super::CovId> = super::super::coverage(b).into_iter().collect();
+            assert!(ca.is_disjoint(&cb), "fixture precondition: coverage must be disjoint");
+            let parts: Vec<&[u8]> = vec![a, b];
+            let sh = nsvg_shares(&parts);
+            let expected_a = ca.len() as f64 / (ca.len() + cb.len()) as f64;
+            assert!((sh[0] - expected_a).abs() < 1e-9, "disjoint share == coverage-size fraction");
+            assert!(sh[0] > sh[1], "larger disjoint coverage earns the larger share");
+        }
+
+        #[test]
         fn external_only_flow_ignores_self_attribution_edges() {
             // Same chain, two worlds: child authored by ANOTHER contributor vs by the SAME
             // contributor. External-only flow uplifts the parent only in the first world —
@@ -3831,7 +3990,7 @@ pub mod flow {
                 b"echo-foxtrot-golf-hotel",
                 b"alpha-bravo-charlie-delta",
             ];
-            let sh = recurse_shares(&parts, 2000);
+            let sh = recurse_shares(&parts);
             assert_eq!(sh.len(), 3);
             assert!((sh.iter().sum::<f64>() - 1.0).abs() < 1e-9, "shares normalize to 1");
             assert!(sh[1] >= sh[0] - 1e-6 && sh[1] >= sh[2] - 1e-6, "unique >= each duplicate");

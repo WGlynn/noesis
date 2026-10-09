@@ -33,7 +33,9 @@ use ckb_std::{
     syscalls,
 };
 use core::convert::TryInto;
-use noesis_core::finalization::{finalizes_fixed, parse_finalization_cell, parse_votes, ValidatorQ};
+use noesis_core::finalization::{
+    finalizes_pos_pom_fixed, parse_finalization_cell, parse_votes, ValidatorQ,
+};
 
 ckb_std::entry!(program_entry);
 default_alloc!();
@@ -94,7 +96,16 @@ fn load_witness_full(index: usize) -> Result<alloc::vec::Vec<u8>, i8> {
 /// Validate finalization cell `index`: parse the set+params, read its vote witness, recompute the
 /// Q32.32 inequality against the header `now`. Returns the cell-level exit code (0 = finalizes).
 fn validate_cell(index: usize, data: &[u8], now: u64) -> i8 {
-    let (mix, params, validators) = match parse_finalization_cell(data) {
+    // The cell's `mix` and `quorum_floor_bps` are now VESTIGIAL and DELIBERATELY IGNORED. The live
+    // node routes finality through `finalizes_pos_pom` (runtime.rs:701) which hardwires the PoW-free
+    // `FINALITY_MIX` and the `dim_ok` anti-concentration floor as CONSTITUTIONAL constants — never
+    // cell-supplied. `finalizes_pos_pom_fixed` is the bit-for-bit on-VM mirror: it bakes in
+    // `FINALITY_MIX_Q` + `dim_ok_q` and passes `quorum_floor = 0` itself. Reading those two params
+    // from producer/attacker-creatable cell data would let a `mix`-skew or `threshold_bps = 0`
+    // producer finalize on a single vote / bypass capital-orthogonality — so we don't read them.
+    // `threshold_bps` (the 2/3 bar) and `horizon`/`decay_pos` (liveness) stay cell-carried; they
+    // cannot loosen safety below the constitutional floor, which the mirror enforces independently.
+    let (_mix, params, validators) = match parse_finalization_cell(data) {
         Some(t) => t,
         None => return 31,
     };
@@ -107,15 +118,13 @@ fn validate_cell(index: usize, data: &[u8], now: u64) -> i8 {
         None => return 32,
     };
     let voters_for: alloc::vec::Vec<ValidatorQ> = idxs.iter().map(|&i| validators[i].clone()).collect();
-    if finalizes_fixed(
+    if finalizes_pos_pom_fixed(
         &voters_for,
         &validators,
-        mix,
         now,
         params.horizon,
         params.decay_pos,
         params.threshold_bps,
-        params.quorum_floor_bps,
     ) {
         0
     } else {
