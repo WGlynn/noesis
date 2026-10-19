@@ -68,6 +68,17 @@ and still converge. So the swap is **not** a per-node plugin; it is a **protocol
 
 Until an amendment activates a successor, **v0 stays canonical**.
 
+## What freezing the judge buys, and what it doesn't (review 2026-10-19)
+
+Activating a judge by amendment and freezing it for a round buys **immutability**: work submitted in the round
+cannot bend the judge scoring it. It does not buy **neutrality**: the author of the judge can still pick one
+that favors their kind of work. Neutrality needs three properties together: the judge names no one, nobody in
+the game can change it mid-round, and lying doesn't pay under it. The choice of judge matters even when
+judges agree on order: in Cadence EXP-62b two brains ranked teachers identically but priced late-stage
+knowledge at about a quarter and about a ninth of early-stage knowledge. Whoever picks the judge sets that
+rate. 🟡 Not built: no retrain schedule for the learned judge and no activation point for amendments exist in
+the sketch yet (checked 2026-10-19). See `docs/REVIEW-2026-10-19-ledger-explainer.md`.
+
 ## Anti-theater proof
 
 `node/tests/value_oracle_seam.rs`:

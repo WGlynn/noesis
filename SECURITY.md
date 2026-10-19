@@ -131,7 +131,7 @@ to genuinely contribute.
 > **Reviewer's shortcut:** the two legs to press hardest are **(1) the `v(S)` un-gameability proof**
 > (demonstrated for known vectors, isomorphism-invariance open) and **(2) the resource-DoS commit-deposit**
 > (incentive removed; memory/compute now bounded by the mempool cap; the economic-teeth deposit is
-> designed-not-built). We name both as open on purpose.
+> built at the reference layer but inert by default). We name both as open on purpose.
 
 ## Scope
 

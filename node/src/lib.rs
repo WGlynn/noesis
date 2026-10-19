@@ -1147,6 +1147,13 @@ pub mod value {
     /// normalization a single whale block could distort) and monotone, so more realized use
     /// never pays less. `half` is the protocol's "how much downstream flow is half-proof of
     /// meaning" parameter.
+    ///
+    /// Counting, not measuring (review 2026-10-19): realized flow counts what was built on a
+    /// cell, which is an UPPER BOUND on dependence (a substitute could have served the same
+    /// builders). The target is the gap to the next-best alternative, observable only by
+    /// intervention where the counterfactual is runnable. There is no clock here: flow arrives
+    /// whenever use does, and nothing decays with age (any future decay must run on use, never
+    /// on age; pinned by `credit_has_no_clock_late_use_pays_early_work_the_same`).
     pub fn flow_gate(downstream: f64, half: f64) -> f64 {
         if downstream <= 0.0 {
             return 0.0;
@@ -1621,6 +1628,29 @@ pub mod value {
             ];
             let v5 = value_v5(&order, THETA, DAMP, ITERS, HALF);
             assert!(v5[0] > 0.0, "low-quality-looking but USED work is paid by realized flow");
+        }
+
+        #[test]
+        fn credit_has_no_clock_late_use_pays_early_work_the_same() {
+            // Review 2026-10-19 (the "2019 maintainer" case): credit must vest when use arrives,
+            // however late, and never decay with age. Early work nobody uses yet earns 0; when a
+            // builder finally arrives, after a long gap of unrelated work and a billion clock
+            // ticks, the early cell earns exactly what it would have earned from a prompt builder.
+            let root = cellc(0, 1, 0, None, b"alpha-bravo-charlie-delta");
+            let filler = |k: u64| cellc(100 + k, 9, k + 1, None, format!("{k:04}#{:04}#7531", k * 7).as_bytes());
+            let prompt = vec![root.clone(), cellc(1, 2, 1, Some(0), b"echo-foxtrot-golf-hotel")];
+            let mut unused: Vec<Cell> = vec![root.clone()];
+            unused.extend((0..40).map(filler));
+            let mut late = unused.clone();
+            late.push(cellc(1, 2, 1_000_000_000, Some(0), b"echo-foxtrot-golf-hotel"));
+
+            let before = value_v5(&unused, THETA, DAMP, ITERS, HALF);
+            assert_eq!(before[0], 0.0, "no use yet => no credit yet (it waits, it is not lost)");
+            let v_prompt = value_v5(&prompt, THETA, DAMP, ITERS, HALF)[0];
+            let v_late = value_v5(&late, THETA, DAMP, ITERS, HALF)[0];
+            assert!(v_prompt > 0.0, "used early work is paid");
+            assert!((v_prompt - v_late).abs() < 1e-12,
+                "no clock in credit: late use pays the early cell the same ({v_prompt} vs {v_late})");
         }
 
         #[test]

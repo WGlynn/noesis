@@ -93,7 +93,7 @@ the soulbound side, never the transferable byte.
 Pipeline (all `node/src/lib.rs`): `temporal_novelty` (`:89`) → `pom_scores` (`:162`) /
 `pom_scores_with_similarity_floor_q16` (`:182`, the live consensus PoM gate, near-dup floor
 `Constitution.theta_sim_q16` default 0.95) → `value_v5..v8` (`:1026/1076/1143/1226`).
-- `v5` realized-flow gate · `v6` standing-gated seeds (prices identity, not participation) ·
+- `v5` realized-flow gate (counts use, an upper bound on dependence; `docs/REVIEW-2026-10-19-ledger-explainer.md`) · `v6` standing-gated seeds (prices identity, not participation) ·
   `v7` semantic/entropy floor · `v8` learned-outcome gate (Bradley-Terry over coalition features).
 - Anti-gaming defenses are projections of one invariant (see `docs/ISOMORPHISM-INVARIANCE-VS.md`):
   within-identity λ^r, cross-identity μ^m, joint ρ^j damping; `attribution_circulation` +
@@ -116,12 +116,16 @@ Pipeline (all `node/src/lib.rs`): `temporal_novelty` (`:89`) → `pom_scores` (`
   wash (asymmetry = *rent*, not time) + a `v(S)` grounded on external-use labels
   (`docs/DESIGN-periphery-solution.md`), which prices a wash-ring negative-EV to a Bitcoin-51%-class
   residual (`node/examples/periphery_sim.rs`, harvest measured, Layers A+B design params).
+- **🔬 open (review 2026-10-19):** genesis prior (a grown judge keeps its first rounds' taste), composition
+  (year-one funding shapes the corpus the judge trains on), the patience filter (paying on use pays late),
+  frame underprovision (pay capped at own novelty), capital buying variance, survival-as-lock-in, and
+  counterfactuals that don't climb to roots. Agreed principles and contested proposals: `docs/REVIEW-2026-10-19-ledger-explainer.md`.
 
 ## Security model — see `SECURITY.md` (read it; don't paraphrase from here)
 
 Four attack classes, honest status: (1) `v(S)` gameability ✅ built (reference+runtime),
 isomorphism-invariance open; (2) DoS/spam — economic ✅, **resource-DoS Bound A (mempool cap)
-✅, Bound B commit-deposit 🟡**; (3) double-spend ✅ reference / 🟡 deploy-coupled crypto;
+✅, Bound B commit-deposit ✅ (reference layer, inert by default)**; (3) double-spend ✅ reference / 🟡 deploy-coupled crypto;
 (4) rollback/finality ✅ reference / 🟡 on-VM mirror. Structural maxim: *don't let the attacker
 choose a security-critical input* (every consensus value re-derived on-VM, rejected if not
 reconstructable).

@@ -6,6 +6,10 @@
 > adversarial-review.md` (the tool whose ledger this rests on). Cross-refs: [[voluntary-noesis]],
 > [[project_noesis-genesis-bootstrap-decision]], `contribution-measurement-dissolves-redistribution-SEED.md`.
 
+> **Review caveat (2026-10-19).** By the author-exclusion test (`docs/REVIEW-2026-10-19-ledger-explainer.md`,
+> principle 10), reviewers who helped build the measure must not benefit under it. Without that exclusion this
+> proposal is a premine with extra steps.
+
 ## Abstract
 
 A Proof-of-Mind value chain rewards *measured contribution*: standing (the soulbound franchise) is

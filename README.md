@@ -29,7 +29,9 @@ bought with capital. It prices *minds*, not hashes or stake.
 ## What is real today (we tell you out loud)
 
 The most important thing a young protocol can be is honest about its own status. Here is the exact line
-between what is built, what is designed, and what is still open. A single status ledger is the authority.
+between what is built, what is designed, and what is still open. A single status ledger is the authority. The honest overall claim is monotone progress on an open problem, not a
+solution: the first testable claim is contribution where the counterfactual can be run (code first), widening as
+measurement improves (`docs/REVIEW-2026-10-19-ledger-explainer.md`).
 
 - **Built and tested** at the reference layer: the contribution-conservation core (value flows along
   provenance; sybil, padding, and *cyclic* collusion drive to zero — but a competently-built *acyclic*

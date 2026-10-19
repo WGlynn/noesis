@@ -18,6 +18,12 @@ is the whole point (open, capture‑resistant), but it removes the exact signal 
 value question cannot be answered by "someone with authority accepted it," because no one has that
 authority.** This is the airgap problem in its purest form for a contribution chain.
 
+> **Scope correction (review 2026-10-19).** "No authority" is true of the merge button, not of the system.
+> Authority regresses instead of vanishing: whoever writes the genesis rules, chooses and trains the judge,
+> or sets a measurement dial is still an author, one level down. The honest claim is a regress of decreasing
+> authority, each step smaller, slower and more public, ending at a hand-set bottom layer anyone can read
+> (`docs/REVIEW-2026-10-19-ledger-explainer.md`, principle 3).
+
 ## 2. The attack the vacuum invites — the "booger‑chain" (Will, 2026‑07‑15)
 
 Without an authority to reject worthless work, an attacker (or a colluding ring / Sybil identities)
