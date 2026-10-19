@@ -48,7 +48,7 @@ and "is this graph being gamed" — questions far larger than Noesis.
   1-2 more).
 
 - **Submodular / graph-restricted cooperative game kit (`recurse_two`, `synergy::*`,
-  Myerson `v_graph`)** — `node/src/lib.rs:3696`, `synergy` mod `:3301`. Sampled Data-Shapley,
+  Myerson `v_graph`)** — `node/src/lib.rs:3724`, `synergy` mod `:3301`. Sampled Data-Shapley,
   Myerson graph-restricted value (only provenance-connected coalitions create value), Copeland
   additive baseline, and an L1 "is the cooperative game actually load-bearing vs additive"
   statistic. **General use:** a small, dependency-free cooperative-game-theory toolkit.
