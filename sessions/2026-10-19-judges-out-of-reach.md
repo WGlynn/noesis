@@ -20,6 +20,8 @@ For Noesis this bears on design idea 6, a refundable deposit whose forfeits beco
 
 **Measured edges decay (separate market research).** Every edge we found there was strongest a few years ago and close to gone today. A measurement that worked once does not stay calibrated as the world adapts. For Noesis: standing should vest against continued use and be re-scored as new evidence arrives. The re-opening trigger and clawback design from 2026-10-06 is the machinery for that.
 
+**Check the instrument's window before trusting a verdict (two experiments, same afternoon).** In Cadence EXP-62f, a brain built differently was supposed to judge the same teachers, but it solved the task with no teacher at all, so it had nothing left to measure. In a separate market experiment, the exit rule stopped nearly every position out before the effect under test could show, so the result described the exits, not the thing being tested. Both were caught by looking at the null arm under the exact run conditions, and in the first case before the full run started. For Noesis: a judge or test that is saturated, or dominated by a fixed rule downstream of it, will issue confident verdicts about the wrong thing. Before a judge is frozen for a round, run its null case and confirm it sits between noise and ceiling.
+
 ## Design ideas that came out of it
 
 Full list with tests: Desktop `noesis-design-brainstorm-2026-10-19.md` (designed, not built). The two cheapest with the most reach:
