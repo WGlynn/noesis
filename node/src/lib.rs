@@ -4198,13 +4198,44 @@ pub mod consensus {
         threshold_bps: u64,
         quorum_floor_bps: u64,
     ) -> bool {
+        let base_total: f64 = all.iter().map(|v| base_weight(v, m)).sum();
+        finalizes_hybrid_floor_on(
+            voters_for,
+            all,
+            base_total,
+            m,
+            now,
+            horizon,
+            decay_pos,
+            threshold_bps,
+            quorum_floor_bps,
+        )
+    }
+
+    /// [`finalizes_hybrid`] with the quorum floor taken over a caller-supplied `floor_base_total`
+    /// instead of `all`'s own base weight. The one caller that needs it is the missed-finality-vote
+    /// decay (`runtime::finality::finalizes_pos_pom_leaking`): it shrinks non-voters' weight in the
+    /// counted view, but the safety floor must stay anchored to the full registered base, or the
+    /// leak would lower the floor it is supposed to respect. `finalizes_hybrid` passes `all`'s base
+    /// total, so its arithmetic is unchanged.
+    #[allow(clippy::too_many_arguments)]
+    pub fn finalizes_hybrid_floor_on(
+        voters_for: &[Validator],
+        all: &[Validator],
+        floor_base_total: f64,
+        m: Mix,
+        now: u64,
+        horizon: u64,
+        decay_pos: bool,
+        threshold_bps: u64,
+        quorum_floor_bps: u64,
+    ) -> bool {
         let weight_for: f64 = voters_for
             .iter()
             .map(|v| effective_weight(v, m, now, horizon, decay_pos))
             .sum();
         let eff_total: f64 = all.iter().map(|v| effective_weight(v, m, now, horizon, decay_pos)).sum();
-        let base_total: f64 = all.iter().map(|v| base_weight(v, m)).sum();
-        let floor = base_total * quorum_floor_bps as f64 / BPS as f64;
+        let floor = floor_base_total * quorum_floor_bps as f64 / BPS as f64;
         let basis = eff_total.max(floor);
         basis > 0.0 && weight_for >= basis * threshold_bps as f64 / BPS as f64
     }

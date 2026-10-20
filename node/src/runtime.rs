@@ -152,6 +152,19 @@ pub struct Constitution {
     /// enforcement lesson) so a `u64::MAX`-timestamp block that would brick the channel is rejected at
     /// production by admission and thus never enters the canonical chain replay trusts.
     pub clock_enforced: bool,
+    /// Missed-finality-vote decay, grace (the inactivity-leak analog; [`finality::VoteLeak`],
+    /// `SECURITY.md` section 5). Consecutive finality rounds that may end without a finalized checkpoint
+    /// before non-voters start losing finality weight. Read only when `leak_horizon > 0`. The value
+    /// is calibration, Will/governance-gated; `0` means the leak starts on the first stalled round.
+    pub leak_grace: u64,
+    /// Missed-finality-vote decay, horizon: the net missed stalled rounds over which a non-voter's
+    /// finality weight (PoS and PoM, in the finality view only) fades linearly from 1 to 0, the same
+    /// linear shape as `horizon`. It closes the case heartbeat decay misses: a validator that stays
+    /// online but withholds its vote, which under the per-dimension floor (`MIN_DIM_BPS`) can halt
+    /// finality. Decays the vote, never the stake, the credit, or the attribution record. Default
+    /// `0` means INERT: [`Node::checkpoint_round`] is exactly [`Node::checkpoint_finalizes`] and writes
+    /// no state (the `horizon`/`vesting_w` precedent).
+    pub leak_horizon: u64,
 }
 
 impl Default for Constitution {
@@ -171,6 +184,8 @@ impl Default for Constitution {
             work_clock_ceiling: u64::MAX, // inert: min(block_work, MAX) == block_work ⇒ byte-identical
             submission_deposit: 0, // inert: no bond required ⇒ blocks carry no bonds ⇒ byte-identical (Bound B)
             clock_enforced: false, // inert: timestamp is inert additive data ⇒ byte-identical to pre-CLK-2
+            leak_grace: 0,         // read only when leak_horizon > 0
+            leak_horizon: 0,       // inert: no missed-vote decay, so checkpoint_round == checkpoint_finalizes
         }
     }
 }
@@ -913,6 +928,11 @@ pub struct Node {
     pub validators: Vec<Validator>,
     pub constitution: Constitution,
     pub mempool: Vec<(Cell, Committed)>,
+    /// The current finality stall and each non-voter's missed-vote score, read and written only by
+    /// [`Node::checkpoint_round`] when `constitution.leak_horizon > 0`. Per-replica and fed by the
+    /// caller's vote sets: votes are not yet block-embedded, so two replicas agree on it only if they
+    /// see the same rounds (the `Ledger::refuted` precedent). Not in `state_digest`.
+    pub vote_leak: finality::VoteLeak,
 }
 
 impl Node {
@@ -975,6 +995,7 @@ impl Node {
             validators,
             constitution,
             mempool: Vec::new(),
+            vote_leak: finality::VoteLeak::default(),
         }
     }
 
@@ -1063,6 +1084,39 @@ impl Node {
         ballots: &[(u64, u64)],
     ) -> (bool, Vec<u64>) {
         finalizes_guarded(&self.constitution, voters_for, all, ballots, self.ledger.now())
+    }
+
+    /// One finality ROUND under the missed-finality-vote decay: decide this round's checkpoint with
+    /// the leak as it stands, then record the outcome ([`finality::VoteLeak::record`]). The decision
+    /// reads the work clock exactly like [`Node::checkpoint_finalizes`]. With
+    /// `constitution.leak_horizon == 0` (the default) this IS [`Node::checkpoint_finalizes`] and
+    /// leaves `vote_leak` untouched.
+    ///
+    /// Participation = being in `voters_for` for THIS chain's checkpoint. A vote for a competing
+    /// proposal counts as a miss here, as in Ethereum's leak; otherwise a captor could hold a stall
+    /// forever by voting for a decoy every round. The cost is the partition case: each side of a
+    /// long split leaks the other (see `SECURITY.md` section 5; a quorum floor above 3/4 stops both sides
+    /// finalizing). This path does not run the equivocation guard; compose with
+    /// [`Node::checkpoint_finalizes_guarded`] upstream if both are needed.
+    pub fn checkpoint_round(&mut self, voters_for: &[Validator], all: &[Validator]) -> bool {
+        let c = &self.constitution;
+        if c.leak_horizon == 0 {
+            return self.checkpoint_finalizes(voters_for, all);
+        }
+        let ok = finality::finalizes_pos_pom_leaking(
+            voters_for,
+            all,
+            &self.vote_leak,
+            c.leak_horizon,
+            self.ledger.now(),
+            c.horizon,
+            c.decay_pos,
+            c.threshold_bps,
+            c.quorum_floor_bps,
+        );
+        let (grace, leak_horizon) = (c.leak_grace, c.leak_horizon);
+        self.vote_leak.record(all, voters_for, ok, grace, leak_horizon);
+        ok
     }
 
     /// The cleared-score bridge (DESIGN-vesting-W §2.3, build-stage §3.2) — the production
@@ -1725,6 +1779,162 @@ pub mod finality {
             quorum_floor_bps,
         );
         (ok, equivocators.into_iter().collect())
+    }
+
+    // ============ Missed-finality-vote decay (inactivity-leak analog) ============
+    //
+    // The gap: heartbeat decay (`Constitution.horizon`, `consensus::effective_weight`) keys to
+    // `last_heartbeat`, so a validator that stays ONLINE but withholds its finality vote keeps full
+    // weight. And `dim_ok` reads base weights, so even an OFFLINE holder of more than half of one
+    // dimension blocks that dimension's floor however far its heartbeat decays. Under the mutual
+    // veto, a captured PoM majority (or a capital majority) that refuses to vote halts finality.
+    //
+    // The fix mirrors Ethereum's inactivity leak where it fits: it runs only while finality is
+    // stalled, it shrinks the weight of whoever does not vote for this chain's checkpoint until the
+    // voters clear 2/3 and both dimension floors, and it resets when a checkpoint finalizes. Two
+    // differences. It decays the FINALITY VOTE, never the stake, the credit or the attribution record
+    // (decay the vote, not the balance; silence costs the seat, not the stake, per the 2026-07-10
+    // ruling in `internal/DESIGN-block-logistics-mechanism.md`, section 8). And the leak may relax a
+    // dimension's floor only down to `LEAK_DIM_FLOOR_BPS` of that dimension's REGISTERED total.
+    //
+    // Why that second rule exists: the protocol cannot tell a captor halting finality from an honest
+    // side vetoing it. Both look like "this group did not vote". Without a registered floor, a leak
+    // that drains a refusing honest axis (say all honest capital, refusing a gamed PoM checkpoint)
+    // lets the other axis finalize with a dust of co-signers, and no quorum floor stops it because
+    // PoM is 2/3 of the finality mix. With the floor, a refusal holding more than 2/3 of a dimension
+    // keeps a permanent veto, and one holding between 1/2 and 2/3 is treated as a halt and leaks out.
+
+    /// The share of a dimension's registered total that must still co-sign under the leak (BPS).
+    /// Normally the bar is `MIN_DIM_BPS` (half) of the dimension's live total; during a long stall
+    /// the leak may lower it to this, never further. Set at one third, so a withholding group keeps
+    /// a permanent veto only above two thirds of a dimension, the same supermajority finality uses.
+    /// A constitutional constant like `MIN_DIM_BPS`; the value is a design choice awaiting Will's
+    /// ruling (`SECURITY.md` section 5).
+    pub const LEAK_DIM_FLOOR_BPS: u64 = 3333;
+
+    /// Per-replica record of the current finality stall. `missed` holds each non-voter's net missed
+    /// stalled rounds, capped at `leak_horizon` (so a returning voter needs at most `leak_horizon`
+    /// voted rounds to regain full weight). BTree-keyed, integer-only: deterministic given the same
+    /// sequence of rounds.
+    #[derive(Clone, Debug, Default, PartialEq, Eq)]
+    pub struct VoteLeak {
+        /// consecutive finality rounds that ended without a finalized checkpoint.
+        pub stall: u64,
+        /// validator id -> net missed stalled rounds (absent = 0).
+        pub missed: std::collections::BTreeMap<u64, u64>,
+    }
+
+    impl VoteLeak {
+        /// Finality-weight retention of validator `id`: 1.0 when it has no missed score, falling
+        /// linearly to 0.0 as the score reaches `leak_horizon` (the heartbeat-decay shape,
+        /// [`consensus::retention`]). `leak_horizon == 0` gives 1.0 for everyone.
+        pub fn retention(&self, id: u64, leak_horizon: u64) -> f64 {
+            consensus::retention(self.missed.get(&id).copied().unwrap_or(0), leak_horizon)
+        }
+
+        /// Record one round. A finalized checkpoint ends the stall and clears every score (weight
+        /// returns in full the moment finality does). Otherwise the stall grows by one and, past
+        /// `grace` stalled rounds, every validator in `all` that is not in `voters_for` gains one
+        /// missed round (capped at `leak_horizon`). A voter loses one (floor 0), so recovery while the
+        /// stall lasts is gradual: a captor who votes only now and then still accrues net misses and
+        /// cannot reset its score by voting once (the rotation the `leak_rotation_*` test exercises).
+        pub fn record(
+            &mut self,
+            all: &[Validator],
+            voters_for: &[Validator],
+            finalized: bool,
+            grace: u64,
+            leak_horizon: u64,
+        ) {
+            if finalized {
+                *self = VoteLeak::default();
+                return;
+            }
+            self.stall += 1;
+            let voted: std::collections::BTreeSet<u64> = voters_for.iter().map(|v| v.id).collect();
+            for v in all {
+                if voted.contains(&v.id) {
+                    if let Some(m) = self.missed.get_mut(&v.id) {
+                        *m = m.saturating_sub(1);
+                    }
+                } else if self.stall > grace {
+                    let m = self.missed.entry(v.id).or_insert(0);
+                    *m = (*m + 1).min(leak_horizon);
+                }
+            }
+            self.missed.retain(|_, m| *m > 0);
+        }
+
+        /// The finality VIEW of `set`: each validator's weight inputs scaled by its retention. A
+        /// retention of exactly 1.0 leaves the f64 inputs bit-identical. Stake (`staked_balance`)
+        /// and heartbeat are carried through untouched.
+        fn view(&self, set: &[Validator], leak_horizon: u64) -> Vec<Validator> {
+            set.iter()
+                .map(|v| {
+                    let r = self.retention(v.id, leak_horizon);
+                    Validator { pow: v.pow * r, pos: v.pos * r, pom: v.pom * r, ..v.clone() }
+                })
+                .collect()
+        }
+    }
+
+    /// [`finalizes_pos_pom`] with the missed-finality-vote decay applied. The 2/3 bar and both
+    /// per-dimension floors are measured on the leaked view; the quorum floor stays anchored to the
+    /// UNLEAKED registered base (so the leak re-bases on who is voting but cannot lower the safety
+    /// backstop: below the floor it is still a safe halt); and each registered dimension must keep
+    /// voting support of at least [`LEAK_DIM_FLOOR_BPS`] of its registered total, so leaking away a
+    /// refusing axis never lets the other finalize on a dust of co-signers.
+    /// `leak_horizon == 0` routes straight to [`finalizes_pos_pom`].
+    #[allow(clippy::too_many_arguments)]
+    pub fn finalizes_pos_pom_leaking(
+        voters_for: &[Validator],
+        all: &[Validator],
+        leak: &VoteLeak,
+        leak_horizon: u64,
+        now: u64,
+        horizon: u64,
+        decay_pos: bool,
+        threshold_bps: u64,
+        quorum_floor_bps: u64,
+    ) -> bool {
+        if leak_horizon == 0 {
+            return finalizes_pos_pom(
+                voters_for,
+                all,
+                now,
+                horizon,
+                decay_pos,
+                threshold_bps,
+                quorum_floor_bps,
+            );
+        }
+        let lv = leak.view(voters_for, leak_horizon);
+        let la = leak.view(all, leak_horizon);
+        let registered_base: f64 = all.iter().map(|v| consensus::base_weight(v, FINALITY_MIX)).sum();
+        if !consensus::finalizes_hybrid_floor_on(
+            &lv,
+            &la,
+            registered_base,
+            FINALITY_MIX,
+            now,
+            horizon,
+            decay_pos,
+            threshold_bps,
+            quorum_floor_bps,
+        ) {
+            return false;
+        }
+        // (pos, pom) totals of a set.
+        let dims = |s: &[Validator]| s.iter().fold((0.0f64, 0.0f64), |(p, m), v| (p + v.pos, m + v.pom));
+        let ((pos_for, pom_for), (pos_all, pom_all), (pos_reg, pom_reg)) = (dims(&lv), dims(&la), dims(all));
+        // each registered dimension keeps a co-signing share of its REGISTERED total, leak or no leak.
+        let co_signed = |for_: f64, registered: f64| {
+            registered <= 0.0 || for_ >= registered * LEAK_DIM_FLOOR_BPS as f64 / 10_000.0
+        };
+        co_signed(pos_for, pos_reg)
+            && co_signed(pom_for, pom_reg)
+            && dim_ok(pos_for, pos_all)
+            && dim_ok(pom_for, pom_all)
     }
 }
 
