@@ -4,6 +4,13 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## 2026-10-20: finality vote decay (Will ruled, provisional) + fork as exit
+
+- Built: missed-finality-vote decay, reference only, off by default (017fb4ff), re-cut to Will's ruling (5b2bd81c): it decays a withholder's weight toward the 2/3 bar only and never relaxes the per-dimension floor (MIN_DIM_BPS). A captured majority of one dimension stalls FINALITY while blocks keep coming; the remedy is the social fork in SECURITY.md section 5 ("fork as exit: credit vs franchise", 2a5d810f). Tests: node/tests/vote_leak.rs (11 pass).
+- Vocabulary: in Noesis "halt" only ever means finality ("finality stall"); block production never stops (never-halt rule). Older code comments still say "safe halt".
+- HELD FOR PEER FEEDBACK (Will): does a vote for a competing proposal count as a miss? The build says yes (Ethereum-style, so a decoy vote cannot hold a stall); DESIGN-block-logistics-mechanism.md section 8 said participation.
+- Open: calibrate leak_grace / leak_horizon (not amendable yet), compose with equivocation, on-VM port, votes not recorded in blocks (replicas agree only if they see the same rounds), launch value for the quorum floor (0 = deliberate placeholder, PIN-quorum-floor-decision.md). Session note: sessions/2026-10-20-a-veto-is-also-a-way-to-stall-finality.md.
+
 ## 🧭 2026-07-20 — ARCHITECTURE CORRECTION (Will "spot on"): general attribution substrate = a FOREST, NOT a rooted tree — SUPERSEDES the genesis-codebase-root plan
 
 > **Will caught a drift 2026-07-20:** the "genesis root = the Noesis codebase" direction (ratified
