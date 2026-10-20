@@ -113,7 +113,8 @@ to genuinely contribute.
   axis (e.g. a PoM whale) can finalize unilaterally.
 - **Stale-state + Byzantine-minority:** early-reject for invalid reveals, retention-decay on liveness.
   A validator that stays online but withholds its finality vote is not touched by retention-decay; the
-  missed-finality-vote decay in section 5 covers it (built in the reference, inert by default).
+  missed-finality-vote decay in section 5 covers it on the 2/3 bar (built in the reference, inert by
+  default). Block production continues during any finality stall.
   A Byzantine minority cannot finalize; wrong-height / reordered / empty blocks are rejected. Verify:
   `node/tests/byzantine.rs`, `two_node.rs`.
 - **🔬 Equivocation accountability — predicate built, ON-FINALITY-PATH slashing NOT wired.** The
@@ -137,7 +138,9 @@ The question, raised by Boardy (an AI agent) in the 2026-10-19 review of the pub
 (`docs/REVIEW-2026-10-19-ledger-explainer.md`): standing can't be sold, so a majority that captures it
 faces no market price and has no exit. What answers 60%? In one line: **pay versus power. A fork keeps
 everyone's pay and can revoke the captors' power.** Code cited here is the current sketch, not law.
-Status words below: built (reference), designed, open.
+Status words below: built (reference), designed, open. Throughout, a stall means FINALITY stalls:
+block production continues during any finality stall, because production is never gated on
+finality (the never-halt design goal, `docs/DESIGN-committee-attested-clock.md` section 7).
 
 **The record and the franchise are different objects.**
 - The attribution record (who built what) is history: signed, hash-linked, replayed. Finality weight is
@@ -161,8 +164,7 @@ Status words below: built (reference), designed, open.
 - Standing alone can't finalize. Finality needs PoS+PoM weight of at least 2/3 and each of PoS and PoM
   to supply at least half of its own dimension (`FINALITY_MIX`, `runtime.rs:1661`; `MIN_DIM_BPS = 5000`,
   `runtime.rs:1673`). A captured standing set also needs half the stake, so part of the price of capture
-  is a market price, and honest capital holds a veto. (If the missed-vote decay below is switched on,
-  that veto is permanent only above 2/3 of the stake; below that it lasts for the length of a stall.)
+  is a market price, and honest capital holds a veto. The missed-vote decay below never weakens it.
 - Votes don't make invalid state valid. Finality chooses among blocks that already pass the rules
   (`validate_block`, `runtime.rs:1252`; the on-VM type scripts), so a finality majority can censor or
   reorder, not vote through a theft. Governance is a separate instrument (VIBE, `ARCHITECTURE.md:85`).
@@ -172,67 +174,61 @@ Status words below: built (reference), designed, open.
 **The remedy ladder, cheapest first.**
 1. The capital veto: the per-dimension floor. Built.
 2. Disputes and refutation during `W`. Built in the reference, inert by default (`W = 0`).
-3. Missed-finality-vote decay, for an axis that halts finality by not voting. Built in the reference,
-   inert by default, and it trades some of rung 1 for liveness (below).
+3. Missed-finality-vote decay, for a group that stalls finality on the 2/3 bar by not voting while
+   holding less than half of each dimension. Built in the reference, inert by default (below).
 4. A social fork that revokes franchise on evidence and keeps the record. Not a protocol mechanism; it is
    the floor of every open chain.
 
 **Missed-finality-vote decay (the inactivity-leak analog).** Built in the reference, inert by default
 (`Constitution.leak_horizon = 0`, `runtime.rs:167`), not in the on-VM finalization mirror. Code:
-`finality::VoteLeak` (`runtime.rs:1820`), `finality::finalizes_pos_pom_leaking` (`runtime.rs:1889`),
+`finality::VoteLeak` (`runtime.rs:1812`), `finality::finalizes_pos_pom_leaking` (`runtime.rs:1880`),
 `Node::checkpoint_round` (`runtime.rs:1101`); tests in `node/tests/vote_leak.rs`.
-- The gap. The per-dimension floor gives each axis a veto, and a veto is also a way to halt. Heartbeat
-  decay (`Constitution.horizon`, `consensus::effective_weight`, `node/src/lib.rs:4084`) keys to liveness,
-  so a validator that stays online and withholds its vote keeps full weight. Building this turned up a
-  wider gap than the 2026-10-19 analysis assumed: `dim_ok` reads base weights, so heartbeat decay never
-  relaxes the per-dimension floor. A holder of more than half of one dimension blocks finality even when
-  fully offline (`heartbeat_decay_alone_never_relaxes_the_dimension_floor`). Heartbeat decay only ever
-  helped with the 2/3 bar.
-- Trigger: a finality stall. The leak runs only while rounds end without a finalized checkpoint, after
-  `leak_grace` stalled rounds (`runtime.rs:159`). While finality is live nobody is decayed, voter or not
-  (`normal_operation_never_decays_anyone`).
+- The gap. Heartbeat decay (`Constitution.horizon`, `consensus::effective_weight`, `node/src/lib.rs:4084`)
+  keys to liveness, so a group holding more than a third of the combined finality weight that stays
+  online and withholds its vote stalls finality on the 2/3 bar indefinitely.
+- Trigger: a finality stall. The decay runs only while rounds end without a finalized checkpoint, after
+  `leak_grace` stalled rounds (`runtime.rs:159`). While finality is live nobody is decayed, voter or
+  not (`normal_operation_never_decays_anyone`).
 - Rate: each stalled round past the grace, every validator that did not vote for this chain's checkpoint
-  gains one missed round, capped at `leak_horizon`. Its finality weight, PoS and PoM, is scaled by
-  `1 - missed / leak_horizon`, the same linear shape as heartbeat decay. The 2/3 bar and both dimension
-  floors are measured on that decayed view. With grace 2 and horizon 10, captors holding 60% of PoM who
-  stay online and never vote are leaked out by round 7
-  (`online_withholding_pom_captors_stall_without_the_leak_and_finality_resumes_with_it`).
+  gains one missed round, capped at `leak_horizon`. Its weight on the 2/3 bar is scaled by
+  `1 - missed / leak_horizon`, the same linear shape as heartbeat decay. Withholders holding 40% of
+  each dimension are decayed out by round 6 with grace 2 and horizon 10
+  (`online_withholders_stall_finality_without_the_leak_and_it_resumes_with_it`).
 - Recovery: a voted round takes one miss off, and a finalized checkpoint clears every score. One vote
-  does not reset a score, so captors can't hold a stall by taking turns: with instant recovery the
+  does not reset a score, so withholders can't hold a stall by taking turns: with instant recovery the
   rotation in `leak_rotation_cannot_hold_the_stall` holds the stall for 300 rounds; with one-step
-  recovery finality resumes at round 26.
-- What it never touches: stake (`staked_balance`), credit, or the attribution record. Ethereum's leak
-  burns the stake of non-participants; this one decays only the vote, which keeps the 2026-07-10 ruling
-  that silence costs the seat, not the stake (`internal/DESIGN-block-logistics-mechanism.md`, section 8).
-- Two guards. The quorum floor stays anchored to the full registered base (via
-  `consensus::finalizes_hybrid_floor_on`, `lib.rs:4222`), so below the floor the leak still ends in a safe
-  halt. And each dimension must keep co-signers holding at least a third of its REGISTERED total
-  (`LEAK_DIM_FLOOR_BPS = 3333`, `runtime.rs:1813`), so draining a refusing axis never lets the other
-  finalize on a dust of co-signers (`leak_never_lets_one_axis_finalize_alone`).
-- The trade, for Will to rule on before any chain enables this. The protocol cannot tell a captor
-  halting finality from an honest side vetoing it: both are "did not vote". Without the registered floor,
-  honest capital refusing a gamed PoM checkpoint would leak out, and the gamed PoM plus one small capital
-  vote would finalize; no quorum floor stops that, because PoM is 2/3 of the finality mix. With the
-  floor, the line is drawn by size: a refusal holding more than 2/3 of a dimension keeps a permanent
-  veto, and one holding between 1/2 and 2/3 is treated as a halt and leaks out after the stall
-  (`leak_cannot_tell_a_veto_from_a_halt_so_the_registered_floor_draws_the_line`). So with the leak on,
-  "capital cannot finalize without contribution's consent" reads: not without at least a third of
-  contribution co-signing, once a stall has run its course, and half otherwise. The alternative is to
-  leak only the 2/3 bar and keep the half-of-a-dimension veto permanent, leaving a dimension captured
-  beyond half to the social fork. That keeps the conjunction at full strength and leaves the halt the
-  2026-10-19 review raised unanswered in-protocol.
+  recovery finality resumes at round 17.
+- What it never touches: stake (`staked_balance`), credit, the attribution record, or the per-dimension
+  floor. Ethereum's leak burns the stake of non-participants; this one decays only the vote on the 2/3
+  bar, which keeps the 2026-07-10 ruling that silence costs the seat, not the stake
+  (`internal/DESIGN-block-logistics-mechanism.md`, section 8). The quorum floor stays anchored to the full
+  registered base (via `consensus::finalizes_hybrid_floor_on`, `lib.rs:4222`), so below the floor
+  finality still stalls.
+- Ruling (Will, 2026-10-20; provisional, open to change on peer feedback): the decay never reaches the
+  per-dimension floor, which keeps reading raw weights exactly as heartbeat decay leaves it. The reason:
+  the protocol cannot tell a captor stalling finality from an honest side vetoing it, since both are
+  "did not vote". A first version of this build relaxed the floor under the decay, and a refusing honest
+  capital side then leaked out and a gamed PoM plus one dust capital vote finalized; no quorum floor
+  stops that, because PoM is 2/3 of the finality mix. So a refusal by more than half of either dimension
+  keeps a permanent veto (`a_refusal_by_more_than_half_of_a_dimension_is_a_permanent_veto`,
+  `a_dimension_majority_keeps_its_veto_offline_or_online`). Finality stalls, blocks keep coming
+  (`block_production_continues_during_a_finality_stall`), and the remedy is rung 4: the social fork that
+  keeps everyone's credit and revokes evidenced captors' franchise. The cost: that case gets a social
+  answer, not an automatic one.
 - A departure to rule on. The July note treated a vote for a competing valid proposal as participation.
-  Here, as in Ethereum, it counts as a miss on this chain, because otherwise a captor could hold the stall
+  Here, as in Ethereum, it counts as a miss on this chain, because otherwise a group could hold the stall
   forever by voting for a decoy every round.
-- Known risk, the same as Ethereum's: in a long network partition each side leaks the other, and both can
-  finalize conflicting checkpoints. Two disjoint sides can both clear the bar only if the quorum floor is
-  at most about 3/4 of the registered base (each side needs 2/3 of the floor, and their shares sum to at
-  most 1). A floor above 3/4 rules it out, at the price that finality then always needs voters holding
-  more than half the registered base
-  (`partition_leaks_both_sides_and_a_quorum_floor_above_three_quarters_stops_double_finality`). The
-  default floor is 0.
+- Known risk, narrowed by the ruling. In a long network partition each side decays the other on the 2/3
+  bar. Because each side still needs half of each dimension on raw weights, two disjoint sides can both
+  finalize only on the knife edge of an exact half split in both dimensions; an uneven split finalizes on
+  the majority side only. A quorum floor above 3/4 of the registered base removes even the knife edge
+  (each side would need 2/3 of the floor, and their shares sum to at most 1), at the price that finality
+  then always needs voters holding more than half the registered base
+  (`partition_double_finality_needs_an_exact_half_split_and_a_floor_above_three_quarters_removes_it`).
+  The default floor is 0, a deliberate inert default (`internal/PIN-quorum-floor-decision.md`), not a
+  launch value.
 - Scope limits, stated plainly. Rounds and votes are supplied by the caller (votes are not yet
-  block-embedded), so two replicas agree on the leak only if they see the same rounds, the
+  block-embedded), so two replicas agree on the decay only if they see the same rounds, the
   `Ledger::refuted` precedent. `checkpoint_round` does not run the equivocation guard. `leak_grace` and
   `leak_horizon` are uncalibrated and are not yet amendment fields.
 

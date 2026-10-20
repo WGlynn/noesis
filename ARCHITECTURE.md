@@ -62,19 +62,17 @@ Two different weightings. Quoting one for the other is the 2026-06-29 hallucinat
   **voting-weight mix, not a reward distribution** — there is no separate `60/30/10` emission/reward
   constant; rewards come from PoM-standing-via-`v(S)`, JUL-via-PoW, and PoS returns.
 - `MIN_STAKE = 100.0` bounds validator Sybils (`lib.rs:4160`).
-- **Liveness when an axis withholds: missed-finality-vote decay** (built in the reference, inert by default,
-  not on-VM; pointers re-stamped 2026-10-20). The per-dimension floor is also a veto, so a captured axis can
-  halt finality by not voting. Heartbeat decay (`horizon`) doesn't help: it keys to liveness, and `dim_ok`
-  reads base weights, so it never relaxes the floor even for an offline holder. The leak
-  (`finality::VoteLeak`, `finalizes_pos_pom_leaking`, `runtime.rs:1820/1889`; `Node::checkpoint_round`,
-  `runtime.rs:1101`) runs only during a finality stall, decays the finality vote of whoever does not vote
-  for this chain's checkpoint (never stake or credit), and keeps the quorum floor on the registered base.
-  It can't tell an honest veto from a captor's halt, so each dimension keeps co-signers holding a third
-  of its registered total (`LEAK_DIM_FLOOR_BPS = 3333`, `runtime.rs:1813`): with the leak on, a refusal
-  above 2/3 of a dimension stays a veto, and one between 1/2 and 2/3 leaks out. That weakens the
-  per-dimension veto during long stalls; enabling it is Will's call. Off while
-  `Constitution.leak_horizon == 0` (`runtime.rs:167`). Design, known partition risk, and the fork-as-exit
-  remedy ladder: `SECURITY.md` section 5.
+- **Finality liveness under withholding: missed-finality-vote decay** (built in the reference, inert by
+  default, not on-VM; pointers re-stamped 2026-10-20). A group holding more than a third of the combined
+  weight that stays online and withholds stalls finality on the 2/3 bar; block production continues
+  through any finality stall. The decay (`finality::VoteLeak`, `finalizes_pos_pom_leaking`,
+  `runtime.rs:1812/1880`; `Node::checkpoint_round`, `runtime.rs:1101`) runs only during a finality
+  stall, decays the 2/3-bar weight of whoever does not vote for this chain's checkpoint (never stake or
+  credit), and keeps the quorum floor on the registered base. Ruling (Will 2026-10-20, provisional
+  pending peer feedback): it NEVER reaches the per-dimension floor, so a refusal by more than half of
+  either dimension keeps its veto (the protocol can't tell an honest veto from a captor's stall); that
+  case is answered by the social fork. Off while `Constitution.leak_horizon == 0` (`runtime.rs:167`).
+  Design, partition risk, and the fork-as-exit remedy ladder: `SECURITY.md` section 5.
 - **DECISION — PoM stays coupled to finality (ruled by Will, 2026-06-29; security-expert call).** The
   built design stands: PoM is load-bearing in finality, bounded by the anti-concentration floor.
   Rationale: full-decouple (PoS-only safety) would forfeit anti-plutocracy, which is the thesis. The
@@ -140,7 +138,7 @@ Five attack classes, honest status: (1) `v(S)` gameability ✅ built (reference+
 isomorphism-invariance open; (2) DoS/spam — economic ✅, **resource-DoS Bound A (mempool cap)
 ✅, Bound B commit-deposit ✅ (reference layer, inert by default)**; (3) double-spend ✅ reference / 🟡 deploy-coupled crypto;
 (4) rollback/finality ✅ reference / 🟡 on-VM mirror; (5) capture of the standing set and fork as exit
-(credit vs franchise), with the missed-finality-vote decay built in the reference and inert by default. Structural maxim: *don't let the attacker
+(credit vs franchise), with the missed-finality-vote decay (2/3 bar only) built in the reference and inert by default. Structural maxim: *don't let the attacker
 choose a security-critical input* (every consensus value re-derived on-VM, rejected if not
 reconstructable).
 
