@@ -43,6 +43,7 @@
 
 ### Positioning — where Noesis sits vs the field
 - `three-axes-provenance-funding-ai-merger.md` — three neighbors / one gap / the intersection; the chain→AI direction (Noesis produces the verifiable realized-value *reward* signal AI is starved for — a reward signal, explicitly *not* a pretraining corpus).
+- `sage-validity-layer-and-the-memory-counterfactual.md` — "agreement only counts where disagreement was possible", worked through a comparison with SAGE (governed agent memory, l33tdawg/sage). Also: institutional memory is a counterfactual you can rerun, so written know-how an agent uses under a frozen judge can be priced (designed, not built). Added 2026-10-20, after this index was written.
 - `RELATED-WORK-NOVELTY-AUDIT-2026-06-19.md` — adversarial novelty audit (3 passes). Per-claim novel/partial/pre-empted verdicts. Found real pre-emptions (DPoR for the Hodge-residual certificate; Yuma + Fortytwo for output-value-as-consensus). Source of truth for what may and may not be claimed.
 - `FRONTIER-BRIEF-2026-06-23.md` — frontier scan (decentralized-LLM consensus, agentic dispute, agents+chains). Validated-direction + narrow-unoccupied-square verdict; the moat is conditional on the performative-prediction contraction holding.
 
