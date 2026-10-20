@@ -34,7 +34,8 @@ attacker-choosable-input audit and the per-mechanism critical-QA notes in `docs/
 
 The idea (contribution as a conserved, measured quantity) is not the thing critics
 attack — the execution is. The four classes anyone will probe are **gameability,
-DoS/spam, double-spend, and chain rollback.** Each is mapped below to its mechanism,
+DoS/spam, double-spend, and chain rollback**, and behind them the capture of the standing set
+(section 5). Each is mapped below to its mechanism,
 its honest status (✅ built & tested · 🟡 designed, not built · 🔬 open problem), and
 where to verify it. Status is the truth line; we do not round designed up to built.
 
@@ -111,6 +112,8 @@ to genuinely contribute.
 - **2/3 supermajority + anti-concentration:** both the PoS and PoM axes must clear a floor; no single
   axis (e.g. a PoM whale) can finalize unilaterally.
 - **Stale-state + Byzantine-minority:** early-reject for invalid reveals, retention-decay on liveness.
+  A validator that stays online but withholds its finality vote is not touched by retention-decay; the
+  missed-finality-vote decay in section 5 covers it (built in the reference, inert by default).
   A Byzantine minority cannot finalize; wrong-height / reordered / empty blocks are rejected. Verify:
   `node/tests/byzantine.rs`, `two_node.rs`.
 - **🔬 Equivocation accountability — predicate built, ON-FINALITY-PATH slashing NOT wired.** The
@@ -127,6 +130,141 @@ to genuinely contribute.
 - **🟡 on-VM:** the finalization rule is recomputed in pure fixed-point and the on-VM type-script mirror
   is specified (`docs/ON-VM-FINALIZATION.md`); the live wrapper is wired and tested at the reference
   layer, the on-VM enforcement is the remaining build.
+
+### 5. Capture of the standing set, and fork as exit: credit vs franchise
+
+The question, raised by Boardy (an AI agent) in the 2026-10-19 review of the public explainer
+(`docs/REVIEW-2026-10-19-ledger-explainer.md`): standing can't be sold, so a majority that captures it
+faces no market price and has no exit. What answers 60%? In one line: **pay versus power. A fork keeps
+everyone's pay and can revoke the captors' power.** Code cited here is the current sketch, not law.
+Status words below: built (reference), designed, open.
+
+**The record and the franchise are different objects.**
+- The attribution record (who built what) is history: signed, hash-linked, replayed. Finality weight is
+  what the law computes from it. The sketch already keeps them apart: `Node::finality_pom_weight`
+  (`node/src/runtime.rs:1146`) is its own map, filtered by the vesting cliff `W`
+  (`Constitution.vesting_w`, `runtime.rs:68`) and by landed refutations (`runtime.rs:1163`), while the
+  full attribution map still pays credit. A cell can earn credit and carry zero finality weight.
+- A fork that carries the record keeps every credit fact. That is what kills fork-as-theft: copying the
+  network credits the people in it. It does not have to inherit the franchise, because franchise is an
+  output of the law and a fork is a law change. An honest minority can fork, keep everyone's credit, and
+  revoke the finality weight of identities whose misconduct is on the record. That is clean for provable
+  acts (equivocation, finalizing work a dispute later refutes). Censorship is harder to prove, and there
+  revocation is a social judgment, as on any chain.
+- This makes exit cleaner, not harder. In a stake system the last-resort exit against a captured
+  supermajority is a social fork that edits balances to remove the attacker's stake: confiscation, and
+  contested. Here the exit keeps the captors' credit for the real work they did and removes only their
+  votes. A fork that pays everyone and strips only evidenced misconduct of power is hard to call theft,
+  so builders can follow it.
+
+**The capture premise is narrower than "60% wins".**
+- Standing alone can't finalize. Finality needs PoS+PoM weight of at least 2/3 and each of PoS and PoM
+  to supply at least half of its own dimension (`FINALITY_MIX`, `runtime.rs:1661`; `MIN_DIM_BPS = 5000`,
+  `runtime.rs:1673`). A captured standing set also needs half the stake, so part of the price of capture
+  is a market price, and honest capital holds a veto. (If the missed-vote decay below is switched on,
+  that veto is permanent only above 2/3 of the stake; below that it lasts for the length of a stall.)
+- Votes don't make invalid state valid. Finality chooses among blocks that already pass the rules
+  (`validate_block`, `runtime.rs:1252`; the on-VM type scripts), so a finality majority can censor or
+  reorder, not vote through a theft. Governance is a separate instrument (VIBE, `ARCHITECTURE.md:85`).
+- Farm-then-spend has a delay: fresh standing carries no finality weight until it survives the vesting
+  window `W`, and a refutation that lands inside `W` removes it (built in the reference, inert by default).
+
+**The remedy ladder, cheapest first.**
+1. The capital veto: the per-dimension floor. Built.
+2. Disputes and refutation during `W`. Built in the reference, inert by default (`W = 0`).
+3. Missed-finality-vote decay, for an axis that halts finality by not voting. Built in the reference,
+   inert by default, and it trades some of rung 1 for liveness (below).
+4. A social fork that revokes franchise on evidence and keeps the record. Not a protocol mechanism; it is
+   the floor of every open chain.
+
+**Missed-finality-vote decay (the inactivity-leak analog).** Built in the reference, inert by default
+(`Constitution.leak_horizon = 0`, `runtime.rs:167`), not in the on-VM finalization mirror. Code:
+`finality::VoteLeak` (`runtime.rs:1820`), `finality::finalizes_pos_pom_leaking` (`runtime.rs:1889`),
+`Node::checkpoint_round` (`runtime.rs:1101`); tests in `node/tests/vote_leak.rs`.
+- The gap. The per-dimension floor gives each axis a veto, and a veto is also a way to halt. Heartbeat
+  decay (`Constitution.horizon`, `consensus::effective_weight`, `node/src/lib.rs:4084`) keys to liveness,
+  so a validator that stays online and withholds its vote keeps full weight. Building this turned up a
+  wider gap than the 2026-10-19 analysis assumed: `dim_ok` reads base weights, so heartbeat decay never
+  relaxes the per-dimension floor. A holder of more than half of one dimension blocks finality even when
+  fully offline (`heartbeat_decay_alone_never_relaxes_the_dimension_floor`). Heartbeat decay only ever
+  helped with the 2/3 bar.
+- Trigger: a finality stall. The leak runs only while rounds end without a finalized checkpoint, after
+  `leak_grace` stalled rounds (`runtime.rs:159`). While finality is live nobody is decayed, voter or not
+  (`normal_operation_never_decays_anyone`).
+- Rate: each stalled round past the grace, every validator that did not vote for this chain's checkpoint
+  gains one missed round, capped at `leak_horizon`. Its finality weight, PoS and PoM, is scaled by
+  `1 - missed / leak_horizon`, the same linear shape as heartbeat decay. The 2/3 bar and both dimension
+  floors are measured on that decayed view. With grace 2 and horizon 10, captors holding 60% of PoM who
+  stay online and never vote are leaked out by round 7
+  (`online_withholding_pom_captors_stall_without_the_leak_and_finality_resumes_with_it`).
+- Recovery: a voted round takes one miss off, and a finalized checkpoint clears every score. One vote
+  does not reset a score, so captors can't hold a stall by taking turns: with instant recovery the
+  rotation in `leak_rotation_cannot_hold_the_stall` holds the stall for 300 rounds; with one-step
+  recovery finality resumes at round 26.
+- What it never touches: stake (`staked_balance`), credit, or the attribution record. Ethereum's leak
+  burns the stake of non-participants; this one decays only the vote, which keeps the 2026-07-10 ruling
+  that silence costs the seat, not the stake (`internal/DESIGN-block-logistics-mechanism.md`, section 8).
+- Two guards. The quorum floor stays anchored to the full registered base (via
+  `consensus::finalizes_hybrid_floor_on`, `lib.rs:4222`), so below the floor the leak still ends in a safe
+  halt. And each dimension must keep co-signers holding at least a third of its REGISTERED total
+  (`LEAK_DIM_FLOOR_BPS = 3333`, `runtime.rs:1813`), so draining a refusing axis never lets the other
+  finalize on a dust of co-signers (`leak_never_lets_one_axis_finalize_alone`).
+- The trade, for Will to rule on before any chain enables this. The protocol cannot tell a captor
+  halting finality from an honest side vetoing it: both are "did not vote". Without the registered floor,
+  honest capital refusing a gamed PoM checkpoint would leak out, and the gamed PoM plus one small capital
+  vote would finalize; no quorum floor stops that, because PoM is 2/3 of the finality mix. With the
+  floor, the line is drawn by size: a refusal holding more than 2/3 of a dimension keeps a permanent
+  veto, and one holding between 1/2 and 2/3 is treated as a halt and leaks out after the stall
+  (`leak_cannot_tell_a_veto_from_a_halt_so_the_registered_floor_draws_the_line`). So with the leak on,
+  "capital cannot finalize without contribution's consent" reads: not without at least a third of
+  contribution co-signing, once a stall has run its course, and half otherwise. The alternative is to
+  leak only the 2/3 bar and keep the half-of-a-dimension veto permanent, leaving a dimension captured
+  beyond half to the social fork. That keeps the conjunction at full strength and leaves the halt the
+  2026-10-19 review raised unanswered in-protocol.
+- A departure to rule on. The July note treated a vote for a competing valid proposal as participation.
+  Here, as in Ethereum, it counts as a miss on this chain, because otherwise a captor could hold the stall
+  forever by voting for a decoy every round.
+- Known risk, the same as Ethereum's: in a long network partition each side leaks the other, and both can
+  finalize conflicting checkpoints. Two disjoint sides can both clear the bar only if the quorum floor is
+  at most about 3/4 of the registered base (each side needs 2/3 of the floor, and their shares sum to at
+  most 1). A floor above 3/4 rules it out, at the price that finality then always needs voters holding
+  more than half the registered base
+  (`partition_leaks_both_sides_and_a_quorum_floor_above_three_quarters_stops_double_finality`). The
+  default floor is 0.
+- Scope limits, stated plainly. Rounds and votes are supplied by the caller (votes are not yet
+  block-embedded), so two replicas agree on the leak only if they see the same rounds, the
+  `Ledger::refuted` precedent. `checkpoint_round` does not run the equivocation guard. `leak_grace` and
+  `leak_horizon` are uncalibrated and are not yet amendment fields.
+
+**Cross-fork dedup is needed for merge, not for exit.** Two separated chains that each price a
+contribution by their own downstream use are not double counting, the way two ecosystems can both depend
+on one library. Dedup and import attestation are needed when chains merge (the reverse fork) or when one
+chain honors the other's standing. Both are unbuilt (`docs/CONVERGENCE-REVERSE-FORK.md`, Status), so that
+gap blocks the merge thesis, not exit.
+
+**Open, and named on purpose.**
+- Social finality is the floor. At the last rung a captured standing set is answered by a fork, as on
+  every permissionless chain. The honest label for the admission model is Boardy's: open admission with
+  certified weight, a third thing next to permissionless and permissioned.
+- "Honest users will be the majority" has to be shown, not assumed. The evidence is adversarial: plant
+  dishonest participants on a testnet, let them try to earn standing cheaply, and measure whether the
+  mechanism catches them. Not yet run.
+- Monoculture is not closed. A majority that shares a prior can be honestly wrong together and slash
+  dissenters. Partial guards: PoS must co-sign, and the reference dispute layer's appeal court
+  down-weights the captured PoM axis (`Tribunal::AppealCourt`, `lib.rs:5172`).
+- Decisions are priced nowhere. `v(S)` prices contributions, not votes, so an identity can farm the
+  cheapest measurable contribution, pass the filter honestly, then spend its weight on one decision.
+  `W` delays that; un-gameable `v(S)` (section 1, open) is what bounds it.
+- No price and no short on standing capture. Partly answered by the stake half. Standing concentration
+  is public and computable, so it is a visible gauge even though it is not a price.
+
+**Social coordination as a fourth weight** (Will, 2026-10-19). PoW, PoS and PoM vote inside a law;
+social coordination chooses which law, which is why it can override them, and it sits at the top of the
+regress of decreasing authority (`docs/REVIEW-2026-10-19-ledger-explainer.md`, principle 3). PoM is that
+social layer made measurable, so the fourth weight is PoM's unmeasured remainder: the judgments the
+protocol can't prove yet, such as censorship or taste disputes. It shrinks as measurement improves (the
+narrow-then-widen scope rule), and the record keeps it honest when it is used, because the social layer
+decides on signed evidence instead of on who is loudest.
 
 > **Reviewer's shortcut:** the two legs to press hardest are **(1) the `v(S)` un-gameability proof**
 > (demonstrated for known vectors, isomorphism-invariance open) and **(2) the resource-DoS commit-deposit**

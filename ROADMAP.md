@@ -33,6 +33,33 @@
    `internal/DESIGN-joint-decay-damping-rate.md`. Code comments + patent line 233 relabeled to match.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-10-20 (missed-finality-vote decay + fork as exit)**: built in the reference, INERT by default,
+  not on-VM. Closes the withholding-veto halt Boardy raised in the 2026-10-19 review (a captured axis halts
+  finality under `MIN_DIM_BPS` by not voting; Will promised it is addressed before mainnet). FOUND while
+  building: `dim_ok` sums raw `pos`/`pom` and never reads heartbeat, so by construction heartbeat decay
+  (`horizon`) never relaxes the per-dimension floor, even for an OFFLINE majority holder; the 10-19
+  analysis overstated what heartbeat decay covers
+  (pinned: `heartbeat_decay_alone_never_relaxes_the_dimension_floor`). Mechanism: `finality::VoteLeak` +
+  `finalizes_pos_pom_leaking` + `Node::checkpoint_round` + `Constitution.{leak_grace, leak_horizon}`
+  (default 0 = off). Stall-gated; non-voters of this chain's checkpoint lose finality weight linearly
+  over `leak_horizon` net missed rounds; one-step recovery per voted round, full reset on finality;
+  quorum floor anchored to the unleaked registered base (single-sourced via
+  `consensus::finalizes_hybrid_floor_on`; `finalizes_hybrid` delegates, arithmetic unchanged); each
+  dimension keeps co-signers holding `LEAK_DIM_FLOOR_BPS = 3333` of its REGISTERED total. FOUND while
+  checking the first version (which only required nonzero support): the leak cannot tell an honest veto
+  from a captor's halt, so a refusing honest capital side leaked out and a gamed PoM plus one dust capital
+  vote finalized, with no quorum floor able to stop it (PoM is 2/3 of the finality mix). The registered
+  floor draws the line by size: a refusal above 2/3 of a dimension stays a veto, between 1/2 and 2/3 it
+  leaks out. That is a real weakening of the per-dimension veto during long stalls, pinned by
+  `leak_cannot_tell_a_veto_from_a_halt_so_the_registered_floor_draws_the_line`. Never touches stake,
+  credit, or the attribution record. `node/tests/vote_leak.rs` 10/10, seven break-on-purpose mutations
+  each caught; lib 364 pass / 1 ignored; finality-adjacent integration files 48/48. Known risk
+  (Ethereum's): partition double-finality, ruled out by `quorum_floor_bps` above 7500. Open for Will:
+  whether to enable at all given the veto trade (alternative: leak only the 2/3 bar), the 1/3 line,
+  competing-proposal votes counted as misses (departs from the 2026-07-10 note), calibration of
+  grace/horizon, amendment fields, composition with the equivocation guard, on-VM mirror. Doc: `SECURITY.md` section 5 (fork as
+  exit: credit vs franchise), cross-linked from `docs/CONVERGENCE-REVERSE-FORK.md`. Recap:
+  `sessions/2026-10-20-a-veto-is-also-a-way-to-halt.md`.
 - **2026-08-12 (crates-grounding)** — REAL-DATA DEMONSTRATION ✅ (recorded by pom-roadmap-advance;
   result produced 2026-07-30 burn-down, lived only in `data/crates/RESULTS-PERIPHERY.md`, unlogged here
   until now). **The vesting `independent_use_gate` (`node/src/lib.rs:7164`) separates self-owned

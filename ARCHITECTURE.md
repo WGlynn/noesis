@@ -37,31 +37,44 @@
 Two different weightings. Quoting one for the other is the 2026-06-29 hallucination.
 
 - **Overall consensus mix (NCI):** `pow 0.10 / pos 0.30 / pom 0.60`.
-  → `consensus::NCI` at `node/src/lib.rs:3705`. Supermajority `TWO_THIRDS_BPS = 6667`
-  (`lib.rs:3707`). This is the *whole-system* weight (production + ordering + finality inputs).
+  → `consensus::NCI` at `node/src/lib.rs:4052`. Supermajority `TWO_THIRDS_BPS = 6667`
+  (`lib.rs:4054`). This is the *whole-system* weight (production + ordering + finality inputs).
 - **Finality mix — PoW EXCLUDED:** `pow 0.0 / pos 1/3 / pom 2/3`, renormalized so PoS+PoM
-  sum to 1. → `finality::FINALITY_MIX` at `node/src/runtime.rs:726`.
+  sum to 1. → `finality::FINALITY_MIX` at `node/src/runtime.rs:1661`.
   - **Why PoW is out of finality:** PoW is probabilistic and reorgeable, so putting it on
     the *safety* path would itself be the hazard. PoW secures block production, ordering, and
     Sybil-cost (and is the money layer, JUL) — not safety. Finality routes through
-    `finality::finalizes_pos_pom` (`runtime.rs:750`).
+    `finality::finalizes_pos_pom` (`runtime.rs:1685`).
   - **2/3 bar is over the PoS+PoM fast-final set**, not a global total.
 - **Anti-concentration floor:** each dimension (PoS and PoM) must *independently* supply
-  ≥ **50%** of its own dimension's total to finalize. → `MIN_DIM_BPS = 5000` (`runtime.rs:738`),
-  `dim_ok` (`runtime.rs:740`). This is what makes neither axis sufficient alone:
+  ≥ **50%** of its own dimension's total to finalize. → `MIN_DIM_BPS = 5000` (`runtime.rs:1673`),
+  `dim_ok` (`runtime.rs:1675`). This is what makes neither axis sufficient alone:
   - a gamed PoM (the 2/3 share) cannot finalize without the PoS dimension also clearing 50%;
   - capital holding *all* stake controls only the PoS dimension, and the unbuyable PoM
     dimension must independently clear 50% — **capital cannot finalize without contribution's
     consent.** This is the anti-plutocracy property; it is a per-dimension floor, not a cap.
 - **WEIGHT ≠ EFFECTIVE POWER (do not conflate).** `60/30/10` (and finality's `1/3:2/3`) is how much
-  each axis *weighs* in the combined vote (`base_weight`/`effective_weight`, `lib.rs:3723/3737`). It is
+  each axis *weighs* in the combined vote (`base_weight`/`effective_weight`, `lib.rs:4070/4084`). It is
   NOT how much each axis *rules*: the anti-concentration floor + AND-composition make NCI a
   **separation-of-powers** (rock-paper-scissors), where each axis is *independently necessary* and none
   finalizes alone (`docs/CONSENSUS-REVIEW.md`, `docs/COHERENCE-LAWS.md`: "no dimension finalizes alone").
   So effective finalization power is far more balanced than the headline weights imply. `60/30/10` is the
   **voting-weight mix, not a reward distribution** — there is no separate `60/30/10` emission/reward
   constant; rewards come from PoM-standing-via-`v(S)`, JUL-via-PoW, and PoS returns.
-- `MIN_STAKE = 100.0` bounds validator Sybils (`lib.rs:3813`).
+- `MIN_STAKE = 100.0` bounds validator Sybils (`lib.rs:4160`).
+- **Liveness when an axis withholds: missed-finality-vote decay** (built in the reference, inert by default,
+  not on-VM; pointers re-stamped 2026-10-20). The per-dimension floor is also a veto, so a captured axis can
+  halt finality by not voting. Heartbeat decay (`horizon`) doesn't help: it keys to liveness, and `dim_ok`
+  reads base weights, so it never relaxes the floor even for an offline holder. The leak
+  (`finality::VoteLeak`, `finalizes_pos_pom_leaking`, `runtime.rs:1820/1889`; `Node::checkpoint_round`,
+  `runtime.rs:1101`) runs only during a finality stall, decays the finality vote of whoever does not vote
+  for this chain's checkpoint (never stake or credit), and keeps the quorum floor on the registered base.
+  It can't tell an honest veto from a captor's halt, so each dimension keeps co-signers holding a third
+  of its registered total (`LEAK_DIM_FLOOR_BPS = 3333`, `runtime.rs:1813`): with the leak on, a refusal
+  above 2/3 of a dimension stays a veto, and one between 1/2 and 2/3 leaks out. That weakens the
+  per-dimension veto during long stalls; enabling it is Will's call. Off while
+  `Constitution.leak_horizon == 0` (`runtime.rs:167`). Design, known partition risk, and the fork-as-exit
+  remedy ladder: `SECURITY.md` section 5.
 - **DECISION — PoM stays coupled to finality (ruled by Will, 2026-06-29; security-expert call).** The
   built design stands: PoM is load-bearing in finality, bounded by the anti-concentration floor.
   Rationale: full-decouple (PoS-only safety) would forfeit anti-plutocracy, which is the thesis. The
@@ -123,10 +136,11 @@ Pipeline (all `node/src/lib.rs`): `temporal_novelty` (`:89`) → `pom_scores` (`
 
 ## Security model — see `SECURITY.md` (read it; don't paraphrase from here)
 
-Four attack classes, honest status: (1) `v(S)` gameability ✅ built (reference+runtime),
+Five attack classes, honest status: (1) `v(S)` gameability ✅ built (reference+runtime),
 isomorphism-invariance open; (2) DoS/spam — economic ✅, **resource-DoS Bound A (mempool cap)
 ✅, Bound B commit-deposit ✅ (reference layer, inert by default)**; (3) double-spend ✅ reference / 🟡 deploy-coupled crypto;
-(4) rollback/finality ✅ reference / 🟡 on-VM mirror. Structural maxim: *don't let the attacker
+(4) rollback/finality ✅ reference / 🟡 on-VM mirror; (5) capture of the standing set and fork as exit
+(credit vs franchise), with the missed-finality-vote decay built in the reference and inert by default. Structural maxim: *don't let the attacker
 choose a security-critical input* (every consensus value re-derived on-VM, rejected if not
 reconstructable).
 

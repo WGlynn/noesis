@@ -131,6 +131,15 @@ adapter** (foreign unit → provenance-bearing cell), **cross-chain temporal-nov
 cover across chains), and the **convergence-detection gate** (invariant-holds-for-N-blocks → merge).
 The first two are Noesis-specific; the third is `SupplyAccountant.checkInvariant()` over a window.
 
+## Exit is not merge
+
+A fork that leaves does not need the cross-chain dedup above. Two separated chains that each price a
+contribution by their own downstream use are not double counting, the way two ecosystems can both depend
+on one library. Dedup and import attestation are needed when chains merge back (this document's thesis)
+or when one chain honors the other's standing, so the unbuilt pieces block the merge thesis, not exit.
+The exit side, a fork that keeps the record (credit) and can revoke evidenced captors' finality weight
+(franchise), is written up in `SECURITY.md` section 5, "fork as exit: credit vs franchise" (2026-10-20).
+
 ## Status
 
 DESIGN / forward-looking. The convergence claim is a positioning and architecture thesis; the adapter,
