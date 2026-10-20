@@ -20,6 +20,15 @@ if ! python "$repo/scripts/babel-test-lint.py"; then
   exit 1
 fi
 
+# --- CONSENSUS FLOAT LINT (ALWAYS RUNS) ----------------------------------------------
+# On-chain code must stay integer / fixed-point: floats can round differently per CPU,
+# which splits consensus (docs/DESIGN-value-oracle-seam.md, "No floats on the consensus path").
+echo "[pre-commit] consensus-float-lint..."
+if ! python "$repo/scripts/consensus-float-lint.py"; then
+  echo "[pre-commit] BLOCKED by consensus-float-lint. Use integer / fixed-point math."
+  exit 1
+fi
+
 # --- DOC-FRESHNESS GATE TEMPORARILY DISABLED 2026-07-11 (Will) ---------------------
 # The doc-coherence + study-guide checks repeatedly misfired (hash recompute after
 # staging re-flagged already-regenerated artifacts), blocking legitimate code commits.

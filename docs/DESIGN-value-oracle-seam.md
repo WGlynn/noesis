@@ -36,6 +36,8 @@ A different `ValueOracle` may change *what* work is worth, but it may not break 
 
 1. **Pure + deterministic** — same `(cells, theta_sim_q16)` yields **bit-identical** output on every
    replica. No floats on the consensus path, no wall-clock, no map-iteration-order dependence.
+   (The no-floats part is enforced for the on-chain crates by `scripts/consensus-float-lint.py`,
+   run in the pre-commit hook and in CI.)
 2. **Shape-preserving** — exactly one `u64` per input cell, in the **same commit order** as the input
    (`out.len() == cells.len()`).
 3. **Attribution-neutral** — value is attributed to the contributor by the aggregator, not the oracle;

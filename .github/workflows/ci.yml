@@ -24,6 +24,8 @@ jobs:
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: consensus float lint
+        run: python3 scripts/consensus-float-lint.py
       - name: cargo test (workspace)
         run: cargo test --workspace
 
@@ -38,7 +40,7 @@ jobs:
       - name: Install pinned nightly + riscv target
         run: |
           rustup toolchain install nightly-2024-09-01 --profile minimal \
-            --component rust-src llvm-tools-preview
+            --component rust-src,llvm-tools-preview
           rustup target add riscv64imac-unknown-none-elf \
             --toolchain nightly-2024-09-01
       - name: Build ${{ matrix.crate }}
