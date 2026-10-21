@@ -26,6 +26,8 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: consensus float lint
         run: python3 scripts/consensus-float-lint.py
+      - name: on-VM fixture freshness
+        run: python3 scripts/fixture-freshness.py
       - name: cargo test (workspace)
         run: cargo test --workspace
 

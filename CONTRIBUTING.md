@@ -18,7 +18,9 @@ The host crates (`node`, `onchain/noesis-core`) share one workspace and lockfile
 on-VM type-scripts (`onchain/pom-typescript`, `onchain/finalization-typescript`) pin their
 own nightly toolchain and the `riscv64imac-unknown-none-elf` target and are built
 standalone; rebuilt ELFs are checked in under `node/tests/fixtures/` so the integration
-tests run them.
+tests run them. `make elf` also stamps their source hashes into
+`node/tests/fixtures/SOURCES.sha256`; pre-commit and CI run `scripts/fixture-freshness.py`,
+which fails when a script's sources (or the shared `noesis-core`) change without a rebuild.
 
 ## Engineering discipline
 

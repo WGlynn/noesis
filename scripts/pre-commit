@@ -29,6 +29,15 @@ if ! python "$repo/scripts/consensus-float-lint.py"; then
   exit 1
 fi
 
+# --- ON-VM FIXTURE FRESHNESS (ALWAYS RUNS) --------------------------------------------
+# The ckb_vm_* tests run checked-in RISC-V binaries; a source change without a rebuild means
+# those tests check an old binary (found 2026-10-21: the finalization ELF was two weeks stale).
+echo "[pre-commit] fixture-freshness..."
+if ! python "$repo/scripts/fixture-freshness.py"; then
+  echo "[pre-commit] BLOCKED by fixture-freshness. Rebuild the listed ELFs, stamp, rerun ckb_vm_* tests."
+  exit 1
+fi
+
 # --- DOC-FRESHNESS GATE TEMPORARILY DISABLED 2026-07-11 (Will) ---------------------
 # The doc-coherence + study-guide checks repeatedly misfired (hash recompute after
 # staging re-flagged already-regenerated artifacts), blocking legitimate code commits.

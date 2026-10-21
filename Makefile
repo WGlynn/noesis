@@ -2,7 +2,7 @@
 # type-scripts build standalone for RISC-V (their own pinned nightly toolchain).
 
 ELF_TARGET := riscv64imac-unknown-none-elf
-SCRIPTS    := pom-typescript finalization-typescript commit-order-typescript locksig-typescript
+SCRIPTS    := pom-typescript finalization-typescript commit-order-typescript locksig-typescript index-typescript
 
 .PHONY: all test fmt fmt-check clippy elf check docs clean
 
@@ -24,13 +24,15 @@ fmt-check:
 clippy:
 	cargo clippy --workspace --all-targets -- -D warnings
 
-## Build the RISC-V type-scripts and copy the ELFs into the test fixtures.
+## Build the RISC-V type-scripts, copy the ELFs into the test fixtures, and stamp their source
+## hashes (scripts/fixture-freshness.py; pre-commit and CI fail on a fixture older than its sources).
 elf:
 	@for s in $(SCRIPTS); do \
 		echo ">> building $$s"; \
 		( cd onchain/$$s && cargo build --release --target $(ELF_TARGET) ); \
 		cp onchain/$$s/target/$(ELF_TARGET)/release/$$s node/tests/fixtures/$$s; \
 	done
+	python scripts/fixture-freshness.py --stamp
 
 ## Full local gate (what CI runs): format, lint, test.
 check: fmt-check clippy test
