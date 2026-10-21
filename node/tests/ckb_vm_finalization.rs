@@ -193,3 +193,35 @@ fn second_cell_cannot_smuggle_a_false_claim() {
     let (res, _) = run_typescript_finalization(ELF, &good, vec![good.clone(), bad], wits, header_with_timestamp(0));
     assert_eq!(res.unwrap(), 30, "the false second finalization cell is rejected");
 }
+
+/// 2026-10-21 per-side normalization, end to end on-VM. With stake in big units against small
+/// standing, raw mixing let stake carry nearly the whole 2/3 bar; the rule now weighs each side's
+/// share of its own total. Two cases that raw units and side shares decide in OPPOSITE ways:
+///   - all capital + exactly half of standing: raw units finalized it (stake swamps the bar); in
+///     shares it is exactly 2/3, under the 6667 bps bar, so it is REJECTED (30);
+///   - 60% of capital + 76% of standing: raw units rejected it (about 60% of the bar); in shares
+///     it is 0.2 + 0.5067 = 0.7067 of the set, so it FINALIZES (0).
+/// The ELF must give exactly the verdict of the single-source `finalizes_pos_pom_fixed`.
+#[test]
+fn on_vm_finality_weighs_side_shares_not_raw_units() {
+    use noesis::finalization_fixed::finalizes_pos_pom_fixed;
+    let units = |x: u128| x << 32;
+    let mk = |id: u64, pos: u128, pom: u128| ValidatorQ { id, pow: 0, pos, pom, last_heartbeat: 0 };
+    let p = params(100, TWO_THIRDS_BPS, 0, false);
+    let stake = 1_000_000u128; // stake in big units
+    let cases: &[(u128, u128, i8)] = &[(100, 50, 30), (60, 76, 0)];
+    for &(a, b, code) in cases {
+        let vs = vec![
+            mk(1, units(stake * a / 100), 0),
+            mk(2, units(stake * (100 - a) / 100), 0),
+            mk(3, 0, units(b)),
+            mk(4, 0, units(100 - b)),
+        ];
+        let (cell, wits) = scenario(&vs, &[0, 2], &p);
+        let (res, _) = run_typescript_finalization(ELF, &cell, vec![cell.clone()], wits, header_with_timestamp(0));
+        let got = res.unwrap();
+        let reference = finalizes_pos_pom_fixed(&[vs[0].clone(), vs[2].clone()], &vs, 0, 100, false, TWO_THIRDS_BPS);
+        assert_eq!(got, code, "on-VM verdict for {a}% of capital + {b}% of standing");
+        assert_eq!(got == 0, reference, "on-VM disagrees with the single-source rule ({a}%, {b}%)");
+    }
+}

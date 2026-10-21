@@ -743,12 +743,47 @@ pub mod finalization {
         weight_all == 0 || weight_for >= bps_of_ceil(weight_all, MIN_DIM_BPS)
     }
 
+    /// `a / b` as a Q32.32 share (`a <= b`; 0 when `b == 0`), rounded DOWN, or UP when `up`. Exact
+    /// integer division; no overflow at any denomination: when `b` needs more than 95 bits both
+    /// sides are scaled down first, in the direction that keeps the rounding as requested (down:
+    /// `a` floored and `b` ceiled; up: `a` ceiled and `b` floored), so `a << Q` always fits.
+    fn share_q(a: u128, b: u128, up: bool) -> u128 {
+        if b == 0 {
+            return 0;
+        }
+        let a = a.min(b);
+        let bits = 128 - b.leading_zeros();
+        let (a, b) = if bits > 95 {
+            let k = bits - 95;
+            let lost = |x: u128| (x & ((1u128 << k) - 1) != 0) as u128;
+            if up {
+                ((a >> k) + lost(a), b >> k)
+            } else {
+                (a >> k, (b >> k) + lost(b))
+            }
+        } else {
+            (a, b)
+        };
+        let num = a << Q;
+        if up {
+            (num + b - 1) / b
+        } else {
+            num / b
+        }
+    }
+
     /// PoS+PoM finality in Q32.32 — the on-VM mirror of the live `runtime::finality::finalizes_pos_pom`
     /// (ROADMAP (mm)/(oo)). PoW is excluded by `FINALITY_MIX_Q` (probabilistic/reorgeable ⇒ a
     /// finality-safety vector); the anti-concentration floor forces BOTH the capital (PoS) and value
     /// (PoM) axes to participate, so PoM's 60% cannot unilaterally finalize (T11 capital-orthogonality).
     /// The on-VM finalization type-script will call THIS, so the live (mm) rule and its future on-VM
     /// mirror are ONE arithmetic — closing the forward parity (mm) documented. Bit-for-bit deterministic.
+    ///
+    /// Per-side normalization (2026-10-21, mirrors `runtime::finality::side_shares`): the 2/3 bar
+    /// weighs each validator's SHARE of its side's total over `all`, so capital holds 1/3 of the
+    /// finality vote once contribution weight exists, at any denomination. Conservative rounding:
+    /// voters' shares round DOWN and the basis (`all`) rounds UP, so this never finalizes a case the
+    /// f64 rule rejects.
     pub fn finalizes_pos_pom_fixed(
         voters_for: &[ValidatorQ],
         all: &[ValidatorQ],
@@ -757,11 +792,7 @@ pub mod finalization {
         decay_pos: bool,
         threshold_bps: u64,
     ) -> bool {
-        // PoW out of finality + the usual 2/3 supermajority of the fast-final (PoS+PoM) set.
-        if !finalizes_fixed(voters_for, all, FINALITY_MIX_Q, now, horizon, decay_pos, threshold_bps, 0) {
-            return false;
-        }
-        // Anti-concentration over the RAW (unweighted) dimension balances, mirroring the f64 rule.
+        // Raw side totals: the per-side floor reads them directly, and the shares divide by them.
         let (mut pos_for, mut pos_all, mut pom_for, mut pom_all) = (0u128, 0u128, 0u128, 0u128);
         for v in voters_for {
             pos_for = pos_for.saturating_add(v.pos);
@@ -771,6 +802,29 @@ pub mod finalization {
             pos_all = pos_all.saturating_add(v.pos);
             pom_all = pom_all.saturating_add(v.pom);
         }
+        let shares = |set: &[ValidatorQ], up: bool| -> Vec<ValidatorQ> {
+            set.iter()
+                .map(|v| ValidatorQ {
+                    pos: share_q(v.pos, pos_all, up),
+                    pom: share_q(v.pom, pom_all, up),
+                    ..v.clone()
+                })
+                .collect()
+        };
+        // PoW out of finality + the usual 2/3 supermajority of the fast-final (PoS+PoM) set, in shares.
+        if !finalizes_fixed(
+            &shares(voters_for, false),
+            &shares(all, true),
+            FINALITY_MIX_Q,
+            now,
+            horizon,
+            decay_pos,
+            threshold_bps,
+            0,
+        ) {
+            return false;
+        }
+        // Anti-concentration over the RAW (unweighted) dimension balances, mirroring the f64 rule.
         dim_ok_q(pos_for, pos_all) && dim_ok_q(pom_for, pom_all)
     }
 

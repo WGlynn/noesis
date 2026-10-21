@@ -162,9 +162,24 @@ finality (the never-halt design goal, `docs/DESIGN-committee-attested-clock.md` 
 
 **The capture premise is narrower than "60% wins".**
 - Standing alone can't finalize. Finality needs PoS+PoM weight of at least 2/3 and each of PoS and PoM
-  to supply at least half of its own dimension (`FINALITY_MIX`, `runtime.rs:1661`; `MIN_DIM_BPS = 5000`,
-  `runtime.rs:1673`). A captured standing set also needs half the stake, so part of the price of capture
+  to supply at least half of its own dimension (`FINALITY_MIX`, `runtime.rs:1664`; `MIN_DIM_BPS = 5000`,
+  `runtime.rs:1676`). A captured standing set also needs half the stake, so part of the price of capture
   is a market price, and honest capital holds a veto. The missed-vote decay below never weakens it.
+- Capital's share of the vote is fixed, not bought (2026-10-21). The 2/3 bar weighs each side as a
+  share of its own total (`finality::side_shares`, `runtime.rs:1697`, mirrored on-VM), so capital holds
+  exactly 1/3 of the finality vote once contribution weight exists and all of it at genesis
+  (`finality::capital_share`, `runtime.rs:1712`). Adding stake, or re-denominating it, moves no weight
+  between the sides. Before this the mix weighed raw stake against raw novelty counts, so the balance
+  depended on units: with the test numbers capital's share of the bar ran toward 0 as data accumulated,
+  and with stake in a smallest unit capital would have owned the bar. Two keys follow: capital's power
+  to decide is zero (it needs half of standing), and its power to refuse is a veto by more than half of
+  stake. Published as a falsifier: on a testnet capital's share of the registered finality weight
+  should read 1 until the first standing vests and exactly 1/3 after (heartbeat decay can only push its
+  share of the live vote higher, since stake does not decay by default), while its veto does not fall
+  at all; a block finalized without half of the stake, or without half of standing once standing
+  exists, breaks the claim. The cost: the first vested standing, however small, carries the full
+  2/3 at once, so a captured early contribution side plus half the stake can finalize. The ramp that
+  would phase it in is not designed (`ARCHITECTURE.md`, finality section).
 - Votes don't make invalid state valid. Finality chooses among blocks that already pass the rules
   (`validate_block`, `runtime.rs:1252`; the on-VM type scripts), so a finality majority can censor or
   reorder, not vote through a theft. Governance is a separate instrument (VIBE, `ARCHITECTURE.md:85`).
@@ -181,8 +196,10 @@ finality (the never-halt design goal, `docs/DESIGN-committee-attested-clock.md` 
 
 **Missed-finality-vote decay (the inactivity-leak analog).** Built in the reference, inert by default
 (`Constitution.leak_horizon = 0`, `runtime.rs:167`), not in the on-VM finalization mirror. Code:
-`finality::VoteLeak` (`runtime.rs:1812`), `finality::finalizes_pos_pom_leaking` (`runtime.rs:1880`),
-`Node::checkpoint_round` (`runtime.rs:1101`); tests in `node/tests/vote_leak.rs`.
+`finality::VoteLeak` (`runtime.rs:1860`), `finality::finalizes_pos_pom_leaking` (`runtime.rs:1929`),
+`Node::checkpoint_round` (`runtime.rs:1101`); tests in `node/tests/vote_leak.rs`. The decay scales
+side shares taken against the unleaked totals, never shares recomputed after leaking (that would hand
+a leaked side its full weight back).
 - The gap. Heartbeat decay (`Constitution.horizon`, `consensus::effective_weight`, `node/src/lib.rs:4084`)
   keys to liveness, so a group holding more than a third of the combined finality weight that stays
   online and withholds its vote stalls finality on the 2/3 bar indefinitely.

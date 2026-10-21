@@ -40,15 +40,36 @@ Two different weightings. Quoting one for the other is the 2026-06-29 hallucinat
   → `consensus::NCI` at `node/src/lib.rs:4052`. Supermajority `TWO_THIRDS_BPS = 6667`
   (`lib.rs:4054`). This is the *whole-system* weight (production + ordering + finality inputs).
 - **Finality mix — PoW EXCLUDED:** `pow 0.0 / pos 1/3 / pom 2/3`, renormalized so PoS+PoM
-  sum to 1. → `finality::FINALITY_MIX` at `node/src/runtime.rs:1661`.
+  sum to 1. → `finality::FINALITY_MIX` at `node/src/runtime.rs:1664`.
   - **Why PoW is out of finality:** PoW is probabilistic and reorgeable, so putting it on
     the *safety* path would itself be the hazard. PoW secures block production, ordering, and
     Sybil-cost (and is the money layer, JUL) — not safety. Finality routes through
-    `finality::finalizes_pos_pom` (`runtime.rs:1685`).
+    `finality::finalizes_pos_pom` (`runtime.rs:1730`).
   - **2/3 bar is over the PoS+PoM fast-final set**, not a global total.
+  - **Each side is measured as a share of its own total before mixing** (2026-10-21,
+    `finality::side_shares`, `runtime.rs:1697`; on-VM mirror `finalizes_pos_pom_fixed` in
+    `onchain/noesis-core`). So capital holds exactly 1/3 of the finality vote once any contribution
+    weight exists, and all of it at genesis when the contribution side is empty
+    (`finality::capital_share`, `runtime.rs:1712`), at any denomination of stake or standing. With
+    both sides present and no decay, a checkpoint finalizes when `a + 2b` clears `3 x 0.6667` and
+    `a, b >= 1/2`, where `a` and `b` are the voting fractions of stake and of standing.
+    Note (2026-10-21): before this, the mix weighed raw stake against raw novelty counts, so the
+    balance between the sides depended on their units. With the test numbers (stake 1000.0 per genesis
+    validator, standing in novelty counts) contribution swamps stake as data accumulates and capital's
+    share of the 2/3 bar runs toward 0; with stake counted in a smallest unit it would flip and capital
+    would own the bar. The per-side floor never depended on units (rescaling a side multiplies both
+    terms of its comparison by the same factor). Found while answering a reviewer's (Boardy's) request
+    to publish capital's share as a falsifier.
+  - **Cost, stated plainly:** shares make the genesis handoff a step, not a slope. The first vested
+    contribution weight, however small, carries the full 2/3 at once, so whoever holds a tiny early
+    contribution side plus half of the stake can finalize (with raw units and stake dominant, that took
+    about 2/3 of the stake). The per-side floor already gave a tiny contribution side its veto before
+    this change. The intended fix is a ramp that phases the contribution side's weight in as it grows,
+    keyed to something costly to fake (lineage diversity, not a date that can be front-run or a head
+    count that extra accounts can pad). It is not designed yet.
 - **Anti-concentration floor:** each dimension (PoS and PoM) must *independently* supply
-  ≥ **50%** of its own dimension's total to finalize. → `MIN_DIM_BPS = 5000` (`runtime.rs:1673`),
-  `dim_ok` (`runtime.rs:1675`). This is what makes neither axis sufficient alone:
+  ≥ **50%** of its own dimension's total to finalize. → `MIN_DIM_BPS = 5000` (`runtime.rs:1676`),
+  `dim_ok` (`runtime.rs:1678`). This is what makes neither axis sufficient alone:
   - a gamed PoM (the 2/3 share) cannot finalize without the PoS dimension also clearing 50%;
   - capital holding *all* stake controls only the PoS dimension, and the unbuyable PoM
     dimension must independently clear 50% — **capital cannot finalize without contribution's
@@ -63,10 +84,11 @@ Two different weightings. Quoting one for the other is the 2026-06-29 hallucinat
   constant; rewards come from PoM-standing-via-`v(S)`, JUL-via-PoW, and PoS returns.
 - `MIN_STAKE = 100.0` bounds validator Sybils (`lib.rs:4160`).
 - **Finality liveness under withholding: missed-finality-vote decay** (built in the reference, inert by
-  default, not on-VM; pointers re-stamped 2026-10-20). A group holding more than a third of the combined
+  default, not on-VM; pointers re-stamped 2026-10-21). A group holding more than a third of the combined
   weight that stays online and withholds stalls finality on the 2/3 bar; block production continues
   through any finality stall. The decay (`finality::VoteLeak`, `finalizes_pos_pom_leaking`,
-  `runtime.rs:1812/1880`; `Node::checkpoint_round`, `runtime.rs:1101`) runs only during a finality
+  `runtime.rs:1860/1929`; `Node::checkpoint_round`, `runtime.rs:1101`; shares are taken against the
+  unleaked totals, then leaked) runs only during a finality
   stall, decays the 2/3-bar weight of whoever does not vote for this chain's checkpoint (never stake or
   credit), and keeps the quorum floor on the registered base. Ruling (Will 2026-10-20, provisional
   pending peer feedback): it NEVER reaches the per-dimension floor, so a refusal by more than half of

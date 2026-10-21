@@ -1657,7 +1657,10 @@ pub mod finality {
 
     /// Finality mix — PoW REMOVED (it secures production / ordering / sybil-cost, never finality).
     /// PoS:PoM = 30:60 renormalized so the set sums to 1, so the 2/3 bar is 2/3 OF THE FAST-FINAL
-    /// SET (PoS+PoM), not of a mixed-confidence global total.
+    /// SET (PoS+PoM), not of a mixed-confidence global total. The mix weighs each side's SHARE of
+    /// its own registered total ([`side_shares`]), never raw stake against raw standing, so capital
+    /// holds exactly 1/3 of the finality vote once any contribution weight exists (all of it at
+    /// genesis, when the contribution side is empty) at any denomination of either side.
     pub const FINALITY_MIX: Mix = Mix {
         pow: 0.0,
         pos: 1.0 / 3.0,
@@ -1678,10 +1681,52 @@ pub mod finality {
         weight_all <= 0.0 || weight_for >= weight_all * MIN_DIM_BPS as f64 / 10_000.0
     }
 
+    /// Per-side normalization (2026-10-21). Maps each validator in `set` to its SHARE of each
+    /// fast-final side's total over `base` (the registered set the decision is taken against):
+    /// `pos -> pos / pos_total`, `pom -> pom / pom_total`, 0 when that side's total is 0 (an empty
+    /// side holds no weight, exactly as `dim_ok` lets it not gate). PoW is left as-is; the finality
+    /// mix weighs it 0. Totals are taken BEFORE heartbeat decay or the vote leak, so decay shrinks a
+    /// share and never re-inflates it.
+    ///
+    /// Why: the mix used to multiply raw stake (genesis 1000.0 per validator, `chainspec.rs`) by 1/3
+    /// and raw novelty counts (`temporal_novelty`) by 2/3, so the balance between the sides was set
+    /// by their units. With the test numbers contribution swamps stake as data accumulates and
+    /// capital's share of the 2/3 bar runs toward 0; with stake counted in a smallest unit it would
+    /// flip and capital would own the bar. Shares make the constitutional 1/3 : 2/3 hold at any
+    /// denomination. Found 2026-10-21 while answering Boardy's falsifier ("publish the curve").
+    pub fn side_shares(set: &[Validator], base: &[Validator]) -> Vec<Validator> {
+        let pos_total: f64 = base.iter().map(|v| v.pos).sum();
+        let pom_total: f64 = base.iter().map(|v| v.pom).sum();
+        let share = |x: f64, total: f64| if total > 0.0 { x / total } else { 0.0 };
+        set.iter()
+            .map(|v| Validator { pos: share(v.pos, pos_total), pom: share(v.pom, pom_total), ..v.clone() })
+            .collect()
+    }
+
+    /// Capital's share of the finality vote over the registered set `all`: the PoS part of the
+    /// fast-final base weight, measured on [`side_shares`]. 1.0 at genesis (no contribution weight),
+    /// exactly `FINALITY_MIX.pos / (FINALITY_MIX.pos + FINALITY_MIX.pom)` = 1/3 once both sides have
+    /// weight, and 0.0 for an empty set. This is the curve to publish as the falsifier: it must fall
+    /// from 1 to 1/3 as standing vests and never below, while capital's veto (`MIN_DIM_BPS` of stake)
+    /// does not fall at all.
+    pub fn capital_share(all: &[Validator]) -> f64 {
+        let s = side_shares(all, all);
+        let pos: f64 = s.iter().map(|v| v.pos * FINALITY_MIX.pos).sum();
+        let total: f64 = s.iter().map(|v| consensus::base_weight(v, FINALITY_MIX)).sum();
+        if total > 0.0 {
+            pos / total
+        } else {
+            0.0
+        }
+    }
+
     /// Finalize a checkpoint on PoS+PoM only, with the anti-concentration rule. PoW is excluded by
     /// the mix; `now`/`horizon`/`decay_pos`/`threshold_bps` carry the usual liveness/threshold
-    /// semantics. Returns true iff (1) PoS+PoM voting weight ≥ 2/3 of the fast-final set AND (2)
-    /// each of PoS and PoM independently clears the anti-concentration floor.
+    /// semantics. Returns true iff (1) PoS+PoM voting weight ≥ 2/3 of the fast-final set, with each
+    /// side measured as a share of its own total ([`side_shares`]), AND (2) each of PoS and PoM
+    /// independently clears the anti-concentration floor. With both sides present and no decay,
+    /// (1) and (2) together are: `a + 2b >= 2`, `a >= 1/2`, `b >= 1/2`, where `a` and `b` are the
+    /// voting fractions of stake and of standing.
     pub fn finalizes_pos_pom(
         voters_for: &[Validator],
         all: &[Validator],
@@ -1701,9 +1746,12 @@ pub mod finality {
         // behavior (finalize on whoever is live). A SAFETY floor, kept a governed constant — never
         // a controller output — because a floor that reacts to participation is reflexively
         // gameable (an attacker induces the low-participation condition that lowers it).
+        // The bar and the quorum floor are measured in side shares (the floor's base is then 1 with
+        // both sides present, 1/3 at genesis); the per-side floor below reads raw weights, which is
+        // already scale-free because it compares each side only with itself.
         if !consensus::finalizes_hybrid(
-            voters_for,
-            all,
+            &side_shares(voters_for, all),
+            &side_shares(all, all),
             FINALITY_MIX,
             now,
             horizon,
@@ -1871,7 +1919,8 @@ pub mod finality {
     }
 
     /// [`finalizes_pos_pom`] with the missed-finality-vote decay applied to the 2/3 bar only. The bar
-    /// is measured on the leaked view; the quorum floor stays anchored to the UNLEAKED registered base
+    /// is measured on the leaked view of the side shares (shares taken against the unleaked totals,
+    /// then leaked); the quorum floor stays anchored to the UNLEAKED registered base
     /// (so the leak re-bases on who is voting but cannot lower the safety backstop: below the floor
     /// finality still stalls); and the per-dimension floor reads RAW weights, untouched by the leak,
     /// so a refusal by more than half of either dimension keeps its veto.
@@ -1899,9 +1948,12 @@ pub mod finality {
                 quorum_floor_bps,
             );
         }
-        let lv = leak.view(voters_for, leak_horizon);
-        let la = leak.view(all, leak_horizon);
-        let registered_base: f64 = all.iter().map(|v| consensus::base_weight(v, FINALITY_MIX)).sum();
+        // Shares against the REGISTERED (unleaked) totals first, then the leak scales them. Never
+        // renormalize after leaking: that would hand a leaked side its full share back.
+        let (sv, sa) = (side_shares(voters_for, all), side_shares(all, all));
+        let lv = leak.view(&sv, leak_horizon);
+        let la = leak.view(&sa, leak_horizon);
+        let registered_base: f64 = sa.iter().map(|v| consensus::base_weight(v, FINALITY_MIX)).sum();
         if !consensus::finalizes_hybrid_floor_on(
             &lv,
             &la,
@@ -1944,6 +1996,168 @@ mod tests {
             last_heartbeat: 0,
             staked_balance: 0.0,
         }
+    }
+
+    // ---- Per-side normalization (2026-10-21): capital holds 1/3 of the finality vote at any unit ----
+
+    /// Two capital-only validators splitting 100 stake `a : 100 - a` and two contributor-only
+    /// validators splitting 100 standing `b : 100 - b`; the first of each votes. So `a` and `b` are
+    /// the voting percentages of stake and of standing. `sp` / `sm` scale every stake / standing.
+    fn split_decides(a: f64, b: f64, sp: f64, sm: f64) -> bool {
+        let all = vec![
+            v(1, 0.0, a * sp, 0.0),
+            v(2, 0.0, (100.0 - a) * sp, 0.0),
+            v(3, 0.0, 0.0, b * sm),
+            v(4, 0.0, 0.0, (100.0 - b) * sm),
+        ];
+        let voters = vec![all[0].clone(), all[2].clone()];
+        finalizes_pos_pom(&voters, &all, 0, 0, false, TWO_THIRDS_BPS, 0)
+    }
+
+    #[test]
+    fn finality_region_is_a_plus_two_b_above_two_with_each_side_at_least_half() {
+        // The documented region, with the real bar: weight_for >= 6667 bps of the set, which in side
+        // shares is a/3 + 2b/3 >= 0.6667, i.e. a + 2b >= 2.0001 (in fractions), plus a >= 1/2 and
+        // b >= 1/2. Exactly a + 2b = 2 sits a hair under 6667 bps and does NOT finalize, as an exact
+        // 2/3 never did.
+        let cases: &[(f64, f64, bool, &str)] = &[
+            (100.0, 51.0, true, "all capital + just over half of standing finalizes"),
+            (100.0, 50.0, false, "all capital + exactly half of standing = exactly 2/3, under 6667 bps"),
+            (50.0, 76.0, true, "half of capital + just over 3/4 of standing finalizes"),
+            (50.0, 75.0, false, "half of capital + exactly 3/4 = exactly 2/3, under 6667 bps"),
+            (50.0, 50.0, false, "half + half does not"),
+            (67.0, 67.0, true, "two thirds of each side finalizes"),
+            (49.0, 100.0, false, "under half of capital: capital's veto holds"),
+            (100.0, 49.0, false, "under half of standing: contributors' veto holds"),
+            (100.0, 0.0, false, "capital alone never finalizes"),
+            (0.0, 100.0, false, "contribution alone never finalizes"),
+        ];
+        for &(a, b, expect, why) in cases {
+            assert_eq!(split_decides(a, b, 1.0, 1.0), expect, "{why} (a={a}, b={b})");
+        }
+    }
+
+    #[test]
+    fn finality_is_invariant_to_the_denomination_of_either_side() {
+        // Re-denominating stake (e.g. into a smallest unit) or standing by 10^8 changes no outcome.
+        // Before 2026-10-21 the mix weighed raw stake against raw standing, so it did.
+        for a in [0.0, 30.0, 49.0, 50.0, 51.0, 67.0, 80.0, 100.0] {
+            for b in [0.0, 30.0, 49.0, 50.0, 51.0, 67.0, 75.0, 76.0, 100.0] {
+                let base = split_decides(a, b, 1.0, 1.0);
+                assert_eq!(split_decides(a, b, 1e8, 1.0), base, "stake x 1e8 flipped a={a} b={b}");
+                assert_eq!(split_decides(a, b, 1.0, 1e8), base, "standing x 1e8 flipped a={a} b={b}");
+                assert_eq!(split_decides(a, b, 1e8, 1e-8), base, "both rescaled flipped a={a} b={b}");
+            }
+        }
+        // Mixed validators (each holding both), with heartbeat decay on and off, every prefix voting.
+        let mut all = vec![
+            v(0, 0.0, 1000.0, 3.0),
+            v(1, 0.0, 1000.0, 41.0),
+            v(2, 0.0, 250.0, 17.0),
+            v(3, 0.0, 4000.0, 0.0),
+            v(4, 0.0, 10.0, 90.0),
+        ];
+        for (i, x) in all.iter_mut().enumerate() {
+            x.last_heartbeat = 10 * i as u64;
+        }
+        let scaled = |sp: f64, sm: f64| -> Vec<Validator> {
+            all.iter().map(|x| Validator { pos: x.pos * sp, pom: x.pom * sm, ..x.clone() }).collect()
+        };
+        for (sp, sm) in [(1e8, 1.0), (1.0, 1e8)] {
+            let big = scaled(sp, sm);
+            for k in 1..=all.len() {
+                for decay in [false, true] {
+                    for now in [0u64, 20, 60, 200] {
+                        let base = finalizes_pos_pom(&all[..k], &all, now, 100, decay, TWO_THIRDS_BPS, 0);
+                        let got = finalizes_pos_pom(&big[..k], &big, now, 100, decay, TWO_THIRDS_BPS, 0);
+                        assert_eq!(got, base, "rescale ({sp},{sm}) flipped k={k} decay={decay} now={now}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn capital_share_is_one_at_genesis_and_exactly_a_third_once_contributors_exist() {
+        use super::finality::capital_share;
+        // Genesis: a bonded stake set, no contribution weight yet (chainspec stakes 1000.0).
+        let genesis = vec![v(0, 0.0, 1000.0, 0.0), v(1, 0.0, 1000.0, 0.0), v(2, 0.0, 1000.0, 0.0)];
+        assert!((capital_share(&genesis) - 1.0).abs() < 1e-12, "genesis: capital is the whole vote");
+        // One contributor with a single novelty point already moves it to a third, and no amount of
+        // stake moves it back up.
+        let mut with_one = genesis.clone();
+        with_one.push(v(3, 0.0, 0.0, 1.0));
+        assert!((capital_share(&with_one) - 1.0 / 3.0).abs() < 1e-12, "a third once contributors exist");
+        let whale: Vec<Validator> =
+            with_one.iter().map(|x| Validator { pos: x.pos * 1e12, ..x.clone() }).collect();
+        assert!((capital_share(&whale) - 1.0 / 3.0).abs() < 1e-12, "more stake buys no more of the vote");
+        let flood: Vec<Validator> =
+            with_one.iter().map(|x| Validator { pom: x.pom * 1e12, ..x.clone() }).collect();
+        assert!((capital_share(&flood) - 1.0 / 3.0).abs() < 1e-12, "more standing takes none of capital's");
+        assert_eq!(capital_share(&[]), 0.0, "empty set: no vote at all");
+    }
+
+    #[test]
+    fn genesis_finality_is_stake_alone_and_needs_more_than_two_thirds_of_it() {
+        // No contribution weight: the empty side can't gate (dim_ok) and holds no share, so the bar
+        // is 6667 bps of stake, exactly as before normalization.
+        let four: Vec<Validator> = (0..4).map(|i| v(i, 0.0, 1000.0, 0.0)).collect();
+        assert!(finalizes_pos_pom(&four[..3], &four, 0, 0, false, TWO_THIRDS_BPS, 0), "3 of 4 stake finalizes");
+        assert!(!finalizes_pos_pom(&four[..2], &four, 0, 0, false, TWO_THIRDS_BPS, 0), "half of stake does not");
+        let three: Vec<Validator> = (0..3).map(|i| v(i, 0.0, 1000.0, 0.0)).collect();
+        assert!(
+            !finalizes_pos_pom(&three[..2], &three, 0, 0, false, TWO_THIRDS_BPS, 0),
+            "exactly 2/3 of stake sits under 6667 bps"
+        );
+    }
+
+    #[test]
+    fn leak_path_is_invariant_to_denomination_and_normalizes_before_leaking() {
+        use super::finality::{finalizes_pos_pom_leaking, VoteLeak};
+        // Capital and contribution both split; a withholding minority on each side carries missed
+        // scores. Shares are taken against the UNLEAKED totals, so rescaling either side changes no
+        // outcome at any leak depth.
+        let all = vec![
+            v(0, 0.0, 600.0, 0.0),
+            v(1, 0.0, 400.0, 0.0),
+            v(2, 0.0, 0.0, 55.0),
+            v(3, 0.0, 0.0, 45.0),
+        ];
+        let voters = vec![all[0].clone(), all[2].clone()];
+        let scale = |set: &[Validator], sp: f64, sm: f64| -> Vec<Validator> {
+            set.iter().map(|x| Validator { pos: x.pos * sp, pom: x.pom * sm, ..x.clone() }).collect()
+        };
+        let horizon = 10u64;
+        let mut saw = (false, false);
+        for missed in 0..=horizon {
+            let mut leak = VoteLeak::default();
+            leak.stall = missed + 2;
+            leak.missed.insert(1, missed);
+            leak.missed.insert(3, missed);
+            let base = finalizes_pos_pom_leaking(&voters, &all, &leak, horizon, 0, 0, false, TWO_THIRDS_BPS, 0);
+            for (sp, sm) in [(1e8, 1.0), (1.0, 1e8)] {
+                let got = finalizes_pos_pom_leaking(
+                    &scale(&voters, sp, sm),
+                    &scale(&all, sp, sm),
+                    &leak,
+                    horizon,
+                    0,
+                    0,
+                    false,
+                    TWO_THIRDS_BPS,
+                    0,
+                );
+                assert_eq!(got, base, "leak path rescale ({sp},{sm}) flipped at missed={missed}");
+            }
+            if base {
+                saw.1 = true;
+            } else {
+                saw.0 = true;
+            }
+        }
+        // 60% of stake + 55% of standing is 0.2 + 0.3667 = 0.5667 of the set: stalled unleaked; the
+        // leak shrinks the withholders until the voters clear the bar. Both regimes are exercised.
+        assert!(saw.0 && saw.1, "sweep must cover both a stall and its resumption, got {saw:?}");
     }
 
     // ---- A4 accountable safety: equivocation guard (slash-before-count) — closes the [GAP] ----

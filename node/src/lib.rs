@@ -9241,6 +9241,50 @@ pub mod finalization_fixed {
                 "float: both dims finalize"
             );
         }
+
+        #[test]
+        fn pos_pom_fixed_weighs_side_shares_at_any_denomination() {
+            // 2026-10-21 per-side normalization, on-VM mirror. Two capital-only validators split 100
+            // stake a : 100-a, two contributor-only validators split 100 standing b : 100-b, the
+            // first of each votes; integer units in Q32.32, `sp` / `sm` rescale stake / standing.
+            use crate::runtime::finality::finalizes_pos_pom as float_pp;
+            let split = |a: u128, b: u128, sp: u128, sm: u128| -> (Vec<ValidatorQ>, Vec<ValidatorQ>) {
+                let mk = |id, pos, pom| ValidatorQ { id, pow: 0, pos, pom, last_heartbeat: 0 };
+                let all = vec![
+                    mk(1, (a << 32) * sp, 0),
+                    mk(2, ((100 - a) << 32) * sp, 0),
+                    mk(3, 0, (b << 32) * sm),
+                    mk(4, 0, ((100 - b) << 32) * sm),
+                ];
+                (vec![all[0].clone(), all[2].clone()], all)
+            };
+            let to_f = |s: &[ValidatorQ]| -> Vec<Validator> {
+                s.iter()
+                    .map(|x| v(x.id, 0.0, (x.pos >> 32) as f64, (x.pom >> 32) as f64, 0))
+                    .collect()
+            };
+            let e8 = 10u128.pow(8);
+            let e20 = 10u128.pow(20); // pushes a side total past 95 bits: exercises the scaled division
+            for a in [0u128, 30, 49, 50, 51, 60, 67, 80, 100] {
+                for b in [0u128, 30, 49, 50, 51, 67, 75, 76, 100] {
+                    let (vf, al) = split(a, b, 1, 1);
+                    let fixed = finalizes_pos_pom_fixed(&vf, &al, 0, 0, false, TWO_THIRDS_BPS);
+                    let float = float_pp(&to_f(&vf), &to_f(&al), 0, 0, false, TWO_THIRDS_BPS, 0);
+                    // conservative direction always; off the exact a + 2b = 2 boundary they agree.
+                    assert!(!fixed || float, "fixed finalized a float-rejected case a={a} b={b}");
+                    if a + 2 * b != 200 {
+                        assert_eq!(fixed, float, "fixed and float disagree off the boundary a={a} b={b}");
+                    } else {
+                        assert!(!fixed && !float, "exactly 2/3 never finalizes a={a} b={b}");
+                    }
+                    for (sp, sm) in [(e8, 1), (1, e8), (e20, 1), (1, e20)] {
+                        let (vs, als) = split(a, b, sp, sm);
+                        let got = finalizes_pos_pom_fixed(&vs, &als, 0, 0, false, TWO_THIRDS_BPS);
+                        assert_eq!(got, fixed, "rescale ({sp},{sm}) flipped the fixed verdict a={a} b={b}");
+                    }
+                }
+            }
+        }
     }
 }
 
