@@ -4,6 +4,16 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## 2026-10-21: per-side normalization, stall over hack, stale fixtures, genesis ramp proposed
+
+- Built + reviewed: finality weighs each side as a share of its own total (42f83715). Capital = 1/3 of the finality vote once contribution exists, 1 at genesis, at any denomination; before, raw stake was mixed with raw novelty counts. Cost documented: first vested contributors carry the full 2/3 at once.
+- RULED (Will): a finality stall over a wrong finalization; silence window on the per-dimension floor = forever for now; fork stays the remedy; testnet decides. docs/RULING-2026-10-21-stall-over-hack.md (8083bb05), linked from SECURITY.md section 5.
+- ADOPTED (Will): a frozen judge pins its whole setup (library commit, every setting, zero arm(s), curriculum). docs/DESIGN-value-oracle-seam.md; also corrected its pre-EXP-62i claim.
+- Found + fixed: 4 of 5 on-VM ELF fixtures were stale vs a fresh build; all rebuilt, 60 on-VM tests green; scripts/fixture-freshness.py now runs in pre-commit + CI + `make elf`; Makefile now builds index-typescript (720a5843).
+- PROPOSED, waiting on Will: docs/DESIGN-genesis-ramp.md (9e1f0c5c). Calls: K, delta, min vs softer N_lin/N_id combo, may r fall, capital floor fixed at 1/2. Build after ratification (reference, off by default).
+- Noted, not decided: finality weight is novelty past W (runtime.rs:1146 -> lib.rs:341), not flow-gated (flow_gate lib.rs:1157); the ramp trigger uses flow-gated value for that reason.
+- Recaps: sessions/2026-10-21-capital-share-is-a-third-at-any-denomination.md, sessions/2026-10-21-stall-over-hack-and-stale-binaries.md.
+
 ## 2026-10-20: finality vote decay (Will ruled, provisional) + fork as exit
 
 - Built: missed-finality-vote decay, reference only, off by default (017fb4ff), re-cut to Will's ruling (5b2bd81c): it decays a withholder's weight toward the 2/3 bar only and never relaxes the per-dimension floor (MIN_DIM_BPS). A captured majority of one dimension stalls FINALITY while blocks keep coming; the remedy is the social fork in SECURITY.md section 5 ("fork as exit: credit vs franchise", 2a5d810f). Tests: node/tests/vote_leak.rs (11 pass).
