@@ -232,6 +232,15 @@ a leaked side its full weight back).
   (`block_production_continues_during_a_finality_stall`), and the remedy is rung 4: the social fork that
   keeps everyone's credit and revokes evidenced captors' franchise. The cost: that case gets a social
   answer, not an automatic one.
+- Ruling (Will, 2026-10-21): **a finality stall over a wrong finalization.** The choice is one dial, how
+  long a side must stay silent before its silence stops counting as a "no" on the per-dimension floor,
+  and it is set to forever for now (the 2026-10-20 ruling unchanged). The known cost: an absent majority
+  of one side (offline, not refusing) stalls finality as surely as a refusing one. Boardy's expiring floor was
+  considered and not adopted: a timer on the floor is a timer on the anti-plutocracy property, and a
+  bond to hold it favors whoever has money. Testnet measures how often absence, as opposed to refusal,
+  stalls finality; the window shortens only if that data says so. Reasons, the four offsets that make
+  stalls rarer, cheaper, shorter and insured (designed, not built), and the revisit trigger:
+  `docs/RULING-2026-10-21-stall-over-hack.md`.
 - A departure to rule on. The July note treated a vote for a competing valid proposal as participation.
   Here, as in Ethereum, it counts as a miss on this chain, because otherwise a group could hold the stall
   forever by voting for a decoy every round.

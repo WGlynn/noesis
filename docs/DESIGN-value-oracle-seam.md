@@ -76,10 +76,24 @@ Activating a judge by amendment and freezing it for a round buys **immutability*
 cannot bend the judge scoring it. It does not buy **neutrality**: the author of the judge can still pick one
 that favors their kind of work. Neutrality needs three properties together: the judge names no one, nobody in
 the game can change it mid-round, and lying doesn't pay under it. The choice of judge matters even when
-judges agree on order: in Cadence EXP-62b two brains ranked teachers identically but priced late-stage
-knowledge at about a quarter and about a ninth of early-stage knowledge. Whoever picks the judge sets that
-rate. 🟡 Not built: no retrain schedule for the learned judge and no activation point for amendments exist in
+judges agree on order, and so do the baseline and the practice conditions it measures under. In Cadence
+EXP-62b two brains ranked teachers identically but seemed to price late-stage knowledge very differently
+(about a quarter vs about a ninth of early-stage knowledge). The follow-up EXP-62i (2026-10-20) found most
+of that gap came from the baseline: a decoy teacher giving random labels hurt one brain and not the other,
+and measured against no teacher at all the gap was no longer detectable (exploratory). The same run showed
+one brain pricing the same late-stage knowledge at about 0 or about .4 depending only on how often its
+lessons reached the late stages. So whoever picks the judge, its zero and its curriculum sets the rate.
+🟡 Not built: no retrain schedule for the learned judge and no activation point for amendments exist in
 the sketch yet (checked 2026-10-19). See `docs/REVIEW-2026-10-19-ledger-explainer.md`.
+
+**Design rule (adopted 2026-10-21, Will): a frozen judge pins its whole setup.** An amendment that names a
+learned judge pins its whole operating point, not just its name: the library commit, every setting
+written out (never "the default"), the zero arm or arms worth is measured against, and the curriculum or
+practice conditions. Why: defaults move under a frozen name. Cadence #220 proposes changing the unset
+motor `lateral` from -0.5 to 0.0 in 0.85, which would silently reprice anything measured at the default,
+and the #217 PR briefly made normalized teaching the default before it was reverted. 🟡 Designed, not
+built: the plan is for the Constitution to carry the value-function version the way it carries
+`theta_sim_q16` (`node/src/lib.rs:284`). That field doesn't exist yet, so there is nothing to pin into.
 
 ## Anti-theater proof
 
