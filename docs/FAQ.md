@@ -13,7 +13,7 @@ Opposite, actually. It is a strict upside, and it comes from two facts that stac
 the contribution itself. The scoring inputs are self-contained, with no external
 oracle and no cross-chain price or state: `value::features()` is
 `[ln(1 + data_len), ln(1 + coverage_size), provenance]`,
-"no external oracle, only what the type-script can see" (`node/src/lib.rs:860`).
+"no external oracle, only what the type-script can see" (`node/src/lib.rs:1014`).
 There is no channel through which another chain's death can propagate into a score.
 On top of that, Noesis produces the signal and other chains consume it, so contagion
 cannot flow upstream from a consumer to the producer (the Chainlink / restaking-layer
@@ -39,7 +39,7 @@ reassigned, `node/src/lib.rs:50`) and strategyproof (redundant work scores zero)
 lossless in the *provenance* sense: the ledger of who-contributed-what does not evaporate
 when a host chain does. Not a perpetual-motion claim.
 
-**One honest caveat.** For the current ETH deployment, that specific deployment shares
-ETH's fate like any app on it. But the scores are recomputable and portable, so the
+**One honest caveat.** Noesis isn't deployed on any host chain; the reference node runs
+standalone. Any future deployment that rides on another chain would share that chain's fate like any app on it. But the scores are recomputable and portable, so the
 value-*definition* survives and can redeploy on any chain. That is substrate risk, not
 contagion, and it is exactly why a sovereign chain is the endgame.

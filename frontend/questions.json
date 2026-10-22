@@ -132,10 +132,6 @@
       "source": "docs/research/the-rules-can-be-wrong.md"
     },
     {
-      "q": "Is the clever part: you can't cheat it built, designed, or still open?",
-      "source": "docs/NOESIS-FOR-DUMMIES.md"
-    },
-    {
       "q": "Where does part III - Theory, novelty, and honesty bottom out?",
       "source": "docs/whitepaper/network-whitepaper-draft.md"
     },
@@ -614,6 +610,10 @@
     {
       "q": "Is lever A production-cost anchor (Ergon-style; the long-run value) built, designed, or still open?",
       "source": "docs/DESIGN-jul-money-layer.md"
+    },
+    {
+      "q": "What does Noēsis mean by \"The clever part: cheating mostly doesn't pay\"?",
+      "source": "docs/NOESIS-FOR-DUMMIES.md"
     },
     {
       "q": "Where does the value layer reuses this machinery (2026-06-12) bottom out?",

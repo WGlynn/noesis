@@ -35,7 +35,7 @@ Projects that tried to put proof-of-work to real use — finding primes, folding
 
 > **You can buy storage; you cannot buy consensus.**
 
-## Why you can't game it
+## Why it's hard to game
 
 It's all one rule — *pay only for novel realized downstream contribution* — wearing four faces:
 
@@ -43,6 +43,7 @@ It's all one rule — *pay only for novel realized downstream contribution* — 
 - **Saturation** — a finite outcome can only be built on so much, so flooding the system with variations hits a hard ceiling. Volume can't pump your score.
 - **No fake rings** — a collusion ring is just value moving in a circle; it produces no *external* downstream flow, and the same math that prices the work detects the circulation.
 - **A bounded judge** — the learned model that helps estimate value can only ever *lower* a score, never invent one. At worst it under-credits honest work; it can never forge value.
+- **The open case** — a group of real, separate accounts building on each other's worthless work without a circle: the record alone can't tell that apart from real collaboration. Closing it needs signals from outside the graph (independence that costs something to fake, and a usefulness test the contributor can't move); that work is designed and partly measured, not built.
 
 ## The two big claims
 
@@ -56,13 +57,13 @@ And it propagates upward: anything built on a base layer that pays for honesty i
 
 ## Consensus, briefly
 
-Validators are weighted by **Proof of Mind** — earned contribution, not money or hardware. Mining and staking still exist as a **liveness floor**: they keep blocks flowing when nobody's contributing, and they earn no standing and can't touch value-history. Cognition leads.
+Finality takes two keys: contribution carries two thirds of the vote and stake one third, each counted as a share of its own side, and each side must bring at least half of its own weight. So money can't finalize without contributors, and contributors can't finalize without stake. At genesis, before any contribution has vested, stake finalizes alone. Mining is kept off the finality path: it keeps blocks flowing, prices fake accounts, and makes the money. Neither mining nor staking earns standing or touches value-history. Contribution carries the larger share; neither side decides alone.
 
-And proof-of-work isn't wasted here — far from it. It runs a separate **energy money**: a *proportional*, Ergon-style coin priced by real energy, designed to stay roughly stable and be *spent*, not hoarded. That's the one thing proof-of-work does best — act as an energy oracle, turning electricity into sound money. So the three layers are economic opposites that fit: **PoM** is scarce, inelastic, unbuyable standing that decides consensus; the **energy money** is elastic and made to circulate; **stake** is the stakeholders' voice. Each does only its own job. Using proof-of-work isn't a weakness — it's part of why the whole thing holds together.
+And proof-of-work isn't wasted here — far from it. It runs a separate **energy money**: a *proportional*, Ergon-style coin priced by real energy, designed to stay roughly stable and be *spent*, not hoarded. That's the one thing proof-of-work does best — act as an energy oracle, turning electricity into sound money. So the three layers are economic opposites that fit: **PoM** is scarce, inelastic, unbuyable standing that carries most of the finality vote; the **energy money** is elastic and made to circulate; **stake** is the stakeholders' voice. Each does only its own job. Using proof-of-work isn't a weakness — it's part of why the whole thing holds together.
 
 ## Honest status
 
-We mark what's built versus what's designed. **Built and tested** in an open reference node: ownership, commit-reveal, the synergy pricing, novelty, the anti-flood and anti-ring defenses, the bounded judge, dispute-and-slash, and Proof-of-Mind-weighted finality. **The one hard, unsolved piece:** teaching the value-measure to judge real-world contribution un-gameably at scale. We treat it as the load-bearing open problem, not a solved one. The plan isn't a fixed formula — those get gamed the day they're published — but a measure that keeps learning and adapting faster than anyone can game it.
+We mark what's built versus what's designed. **Built and tested** in an open reference node: ownership, commit-reveal, the synergy pricing, novelty, the anti-flood and anti-ring defenses, the bounded judge, dispute-and-slash, and Proof-of-Mind-weighted finality. **The one hard, unsolved piece:** teaching the value-measure to judge real-world contribution un-gameably at scale. We treat it as the load-bearing open problem, not a solved one. The plan isn't a fixed formula — those get gamed the day they're published — but a judge grown from work that has already settled and frozen before each round, so the work it scores can't bend it.
 
 ---
 

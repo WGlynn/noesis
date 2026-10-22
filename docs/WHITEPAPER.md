@@ -224,6 +224,11 @@ demonstrated. Diagrams: `VISUALS.md` Fig 5; full treatment: `COORDINATION-SCHELL
 
 ## 6. Consensus
 
+> **Superseded in part (2026-10-21).** This markdown edition describes the June design. The built
+> finality rule takes two keys: standing carries two thirds of the vote and stake one third, each counted as
+> a share of its own side, and each side must supply at least half of its own weight. See the canonical
+> paper (`whitepaper/noesis-whitepaper.tex`, v5.5, section Consensus) and `ARCHITECTURE.md`.
+
 Weight validators by **PoM**: agreement on the canonical chain is PoM-weighted. The
 tamper-evident, signed, owned chain is the ledger; soulbound PoM-standing (never the
 transferable state-rent stake) is what validators are weighted by. To make the

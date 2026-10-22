@@ -164,7 +164,7 @@ determinism comes from canonical fixed-point arithmetic.
 - **New to it?** [`docs/NOESIS-FOR-DUMMIES.md`](docs/NOESIS-FOR-DUMMIES.md) and the plain-language
   [`marketing/paper/noesis-for-humans.md`](marketing/paper/noesis-for-humans.md).
 - **The pitch:** [`marketing/deck/index.html`](marketing/deck/index.html) (open in a browser).
-- **The full design:** [`docs/WHITEPAPER.md`](docs/WHITEPAPER.md).
+- **The full design:** the canonical paper [`docs/whitepaper/noesis-whitepaper.pdf`](docs/whitepaper/noesis-whitepaper.pdf) (v5.5); the code-grounded reference is [`ARCHITECTURE.md`](ARCHITECTURE.md). The older markdown edition [`docs/WHITEPAPER.md`](docs/WHITEPAPER.md) lags both in places.
 - **The mechanism:** [`docs/POM-CONSENSUS.md`](docs/POM-CONSENSUS.md) and
   [`docs/BLOCK-ECONOMY-SPEC.md`](docs/BLOCK-ECONOMY-SPEC.md).
 - **The honest status of every claim:** [`internal/STATUS-LEDGER.md`](internal/STATUS-LEDGER.md).

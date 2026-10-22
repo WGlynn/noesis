@@ -40,7 +40,7 @@
 \large A Value Chain for Verified Mental Contribution}
 \author{Will Glynn\\
 \texttt{noesis}}
-\date{Version 5.4 \quad July 2026}
+\date{Version 5.5 \quad October 2026}
 
 \begin{document}
 \maketitle
@@ -580,18 +580,18 @@ trust'' with ``verify a proof.''}
 
 \section{Consensus}
 
-Validators are weighted by \textbf{PoM}, not by energy or capital. The tamper-evident, signed, owned
-chain is the ledger; soulbound PoM-standing (never the transferable state-rent stake) is what carries
-consensus weight; consensus is PoM-weighted agreement on the canonical chain.
-Three design choices make this safe.
+Finality takes two keys. Soulbound PoM-standing carries two thirds of the finality vote and bonded
+stake one third, energy none; the tamper-evident, signed, owned chain is the ledger. Neither key turns
+alone: capital cannot finalize without contribution's consent, and contribution cannot finalize without
+capital's. Three design choices make this safe.
 
 \subsection{Retention decay and the finalization basis}
 
 Vote weight decays with staleness, so standing tracks live participation rather than past glory. Decay
 applies to the \emph{franchise}, the vote weight, never to the staked balance, and symmetrically across
 all dimensions so the effective mix is time-invariant. The remaining question is what a supermajority
-is a fraction \emph{of}. A base-weight denominator is eclipse-resistant but halts under low
-participation; a pure effective-weight denominator removes the halt but lets an attacker shrink the
+is a fraction \emph{of}. A base-weight denominator is eclipse-resistant but stalls finality under low
+participation; a pure effective-weight denominator removes that stall but lets an attacker shrink the
 denominator and finalize a minority. The stable choice is the hybrid, a supermajority on the
 \emph{combined} weight AND-gated with an anti-concentration floor on \emph{each} dimension:
 \begin{equation}
@@ -600,20 +600,30 @@ denominator and finalize a minority. The stable choice is the hybrid, a supermaj
 \;\;\wedge\;\;
 \underbrace{\forall d:\ W^{d}_{\text{for}} \;\ge\; \tfrac{1}{2}\,W^{d}_{\text{all}}}_{\text{anti-concentration floor}},
 \end{equation}
-where the combined weight $W = \tfrac13\,\mathrm{PoS} + \tfrac23\,\mathrm{PoM}$ is the finality mix
-(proof-of-work excluded), $W_{\text{for}}$ and $W_{\text{eff}}$ are its supporting and effective totals,
+where the combined weight $W = \tfrac13\,s_{\mathrm{PoS}} + \tfrac23\,s_{\mathrm{PoM}}$ is the finality
+mix (proof-of-work excluded), each side entering as $s_d$, a validator's share of its own side's registered
+total, so capital holds exactly a third of the vote once any contribution weight exists, at any
+denomination of stake or standing, $W_{\text{for}}$ and $W_{\text{eff}}$ are its supporting and effective totals,
 $Q$ is the quorum floor (a fraction of base weight), and $W^{d}_{\text{for}}/W^{d}_{\text{all}}$ are the
 supporting and total \emph{raw} weight in dimension $d\in\{\mathrm{PoS},\mathrm{PoM}\}$. The first
 conjunct pins the denominator at $\max(W_{\text{eff}},Q)$ so neither failure occurs; the second forces
 each of capital and cognition to independently supply at least half of its own dimension, so neither axis
 finalizes alone. In plain terms: a block is final once a two-thirds supermajority backs it --- the
 Byzantine-fault threshold of PBFT, carried into a finality gadget in the manner of Casper --- measured
-against whichever is larger, who is actually voting or a fixed floor, so an attacker can neither stall the
-chain by sitting out nor finalize a minority by shrinking the pool; and the per-dimension floor makes the
+against whichever is larger, who is actually voting or a fixed floor, so a minority cannot finalize by
+shrinking the pool; and the per-dimension floor makes the
 composition AND-gated rather than a substitutable weighted sum, so proof-of-mind's larger share cannot
 finalize without capital's independent consent, and conversely. This is verified against tested reference
 models, including a self-audit that demonstrates the eclipse on a bare effective basis and its closure
 under the quorum floor.
+
+Three consequences are stated plainly. At genesis there is no contribution weight, so the bonded stake
+set finalizes the first blocks alone; the floor binds a side only once that side exists, and the
+schedule by which stake hands off to contribution is open. Because a refusal and a stall are the same
+object, more than half of either side withholding stalls \emph{finality} while blocks keep coming; we
+rule a finality stall preferable to a wrong finalization, and the remedy for a captured side is the
+social fork. A missed-vote decay that erodes a withholder's weight toward the two-thirds bar only, never
+the per-dimension floor, exists in the reference implementation and is off by default.
 
 \subsection{Stability: no profitable fork}
 
@@ -712,8 +722,9 @@ stakers still produce and order blocks and the chain does not halt for want of n
 
 The division is strict, and it is what keeps the headline true. The floor may advance the chain and
 order pending transfers, but it earns no PoM, mints no standing, and cannot rewrite attribution or
-value-history. You can keep the lights on with compute or capital; you still cannot buy consensus weight
-with either. PoM leads and re-asserts as soon as contributors return; the floor is a fallback producer,
+value-history. You can keep the lights on with compute or capital; you still cannot buy the decision
+with either: capital's third of the finality vote can refuse, but it cannot finalize without
+contribution. PoM leads and re-asserts as soon as contributors return; the floor is a fallback producer,
 never a value authority.
 
 What ``compute votes'' means is narrow. The energy money the miner earns carries \emph{zero} consensus

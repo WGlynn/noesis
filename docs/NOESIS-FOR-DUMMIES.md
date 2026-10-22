@@ -6,7 +6,7 @@
 
 ## The one-sentence version
 
-Bitcoin makes people **spend electricity** to take part — and that cost is what keeps spam and fake accounts out. Noesis keeps them out a better way: by only paying for **genuine useful contribution.** Same protection, but the thing you put in is real work — and you can't fake it, copy it, or buy your way in.
+Bitcoin makes people **spend electricity** to take part — and that cost is what keeps spam and fake accounts out. Noesis keeps them out a better way: by only paying for **genuine useful contribution.** Same protection, but the thing you put in is real work — copying earns nothing and money can't buy you in. Telling real work from a well-made fake is still being figured out (see the honest part at the end).
 
 ## First, what Bitcoin really did (and didn't do)
 
@@ -42,16 +42,16 @@ The score is called **Proof of Mind**. Where Bitcoin proves you burned electrici
 
 Here's the neat part. Noesis doesn't have a committee or a fixed formula deciding what your work is worth. It lets a **market** decide — the same way Bitcoin lets the market decide what a coin is worth. The "price" of your contribution is simply **how much other people's work ends up building on it.** Useful work gets built on; useless work doesn't. The chain just watches what gets built on what, and pays accordingly.
 
-## The clever part: you can't cheat it
+## The clever part: cheating mostly doesn't pay
 
 The obvious worry: *"won't people just spam fake contributions to farm points?"* It comes down to one rule — **you only get paid for genuinely new work that others actually build on** — and every kind of cheating breaks against it:
 
 - **Copying earns nothing.** Only genuinely *new* contribution counts. Repeat what's there, score zero.
 - **Spamming a thousand variations earns nothing.** Flooding hits a hard ceiling; volume can't pump your score.
 - **Ganging up to praise each other earns nothing.** A ring of friends citing each other in a circle produces no *real* outside work building on them — and the system can tell the difference between a real chain of building and a circle of back-scratching.
-- **Your reputation can't be bought.** You can buy *storage space*, but you can't buy *influence*. That stops it from becoming "whoever has the most money wins" — which is what almost every other crypto system quietly becomes. **You can buy storage; you cannot buy consensus.**
+- **Your reputation can't be bought.** You can buy *storage space*, but you can't buy *influence*. That stops it from becoming "whoever has the most money wins" — which is what almost every other crypto system quietly becomes. **You can buy storage; you cannot buy consensus.** Stakeholders do keep a say: they hold a third of the vote that makes blocks final and can block a decision, but they can't push one through without the contributors.
 
-That's the quiet trick: Bitcoin uses *electricity* to make cheating expensive; Noesis builds the same protection into *how it measures value*, so spam and fakes simply score zero — no burning required.
+That's the quiet trick: Bitcoin uses *electricity* to make cheating expensive; Noesis builds the same protection into *how it measures value*, so copies, spam and circular rings score zero in our tests — no burning required. The hard case is a group of real, separate people (or bots) building on each other's worthless work without a circle. The record alone can't tell that apart from real collaboration, which is why the honest part below calls judging quality the make-or-break problem.
 
 ```mermaid
 flowchart TD
@@ -86,7 +86,7 @@ Will is building this first, which would normally let him rack up a big early le
 ## The honest part (what's done, what isn't)
 
 - **Done and tested:** the ownership and fingerprinting, the pricing that rewards genuinely new contributions, the anti-cheating (spam, fake accounts, and citation rings all score zero in our tests).
-- **Still being figured out:** the hardest piece — teaching the system to judge *"how good was this contribution, really?"* reliably and un-fakeably. That's the make-or-break problem, and we're honest that it's not finished, just well-started. The plan for it isn't a fixed formula (those always get gamed) — it's a measure that keeps learning and adapting faster than anyone can game it.
+- **Still being figured out:** the hardest piece — teaching the system to judge *"how good was this contribution, really?"* reliably and un-fakeably. That's the make-or-break problem, and we're honest that it's not finished, just well-started. The plan for it isn't a fixed formula (those always get gamed) — it's a judge that keeps learning between rounds but is frozen during each one, so the work it scores can't bend it.
 
 That's the whole idea: **a record where good thinking earns provable, fair credit — and copying, spamming, ganging up, and buying your way in all earn nothing.**
 
