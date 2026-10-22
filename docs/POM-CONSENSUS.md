@@ -20,6 +20,11 @@ Properties it inherits for free from the block economy:
 
 ## PoM consensus — why decentralization becomes realistic
 
+> **Superseded in part (2026-10-21).** The opening line below ("not energy or capital") is the June design.
+> The built finality rule takes two keys: standing carries two thirds of the vote and stake one third, each
+> counted as a share of its own side, and each side must supply at least half of its own weight; at genesis
+> stake finalizes alone. `ARCHITECTURE.md` and the whitepaper (v5.5, section Consensus) are current.
+
 Weight validators by **PoM**, not energy (PoW) or capital (PoS):
 
 - **Sybil-resistance is structural.** PoM requires owned blocks whose value was

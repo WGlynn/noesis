@@ -1,5 +1,9 @@
 # STATUS LEDGER - the single source of truth for HCE + moat claim status (PRIVATE / stealth)
 
+> **Freshness (2026-10-21):** rows were last reconciled for whitepaper v5.4 (2026-07-29). The value-measure
+> work since then (the transfer program in `WGlynn/cadence-teachers`, judges frozen before the round, layered
+> anchors) is summarized in `ARCHITECTURE.md` (value measure) and has not yet been folded into rows here.
+>
 > Created 2026-06-23 as the structural fix from the Phase-5 RSAW audit: caveats leaked because every
 > doc restated status in its own words. From now on, **every other doc cites a row of this ledger by
 > ID rather than restating the status.** If a claim's status changes, it changes HERE, once.
