@@ -10199,3 +10199,13 @@ mod nash_honesty_tests {
         }
     }
 }
+
+/// reconcile — fact reconciliation, first slice (design note *The node and the network*, 2026-10-22,
+/// §5/§9): content-addressed contribution ids (author + data + the parent's id, never the local
+/// counter) and an order-free union merge of independently run chains' facts. CONSENSUS-ISOLATED
+/// SHADOW (the `jul`/`wallclock`/`liveness`/`subblock` precedent): pure, not wired, never touches
+/// `Cell`, `Ledger`, validation, finality, or `state_digest`. HONEST SCOPE: no adversary model (no
+/// signatures, no witness or wash check); rival claims are surfaced, not resolved.
+/// Declared at the end of the file, not with the other shadow modules above, so that adding it shifts no
+/// existing `lib.rs:N` pointer in the docs.
+pub mod reconcile;
