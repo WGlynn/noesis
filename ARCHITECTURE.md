@@ -114,7 +114,7 @@ Two different weightings. Quoting one for the other is the 2026-06-29 hallucinat
 |---|---|---|---|
 | Contribution / consensus franchise (soulbound standing) | PoM standing | PoM (60% overall, 2/3 of finality) | ✅ built (reference) |
 | Bonded capital / stake | CKB-native (state-rent) | PoS (30% / 1/3 of finality) | ✅ built (reference) |
-| Money / medium of exchange (energy-pegged, Ergon-style) | **JUL** | PoW (10%, excluded from finality) | 🟡 designed, NOT built |
+| Money / medium of exchange (energy-pegged, Ergon-style) | **JUL** | PoW (10%, excluded from finality) | issuance + coinbase built (reference; mints on the reference node, worthless at its test difficulty); stability reserve built but off and unwired; economics unset (`docs/DESIGN-jul-money-layer.md` section 4) |
 | Governance (separate instrument, orthogonal to the capture cycle) | **VIBE** | — | per TOKENOMICS.md |
 
 PoM standing is **soulbound** (the `type_script.args` contributor identity, never reassigned

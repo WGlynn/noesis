@@ -155,7 +155,8 @@
         A wallet is a <b>real post‑quantum keypair</b> generated in your browser — hash‑based
         (Lamport leaves under an XMSS Merkle root), the same key math the node verifies. Your
         <b>address is your identity</b>; standing is earned by that key and can't be claimed by anyone
-        else. The secret key never leaves this device.
+        else. The secret key never leaves this device. A wallet can sign 256 contributions; moving standing
+        to a new key is designed, not built, so standing stays with the address that earned it.
       </p>
       <button id="create-wallet" type="button">Generate wallet</button>
       <div id="gen-status" class="toast"></div>
@@ -178,7 +179,7 @@
       </div>
       <div class="keyline">
         <a id="backup-toggle">Back up secret key</a>
-        <span id="w-jul-note">JUL (money layer) is producer‑minted on this testnet — your real asset here is PoM standing.</span>
+        <span id="w-jul-note">JUL (money layer) is producer‑minted on this devnet — your real asset here is PoM standing.</span>
       </div>
       <div id="seedbox" class="seedbox" hidden>
         <span class="warn">Secret key — anyone with this controls your standing. Copy it somewhere safe; there is no recovery.</span>
@@ -194,7 +195,7 @@
     <div class="field">
       <label for="what">Your contribution</label>
       <textarea id="what" placeholder="Write something genuinely new. Near‑duplicates of earlier work earn no novelty."></textarea>
-      <div class="hint">The chain measures novelty: distinct ideas earn standing; paraphrases of what's already committed score zero. Each submission is signed with a fresh one‑time key.</div>
+      <div class="hint">The chain measures novelty: new content earns standing, and near-copies of what's already committed are rejected (a reworded paraphrase can still get through). Each submission is signed with a fresh one‑time key.</div>
     </div>
     <label class="upload" id="drop" for="file">
       <input id="file" type="file" hidden
@@ -276,10 +277,11 @@
     node — no plaintext handles, standing accrues only to a key someone actually holds. JUL is
     energy‑anchored money minted from the proof‑of‑work that seals each block; no pre‑mine.
     <b>Demo simplification (honest):</b> PoM standing is scored here on <i>novelty at submission</i>
-    (first‑appearance coverage; near‑duplicates score zero). The full design bases standing on
-    <i>downstream value</i> — a learned value function that is still open research — counted only after a
-    <i>vesting delay</i>. So this shows the plumbing, not the value moat. Testnet difficulty is a low
-    placeholder for instant mining.
+    (first‑appearance coverage; near‑duplicates are rejected), with no vesting delay on this devnet. What a
+    contribution is <i>worth</i> (downstream use, a learned judge) is a separate value layer, still open
+    research and not shown here; a test keeps it out of finality. So this shows the plumbing, not the value
+    moat. This is a single-node devnet: three placeholder validators finalize every block, and difficulty is
+    a low placeholder for instant mining.
     Built in the open · <a href="https://github.com/WGlynn/noesis">WGlynn/noesis</a>
   </footer>
 
@@ -531,7 +533,7 @@
     if (!data) { toast.className = "toast err"; toast.textContent = "Write a contribution to submit."; return; }
     if (wallet.nextIndex >= C.LEAVES) {
       toast.className = "toast err";
-      toast.textContent = "This wallet has used all its one‑time keys — generate a new wallet.";
+      toast.textContent = "This wallet has used all 256 one‑time keys. Its standing stays with this address; a new wallet starts from zero.";
       return;
     }
     $("send").disabled = true;

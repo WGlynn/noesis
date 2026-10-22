@@ -1,6 +1,12 @@
 # DESIGN — JUL, the money layer (design note; build to follow)
 
-> Status: **designed, not built.** This note reconciles JUL's design across the two places it
+> Status (re-stamped 2026-10-21): **issuance and the coinbase are built** (`node/src/jul.rs`, coinbase
+> settlement in `apply_transition`; tests `jul_issuance`, `jul_settlement`), and JUL mints on the
+> reference node. **The stability reserve is built but off and unwired** (`node/src/reserve.rs`, tests
+> `jul_reserve`). **The economics are unset** (difficulty, issuance rate, reserve size). Section 4 has the
+> per-increment detail; the original status line follows.
+>
+> Original status: **designed, not built.** This note reconciles JUL's design across the two places it
 > lives — the noesis tokenomics docs (`TOKENOMICS.md`, `CRYPTOECONOMICS.md`) and the prior
 > money-stability work (`TreasuryStabilizer.sol`, a sibling codebase) — into a single
 > build plan. Nothing here ships yet; where a number or mechanism is owed, it says so.
@@ -90,7 +96,7 @@ Increment order, cheapest-first, each shippable and testable on its own:
    a named anti-theater break; clippy-clean; `apply_block_parity`/`two_node_join` unregressed. Numbers
    are v0 unit-definitions, NOT pinned economics (§5). Two Fable-5 planners scoped it (mechanism +
    build-safety); the leaner "no difficulty-retarget until real PoW inputs exist" scope was taken.
-2. **JUL as a transferable token — 🔨 DESIGNED (two-planner-vetted), building.** Settle each block's
+2. **JUL as a transferable token — ✅ BUILT (coinbase settlement; `node/tests/jul_settlement.rs`).** Settle each block's
    issuance as a `Fungible` coinbase. CONSENSUS-AFFECTING (mints into `token_cells` → changes state), so
    NOT additive-shadow. Converged design:
    - **Coinbase = a `Block.coinbase: Option<Script>` field carrying ONLY the recipient lock** (Bitcoin

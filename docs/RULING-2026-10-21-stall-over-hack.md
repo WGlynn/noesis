@@ -39,4 +39,4 @@ These make stalls rarer, cheaper, shorter and insured:
 
 ## When to revisit
 
-On testnet, record every finality stall: its cause (absence, signed refusal, or a bug), its length, and who it hurt. Shorten the silence window only if absence stalls turn out frequent or costly enough, and only if the censorship needed to exploit the shorter window would cost an attacker more than it could gain.
+On a testnet where contributors run voting nodes (the single-node devnet can't show this: its placeholder validators never withhold), record every finality stall: its cause (absence, signed refusal, or a bug), its length, and who it hurt. Shorten the silence window only if absence stalls turn out frequent or costly enough, and only if the censorship needed to exploit the shorter window would cost an attacker more than it could gain.

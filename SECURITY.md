@@ -67,8 +67,10 @@ to genuinely contribute.
     ring of **genuinely-distinct, cheap minds** that actually build on each other's worthless content.
     Measured: **no graph-internal discriminant separates a competently-built wash-ring from a genuine
     collaboration** (`node/examples/wash_sim.rs`, 0% separation; the cyclic defenses catch only a wash
-    *ring*, never a wash *tree*). This is the troll/bot problem, and it is why the security base case is
-    the **scarcity of independent minds**, not any structural signal (`docs/DESIGN-mind-scarcity-asymmetry.md`).
+    *ring*, never a wash *tree*). This is the troll/bot problem: closing it needs two things from outside the graph,
+    independence that costs something to fake and a worth test the contributor can't move, not any
+    structural signal (the older framing was the scarcity of independent minds,
+    `docs/DESIGN-mind-scarcity-asymmetry.md`; the current approach is in `ARCHITECTURE.md`, value measure).
     *Solution shape (🟡 designed):* manufacture a **periphery** — value vests only on realized use by
     capital-independent minds (anchor), carrying-cost + slash make patient wash negative-EV (the
     asymmetry is *rent*, not time), and a `v(S)` grounded on external-use labels ceases to be null
@@ -173,7 +175,8 @@ finality (the never-halt design goal, `docs/DESIGN-committee-attested-clock.md` 
   depended on units: with the test numbers capital's share of the bar ran toward 0 as data accumulated,
   and with stake in a smallest unit capital would have owned the bar. Two keys follow: capital's power
   to decide is zero (it needs half of standing), and its power to refuse is a veto by more than half of
-  stake. Published as a falsifier: on a testnet capital's share of the registered finality weight
+  stake. Published as a falsifier: on a testnet where contributors run voting nodes (not the single-node
+  devnet, whose placeholder validators finalize alone) capital's share of the registered finality weight
   should read 1 until the first standing vests and exactly 1/3 after (heartbeat decay can only push its
   share of the live vote higher, since stake does not decay by default), while its veto does not fall
   at all; a block finalized without half of the stake, or without half of standing once standing
@@ -237,8 +240,9 @@ a leaked side its full weight back).
   and it is set to forever for now (the 2026-10-20 ruling unchanged). The known cost: an absent majority
   of one side (offline, not refusing) stalls finality as surely as a refusing one. Boardy's expiring floor was
   considered and not adopted: a timer on the floor is a timer on the anti-plutocracy property, and a
-  bond to hold it favors whoever has money. Testnet measures how often absence, as opposed to refusal,
-  stalls finality; the window shortens only if that data says so. Reasons, the four offsets that make
+  bond to hold it favors whoever has money. A testnet where contributors run voting nodes measures how often absence, as
+  opposed to refusal, stalls finality (the single-node devnet can't: its placeholder validators never
+  withhold); the window shortens only if that data says so. Reasons, the four offsets that make
   stalls rarer, cheaper, shorter and insured (designed, not built), and the revisit trigger:
   `docs/RULING-2026-10-21-stall-over-hack.md`.
 - A departure to rule on. The July note treated a vote for a competing valid proposal as participation.
@@ -269,7 +273,7 @@ gap blocks the merge thesis, not exit.
   every permissionless chain. The honest label for the admission model is Boardy's: open admission with
   certified weight, a third thing next to permissionless and permissioned.
 - "Honest users will be the majority" has to be shown, not assumed. The evidence is adversarial: plant
-  dishonest participants on a testnet, let them try to earn standing cheaply, and measure whether the
+  dishonest participants on an incentivized testnet (outside operators, real rewards), let them try to earn standing cheaply, and measure whether the
   mechanism catches them. Not yet run.
 - Monoculture is not closed. A majority that shares a prior can be honestly wrong together and slash
   dissenters. Partial guards: PoS must co-sign, and the reference dispute layer's appeal court

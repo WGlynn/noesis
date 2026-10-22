@@ -78,7 +78,7 @@ contributing; decay is the state-rent *and* the supply sink that bounds total li
 Mint (novel contribution) and burn (decay) balance. No capital gate: you contribute your
 way in, you don't buy your way in.
 
-### JUL — the money layer (designed, not built)
+### JUL — the money layer (issuance and coinbase built; stability reserve unwired; economics unset)
 
 The one job a medium of exchange needs that state-bytes can't do alone is **price
 stability** (volatile bytes make poor money). That is JUL's role: a *proportional,

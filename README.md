@@ -58,9 +58,9 @@ measurement improves (`docs/REVIEW-2026-10-19-ledger-explainer.md`).
 - **Open, and now named at the root**: the deepest question is *discernment* — telling a genuine
   contribution from a **wash**: cheap, genuinely-distinct minds building on each other's worthless work.
   We measured it honestly, and **no purely structural signal separates a competent wash from a real
-  collaboration** (it is the troll/bot problem in a new setting; `node/examples/wash_sim.rs`). So the
-  security base case is the **scarcity of independent minds**, and the answer is to give the network a
-  *periphery*: value vests only on real use by capital-independent minds, a carrying cost prunes patient
+  collaboration** (it is the troll/bot problem in a new setting; `node/examples/wash_sim.rs`). So closing
+  it needs two things from outside the graph: independence that costs something to fake, and a worth test
+  the contributor can't move. The incentive side is a *periphery*: value vests only on real use by capital-independent minds, a carrying cost prunes patient
   farming (the asymmetry is *rent*, not time), and the value model grounds on external use. Priced out, a
   closed wash-ring is negative-EV — but the cheapest real attack is a *semi-funded* ring that rents one
   independent identity and leaks far below any majority, the herding / shared-prior channel is open, and
@@ -68,13 +68,19 @@ measurement improves (`docs/REVIEW-2026-10-19-ledger-explainer.md`).
   "51%-class" (`node/examples/periphery_sim.rs`, and the full tally in
   `docs/research/WASH-PROBLEM-INDEX.md`). That
   solution is **designed, with a numeric case** (measured harvest, designed economics) — **not yet
-  built.** We would rather show you the honest open problem and its shape than pretend it is closed.
+  built.** The measuring side is newer research, designed and partly measured: worth as measured learning
+  in a stand-in learner rather than a declared citation, judges frozen before the work they score, and
+  anchors layered across resources an attacker can't buy together (`ARCHITECTURE.md`, value measure). We
+  would rather show you the honest open problem and its shape than pretend it is closed.
 
-A live single-node public **testnet** now exists: the node serves its own wallet UI, mines and finalizes
-real signed contributions, and lets them build on each other — the provenance DAG, visible live. Honest
-caveats: it is single-node, the hosted URL may be ephemeral, and JUL on it is worthless by construction
-(low difficulty). Decentralized multi-producer consensus is under active build (designed, with the first
-increments — a reorgeable ledger and parent-block commitments — shipped). We would rather you back an
+A single-node **devnet** exists: the node serves its own wallet UI, mines and finalizes real signed
+contributions, and lets them build on each other — the provenance DAG, visible live. It is a devnet, not
+a testnet: other nodes can't yet follow it live, three placeholder validators finalize every block, any
+hosted URL may be ephemeral, and JUL on it is worthless by construction (low difficulty). The path from
+here follows how other chains launch: a public testnet that anyone can follow and validate (bootnodes,
+live block propagation, a faucet, an explorer), then an incentivized testnet where outside operators
+test the economics, then mainnet. Decentralized multi-producer consensus is under active build
+(designed, with the first increments — a reorgeable ledger and parent-block commitments — shipped). We would rather you back an
 honest design than an overclaimed demo.
 
 ---
