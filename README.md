@@ -94,9 +94,19 @@ honest design than an overclaimed demo.
 
 Bitcoin made *scarcity* objective. It did not make *value* objective: proof-of-work prices energy, not
 contribution. Noesis closes that gap. A block's value is sourced from the realized downstream flow it
-enables, identity is earned and soulbound rather than purchasable, and finalization weight comes from a
-Proof-of-Mind score. The cheapest way to gain influence becomes actually contributing. The attack
-surface is dissolved, not patched.
+enables, identity is earned and soulbound rather than purchasable, and finalization takes two keys:
+contribution's standing carries two thirds of the vote and bonded stake one third, and each side must
+bring at least half of its own weight. The cheapest way to gain influence becomes actually contributing.
+The aim is to dissolve attacks rather than patch them; where that is not yet true (the acyclic wash in the
+diagram below), we say so.
+
+**Built for an economy after intellectual property.** Intellectual property takes ideas, which anyone can
+copy, and makes them artificially ownable so the maker gets paid. Noesis doesn't need ideas to be owned.
+What carries the weight is acknowledging where things came from: provenance is recorded, credit flows
+along it, and copying is free because an honest copy points back to its source. It is the same split as
+the rest of the design: "who made what, and who built on it" is a non-rival fact, so it can live in every
+chain at once. The honest edge: today's copy check compares text, so a reworded copy can still slip the
+credit. Closing that is the measurement work listed under *What is real today*.
 
 ```mermaid
 flowchart TD
@@ -104,7 +114,7 @@ flowchart TD
   VAL --> POM["Proof-of-Mind score<br/>(accumulated synergy value)"]
   POM --> STAND["SOULBOUND standing<br/>consensus weight + right-to-mint"]
   POM --> BYTES["mints TRANSFERABLE state-bytes<br/>medium of exchange (1 state-byte = 1 byte of state)"]
-  STAND --> CONS["PoM-weighted finalization<br/>(2/3, retention-decay, quorum floor)"]
+  STAND --> CONS["two-key finalization<br/>(standing 2/3 + stake 1/3, each side at least half its own weight)"]
   CONS --> ENF["The chain disciplines the model"]
   ENF -.-> CONTRIB
   classDef sb fill:#1f2937,stroke:#60a5fa,color:#e5e7eb;
