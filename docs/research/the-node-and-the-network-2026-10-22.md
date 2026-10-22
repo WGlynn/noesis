@@ -165,3 +165,31 @@ What survives all three: the rival/non-rival split as the layer boundary, the ov
 reconciliation, and reciprocity as the incentive rule. What it adds to the open list: where payouts come
 from, and how witnessing is rewarded.
 
+## 12. Similar work can choose to become a coalition (Will, 2026-10-22; proposal)
+
+Will: wherever the seam is that measures similarity between code, it can be a "via governance" merge
+technique where it makes sense, not to be conflated with outright plagiarism: software that is similar
+enough has the option to form Shapley coalitions.
+
+Read against this note, it is a third way to resolve a rival collision. When two records carry the same or
+nearly the same work under different authors (`reconcile::FactSet::rival_claims` surfaces exactly this),
+today's options both pick a winner: priority (earliest commitment) or a dispute (plagiarism). A coalition
+picks no winner. The parties agree to hold the work jointly and split its value by Shapley, which turns a
+rival fact back into a non-rival one: shared authorship. It is the chain-level reverse fork at the scale of
+one piece of work, and the same positive-sum move.
+
+Three things keep it from being a free-ride channel:
+- **Similarity only nominates.** The measure flags candidates; it never merges anything. Similarity
+  measures are gameable (and today's is a byte-overlap screen that misses paraphrase), so a merge needs an
+  explicit act: the parties' consent, or a governance decision where consent can't be had.
+- **Shapley pays a copy nothing.** A member who adds nothing to any coalition gets zero (the null-player
+  axiom), so joining a valuable project with a near-copy earns nothing; only a member whose work adds
+  something gets a share.
+- **It is separate from plagiarism.** A copy that strips attribution is still a dispute, not a coalition.
+
+Receipts and floors: our transfer experiments already priced coalitions this way on toy tasks (EXP-18,
+data-channel synergy, Shapley split it about evenly while leave-one-out overpaid about 1.7x; EXP-19, learned
+sequential composition, Shapley about even). Not built: a coalition record type, the consent or governance
+path (the amendment activation point doesn't exist yet), a similarity measure suited to code (AST or
+behaviour, not bytes), and a real v(S) to price members, which is the open value-layer problem.
+
