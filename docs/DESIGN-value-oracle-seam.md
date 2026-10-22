@@ -89,9 +89,12 @@ the sketch yet (checked 2026-10-19). See `docs/REVIEW-2026-10-19-ledger-explaine
 **Design rule (adopted 2026-10-21, Will): a frozen judge pins its whole setup.** An amendment that names a
 learned judge pins its whole operating point, not just its name: the library commit, every setting
 written out (never "the default"), the zero arm or arms worth is measured against, and the curriculum or
-practice conditions. Why: defaults move under a frozen name. Cadence #220 proposes changing the unset
-motor `lateral` from -0.5 to 0.0 in 0.85, which would silently reprice anything measured at the default,
-and the #217 PR briefly made normalized teaching the default before it was reverted. 🟡 Designed, not
+practice conditions. Why: defaults move under a frozen name. Cadence 0.85.0 (2026-10-22) changed three
+defaults at once (an unset motor `lateral` from -0.5 to 0.0, the arousal `need_scale` from 0 to 0.1, and
+`reset()` now keeping the arousal state). Run under the same name on 0.85.1, the EXP-08 transfer measure
+repriced its random-label fake from -0.109 to -0.148; with all three settings pinned back it reproduced
+the 0.84.3 result byte for byte (`WGlynn/cadence-teachers`, `exp/EXP-08-pin0843-ce386af.out`). Earlier,
+the #217 PR briefly made normalized teaching the default before it was reverted. 🟡 Designed, not
 built: the plan is for the Constitution to carry the value-function version the way it carries
 `theta_sim_q16` (`node/src/lib.rs:284`). That field doesn't exist yet, so there is nothing to pin into.
 
