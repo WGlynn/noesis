@@ -121,38 +121,117 @@ PoM standing is **soulbound** (the `type_script.args` contributor identity, neve
 on transfer); the transferable byte (`lock.args`) carries ownership. Consensus franchise rides
 the soulbound side, never the transferable byte.
 
-## Value measure `v(S)` — the moat
+## Value measure `v(S)` — the moat (re-stamped from code and the research record, 2026-10-21)
 
-Pipeline (all `node/src/lib.rs`): `temporal_novelty` (`:89`) → `pom_scores` (`:162`) /
-`pom_scores_with_similarity_floor_q16` (`:182`, the live consensus PoM gate, near-dup floor
-`Constitution.theta_sim_q16` default 0.95) → `value_v5..v8` (`:1026/1076/1143/1226`).
-- `v5` realized-flow gate (counts use, an upper bound on dependence; `docs/REVIEW-2026-10-19-ledger-explainer.md`) · `v6` standing-gated seeds (prices identity, not participation) ·
-  `v7` semantic/entropy floor · `v8` learned-outcome gate (Bradley-Terry over coalition features).
-- Anti-gaming defenses are projections of one invariant (see `docs/ISOMORPHISM-INVARIANCE-VS.md`):
-  within-identity λ^r, cross-identity μ^m, joint ρ^j damping; `attribution_circulation` +
-  `attribution_cycle_energy` (Helmholtz–Hodge) → `collusion_slash`; θ_sim near-dup floor.
-- **🔬 open / THE moat:** learned `v(S)` on real DeepFunding labels — graph-topology features
-  returned NULL (both proxy + faithful set-level port, ~0.54; RESULTS-FAITHFUL), but a **rich-feature**
-  judge (stars/age/funding) beats the null — on the honest **repo-disjoint** split it generalizes at
-  **~0.60** (the 0.68 pair-split was partly repo-overlap inflation; `data/deepfunding/RESULTS-RICH-JUDGE.md`)
-  ⇒ a *modest, popularity-driven* real signal on honest labels. NB: honest-label prediction ≠ the
-  *adversarial* un-gameability the moat claims (that rests on the structural defense, 253/253). General
-  isomorphism-invariance gate (cand-A) still open. Un-gameability claimed for *demonstrated* vectors
-  only, never as a finished proof.
-- **🔬 open / discernment (HCE-4) — the deepest open item.** Relabel-invariance is closed for the
-  demonstrated axes (`node/examples/adaptive_sim.rs`, `g=0`; paraphrase the one live content-proxy gap)
-  but does **not** cover **wash-building** — cheap, genuinely-distinct minds building on each other's
-  worthless content. Measured: **0% graph-internal separation** of wash vs genuine
-  (`node/examples/wash_sim.rs`; cyclic defenses catch only a wash *ring*). Base case = the scarcity of
-  independent minds (`docs/DESIGN-mind-scarcity-asymmetry.md`). Solution shape (🟡 designed) = manufacture
-  a **periphery**: value vests on realized use by *capital-independent* minds + rent/slash prunes patient
-  wash (asymmetry = *rent*, not time) + a `v(S)` grounded on external-use labels
-  (`docs/DESIGN-periphery-solution.md`), which prices a wash-ring negative-EV to a Bitcoin-51%-class
-  residual (`node/examples/periphery_sim.rs`, harvest measured, Layers A+B design params).
-- **🔬 open (review 2026-10-19):** genesis prior (a grown judge keeps its first rounds' taste), composition
-  (year-one funding shapes the corpus the judge trains on), the patience filter (paying on use pays late),
-  frame underprovision (pay capped at own novelty), capital buying variance, survival-as-lock-in, and
-  counterfactuals that don't climb to roots. Agreed principles and contested proposals: `docs/REVIEW-2026-10-19-ledger-explainer.md`.
+> Read with `docs/research/WASH-PROBLEM-INDEX.md` (every approach, with status) and the recent recaps in
+> `sessions/`. This section lagged the September-October research once and misled a reader; when the
+> research moves, update it here. Code pointers are the current sketch, not law.
+
+**1. What the sketch computes (built).** In `node/src/lib.rs`: `temporal_novelty` (`:187`) -> `pom_scores`
+(`:260`). The value-oracle seam: trait `ValueOracle` (`:293`), the built scorer `NoveltyOracleV0` (`:303`),
+the aggregator `pom_scores_with_oracle` (`:314`); `pom_scores_with_similarity_floor_q16` (`:341`) is the live
+consensus PoM gate (near-duplicate floor `Constitution.theta_sim_q16`, default 0.95). The value stack is
+`mod value` (`:1007`): `value_v5` (`:1189`) gates novelty by realized downstream use through `flow_gate`
+(`:1157`), which counts use and so is an upper bound on dependence; `value_v6` (`:1239`) prices identity
+through standing-gated seeds; `value_v7` (`:1306`) adds a semantic/entropy floor; `value_v8` (`:1391`) adds
+a learned-outcome gate (Bradley-Terry over coalition features; its weights are passed in, and nothing yet
+decides when it retrains). Interior anti-gaming: within-identity, cross-identity and joint damping,
+`attribution_circulation` (`:373`) and `attribution_cycle_energy` (`:426`, Helmholtz-Hodge) feeding
+`collusion_slash` (`:5010`); one invariant behind them in `docs/ISOMORPHISM-INVARIANCE-VS.md`.
+
+**2. The fence: finality reads structural novelty only (built, 2026-10-05).** `Node::finality_pom_weight`
+(`node/src/runtime.rs:1146`) reads novelty past the vesting window, not the value stack, and `value_v5..v8`
+have no caller in the runtime or the RPC. The test
+`standing_and_finality_are_structural_novelty_only_no_value_layer_leak` (`runtime.rs:3209`) fails if the
+value layer reaches standing. So nothing that judges worth, including a learned or brain-based judge,
+touches what gets finalized. Why split them: if finality and reward read one gameable signal, one wash
+attack is a value, governance and consensus exploit at once (`docs/DESIGN-novelty-split-structural-vs-value.md`).
+
+**3. The open problem, stated precisely.** Interior signals are worth-blind. A competent acyclic wash
+(distinct keys, novel content, honest topology) is structurally identical to genuine collaboration: 0.0%
+separation in `node/examples/wash_sim.rs`. Wash (fake value from real, distinct actors) is not Sybil (fake
+identity), so identity proofs don't reach it. Closing it needs two things from outside the graph:
+independence that costs something to fake, and a worth test the contributor cannot move. Already handled:
+cyclic self-citation is caught by built interior defenses, and so is relabeling on the demonstrated axes
+(`node/examples/adaptive_sim.rs`, `g = 0`; paraphrase is the one live content-proxy gap). On real crates.io
+data the independence gate's logic zeroes closed self-owned dependency rings (78.8% of reuse crates; they vest 0.00
+against 69.36 for genuine ones), so the machinery works given a clean independence signal
+(`docs/research/WASH-PROBLEM-INDEX.md`, sections 0 and 6).
+
+**4. The current approach (designed; the measuring part partly measured).** Four parts, from the
+September-October 2026 research:
+
+- **Measured transfer instead of declared citation.** Make the graph's dependencies learners (Cadence
+  brains): an edge a -> b means b took in a and b's measured behavior changed, so the graph records who
+  measurably learned from whom instead of who cited whom. The receiving brain is the instrument and stands in
+  for a user: worth is how much a copy fed the contribution improves over its untaught twin (a byte-identical
+  snapshot) on a held-out task the contributor doesn't control. Contributions come from anyone; the
+  receiving brains hold no standing, cast no votes and vouch for nothing. They are costly to fool (a fake
+  that moves an honest task had to carry real task information, so faking collapses into contributing) and
+  cheap to copy, which is what makes the twin comparison and many-judge checks affordable. Measured in the
+  public lab `WGlynn/cadence-teachers` (ledger `VS-TRANSFER-PROGRAM.md`):
+  - On a bandit task: separation from surface-matched fakes (M1); it survives a fake matched on every
+    interior feature, additively and for two forms of synergy (M2); collusion among peers buys nothing given
+    an honest task pool, by construction, since the measure never reads peer agreement (M4). Isomorphism
+    invariance is empirical only (M3).
+  - On a richer chain task: transfer prices skill on a brain that takes in content (a know-1..4 ladder,
+    ordered, replicated on four disjoint student sets, fakes at most about 4% of pay; EXP-62 to EXP-62e) and
+    is blind on a brain that doesn't (M1b). The zero point is the unsettled part.
+  - The price depends on three outside ingredients: the task, the instrument (which brain) and the null
+    (what "no contribution" means). On every brain tested the order of worth held; the exchange rate between
+    kinds of contribution moved with the brain, the zero and how often lessons reached late stages
+    (EXP-62b, EXP-62h, EXP-62i).
+  - Boundary (M5, `M5-EXOGENOUS-ANCHOR.md`): whoever supplies a majority of the scoring tasks wins (the
+    crossover is half the task pool; about a third against an adversary who knows the task, derived, not
+    measured). Transfer moves the honest-majority assumption from peers to tasks. That is progress, because a
+    task has an answer that can be checked and a peer report doesn't, but it is not an escape.
+- **Judges out of the contributor's reach** (`sessions/2026-10-19-judges-out-of-reach.md`). Law below state:
+  a cheater can buy state (tokens, an aged account) but not law, so fix everything that judges (model, task,
+  baseline, rules) before the work it judges arrives. Adopted 2026-10-21: a frozen judge pins its whole setup
+  (library commit, every setting, its zero, its curriculum; `docs/DESIGN-value-oracle-seam.md`). Designed:
+  grow each round's judge from settled work and freeze it before the round opens; commit-reveal the test from
+  a public random beacon. Not built: no judge-version field in `Constitution`, no retrain schedule, no
+  amendment activation point (`node/src/amendment.rs` rejects the class as not built).
+- **Layered anchors; "outside" means too costly for this attacker to move**
+  (`docs/research/layered-anchors-2026-10-16.md`; designed, not measured). Stack anchors rooted in different
+  scarce resources (capital, energy, time) so a ring has to look independent in every layer at once; the
+  faking cost multiplies only if the roots can't be bought together. Task labels come from realized use one
+  layer up; proof of work anchors independence and bootstrap, not worth; revenue needs an oracle. Brains
+  that disagree on prices give a signal, not noise (OPH-style local consistency; Glynn 2026, *Value Disputes
+  Are Missing Dimensions*): a fake that fools one judge but not the others should
+  leave a price inconsistency (proposed test, not run). Built half: the independence gate's logic; the
+  capital-cluster oracle that would feed it is not built. Honest floor: for an attacker with capital, locked
+  money, bought energy and bought time largely convert into one another, so the moat is the conversion cost,
+  and an aged, funded account buys several layers at once (`docs/REVIEW-2026-10-19-ledger-explainer.md`,
+  principle 4).
+- **Pay the honest outcome instead of detecting the fake.** Value vests on realized use by capital-independent
+  minds, and a carrying cost plus slash-at-risk makes patient wash negative-EV, which prices a wash ring to a
+  51%-class residual rather than excluding it (the periphery, `docs/DESIGN-periphery-solution.md`; simulated
+  in `node/examples/periphery_sim.rs` under design parameters). Credit has no clock (built for `value_v5`; test
+  `credit_has_no_clock_late_use_pays_early_work_the_same`, `lib.rs:1634`). A refundable submission deposit is
+  built and inert by default (`submission_deposit`, `check_bonds`); it refunds on novelty today, and the
+  designed change is to refund on realized use and feed kept deposits to the judge as failure labels. Rule
+  for any such cost (Will, 2026-08-05): it lands on the fakeness, not on entry. If a funded ring can afford
+  it and a poor honest newcomer can't, it filters poverty, not fakes.
+
+**5. Scope.** The measured scope starts where the counterfactual can be run: code first, then models,
+prompts and datasets, and written know-how an agent consumes under a frozen judge
+(`docs/research/sage-validity-layer-and-the-memory-counterfactual.md`). It widens as AI makes
+counterfactuals cheaper. Less measurable value earns under stricter terms (larger deposit, longer vesting,
+lower cap), never zero (Will, 2026-10-19). Designed, not built: `submission_deposit` and `vesting_w` are
+single global settings in `Constitution`.
+
+**6. A learned judge on real labels (open).** A rich-feature judge on 1,965 usable Deep Funding jury pairs
+generalizes at about 0.60 on a repo-disjoint split, mostly from popularity; graph-topology features alone
+were null at about 0.54 (`data/deepfunding/RESULTS-RICH-JUDGE.md`). A modest real signal, and a live risk of
+learning attention instead of dependence. Prediction on honest labels is not adversarial un-gameability.
+
+**7. Still open.** The capital-cluster independence oracle (designed, not built); an honest task source
+(M5); isomorphism invariance as a proof (M3; `WASH-PROBLEM-INDEX.md` row 9); transfer beyond small brains
+on toy tasks (no instrument yet takes in ordinary code or prose); and the review's list: genesis prior,
+composition, the patience filter, frame underprovision, capital buying variance, survival as lock-in,
+counterfactuals that don't climb to roots (`docs/REVIEW-2026-10-19-ledger-explainer.md`). Un-gameability is
+claimed for demonstrated vectors only, never as a finished proof.
 
 ## Security model — see `SECURITY.md` (read it; don't paraphrase from here)
 
