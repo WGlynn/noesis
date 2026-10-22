@@ -19,7 +19,7 @@
 
 **Two big claims.**
 1. **Cooperation by construction** — cheating isn't punished, it just doesn't pay. The honest move is the highest-paying one, at every layer.
-2. **The first non-zero-sum chain** — useful work from any other chain is *conserved* onto one shared graph (a reverse fork = accretion), so a rival converging in keeps everything it built. The adoption war isn't won, it's dissolved. To every other chain: *not "come compete" — "come join us."* (Conservation core built and tested; cross-chain adapter designed, not yet built.)
+2. **A non-zero-sum chain, one node among many** — useful work from any chain is *conserved* onto one shared graph (a reverse fork = accretion), so a chain that reconciles keeps everything it built. The adoption war isn't won, it's dissolved. To every other chain: *not "come compete" — "come join us."* (Conservation core built and tested; cross-chain adapter designed, not yet built.)
 
 **Claimable attribution** (the adoption engine). Provenance is a fact keyed to an identifier you already have, not a wallet — so the whole existing contribution graph is attributed *before* anyone joins. You don't earn from zero; you *claim what's already provably yours*. Consent-first: inert until claimed, right to disclaim, no payout without your key.
 

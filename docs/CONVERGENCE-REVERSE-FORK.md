@@ -3,13 +3,18 @@
 > DESIGN thesis (Will, 2026-06-19). Forward-looking: states a protocol requirement and its rationale,
 > not a built feature. Captured in-flight; the merge abstraction itself is unbuilt. PRIVATE / stealth.
 > Feeds the whitepaper (novelty capstone + a Draft-1.1 section) and reframes the useful-PoW
-> deep-research: Noesis is not another useful-work chain, it is the chain the others converge into.
+> deep-research: Noesis is not another useful-work chain competing to be the one; it is one node in a network of
+> contribution chains that reconcile with each other.
+>
+> **Reframed 2026-10-22 (Will):** not the hub others converge into, but the same node every chain runs,
+> down to one personal chain per person; the incentives must bootstrap that network. Wording below
+> updated where it implied a hub.
 
 ## The thesis
 
 Noesis Proof of Mind must be not only **backwards-compatible** (continuous from genesis, prior blocks
 auditable) but **forwards-compatible** in a stronger sense: other useful-proof-of-work / proof-of-
-contribution chains should be able to **converge into it by reverse fork**. A normal fork *diverges* —
+contribution chains should be able to **reconcile with it, and with each other, by reverse fork**. A normal fork *diverges* —
 it splits one chain's state into two. A **reverse fork** *converges* — it merges many chains'
 contributions into one canonical attribution graph. The abstraction that makes this possible has to be
 **inherent** to the protocol, not a bridge bolted on later, so that Noesis can be the chain that
@@ -25,7 +30,7 @@ score them by one value function, and credit them on one canonical graph does no
 adoption fight. It absorbs it.
 
 This is how the ecosystem un-fractures. You cannot force a million chains to adopt one of them; you can
-only give them a substrate they all converge into without anyone losing what they built. The
+only give them a shared substrate to reconcile through without anyone losing what they built. The
 cooperation is **structural, by design, not by policy or social governance**: chains do not agree to
 cooperate in a treaty that can be defected from, they merge into a canonical attribution graph because
 the mechanism conserves their contribution when they do and fragments it when they do not. A new era
@@ -99,7 +104,7 @@ A convergence substrate only works if it is the *obvious* one to converge on —
 chain's notion of useful work; it attributes all of them), and it is **open** (an extractive or
 black-box merger gets forked away from). Being first and being the agnostic merger compound: the
 canonical chain everyone's contributions already land on is the one new contributions land on too. The
-honesty that secures the chain is the honesty that makes rival chains willing to converge into it.
+honesty that secures the chain is the honesty that makes other chains willing to reconcile with it.
 
 ## Why this only works on a value chain (the research connection)
 

@@ -42,7 +42,7 @@ Start at the top and read down by how deep you want to go. Every mechanism doc m
 | [OUTCOME-EVALUATOR](OUTCOME-EVALUATOR.md) | The learned value model (and its honest null result on real data). |
 | [COORDINATION-SCHELLING](COORDINATION-SCHELLING.md) | Coordination / Schelling-point structure. |
 | [COHERENCE-LAWS](COHERENCE-LAWS.md) | The conservation/coherence invariants the chain enforces. |
-| [CONVERGENCE-REVERSE-FORK](CONVERGENCE-REVERSE-FORK.md) | The reverse-fork: rival chains converge in instead of forking off. |
+| [CONVERGENCE-REVERSE-FORK](CONVERGENCE-REVERSE-FORK.md) | The reverse-fork: contribution chains reconcile into one network instead of forking off. |
 
 ## Economics
 | Doc | What it is |

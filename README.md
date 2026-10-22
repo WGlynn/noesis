@@ -8,11 +8,16 @@ sides. Communities split in forks. Rivals claw at the same liquidity and attenti
 value moved around, or burned outright.
 
 Noesis changes what is being competed for. Its consensus does not reward owning a scarce slot. It
-measures **contribution**, and contribution adds up instead of running out. So a rival chain does not
-lose to Noesis. It converges in, and keeps everything it built. We call it a **reverse fork**: merging
-in instead of splitting off. The adoption war is not won — the design aims to *dissolve* it, but the
-convergence adapter that would realize this is not yet built (see status below). It is a direction, not
-a shipped result.
+measures **contribution**, and contribution adds up instead of running out. So Noesis is not the chain
+that wins. It is one node in a network of contribution chains: the same node anyone can run, down to one
+chain per person. Chains do not lose to each other. They reconcile, and each keeps everything it built.
+We call joining a **reverse fork**: merging in instead of splitting off. The incentives have to make
+that worth doing from the first node on.
+
+Because the network is positive-sum, being beaten to market by a similar enough idea is not a loss. If
+its chain can reconcile with ours, it is one more node, and adoption gets easier for everyone. That
+holds only once the reconciliation spec is public and the adapter that runs it exists, and neither does
+yet (see status below). It is a direction, not a shipped result.
 
 **And your contribution is already here.** Noesis maps the existing contribution graph, every
 open-source repo and every contributor, before anyone joins. You do not start from zero. You claim what
@@ -40,7 +45,7 @@ measurement improves (`docs/REVIEW-2026-10-19-ledger-explainer.md`).
   Rust implementation is exercised by a **358-test host suite** (including the 253 reference
   structural-defense tests) plus integration suites (two-node join, durable restart, reorg rollback,
   header binding).
-- **Designed, not yet built**: the cross-chain *convergence adapter* that actually lets a rival chain
+- **Designed, not yet built**: the cross-chain *reconciliation adapter* that actually lets another chain
   reverse-fork in. The non-zero-sum claim is a design thesis resting on a built conservation core and an
   unbuilt adapter. Claimable attribution is likewise designed, with consent guardrails (provenance is a
   fact, standing is inert until claimed, an explicit right to disclaim, and no unconsented payout).
