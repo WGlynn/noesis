@@ -46,3 +46,24 @@ A correction on the record: the first answer given to Will today got this wrong.
 cheap members who could flood the graph. That came from reading ARCHITECTURE.md's v(S) section, which
 still frames the answer as mind scarcity plus the periphery and doesn't yet describe the transfer program
 or the layered anchors.
+
+## Later the same evening: what a testnet actually is, and a coherence pass
+
+Will corrected the frame twice. The placeholder validators finalizing alone is normal ("it's a testnet, the
+capital isn't really real"), and "a testnet a hosting decision away" was wrong. Studying how other chains
+launch: a devnet is team-run and resettable; a public testnet is a network anyone can follow and validate
+(bootnodes, live block propagation, a faucet, an explorer, resets), often with team-run validators (Sepolia's
+client teams, Bitcoin signet's two signers); economics and attacks are tested in an incentivized testnet with
+outside operators (Cosmos Game of Stakes, CKB's Rylai); hard forks hit the testnet before mainnet. So the
+single node is a devnet, and Will agreed that's the right starting point, though outdated.
+
+What the devnet runs is current consensus code (the same library, normalized finality). What was outdated
+was what it and the docs said. Fixed and pushed: the wallet page (a false "paraphrases score zero", the value
+layer note, the 256-signature limit, devnet naming), the questions feed (regenerated), JUL status (issuance is
+built), the README/SECURITY wash framing, every testnet promise now naming its phase (the capital-share and
+stall data need a testnet where contributors run voting nodes), the June-era plain docs (two-key finality,
+the open wash case, the frozen judge), and the canonical whitepaper (v5.5, consensus section).
+
+Still between the devnet and a public testnet: a node can serve the wallet or talk to peers, not both;
+gossip logic exists but isn't wired into a running node, and a joining node syncs once and exits; contributors
+don't vote in finality; and a release, a faucet or mining guide, an explorer and a reset policy don't exist yet.

@@ -4,6 +4,12 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## 2026-10-21 (evening): devnet, not testnet; coherence pass before any testnet
+
+- Frame (Will): the hosted single node is a DEVNET. Path: public testnet (followers validate live, bootnodes, faucet, explorer, resets; team validators are fine) -> incentivized testnet (outside operators test the economics) -> mainnet. Memory: feedback_testnet-means-a-network-not-a-node.
+- Pushed (36635639..dd67e631): scripts/vm-deploy.sh (untested on a real VM); ARCHITECTURE value-measure section rewritten from code + the Sept-Oct research; wallet page, questions feed, JUL status, wash framing, testnet phase wording, June visitor docs, whitepaper v5.5 consensus section all reconciled.
+- Next, toward a public testnet: one process serving wallet + peers; wire gossip into a running node so followers track live; contributors as finality voters (needed for stall data); release + faucet/mining guide + explorer + reset policy. Will to set the order.
+
 ## 2026-10-21: per-side normalization, stall over hack, stale fixtures, genesis ramp proposed
 
 - Built + reviewed: finality weighs each side as a share of its own total (42f83715). Capital = 1/3 of the finality vote once contribution exists, 1 at genesis, at any denomination; before, raw stake was mixed with raw novelty counts. Cost documented: first vested contributors carry the full 2/3 at once.
