@@ -3,16 +3,19 @@
 //! the same merged hash. Each then replays its own wire trace once per seed in the public list
 //! (`docs/devnet/shuffle-seeds.txt`), and every replay must land on that same hash.
 //!
+//! Records are signed by their authors (demo keys). The connecting side also sends junk first,
+//! including a forged copy of one of its genuine records ahead of the real one; the server rejects
+//! the forgeries and still accepts the genuine record.
+//!
 //! What this does NOT show: two machines (both processes run here, over loopback; the code path is the
-//! same with a real address), signatures (a record forged under someone else's key would be accepted),
-//! catch-up, or more than one exchange.
+//! same with a real address), records from the live chain (it doesn't keep signatures), catch-up, or
+//! more than one exchange.
 
 use std::io::{BufRead, BufReader, Lines};
 use std::path::PathBuf;
 use std::process::{Child, ChildStdout, Command, Output, Stdio};
 
-use noesis::factsync::{demo_facts, hex};
-use noesis::reconcile::merge;
+use noesis::factsync::{apply_frames, demo_frames, hex};
 
 const BIN: &str = env!("CARGO_BIN_EXE_factnode");
 
@@ -83,14 +86,17 @@ fn two_processes_swap_facts_over_tcp_and_every_seeded_replay_lands_on_one_hash()
     let (srv, cli, ts, tc) = run_pair("a", "b", true);
 
     // Both processes end on the same merged set, and it is the union the in-process merge computes.
-    let expected = merge(&demo_facts("a").unwrap(), &demo_facts("b").unwrap());
+    let both: Vec<Vec<u8>> = demo_frames("a").unwrap().into_iter().chain(demo_frames("b").unwrap()).collect();
+    let (expected, _) = apply_frames(both.iter().map(Vec::as_slice));
     let want = format!("{} {}", expected.len(), hex(&expected.digest()));
     assert_eq!(field(&srv, "MERGED"), want, "serve:\n{srv}");
     assert_eq!(field(&cli, "MERGED"), want, "connect:\n{cli}");
 
-    // The client's junk reached the server over the wire: one repeat accepted, four frames rejected
-    // (a ContentId claimed under another key, a truncated frame, an unknown tag, an empty frame).
-    assert!(field(&srv, "ACCEPTED").ends_with("REJECTED 4"), "serve:\n{srv}");
+    // The client's junk reached the server over the wire ahead of its genuine records. Seven frames
+    // rejected: a forged copy of a genuine record, words its author never wrote, a ContentId claimed
+    // under another key, an unsigned record, a truncated frame, an unknown tag, an empty frame. The
+    // repeat and every genuine record were accepted: 2 own + 2 received + 1 repeat.
+    assert_eq!(field(&srv, "ACCEPTED"), "5 REJECTED 7", "serve:\n{srv}");
     assert!(field(&cli, "ACCEPTED").ends_with("REJECTED 0"), "connect:\n{cli}");
     assert_eq!(field(&srv, "DANGLING"), "0", "bob's overlap names alice's work, which arrived");
 

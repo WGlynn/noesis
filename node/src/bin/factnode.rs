@@ -4,25 +4,25 @@
 //!   factnode connect <addr> <source> [--trace FILE] [--junk]   dial a peer, swap facts, print the merged hash
 //!   factnode replay <trace> --seeds FILE                       replay a trace in its own order and once per seed
 //!
-//! `<source>` is `--demo a|b|c` (built-in chains, so two machines need no shared files) or
-//! `--store PATH` (a `noesisd` durable chain; `NOESIS_NET=testnet` picks the testnet genesis, default dev).
-//! `--junk` also sends the frames a misbehaving peer might send (`factsync::junk_frames`).
+//! `<source>` is `--demo a|b|c`: built-in chains whose records are signed by demo keys, so two
+//! machines need no shared files. There is no `--store` source yet: the live chain doesn't keep the
+//! wallet's signatures, so its records can't travel signed. `--junk` first sends the frames a
+//! misbehaving peer might send (`factsync::junk_frames`), including a forged copy of a genuine record
+//! that arrives before it.
 //!
 //! Two machines: on A, `factnode serve 0.0.0.0:7777 --demo a --trace a.trace`; on B,
 //! `factnode connect <A's address>:7777 --demo b --trace b.trace`. Then each runs
 //! `factnode replay <its trace> --seeds docs/devnet/shuffle-seeds.txt`. Every line must show the same hash.
 //!
 //! Output is `KEY value` lines so scripts and tests can read it. Counts are over the whole trace (own
-//! facts plus received frames). HONEST SCOPE: as in `noesis::factsync` (no signatures, one exchange).
+//! frames plus received frames). HONEST SCOPE: as in `noesis::factsync` (demo keys, one exchange).
 
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::time::Duration;
 
-use noesis::chainspec::ChainSpec;
 use noesis::factsync::{self, hex};
-use noesis::reconcile::FactSet;
 
 fn fail(msg: &str) -> ! {
     eprintln!("factnode: {msg}");
@@ -31,7 +31,7 @@ fn fail(msg: &str) -> ! {
 
 #[derive(Default)]
 struct Opts {
-    source: Option<FactSet>,
+    source: Option<Vec<Vec<u8>>>,
     trace: Option<PathBuf>,
     seeds: Option<PathBuf>,
     junk: bool,
@@ -45,9 +45,8 @@ fn parse(args: &[String]) -> Opts {
         match a.as_str() {
             "--demo" => {
                 let n = value();
-                o.source = Some(factsync::demo_facts(n).unwrap_or_else(|| fail(&format!("no demo {n:?} (a, b, c)"))));
+                o.source = Some(factsync::demo_frames(n).unwrap_or_else(|| fail(&format!("no demo {n:?} (a, b, c)"))));
             }
-            "--store" => o.source = Some(load_store(Path::new(value()))),
             "--trace" => o.trace = Some(PathBuf::from(value())),
             "--seeds" => o.seeds = Some(PathBuf::from(value())),
             "--junk" => o.junk = true,
@@ -57,25 +56,15 @@ fn parse(args: &[String]) -> Opts {
     o
 }
 
-fn load_store(path: &Path) -> FactSet {
-    let spec = match std::env::var("NOESIS_NET").as_deref() {
-        Ok("testnet") => ChainSpec::testnet(),
-        Ok("dev") | Err(_) => ChainSpec::dev(),
-        Ok(other) => fail(&format!("unknown NOESIS_NET={other:?} (use 'dev' or 'testnet')")),
-    };
-    let (node, _) = noesis::store::load_chain(path, &spec).unwrap_or_else(|e| fail(&format!("store {}: {e}", path.display())));
-    FactSet::from_cells(&node.ledger.cells)
-        .unwrap_or_else(|id| fail(&format!("cell {id} names a parent that was not committed before it")))
-}
-
 fn swap(stream: TcpStream, o: Opts) {
-    let own = o.source.unwrap_or_else(|| fail("need --demo or --store"));
+    let own = o.source.unwrap_or_else(|| fail("need --demo"));
     println!("PEER {}", stream.peer_addr().map(|a| a.to_string()).unwrap_or_default());
-    let extra = match (o.junk, own.records().next()) {
-        (true, Some(r)) => factsync::junk_frames(r),
+    let mut outgoing = match (o.junk, own.first()) {
+        (true, Some(f)) => factsync::junk_frames(f),
         _ => Vec::new(),
     };
-    let received = factsync::exchange(stream, &own, &extra).unwrap_or_else(|e| fail(&format!("exchange: {e}")));
+    outgoing.extend(own.iter().cloned());
+    let received = factsync::exchange(stream, outgoing).unwrap_or_else(|e| fail(&format!("exchange: {e}")));
     let trace = factsync::trace_entries(&own, &received);
     let (merged, n) = factsync::replay(&trace, None);
     println!("RECEIVED {}", received.len());
@@ -90,8 +79,9 @@ fn swap(stream: TcpStream, o: Opts) {
 }
 
 fn own_line(o: &Opts) {
-    let own = o.source.as_ref().unwrap_or_else(|| fail("need --demo or --store"));
-    println!("OWN {} {}", own.len(), hex(&own.digest()));
+    let own = o.source.as_ref().unwrap_or_else(|| fail("need --demo"));
+    let (set, n) = factsync::apply_frames(own.iter().map(Vec::as_slice));
+    println!("OWN {} {} rejected {}", set.len(), hex(&set.digest()), n.rejected);
 }
 
 fn serve(addr: &str, o: Opts) {
@@ -160,7 +150,7 @@ fn main() {
         [cmd, target, rest @ ..] if cmd == "connect" => connect(target, parse(rest)),
         [cmd, target, rest @ ..] if cmd == "replay" => replay(target, parse(rest)),
         _ => fail(
-            "usage: factnode serve|connect <addr> (--demo a|b|c | --store PATH) [--trace FILE] [--junk]\n       factnode replay <trace> --seeds FILE",
+            "usage: factnode serve|connect <addr> --demo a|b|c [--trace FILE] [--junk]\n       factnode replay <trace> --seeds FILE",
         ),
     }
 }

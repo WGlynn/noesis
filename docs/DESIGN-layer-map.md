@@ -176,7 +176,8 @@ half of the devnet bar.
 1. **Name every contribution by content:** ContentId = H(author key, H(data), parent ContentId or root),
    domain-separated (`reconcile::content_id`). Never a local counter, height or timestamp in the id.
 2. **Carry the author's signature over the ContentId** with the record. Accept a record if and only if
-   the id re-derives and the signature verifies. *(Not built.)*
+   the id re-derives and the signature verifies. *(Built for demo records, 2026-10-23: `factsync::fact_digest`,
+   `verify_fact`. The wallet does not sign ContentIds yet, and the live chain drops signatures.)*
 3. **Record overlaps on both sides.** A citation names a foreign ContentId as parent
    (`FactRecord::new` allows it); until the cited side records it too, it is a claim (`dangling`).
    *(Multiple parents not built.)*
@@ -207,12 +208,12 @@ Agreed with Boardy, 2026-10-22. A devnet is team-run and resettable. The bar:
 
 | Bar item | Layer | Where it stands |
 |---|---|---|
-| 2+ team-run nodes, separate programs on separate machines, swapping records over the network as they go | 1-2 | 2026-10-23: two separate `factnode` processes swap facts over TCP only and end on one merged hash (`node/src/factsync.rs`, `node/tests/factnode_two_process.rs`). Still loopback on one machine, one exchange per connection, demo chains or a `noesisd` store as the source; not part of `noesisd` |
+| 2+ team-run nodes, separate programs on separate machines, swapping records over the network as they go | 1-2 | 2026-10-23: two separate `factnode` processes swap facts over TCP only and end on one merged hash (`node/src/factsync.rs`, `node/tests/factnode_two_process.rs`). Still loopback on one machine, one exchange per connection, signed demo chains only (live-chain records cannot travel signed yet); not part of `noesisd` |
 | content ids in the live record | 1 | shadow only (`reconcile.rs`) |
 | seeded shuffles of arrival order, from a published seed list anyone can rerun, all land on one hash | 2 | 2026-10-23: `factnode replay` replays a node's wire trace in its own order and once per seed in `docs/devnet/shuffle-seeds.txt` (1 to 64); all land on one hash. Agreement holds by construction (union merge, each frame judged alone), so this guards against a change that makes order matter; the traces are small demo exchanges, not real traffic |
 | a node taken offline catches up | 2 | `sync` replays a block log; fact catch-up not built |
 | rival authorship **flagged, not resolved**, and the post says that is the line | 2 | `rival_claims` surfaces it in the shadow |
-| a forged record (someone else's key) is rejected, **and the genuine record arriving after it is still accepted** | 1-2 | half done 2026-10-23: a record claiming a ContentId under another author key is rejected over the wire, in any position (`factsync::junk_frames`). A record forged under someone else's key is not testable yet: records carry no signature. Gossip dedups on a hash of the whole frame (`gossip.rs:35-48`) and `insert` keeps only accepted records, so the denial case should not bite, but that is a reading, not a test |
+| a forged record (someone else's key) is rejected, **and the genuine record arriving after it is still accepted** | 1-2 | done for demo records 2026-10-23: records carry their author's XMSS signature over the ContentId (`factsync::verify_fact`). Over the wire, a forged copy sent AHEAD of the genuine record is rejected and the genuine one still accepted, along with five other kinds of junk, in every shuffled order. Floor: demo keys only (the live chain drops signatures and the wallet does not sign ContentIds yet); a signed record is about 16.8 KB. Gossip dedups on a hash of the whole frame (`gossip.rs:35-48`) and `insert` keeps only accepted records, so the denial case should not bite, but that is a reading, not a test |
 | rebuildable from a tagged release and a written spec | all | section 5 is the start of the spec |
 | resettable | ops | not started |
 
@@ -254,7 +255,8 @@ whether standing splits too, and who stores heads.
 ## 10. Next (Will-gated)
 
 - Survey SourceCred and retroactive public-goods funding before any novelty claim on layer 4.
-- Smallest build toward the devnet bar, in order: signatures on `FactRecord` plus the forgery-then-genuine
-  test; the same `factnode` run across two real machines; content ids in the live `Cell` (this touches
-  consensus, so it goes to Will first). Done 2026-10-23: the two-process exchange and the seeded-shuffle
-  replay (section 7).
+- Smallest build toward the devnet bar, in order: the same `factnode` run across two real machines; the
+  wallet signing ContentIds and the node keeping the signature, so live-chain records can travel; content
+  ids in the live `Cell` (this touches consensus, so it goes to Will first). Done 2026-10-23: the
+  two-process exchange, the seeded-shuffle replay, and signed records with the forgery-first test
+  (section 7).
