@@ -75,7 +75,9 @@ contribution scoring is not yet surveyed, so no novelty claim on the value layer
   can post its own claim and dispute it); two colluding chains can record fake overlaps on both sides (that is
   wash, and it belongs to the value layer's independence test, not to reconciliation).
 - **A rule for rival collisions.** Two claims of the same content: earliest commitment, using commit-reveal
-  and a shared clock; disputes otherwise.
+  and a shared clock; disputes otherwise. (Superseded 2026-10-23: see section 12's update and
+  `docs/DESIGN-layer-map.md` section 4. The split is the rule, and timestamps only decide who could have
+  copied whom.)
 
 ## 6. Value across many chains: order travels, rates float
 
@@ -192,4 +194,19 @@ data-channel synergy, Shapley split it about evenly while leave-one-out overpaid
 sequential composition, Shapley about even). Not built: a coalition record type, the consent or governance
 path (the amendment activation point doesn't exist yet), a similarity measure suited to code (AST or
 behaviour, not bytes), and a real v(S) to price members, which is the open value-layer problem.
+
+**Update 2026-10-23 (written up in `docs/DESIGN-layer-map.md` section 4).** Two changes, one of them a
+correction.
+- *The split is the rule; first commit pays nobody.* Boardy (10-22) objected that first-commit-wins
+  rewards racing and rebuilds winner-take-all with a timestamp, and proposed the coalition as the default
+  with first commit as the fallback. A fallback that hands everything to the first committer gives them a
+  reason to refuse, so the proposal goes further: no priority payout at all, and governance imposes the
+  same split on refusal. Timestamps survive only as evidence of access (who could have copied whom).
+- *Correction: "Shapley pays a copy nothing" is wrong as stated above.* Under a v that looks only at
+  outcomes, an exact copy alone delivers the full value, so it is not a null player and symmetry splits
+  the value in half. A copy earns zero only if an access test removes it first (its content was
+  published before the copier committed), or if v credits the original for the copy existing. The access
+  test is what keeps the coalition from being a free-ride channel. Its weak point is copying with private
+  access (a leak, a demo), which the test can't see; that goes to disputes and outside evidence (layer
+  map section 8).
 
