@@ -116,6 +116,11 @@ impl FactSet {
         self.records.get(cid)
     }
 
+    /// Every record, in ascending ContentId order.
+    pub fn records(&self) -> impl Iterator<Item = &FactRecord> {
+        self.records.values()
+    }
+
     pub fn len(&self) -> usize {
         self.records.len()
     }

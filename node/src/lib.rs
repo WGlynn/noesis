@@ -10209,3 +10209,9 @@ mod nash_honesty_tests {
 /// Declared at the end of the file, not with the other shadow modules above, so that adding it shifts no
 /// existing `lib.rs:N` pointer in the docs.
 pub mod reconcile;
+
+/// Fact sync over the network (shadow): two separately run nodes swap contribution facts as framed TCP
+/// messages, record a wire trace, and replay it in seeded shuffled orders to one hash (the day-30 devnet
+/// bar, `docs/DESIGN-layer-map.md` section 7). HONEST SCOPE: no signatures, one exchange per connection.
+/// Declared last for the same reason as `reconcile`.
+pub mod factsync;

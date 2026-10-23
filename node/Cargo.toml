@@ -46,3 +46,7 @@ path = "src/lib.rs"
 [[bin]]
 name = "noesisd"
 path = "src/bin/noesisd.rs"
+
+[[bin]]
+name = "factnode"
+path = "src/bin/factnode.rs"

@@ -1,0 +1,72 @@
+# Public shuffle seeds for the devnet replay check (docs/DESIGN-layer-map.md section 7).
+#
+# `factnode replay <trace> --seeds docs/devnet/shuffle-seeds.txt` replays a node's wire trace once in
+# its own order and once per seed below, and fails if any run lands on a different hash or a
+# different accept/reject count. The seeds are the plain integers 1 to 64, fixed before any run, so
+# nobody can pick lucky ones. Order for a seed: Fisher-Yates over the trace entries, drawing j in 0..=i
+# as splitmix64(state) % (i + 1), state starting at the seed (node/src/factsync.rs `shuffled_order`).
+# To try your own seeds, pass any file with one decimal u64 per line.
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
