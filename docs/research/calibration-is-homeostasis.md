@@ -1,6 +1,6 @@
 # Calibration is Noesis's homeostasis: the success score
 
-*Decision, Will Glynn, 2026-10-27. Status: adopted as the target success measure. Not yet measured; no code computes it yet.*
+*Decision, Will Glynn, 2026-10-27. Status: adopted as the target success measure. First measured 2026-10-27 on crates.io (experiment C1, below); the measurement is an offline script in the ETM repository, and no Noesis code computes it.*
 
 ## The decision
 
@@ -43,7 +43,7 @@ Where Noesis stands at each scale (statuses as of 2026-10-27, commit be219951 un
 
 | Scale | What calibration means there | Status |
 |---|---|---|
-| Function | A valuation function's outputs are graded against later use, and its inputs are counted by cost to fake. | The rule that decay may run only on use, never on age, is pinned by a test (`node/src/lib.rs:1150-1156`). `value_v5` (pays by downstream use) is built and kept off the live path. Nothing grades a function's outputs yet. |
+| Function | A valuation function's outputs are graded against later use, and its inputs are counted by cost to fake. | The rule that decay may run only on use, never on age, is pinned by a test (`node/src/lib.rs:1150-1156`). `value_v5` (pays by downstream use) is built and kept off the live path. Experiment C1 (2026-10-27) graded `value_v5`'s flow offline on crates.io: it lost to a plain count of independent users (see below). Nothing grades a function's outputs live. |
 | Contribution | A contribution's value vests on realized use by capital-independent parties. | Designed and simulated (`node/examples/periphery_sim.rs`), not built (ARCHITECTURE.md, periphery). |
 | Participant | A participant's standing reflects use of their work that is costly to fake. | The capital-cluster independence oracle is designed, not built. The deployed v0 per-identity cap is farmable (`docs/research/WASH-PROBLEM-INDEX.md`, row 15). |
 | Protocol | Finality keeps working under attack (persistence), and the value layer stays off the safety path until graded. | Value layer kept out of finality, pinned by a test (`node/src/runtime.rs:3209`). Liveness is the soft spot: halting needs far less standing than capturing (ETM N1). |
@@ -57,6 +57,15 @@ No scale is fully realized yet. The table is the build list.
 2. **Self-fulfilling scores.** High scores bring exposure, and exposure brings use. Fix: randomize exposure for a slice of contributions, so some use is measured without the score's influence.
 3. **Lag.** Calibration needs time. Fast proxies must stay off the money path, as finality already does: the test `standing_and_finality_are_structural_novelty_only_no_value_layer_leak` (`node/src/runtime.rs:3209`) keeps the value layer out of finality.
 
-## First test (proposed, not run)
+## First test: C1 on crates.io (run 2026-10-27)
 
-Use the existing crates.io data (`data/crates/`): value crates at one point in time with the Noesis value model, then measure whether the values predict reuse growth by unrelated owners in the following period. To be pre-registered with written hit and miss criteria in the ETM repository before it runs.
+Registered before any data was built (ETM `experiments/C1-crates-calibration.md`, commit `b3a21b8`); results in commit `fb2c1a5`. Crates were valued at five yearly cutoffs (2021 to 2025) using only dependencies declared by then. The outcome was the number of new direct dependents from crates sharing no owner with them in the following year. Scoring: a map from score to probability fitted on the previous year, then Brier score, with a paired bootstrap.
+
+What it found:
+- **The measure works.** Calibration can be computed from a public dependency graph, it separates rival pricing rules with intervals that exclude zero, and a price map fitted on one year still fits the next (at most 0.5% worse than the best map in hindsight) while the number of crates tripled.
+- **Independent use is the signal.** Ignoring use by the same owner cuts forecast error by 13 to 15% for plain counts and 21 to 23% for the flow.
+- **`value_v5`'s flow lost to a plain count.** Counting a crate's independent users forecasts next year's independent adoption better than the damped flow (`flow::downstream_flow_external`), in 4 of 4 years, by 5 to 6% in Brier score. The registered expectation was null or reversed. The flow is close behind (AUC within 0.002), so propagation costs a little accuracy rather than breaking the price.
+
+What it does not show: anything about an attacker (nobody was paid for crates.io reuse, and owner-disjointness is free to fake); the novelty and standing parts of the value rule (crates carry no content bytes here, so only the flow was graded); or whether the flow prices *transitive* use well. The outcome was direct adoption, while the flow also credits a crate for use further down the chain. That question is registered separately as C2.
+
+Consequence for the build list: by its own success measure, the simpler rule ranks first on this evidence. A rule that pays by downstream use should beat the plain independent count on graded track record before it replaces that count.
