@@ -35,6 +35,22 @@ True independence does not exist: any two users share some upstream (money, frie
 
 Nature works the same way. A legume does not ask whether its root bacteria are independent. It responds to the nitrogen actually delivered, which is physically expensive to fake. Nodules that fix no nitrogen lose much of their reproductive success, most likely because the plant cuts their oxygen supply (Kiers et al. 2003, *Nature* 425: 78-81). Noesis's version of "delivered nitrogen" is use that is costly to fake.
 
+## A fully realized Noesis does this at every scale (Will, 2026-10-27)
+
+Calibration with cost-to-fake inputs is not one check at the top. A fully realized system implements it at every scale, the way living systems regulate at the cell, organ, organism and ecosystem levels, each against its own conditions. Two cautions: regulation costs something at every level (living systems pay in energy; Noesis pays in measurement and lag), and "every scale" does not mean fragmenting consensus. The ETM program's experiment N1 found that splitting finality into patches helps a strategic attacker, so each scale grades its own gap while security stays aggregated.
+
+Where Noesis stands at each scale (statuses as of 2026-10-27, commit be219951 unless noted):
+
+| Scale | What calibration means there | Status |
+|---|---|---|
+| Function | A valuation function's outputs are graded against later use, and its inputs are counted by cost to fake. | The rule that decay may run only on use, never on age, is pinned by a test (`node/src/lib.rs:1150-1156`). `value_v5` (pays by downstream use) is built and kept off the live path. Nothing grades a function's outputs yet. |
+| Contribution | A contribution's value vests on realized use by capital-independent parties. | Designed and simulated (`node/examples/periphery_sim.rs`), not built (ARCHITECTURE.md, periphery). |
+| Participant | A participant's standing reflects use of their work that is costly to fake. | The capital-cluster independence oracle is designed, not built. The deployed v0 per-identity cap is farmable (`docs/research/WASH-PROBLEM-INDEX.md`, row 15). |
+| Protocol | Finality keeps working under attack (persistence), and the value layer stays off the safety path until graded. | Value layer kept out of finality, pinned by a test (`node/src/runtime.rs:3209`). Liveness is the soft spot: halting needs far less standing than capturing (ETM N1). |
+| Ecosystem | Noesis's value signal is graded by its consumers outside Noesis, and rival chains can merge in. | Other chains consuming the signal is described in `docs/FAQ.md`; the convergence mechanism is not built. |
+
+No scale is fully realized yet. The table is the build list.
+
 ## Known failure modes
 
 1. **Fake outsiders.** If "independent" users are not, the score is gamed. This is the grounding problem, still open.
