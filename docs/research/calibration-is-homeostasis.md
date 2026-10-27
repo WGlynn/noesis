@@ -68,4 +68,6 @@ What it found:
 
 What it does not show: anything about an attacker (nobody was paid for crates.io reuse, and owner-disjointness is free to fake); the novelty and standing parts of the value rule (crates carry no content bytes here, so only the flow was graded); or whether the flow prices *transitive* use well. The outcome was direct adoption, while the flow also credits a crate for use further down the chain. That question is registered separately as C2.
 
+**C2 (same data, transitive use; ETM `experiments/C2-crates-transitive-use.md`, results commit `00dc6eb`).** The outcome is the number of new crates that come to depend on a crate through a chain of owner-independent links. The flow beats the direct count but loses to a plain count of crates reaching it through such chains, in 5 of 5 years each. All three rank crates almost identically (gaps of a few thousandths of a rank correlation near .62). Across both tests, the damping and geometric tail in `value_v5` never beat the plain count that matches the outcome. Its case has to rest on what the tail does against an attacker, which neither test covers.
+
 Consequence for the build list: by its own success measure, the simpler rule ranks first on this evidence. A rule that pays by downstream use should beat the plain independent count on graded track record before it replaces that count.
