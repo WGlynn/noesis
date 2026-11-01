@@ -4,6 +4,19 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## 2026-11-01: first outside contribution (issue #2, SAGE outcome receipts); verifier built
+
+- That Guy (l33tdawg, SAGE) opened #2 on 2026-10-26: SAGE's side of a bridge is merged (signed receipts of
+  what one public memory changes on a task set: paired control/treatment runs, pinned judge, Ed25519).
+  Will answered on #2 2026-11-01 (yes to all three questions; gaps are ours: no evaluator policy, no
+  honest task source, no judge-version field). CONTRIBUTING.md is open now (7e6dc797).
+- Built (606abf0f): `interop/sage-receipts`, off-consensus (node does not depend on it): verifies v1
+  envelopes with parity on 40 vectors from SAGE's own Go code, writes labels. Not yet used on a real
+  pilot receipt.
+- Promised on #2, still open: write the pilot's evaluator policy with him. Found: SAGE rejects decimals
+  between -1 and 0 (pinned by vectors); a note to him is drafted outside the repo, Will's call to send.
+- A daily cron watches this repo and SAGE for new issues, PRs and comments.
+
 ## 2026-10-21 (evening): devnet, not testnet; coherence pass before any testnet
 
 - Frame (Will): the hosted single node is a DEVNET. Path: public testnet (followers validate live, bootnodes, faucet, explorer, resets; team validators are fine) -> incentivized testnet (outside operators test the economics) -> mainnet. Memory: feedback_testnet-means-a-network-not-a-node.
