@@ -226,7 +226,7 @@ generalizes at about 0.60 on a repo-disjoint split, mostly from popularity; grap
 were null at about 0.54 (`data/deepfunding/RESULTS-RICH-JUDGE.md`). A modest real signal, and a live risk of
 learning attention instead of dependence. Prediction on honest labels is not adversarial un-gameability.
 
-**Success measure (decided 2026-10-27).** Noesis is judged by calibration: how well its valuations today predict independent use later, the way a planet is judged by homeostasis. Independence is treated as a cost to fake, not a yes-or-no fact. Not yet measured. See `docs/research/calibration-is-homeostasis.md`.
+**Success measure (decided 2026-10-27).** Noesis is judged by calibration: how well its valuations today predict independent use later, the way a planet is judged by homeostasis. Independence is treated as a cost to fake, not a yes-or-no fact. First measured 2026-10-27 on crates.io (experiments C1 and C2). The measurement is an offline script in the ETM repo; no Noesis code computes it. A plain count of independent users forecast next year's independent adoption slightly better than `value_v5`'s damped flow. See `docs/research/calibration-is-homeostasis.md`.
 
 **7. Still open.** The capital-cluster independence oracle (designed, not built); an honest task source
 (M5); isomorphism invariance as a proof (M3; `WASH-PROBLEM-INDEX.md` row 9); transfer beyond small brains

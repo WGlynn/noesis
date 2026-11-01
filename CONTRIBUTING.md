@@ -1,9 +1,10 @@
 # Contributing to noesis
 
-noesis is in a pre-release / stealth period: development is currently closed and
-external contributions are not yet open. This document describes how the codebase is
-built and the discipline it is held to, so the workflow is legible now and ready for
-outside contributors at public release.
+noesis is public and open to contributions. Start with an issue: say what you want to
+change or connect, why, and what evidence you have. Pull requests are welcome once an
+issue has agreed the direction; small fixes (docs, tests, typos) can go straight to a PR.
+Reviews check each change against the discipline below. The one that matters most is
+honest scope: say what is demonstrated and what is only designed.
 
 ## Build & test
 
