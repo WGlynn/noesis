@@ -63,7 +63,7 @@ And proof-of-work isn't wasted here — far from it. It runs a separate **energy
 
 ## Honest status
 
-We mark what's built versus what's designed. **Built and tested** in an open reference node: ownership, commit-reveal, the synergy pricing, novelty, the anti-flood and anti-ring defenses, the bounded judge, dispute-and-slash, and Proof-of-Mind-weighted finality. **The one hard, unsolved piece:** teaching the value-measure to judge real-world contribution un-gameably at scale. We treat it as the load-bearing open problem, not a solved one. The plan isn't a fixed formula — those get gamed the day they're published — but a judge grown from work that has already settled and frozen before each round, so the work it scores can't bend it.
+We mark what's built versus what's designed. **Built and tested** in an open reference node: ownership, commit-reveal ordering (the hiding phase that makes authorship un-front-runnable is designed, not built yet), the synergy pricing, novelty, the anti-flood and anti-ring defenses, the bounded judge, dispute-and-slash, and Proof-of-Mind-weighted finality. **The one hard, unsolved piece:** teaching the value-measure to judge real-world contribution un-gameably at scale. We treat it as the load-bearing open problem, not a solved one. The plan isn't a fixed formula — those get gamed the day they're published — but a judge grown from work that has already settled and frozen before each round, so the work it scores can't bend it.
 
 ---
 
