@@ -29,7 +29,7 @@ Projects that tried to put proof-of-work to real use — finding primes, folding
 ## How it works (plainly)
 
 1. **You contribute a block** — an idea, a fix, a piece of work — with its inputs recorded, so *how* you got there is provable.
-2. **You lock it before revealing it** (commit-reveal), so nobody can steal or front-run your authorship.
+2. **It gets its place in line before anyone reads it** (commit-reveal ordering). The hiding phase, where you lock the content first so nobody can front-run your authorship, is designed, not built yet.
 3. **It's priced** by the realized downstream flow it generates, split fairly among everyone who genuinely contributed (a cooperative-game rule called the Myerson value — fair credit along the lines of who built on whom).
 4. **That price becomes two things:** a **soulbound standing** (your Proof-of-Mind score — reputation and voting weight you earn and *cannot sell*), and a **transferable state-capacity** (storage you can trade like a commodity).
 
