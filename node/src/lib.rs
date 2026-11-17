@@ -106,6 +106,11 @@ pub mod chainspec;
 /// with a pure, unit-tested dispatch core. Step 2 of the friends-ready node.
 pub mod rpc;
 
+/// identity_mint — the issuer's tooling for the soulbound identity standard (`tokens::soulbound`):
+/// batch parsing, the one-time key chain, tx building and signing. Off-consensus; the block gate checks
+/// what it builds. Used by the `identity-mint` binary.
+pub mod identity_mint;
+
 /// store — the durable, append-only block log: the chain survives a node restart by replaying the log
 /// through the same validate+apply path a joiner uses. The difference between a demo and a node that
 /// stays on. Step "persistence" of the friends-ready node.

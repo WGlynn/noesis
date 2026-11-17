@@ -50,3 +50,9 @@ path = "src/bin/noesisd.rs"
 [[bin]]
 name = "factnode"
 path = "src/bin/factnode.rs"
+
+# The soulbound identity issuer's mint tool (src/identity_mint.rs): batch file -> one signed
+# soulbound tx -> the node's POST /token-tx. Holds the issuer key; the node never does.
+[[bin]]
+name = "identity-mint"
+path = "src/bin/identity_mint.rs"

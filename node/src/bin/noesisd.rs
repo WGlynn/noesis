@@ -104,7 +104,7 @@ fn digest_string(node: &Node) -> String {
 }
 
 fn print_state(node: &Node) {
-    let (ids, root, pom, tokens, work) = node.ledger.state_digest();
+    let (ids, root, pom, _tokens, work) = node.ledger.state_digest();
     let root_hex: String = root.iter().take(6).map(|b| format!("{b:02x}")).collect();
     let mut pom_sorted = pom.clone();
     pom_sorted.sort_by(|a, b| b.1.cmp(&a.1));
@@ -114,13 +114,15 @@ fn print_state(node: &Node) {
         .collect();
     // JUL issued so far, in whole JUL (base units / 10^8) — minted from the block's mined work.
     let jul = node.ledger.jul_supply.issued() / noesis::jul::JUL_BASE_UNITS;
+    // JUL coinbase cells only (the genesis also seeds the identity issuer's authority token cell)
+    let coinbase_cells = node.ledger.token_cells.iter().filter(|c| noesis::jul::is_jul(c)).count();
     println!(
         "  height={} work={} cells={} jul={} coinbase_cells={} index_root={}.. pom[{}]",
         node.ledger.height,
         work,
         ids.len(),
         jul,
-        tokens.len(),
+        coinbase_cells,
         root_hex,
         pom_str.join(" ")
     );

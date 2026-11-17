@@ -20,8 +20,8 @@
 //! (`jul::reward_with_decay` is built and tested but not yet wired into the mint site).
 
 use crate::consensus::Validator;
-use crate::runtime::{header_digest, Block, Constitution, Node};
-use crate::Script;
+use crate::runtime::{header_digest, Block, Constitution, Node, TokenTx};
+use crate::{Cell, Script};
 
 /// The genesis definition every honest node agrees on. Two nodes that boot the same `ChainSpec`
 /// produce comparable state digests; disagreeing on any field forks block zero.
@@ -39,7 +39,20 @@ pub struct ChainSpec {
     /// `staked_balance` give bonded finality weight at genesis; `pom` starts 0 and is sourced live
     /// from the cleared-score bridge as each contributor's finalized work ages in.
     pub validators: Vec<(Vec<u8>, Validator)>,
+    /// Token cells present at block zero, in `Ledger.token_cells` (never `cells`, so they carry no PoM
+    /// standing and no finality weight). Today: the soulbound identity issuer's authority cell for
+    /// [`crate::identity_mint::COLLECTION`], the only way a soulbound collection gets an authority.
+    pub genesis_token_cells: Vec<Cell>,
 }
+
+/// The testnet identity issuer's authority lock root at generation 0 (a public key, hex
+/// `5407ffa5...27d6c7e`). Its seed was generated 2026-11-17 on the issuer's machine and is kept outside
+/// the repository (`identity-mint root --seed <file>` prints this value from it); the dev spec uses the
+/// public [`crate::identity_mint::DEV_ISSUER_SEED`] instead.
+pub const TESTNET_IDENTITY_AUTHORITY_ROOT: [u8; 32] = [
+    0x54, 0x07, 0xff, 0xa5, 0x70, 0x96, 0x9b, 0x73, 0x9c, 0x0a, 0x63, 0x13, 0x11, 0x59, 0x14, 0x9f, //
+    0x63, 0x3a, 0x07, 0xfc, 0xd8, 0xd7, 0xae, 0x0a, 0x1c, 0xd3, 0x15, 0x2a, 0xd2, 0x7d, 0x6c, 0x7e,
+];
 
 impl ChainSpec {
     /// The local devnet spec: the ratified M3 economics turned ON (PoW enforced ⇒ real mined
@@ -74,6 +87,11 @@ impl ChainSpec {
             // local mining. A valid compact the decoder accepts (see pow_arithmetic tests).
             genesis_bits: 0x2000_ffff,
             validators,
+            genesis_token_cells: vec![crate::identity_mint::authority_cell(
+                crate::identity_mint::COLLECTION,
+                crate::identity_mint::authority_root(&crate::identity_mint::DEV_ISSUER_SEED, 0),
+                0,
+            )],
         }
     }
 
@@ -135,6 +153,11 @@ impl ChainSpec {
             // TESTNET PLACEHOLDER — the measured mainnet value is the standing ⚑.
             genesis_bits: 0x1f00_ffff,
             validators,
+            genesis_token_cells: vec![crate::identity_mint::authority_cell(
+                crate::identity_mint::COLLECTION,
+                TESTNET_IDENTITY_AUTHORITY_ROOT,
+                0,
+            )],
         }
     }
 
@@ -145,7 +168,9 @@ impl ChainSpec {
     pub fn genesis_node(&self) -> (Node, Vec<Vec<u8>>) {
         let validators: Vec<Validator> = self.validators.iter().map(|(_, v)| v.clone()).collect();
         let keys: Vec<Vec<u8>> = self.validators.iter().map(|(k, _)| k.clone()).collect();
-        (Node::new(0, validators, self.constitution.clone()), keys)
+        let mut node = Node::new(0, validators, self.constitution.clone());
+        node.ledger.token_cells.extend(self.genesis_token_cells.iter().cloned());
+        (node, keys)
     }
 
     /// Produce ONE block from whatever is currently in `node`'s mempool, through the FULL proven
@@ -159,6 +184,13 @@ impl ChainSpec {
     /// validation or finality miss the mempool is cleared and `None` returned (the round is dropped,
     /// never half-applied). The caller must `submit` contributions before calling.
     pub fn produce_block(&self, node: &mut Node) -> Option<Block> {
+        self.produce_block_with(node, Vec::new())
+    }
+
+    /// [`produce_block`](Self::produce_block) carrying `token_txs` in the block (empty ⇒ exactly
+    /// `produce_block`). A token movement never makes a block by itself: the block still needs a
+    /// contribution (`EmptyBlock`), and the txs face the same block gate as any other.
+    pub fn produce_block_with(&self, node: &mut Node, token_txs: Vec<TokenTx>) -> Option<Block> {
         if node.mempool.is_empty() {
             return None; // no contributions ⇒ nothing to finalize (an empty block is invalid)
         }
@@ -167,7 +199,7 @@ impl ChainSpec {
             code_hash: [0u8; 32],
             args: self.validators.first().map(|(k, _)| k.clone()).unwrap_or_default(),
         };
-        let block = mine(node.propose().with_coinbase(producer), self.genesis_bits);
+        let block = mine(node.propose().with_token_txs(token_txs).with_coinbase(producer), self.genesis_bits);
         if !node.validate(&block) {
             node.clear_mempool();
             return None;
@@ -274,6 +306,36 @@ mod tests {
         let block = net.produce_block(&mut node).expect("a contribution finalizes a testnet block");
         assert_eq!(block.height, 1);
         assert!(node.ledger.jul_supply.issued() > 0, "mined work issues JUL from block zero on testnet too");
+    }
+
+    #[test]
+    fn dev_and_testnet_genesis_seed_the_identity_issuer_authority() {
+        use crate::identity_mint::{authority_root, COLLECTION, DEV_ISSUER_SEED};
+        use crate::tokens::soulbound::{self, Record};
+        for (spec, root) in [
+            (ChainSpec::dev(), authority_root(&DEV_ISSUER_SEED, 0)),
+            (ChainSpec::testnet(), TESTNET_IDENTITY_AUTHORITY_ROOT),
+        ] {
+            let (node, _) = spec.genesis_node();
+            let sb: Vec<&Cell> = node
+                .ledger
+                .token_cells
+                .iter()
+                .filter(|c| c.type_script.code_hash == soulbound::CODE_HASH)
+                .collect();
+            assert_eq!(sb.len(), 1, "chain 0x{:x}: exactly one soulbound cell at genesis", spec.chain_id);
+            assert_eq!(sb[0].type_script.args, COLLECTION.to_vec());
+            assert_eq!(soulbound::decode(&sb[0].data), Some(Record::Authority { generation: 0 }));
+            assert_eq!(sb[0].lock.args, root.to_vec(), "chain 0x{:x}: the issuer's generation-0 key", spec.chain_id);
+            // the seeded cell is token state only: no contribution, no standing, no finality weight
+            assert!(node.ledger.cells.is_empty() && node.ledger.pom.is_empty());
+            assert!(node.finality_pom_weight().is_empty());
+        }
+        assert_ne!(
+            TESTNET_IDENTITY_AUTHORITY_ROOT,
+            authority_root(&DEV_ISSUER_SEED, 0),
+            "the testnet authority is not the public dev key"
+        );
     }
 
     #[test]

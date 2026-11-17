@@ -9,7 +9,10 @@
 //!                      the ONE proven per-block engine ([`crate::chainspec::ChainSpec::produce_block`]),
 //!                      and returns the new state. A submitted contribution travels the EXACT path the
 //!                      tested chain does — no second, drifting pipeline.
-//!   * `GET  /tokens`   — live non-JUL token cells (soulbound identities decoded).
+//!   * `GET  /tokens`   — live non-JUL token cells (soulbound identities decoded), pending and recently
+//!                      carried token txs.
+//!   * `POST /token-tx` — a signed soulbound identity tx (`identity_mint::envelope`), held until the next
+//!                      contribution block carries it. Soulbound only, every input signed.
 //!
 //! DELIBERATELY LEAN (the `net` precedent): std `TcpListener` + threads, NO async runtime and NO web
 //! framework. The request parser is bounded (a body cap + socket read timeout) — enough for a LOCAL
@@ -28,13 +31,13 @@ use serde_json::{json, Value};
 
 use crate::chainspec::ChainSpec;
 use crate::commit_order::Committed;
-use crate::runtime::Node;
+use crate::runtime::{txs_conserve_and_single_use, Node, TokenStandard, TokenTx};
 use crate::{Cell, Script};
 
 /// Max request body we will read. A SIGNED contribution carries a 16 KiB Lamport OTS signature
 /// (~32 KiB as hex) plus the Merkle auth path, so the budget is larger than a plain JSON post — still
 /// bounded to keep per-connection memory sane.
-const MAX_BODY: usize = 160 * 1024;
+pub const MAX_BODY: usize = 160 * 1024;
 /// Per-socket read/write deadline — a stalled client's thread dies instead of hanging forever.
 const IO_TIMEOUT: Duration = Duration::from_secs(30);
 /// The frontend, EMBEDDED at compile time so the node is ONE self-contained binary that serves its own
@@ -50,7 +53,7 @@ const CRYPTO_JS: &str = include_str!("../../frontend/crypto.js");
 const QUESTIONS_JSON: &str = include_str!("../../frontend/questions.json");
 
 /// Lower-case hex, for the wallet address + signature fields on the wire (JSON is text, keys are bytes).
-fn hex_encode(bytes: &[u8]) -> String {
+pub(crate) fn hex_encode(bytes: &[u8]) -> String {
     let mut s = String::with_capacity(bytes.len() * 2);
     for b in bytes {
         s.push_str(&format!("{b:02x}"));
@@ -58,12 +61,18 @@ fn hex_encode(bytes: &[u8]) -> String {
     s
 }
 /// Decode lower/upper hex to bytes; `None` on any non-hex char or odd length.
-fn hex_decode(s: &str) -> Option<Vec<u8>> {
-    if s.len() % 2 != 0 {
+pub(crate) fn hex_decode(s: &str) -> Option<Vec<u8>> {
+    if s.len() % 2 != 0 || !s.is_ascii() {
         return None;
     }
     (0..s.len()).step_by(2).map(|i| u8::from_str_radix(&s[i..i + 2], 16).ok()).collect()
 }
+
+/// Most `POST /token-tx` txs a node holds while they wait for a contribution block to carry them.
+const MAX_PENDING_TOKEN_TXS: usize = 16;
+/// How many recent (digest, height) inclusions `GET /tokens` reports, so a minting tool can learn
+/// which block carried its tx. Node-local memory: lost on restart (the tool also sees the cells land).
+const MAX_INCLUDED_RECORD: usize = 256;
 
 /// One token cell as `GET /tokens` shows it: every identity field in hex (enough to rebuild the exact
 /// cell a tx must name as an input), plus the decoded record for a soulbound cell.
@@ -159,6 +168,11 @@ pub struct ServerState {
     /// Durable by construction — rebuilt on boot from each cell's `lock.args` (`address‖index_le`), so
     /// it needs no sidecar and survives a restart along with the chain.
     used_index: std::collections::HashMap<[u8; 32], u64>,
+    /// Signed soulbound txs from `POST /token-tx`, waiting for the next contribution block to carry
+    /// them (a block needs a contribution, so a token tx never makes a block alone). Node-local.
+    pending_token_txs: Vec<TokenTx>,
+    /// Recent inclusions `(tx digest, block height)`, newest last, bounded. Node-local.
+    included_token_txs: Vec<([u8; 32], u64)>,
 }
 
 /// A finalized contribution cell binds its signer + one-time leaf into `lock.args = address(32)‖
@@ -191,7 +205,15 @@ impl ServerState {
             store: None,
             screen: crate::screen::Screen::new(),
             used_index: std::collections::HashMap::new(),
+            pending_token_txs: Vec::new(),
+            included_token_txs: Vec::new(),
         }
+    }
+
+    /// In-memory node on any spec (tests: the testnet genesis without a store).
+    pub fn with_spec(spec: ChainSpec) -> Self {
+        let (node, _keys) = spec.genesis_node();
+        ServerState { spec, node, ..ServerState::new() }
     }
 
     /// Boot a DURABLE node: replay the persisted block log at `path` (or start at genesis if absent),
@@ -214,7 +236,19 @@ impl ServerState {
                 *e = (*e).max(index);
             }
         }
-        Ok((ServerState { spec, node, next_id, store: Some(path), screen, used_index }, replayed))
+        Ok((
+            ServerState {
+                spec,
+                node,
+                next_id,
+                store: Some(path),
+                screen,
+                used_index,
+                pending_token_txs: Vec::new(),
+                included_token_txs: Vec::new(),
+            },
+            replayed,
+        ))
     }
 
     /// The chain view as JSON.
@@ -238,7 +272,8 @@ impl ServerState {
         })
     }
 
-    /// `GET /tokens`: every live non-JUL token cell (JUL coinbase cells are summed in `/state`).
+    /// `GET /tokens`: every live non-JUL token cell (JUL coinbase cells are summed in `/state`), plus
+    /// the token txs this node holds and recently carried.
     fn tokens_json(&self) -> Value {
         let cells: Vec<Value> = self
             .node
@@ -249,12 +284,63 @@ impl ServerState {
             .map(token_cell_json)
             .collect();
         let jul_cells = self.node.ledger.token_cells.len() - cells.len();
+        let pending: Vec<String> = self.pending_token_txs.iter().map(|t| hex_encode(&t.digest())).collect();
+        let included: Vec<Value> = self
+            .included_token_txs
+            .iter()
+            .map(|(d, h)| json!({ "digest": hex_encode(d), "height": h }))
+            .collect();
         json!({
             "chain_id": self.spec.chain_id,
             "height": self.node.ledger.height,
             "jul_cells": jul_cells,
             "cells": cells,
+            "pending": pending,
+            "included": included,
         })
+    }
+
+    /// `POST /token-tx`: hold a signed soulbound tx for the next contribution block. Node-local policy,
+    /// stricter than consensus today: soulbound only (the route opens no other value movement), and
+    /// every input must present its owner's signature, verified now (control binding on this route
+    /// ahead of the consensus flip, so only the issuer's key can use it). The tx must be valid against
+    /// the live chain together with every tx already pending. Re-sending a pending tx is a no-op.
+    fn queue_token_tx(&mut self, tx: TokenTx) -> Result<[u8; 32], String> {
+        if tx.standard != TokenStandard::Soulbound {
+            return Err("this route takes soulbound identity txs only".into());
+        }
+        if tx.inputs.is_empty() || tx.auths.len() != tx.inputs.len() || tx.auths.iter().any(Vec::is_empty) {
+            return Err("every input must carry its owner's signature".into());
+        }
+        let digest = tx.digest();
+        if self.pending_token_txs.iter().any(|p| p.digest() == digest) {
+            return Ok(digest);
+        }
+        if self.pending_token_txs.len() >= MAX_PENDING_TOKEN_TXS {
+            return Err("token tx queue is full; wait for a block".into());
+        }
+        let mut batch = self.pending_token_txs.clone();
+        batch.push(tx.clone());
+        if !txs_conserve_and_single_use(&self.node.ledger.token_cells, &batch) {
+            return Err("token tx is not valid against the live chain (or conflicts with a pending one)".into());
+        }
+        self.pending_token_txs.push(tx);
+        Ok(digest)
+    }
+
+    /// The pending token txs a block built now can carry: drop any that can no longer land (an input
+    /// spent since), then keep the largest valid prefix-greedy set.
+    fn carry_pending(&mut self) -> Vec<TokenTx> {
+        let live = &self.node.ledger.token_cells;
+        self.pending_token_txs.retain(|t| txs_conserve_and_single_use(live, std::slice::from_ref(t)));
+        let mut carried: Vec<TokenTx> = Vec::new();
+        for t in &self.pending_token_txs {
+            carried.push(t.clone());
+            if !txs_conserve_and_single_use(live, &carried) {
+                carried.pop();
+            }
+        }
+        carried
     }
 
     /// The per-contribution view — the CONNECTION made visible. Each finalized contribution with its
@@ -354,8 +440,17 @@ impl ServerState {
             data: data.as_bytes().to_vec(),
         };
         self.node.submit(cell, Committed { height: self.node.ledger.height + 1, secret });
-        match self.spec.produce_block(&mut self.node) {
+        // Pending token txs (POST /token-tx) ride this contribution's block; it gives them no standing.
+        let carried = self.carry_pending();
+        match self.spec.produce_block_with(&mut self.node, carried) {
             Some(block) => {
+                for t in &block.token_txs {
+                    let d = t.digest();
+                    self.pending_token_txs.retain(|p| p.digest() != d);
+                    self.included_token_txs.push((d, block.height));
+                }
+                let excess = self.included_token_txs.len().saturating_sub(MAX_INCLUDED_RECORD);
+                self.included_token_txs.drain(..excess);
                 // Accepted + finalized ⇒ fold its shingles into the screen so later copies are caught,
                 // and advance this address's one-time-leaf high-water mark.
                 self.screen.record(data.as_bytes());
@@ -401,6 +496,27 @@ pub fn handle_request(
         ("GET", "/state") => out(200, state.state_json()),
         ("GET", "/contributions") => out(200, state.contributions_json()),
         ("GET", "/tokens") => out(200, state.tokens_json()),
+        ("POST", "/token-tx") => {
+            let tx = match serde_json::from_slice::<Value>(body)
+                .map_err(|e| format!("invalid JSON: {e}"))
+                .and_then(|v| crate::identity_mint::from_envelope(&v))
+            {
+                Ok(tx) => tx,
+                Err(e) => return out(400, json!({ "error": e })),
+            };
+            match state.queue_token_tx(tx) {
+                Ok(d) => out(
+                    200,
+                    json!({
+                        "queued": true,
+                        "digest": hex_encode(&d),
+                        "pending": state.pending_token_txs.len(),
+                        "note": "carried by the next contribution block",
+                    }),
+                ),
+                Err(e) => out(400, json!({ "error": e })),
+            }
+        }
         ("POST", "/submit") => {
             let parsed: Result<Value, _> = serde_json::from_slice(body);
             let v = match parsed {
@@ -517,6 +633,7 @@ pub fn serve_api(addr: &str, store_path: &str, spec: ChainSpec) {
     println!("  GET  /state              -> chain view (height, jul, contributors)");
     println!("  GET  /tokens             -> live non-JUL token cells (soulbound identities decoded)");
     println!("  POST /submit {{address,index,ots_root,auth,ots_sig,data}} -> signed contribution, mine+finalize");
+    println!("  POST /token-tx {{tx,auths}} -> signed soulbound tx, carried by the next contribution block");
 
     let state = Arc::new(Mutex::new(server_state));
     for conn in listener.incoming() {
@@ -770,5 +887,113 @@ mod tests {
         assert!(back.id == ident.id && back.lock == ident.lock && back.type_script == ident.type_script && back.data == ident.data);
         let s = state_of(&handle_request(&mut st, "GET", "/state", b"").2);
         assert_eq!(s["coinbase_cells"], 1, "coinbase_cells counts JUL cells only");
+    }
+
+    // ---- B4: the genesis authority, POST /token-tx ----
+
+    fn tokens(st: &mut ServerState) -> Value {
+        let (status, _, body) = handle_request(st, "GET", "/tokens", b"");
+        assert_eq!(status, 200);
+        state_of(&body)
+    }
+
+    /// A signed mint of `records` from the live chain, with the public dev issuer seed.
+    fn signed_mint(st: &mut ServerState, records: &[(u64, u8, &str)]) -> Value {
+        use crate::identity_mint as im;
+        let recs: Vec<im::BatchRecord> = records
+            .iter()
+            .map(|&(serial, holder, tier)| im::BatchRecord {
+                serial,
+                holder: [holder; 32],
+                tier: crate::tokens::soulbound::Tier::from_name(tier).unwrap(),
+            })
+            .collect();
+        let live = im::parse_live(&tokens(st), im::COLLECTION).expect("live authority");
+        let mut built = im::build(&recs, &live, &im::DEV_ISSUER_SEED, im::COLLECTION).expect("builds");
+        built.sign();
+        im::envelope(built.tx.as_ref().expect("a tx"))
+    }
+
+    #[test]
+    fn get_tokens_lists_the_genesis_authority_and_keeps_jul_out() {
+        let mut st = ServerState::new();
+        let t = tokens(&mut st);
+        assert_eq!(t["height"], 0);
+        assert_eq!(t["jul_cells"], 0);
+        let cells = t["cells"].as_array().unwrap();
+        assert_eq!(cells.len(), 1, "genesis holds the identity issuer's authority, nothing else");
+        assert_eq!(cells[0]["standard"], "soulbound");
+        assert_eq!(cells[0]["collection"], "vibeswap-identity-v1");
+        assert_eq!(cells[0]["record"]["kind"], "authority");
+        assert_eq!(cells[0]["record"]["generation"], 0);
+        // the hex fields rebuild the exact cell (what a tx must name as its input)
+        let back = token_cell_from_json(&cells[0]).unwrap();
+        let live = &st.node.ledger.token_cells[0];
+        assert!(back.id == live.id && back.lock == live.lock && back.type_script == live.type_script && back.data == live.data);
+        // a block adds a JUL coinbase cell: counted in jul_cells, not listed
+        assert_eq!(handle_request(&mut st, "POST", "/submit", &signed_body(&[0x11; 32], 0, "a first note on river deltas")).0, 200);
+        let t = tokens(&mut st);
+        assert_eq!(t["jul_cells"], 1);
+        assert_eq!(t["cells"].as_array().unwrap().len(), 1);
+        let s = state_of(&handle_request(&mut st, "GET", "/state", b"").2);
+        assert_eq!(s["coinbase_cells"], 1, "coinbase_cells counts JUL cells only");
+        assert_eq!(s["token_cells"], 2);
+    }
+
+    #[test]
+    fn token_tx_rides_the_next_contribution_block_and_earns_no_standing() {
+        let mut st = ServerState::new();
+        let env = signed_mint(&mut st, &[(1, 0xA1, "identity"), (2, 0xA2, "member")]);
+        let (status, _, body) = handle_request(&mut st, "POST", "/token-tx", env.to_string().as_bytes());
+        assert_eq!(status, 200, "{}", String::from_utf8_lossy(&body));
+        let digest = state_of(&body)["digest"].as_str().unwrap().to_string();
+        assert_eq!(tokens(&mut st)["pending"][0], digest.as_str());
+        // re-sending the same tx is a no-op
+        assert_eq!(handle_request(&mut st, "POST", "/token-tx", env.to_string().as_bytes()).0, 200);
+        assert_eq!(tokens(&mut st)["pending"].as_array().unwrap().len(), 1);
+        // nothing lands until a contribution makes a block
+        assert_eq!(state_of(&handle_request(&mut st, "GET", "/state", b"").2)["height"], 0);
+        let dave = [0x11u8; 32];
+        assert_eq!(handle_request(&mut st, "POST", "/submit", &signed_body(&dave, 0, "a note on estuary sediment")).0, 200);
+        let t = tokens(&mut st);
+        assert_eq!(t["pending"].as_array().unwrap().len(), 0);
+        assert_eq!(t["included"][0]["digest"], digest.as_str());
+        assert_eq!(t["included"][0]["height"], 1);
+        let kinds: Vec<&str> = t["cells"].as_array().unwrap().iter().map(|c| c["record"]["kind"].as_str().unwrap()).collect();
+        assert_eq!(kinds.iter().filter(|k| **k == "identity").count(), 2);
+        assert_eq!(kinds.iter().filter(|k| **k == "authority").count(), 1);
+        // standing: only the contributor, exactly as without the mint
+        let s = state_of(&handle_request(&mut st, "GET", "/state", b"").2);
+        let contributors = s["contributors"].as_object().unwrap();
+        assert_eq!(contributors.len(), 1);
+        assert!(contributors.contains_key(&addr_hex(&dave)));
+        let mut twin = ServerState::new();
+        handle_request(&mut twin, "POST", "/submit", &signed_body(&dave, 0, "a note on estuary sediment"));
+        assert_eq!(s["contributors"], state_of(&handle_request(&mut twin, "GET", "/state", b"").2)["contributors"]);
+    }
+
+    #[test]
+    fn token_tx_route_refuses_unsigned_foreign_and_malformed_txs() {
+        let mut st = ServerState::new();
+        let env = signed_mint(&mut st, &[(1, 0xA1, "identity")]);
+        // unsigned: the route enforces control binding now, ahead of consensus
+        let mut unsigned = env.clone();
+        unsigned["auths"] = json!([]);
+        let (s1, _, b1) = handle_request(&mut st, "POST", "/token-tx", unsigned.to_string().as_bytes());
+        assert_eq!(s1, 400);
+        assert!(state_of(&b1)["error"].as_str().unwrap().contains("signature"));
+        // a wrong signature
+        let mut forged = env.clone();
+        forged["auths"] = json!([hex_encode(&noesis_core::lamport::sign(&[9u8; 32], &[0u8; 32]))]);
+        assert_eq!(handle_request(&mut st, "POST", "/token-tx", forged.to_string().as_bytes()).0, 400);
+        // another standard: the route opens no other value movement
+        let mut fungible = env.clone();
+        fungible["tx"]["standard"] = json!(0);
+        assert_eq!(handle_request(&mut st, "POST", "/token-tx", fungible.to_string().as_bytes()).0, 400);
+        // garbage
+        assert_eq!(handle_request(&mut st, "POST", "/token-tx", b"{").0, 400);
+        assert_eq!(tokens(&mut st)["pending"].as_array().unwrap().len(), 0, "nothing was queued");
+        // the genuine one still queues
+        assert_eq!(handle_request(&mut st, "POST", "/token-tx", env.to_string().as_bytes()).0, 200);
     }
 }
