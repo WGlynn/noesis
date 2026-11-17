@@ -33,6 +33,33 @@
    `internal/DESIGN-joint-decay-damping-rate.md`. Code comments + patent line 233 relabeled to match.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-11-17 (soulbound identities in the token-cell lane, Phase B of the Vibeswap chat identity)**:
+  built in the reference node, additive, no consensus constant touched. `TokenStandard::Soulbound`
+  (tag 3) + `tokens::soulbound`: one cell per serial, holder fixed in the cell, issuer-only mint /
+  re-tier (identity, member, revoked) / burn. Commits 0f92a91a (B1 standard), 1a263b4b (B2 no-leak
+  test), 6dad5599 (one-mint limit), 2acee91e (B3 on-VM tag 3, ELF rebuilt), 332e4403 (B5 GET /tokens),
+  81748a63 (B4 genesis authority, POST /token-tx, `identity-mint`). Zero PoM / finality weight: test
+  `identity_mints_carry_zero_pom_and_zero_finality_weight` (runtime.rs:3487), break-on-purpose checked.
+  FOUND (1), settling the design note's open question: the one-mint limit is REAL for the
+  `lock.args == args` mint rule, once control binding is on. Keeping mint authority means signing
+  twice with one Lamport key, and two such signatures let a third party build a valid signature over a
+  digest the issuer never signed (`one_mint_limit_of_the_lock_args_rule_is_real`, runtime.rs:3571).
+  Scope: after two signatures a forger still has to grind a tx whose digest matches both on the bits
+  where they agree (about half of 256 for hash digests, not asserted by the test); each further reuse
+  can only shrink that set, by about half each time. Fungible/Nft unchanged, open.
+  Soulbound avoids it with a linear authority cell whose lock rotates each spend (a key chain); three
+  consecutive signed mints pass (runtime.rs:3654, node/tests/identity_mint.rs). FOUND (2), confirmed by
+  a scratch test (not committed): the reference node accepts a Fungible/Nft tx that also outputs cells
+  of an UNRELATED non-JUL token, minted from nothing (`TokenTx::is_valid` checks only the declared
+  token and `apply_transition` persists every output, runtime.rs:1490). Only JUL (since increment 2)
+  and soulbound cells (confinement, runtime.rs:381) are guarded. The on-VM lock script rejects mixed
+  groups (exit 45). Not fixed: it changes existing standards' behavior, so it is Will's call; no
+  non-JUL fungible token exists in the dev or testnet spec today. Devnet E2E (release binaries, temp
+  logs): 3 mints in block 1, a re-tier to revoked in block 2, PoM identical to a twin chain with the
+  same contributions and no mints, replay from the log identical. Open: control binding is off
+  (`CONTROL_BINDING_ACTIVE`, runtime.rs:597), so the chain copy is a mirror, not proof; mints wait for
+  a contribution block; pending txs are node-local memory; the soulbound on-VM TYPE script is not
+  built (only the lock script knows the standard).
 - **2026-10-20 (missed-finality-vote decay + fork as exit)**: built in the reference, INERT by default,
   not on-VM. Closes the online-withholding finality stall raised in the 2026-10-19 review (Will promised it
   is addressed before mainnet). Finality stalls, block production never does (never-halt). Mechanism:

@@ -4,6 +4,60 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## 2026-11-17: soulbound identities (Vibeswap chat identity, Phase B) built in the token-cell lane
+
+- Built (reference node, additive): `TokenStandard::Soulbound` (tag 3) + `tokens::soulbound`; issuer
+  authority = one linear authority cell per collection, re-created at generation + 1 under a fresh
+  one-time key each spend; genesis seeds `vibeswap-identity-v1`'s authority in dev AND testnet;
+  `GET /tokens`, `POST /token-tx` (soulbound only, every input signed), and the `identity-mint` tool.
+  Commits 0f92a91a, 1a263b4b, 6dad5599, 2acee91e, 332e4403, 81748a63. Design + decisions:
+  ARCHITECTURE.md "Soulbound identities"; the bot side (Phase A) is in the vibeswap repo.
+- Proven by test: zero PoM / zero finality weight (`identity_mints_carry_zero_pom_and_zero_finality_weight`,
+  runtime.rs:3487); one-mint limit real for the `lock.args == args` rule (runtime.rs:3571), avoided by
+  the soulbound key chain (runtime.rs:3654; node/tests/identity_mint.rs, three rounds); on-VM tag 3
+  (node/tests/ckb_vm_locksig.rs, 15/15).
+- Testnet issuer key: seed at `~/.noesis/vibeswap-identity-issuer-testnet.seed` on Will's PC (outside the
+  repo; never commit it; back it up). Public root `TESTNET_IDENTITY_AUTHORITY_ROOT` (chainspec.rs:52);
+  `identity-mint root --seed <file>` must print `5407ffa5...27d6c7e`. The tool keeps
+  `<seed>.pending.json` beside it (one signed tx per generation; do not delete while a tx is pending).
+- Devnet E2E, run 2026-11-17 (git bash, release binaries, temp dir `$E2E`, nothing touches a real log):
+  ```
+  cargo build --release -p noesis --bin noesisd --bin identity-mint
+  printf '%s' 6e6f657369732d6465762d6964656e746974792d6973737565722d7365656421 > $E2E/dev.seed  # public dev seed
+  NOESIS_NET=dev ./target/release/noesisd.exe --serve-api 127.0.0.1:9966 $E2E/dev-chain.log &
+  NOESIS_NET=dev ./target/release/noesisd.exe --serve-api 127.0.0.1:9967 $E2E/twin-chain.log &   # twin, no mints
+  ./target/release/identity-mint.exe mint --node http://127.0.0.1:9966 --seed $E2E/dev.seed $E2E/batch1.json --wait 120 &
+  node $E2E/contribute.mjs frontend/crypto.js http://127.0.0.1:9966 17 0 "a field note on estuary sediment and the spring tide"
+  node $E2E/contribute.mjs frontend/crypto.js http://127.0.0.1:9967 17 0 "a field note on estuary sediment and the spring tide"
+  ./target/release/identity-mint.exe mint --node http://127.0.0.1:9966 --seed $E2E/dev.seed $E2E/batch2.json --wait 120 &
+  node $E2E/contribute.mjs ... 18 0 "an unrelated sketch of a wind pump made from bicycle parts"   # both ports
+  curl -s http://127.0.0.1:9966/tokens ; curl -s http://127.0.0.1:9966/state ; curl -s http://127.0.0.1:9967/state
+  ```
+  batch1 = serials 1 (identity), 2 (member), 3 (identity) for test addresses a1..a1, a2..a2, a3..a3;
+  batch2 = the same with serial 3 revoked. `contribute.mjs` signs a contribution with `frontend/crypto.js`
+  exactly as the web wallet does. Result: block 1 minted 3, block 2 re-tiered serial 3 to revoked
+  (authority generation 2); PoM identical to the twin (49 and 55 for the two contributors on both);
+  restart from the log replayed identical token cells; re-running batch2 printed `unchanged` x3.
+- Testnet start on Will's PC (cmd.exe; a fresh log OUTSIDE the repo, since `*.log` is not gitignored
+  and the repo is public; the July `noesis-testnet.log` is archived by the main session):
+  ```
+  cd /d C:\Users\Will\noesis
+  set NOESIS_NET=testnet
+  target\release\noesisd.exe --serve-api 127.0.0.1:9955 C:\Users\Will\.noesis\testnet-chain.log
+  ```
+  (PowerShell: `$env:NOESIS_NET="testnet"; .\target\release\noesisd.exe --serve-api 127.0.0.1:9955 C:\Users\Will\.noesis\testnet-chain.log`.)
+  Mint against it from a second window:
+  ```
+  target\release\identity-mint.exe mint --node http://127.0.0.1:9955 --seed C:\Users\Will\.noesis\vibeswap-identity-issuer-testnet.seed <batch.json> --wait 600
+  ```
+  A mint lands only when a contribution makes a block; until then the tool prints `queued` (re-run the
+  same batch later: it re-sends the same signed tx, and records already on chain print `unchanged`).
+- FOUND, Will's call (not fixed, it changes existing standards): the reference node accepts a
+  Fungible/Nft tx that also outputs an unrelated non-JUL token's cells, minted from nothing (checked
+  with a scratch test). JUL and soulbound are guarded; no other fungible token exists in the specs.
+- Open: control binding off (the chain copy is a mirror, not proof); one-mint limit for Fungible/Nft;
+  the soulbound on-VM type script; quiet-chain mint latency; pending txs are node-local memory.
+
 ## 2026-11-01: first outside contribution (issue #2, SAGE outcome receipts); verifier built
 
 - That Guy (l33tdawg, SAGE) opened #2 on 2026-10-26: SAGE's side of a bridge is merged (signed receipts of

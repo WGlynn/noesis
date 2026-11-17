@@ -20,7 +20,11 @@
   outcome model, attribution/collusion detectors. Large; grep by symbol.
 - `node/src/runtime.rs` — `Node`/`Ledger`/`Block`, the `Constitution`, token txs
   (`TokenTx`, `mod tokens`), the **finality gadget** (`mod finality`), lock-sig verifier.
-- `node/src/tokens.rs` — ERC-analog conservation (Fungible/Nft/Multi).
+- `node/src/tokens.rs` — ERC-analog conservation (Fungible/Nft/Multi) and the soulbound identity
+  rule (`tokens::soulbound`, 2026-11-17).
+- `node/src/identity_mint.rs` + `node/src/bin/identity_mint.rs` — the soulbound issuer's mint tool
+  (off-consensus; it reads the issuer's seed file, which the node and the bot never need; the dev
+  seed alone is public by design).
 - `onchain/noesis-core` — `no_std` verify-side core shared with the on-VM type-scripts
   (Q32.32 mirrors: `finalizes_pos_pom_fixed`, `lamport`, `tx`). Single-sourced with the node.
 - `onchain/{pom,finalization,commit-order,locksig}-typescript` — RISC-V CKB-VM scripts
@@ -120,6 +124,59 @@ Two different weightings. Quoting one for the other is the 2026-06-29 hallucinat
 PoM standing is **soulbound** (the `type_script.args` contributor identity, never reassigned
 on transfer); the transferable byte (`lock.args`) carries ownership. Consensus franchise rides
 the soulbound side, never the transferable byte.
+
+## Soulbound identities: token cells with zero standing (built 2026-11-17, reference node)
+
+Not PoM standing, and not a fourth token in the table above: an application credential (first
+collection `vibeswap-identity-v1`, `node/src/identity_mint.rs:33`, the Vibeswap chat's opt-in
+identity with a member tier). Standard `TokenStandard::Soulbound` (`node/src/runtime.rs:335`; wire,
+digest and on-VM tag 3), rule `tokens::soulbound` (`node/src/tokens.rs:202`, `valid` at `:330`). One
+cell per serial in `Ledger.token_cells`; `data` = version, serial, tier (identity / member /
+revoked), the holder's 32-byte address. The issuer holds every cell. The type rule lets a tx mint,
+re-tier or burn only if it spends the issuer's authority cell, and never changes a live cell's holder
+(ERC-5484 "IssuerOnly" in cell form). Serial uniqueness is checked against live cells only, so the
+issuer could burn a serial and later mint it again for another address; the mint tool has no burn
+action. Who can spend that authority cell is a signature question,
+which consensus checks only once control binding is on (see the honest floor below).
+
+- **Zero PoM standing and zero finality weight, from the code.** Token outputs are appended to
+  `token_cells` only (`runtime.rs:1490`); PoM is recomputed over `state.cells` only (`runtime.rs:1568`,
+  keyed on `type_script.args`, `lib.rs:329`); `finality_pom_weight` filters `ledger.cells`
+  (`runtime.rs:1180-1187`); PoS weight comes from the chain spec's bonded validators, not from cells.
+  The only outside path into `cells` is `POST /submit`; identities enter through `POST /token-tx`,
+  which takes soulbound txs only. Confinement (`runtime.rs:381`): a soulbound cell moves only in a
+  soulbound tx of its own collection, and a soulbound tx carries nothing else. The test is
+  `identity_mints_carry_zero_pom_and_zero_finality_weight` (`runtime.rs:3487`): six blocks with and
+  without mints (holders equal to the contributor's own key, vesting W = 2) give identical cells, index
+  root, PoM, work clock, `finality_pom_weight()` and finality decision; folding soulbound outputs into
+  `cells` breaks it. That is a test over the reference node, not a proof.
+- **Issuer authority is a linear cell, so minting is not one-shot.** Fungible/Nft take mint authority
+  from an input whose `lock.args` equals the token args (`runtime.rs:402`). Only a 32-byte one-time
+  Lamport root can sign, so the authority must come back under the same key and a second mint reuses
+  it; from two such signatures a third party assembles a valid signature over a digest the issuer
+  never signed (`one_mint_limit_of_the_lock_args_rule_is_real`, `runtime.rs:3571`). Still true for
+  Fungible/Nft (open). Soulbound authority works differently. Each collection has exactly one
+  authority cell. Genesis creates it (`chainspec.rs:45`, `:172`); no tx can create another. Every spend
+  must re-create it with its generation number one higher, under any lock. So the tool locks
+  generation `g` with a key derived from (issuer seed, g) (`identity_mint.rs:56`), and each key signs
+  once. Identity cells get their own per-(g, serial) keys (`:61`).
+  Test: `soulbound_key_chain_mints_two_and_three_times_without_reusing_a_key` (`runtime.rs:3654`).
+- **Mint path.** A batch file (the bot's format) -> `identity-mint mint` reads `GET /tokens`
+  (`rpc.rs:498`) -> one tx, signed -> `POST /token-tx` (`rpc.rs:499`; node-local policy: soulbound
+  only, every input signed and verified, valid with all pending txs, queue of 16, `rpc.rs:72`) -> the
+  next contribution block carries it (`chainspec.rs:193`). A token tx never makes a block alone
+  (`EmptyBlock`, `runtime.rs:1294`, unchanged). Per tx at most 64 mints and 2 re-tiers
+  (`identity_mint.rs:42-43`) so the signed body fits `MAX_BODY` = 160 KiB (`rpc.rs:40`). The dev spec's
+  authority uses a public dev seed; the testnet's root is `TESTNET_IDENTITY_AUTHORITY_ROOT`
+  (`chainspec.rs:52`), its seed kept outside the repo. On-VM, the lock script maps the code hash to
+  tag 3 (`onchain/locksig-typescript/src/main.rs:60-72`; `node/tests/ckb_vm_locksig.rs`).
+- **Honest floor.** Spend signatures are off in consensus (`CONTROL_BINDING_ACTIVE = false`,
+  `runtime.rs:597`), so a block producer could spend the authority or re-tier identities with an empty
+  signature; the node's route refuses unsigned txs, and a single-producer node builds blocks only
+  from its own API, but the chain copy is a public mirror, not proof, until the flip. The off-chain
+  registry stays the authority. The holder address is pasted, not proven; the cell grants nothing on
+  chain. Pending txs and inclusion records are node-local memory. On a quiet chain a mint waits for a
+  contribution.
 
 ## Value measure `v(S)` — the moat (re-stamped from code and the research record, 2026-10-21)
 
