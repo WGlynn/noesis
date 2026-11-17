@@ -3568,6 +3568,135 @@ mod tests {
     }
 
     #[test]
+    fn one_mint_limit_of_the_lock_args_rule_is_real() {
+        // The vibeswap-sbt design flagged this from reading the code; this test settles it. Fungible
+        // and Nft derive mint authority from an input whose lock.args EQUALS the token args. A lock
+        // that can sign at all is a 32-byte one-time Lamport root (`verify_sig`), so the token args
+        // must BE that root, and the authority cell must come back under the same lock to keep minting.
+        use noesis_core::lamport;
+        let seed = [0x51u8; 32];
+        let root = lamport::keygen_root(&seed);
+        let issuer = root.to_vec();
+        let code = [21u8; 32]; // the Nft analog
+        let nft = |owner: &[u8], token: &[u8]| Cell {
+            id: 1,
+            lock: Script { code_hash: [0u8; 32], args: owner.to_vec() },
+            type_script: Script { code_hash: code, args: issuer.clone() },
+            parent: None,
+            timestamp: 0,
+            data: token.to_vec(),
+        };
+        let authority = nft(&issuer, b"authority");
+        let live = vec![authority.clone()];
+        let mint = |successor: Cell, piece: &[u8]| TokenTx {
+            standard: TokenStandard::Nft,
+            code_hash: code,
+            args: issuer.clone(),
+            inputs: vec![authority.clone()],
+            outputs: vec![successor, nft(b"alice", piece)],
+            auths: vec![],
+        };
+
+        // Mint 1, signed by the authority key: valid.
+        let mut m1 = mint(authority.clone(), b"piece-1");
+        let d1 = m1.digest();
+        m1.auths = vec![lamport::sign(&seed, &d1)];
+        assert!(m1.is_valid_in_ledger(&live), "first mint, signed by the one-time key");
+
+        // Way out 1, rotate the authority to a fresh key: the successor's lock.args no longer equals
+        // the token args, so the next mint has no authority at all.
+        let fresh = lamport::keygen_root(&[0x52u8; 32]);
+        let rotated = nft(&fresh, b"authority");
+        let after_rotation = TokenTx { inputs: vec![rotated.clone()], ..mint(rotated, b"piece-2") };
+        assert!(!after_rotation.is_valid(), "a rotated authority cannot mint: rotation loses the authority");
+
+        // Way out 2, keep the lock: the second mint needs a second signature from the SAME one-time
+        // key over a different digest. The code accepts it (verify tracks no usage) ...
+        let mut m2 = mint(authority.clone(), b"piece-2");
+        let d2 = m2.digest();
+        assert_ne!(d1, d2);
+        m2.auths = vec![lamport::sign(&seed, &d2)];
+        assert!(m2.is_valid_in_ledger(&live), "the reused key is accepted");
+        // ... and two signatures under one Lamport key let a third party sign a digest the key never
+        // signed: per bit, take the 64-byte chunk (preimage + sibling hash) from whichever signature
+        // signed that bit value.
+        let bit = |d: &[u8; 32], i: usize| (d[i / 8] >> (i % 8)) & 1;
+        let mut d3 = d1;
+        let mut flipped = 0;
+        for i in 0..256 {
+            if bit(&d1, i) != bit(&d2, i) && i % 2 == 0 {
+                d3[i / 8] ^= 1 << (i % 8); // take d2's bit at the even differing positions
+                flipped += 1;
+            }
+        }
+        assert!(flipped > 0 && d3 != d2, "d3 is a third digest");
+        let (s1, s2) = (&m1.auths[0], &m2.auths[0]);
+        let forged: Vec<u8> = (0..256)
+            .flat_map(|i| {
+                let src = if bit(&d3, i) == bit(&d1, i) { s1 } else { s2 };
+                src[i * 64..i * 64 + 64].to_vec()
+            })
+            .collect();
+        assert!(lamport::verify(&root, &d3, &forged), "a forged signature over a digest the issuer never signed");
+        // Honest scope: a forger must still find a tx whose digest agrees with d1 and d2 wherever they
+        // agree (about half the 256 bits after two signatures). Each further reuse shrinks that set,
+        // so the key's security falls with every mint. Either way the rule forces the reuse.
+        let agree = (0..256).filter(|&i| bit(&d1, i) == bit(&d2, i)).count();
+        assert!(agree < 256 && agree > 0);
+
+        // And a collection id that is not a 32-byte root (a readable name) can never sign: once
+        // control binding is on, its authority cell cannot be spent even once.
+        let named = Cell { lock: Script { code_hash: [0u8; 32], args: b"vibeswap-identity-v1".to_vec() }, ..authority };
+        assert!(!TokenTx::verify_sig(&named.lock.args, &d1, &m1.auths[0]), "a 20-byte lock.args cannot authorize");
+    }
+
+    #[test]
+    fn soulbound_key_chain_mints_two_and_three_times_without_reusing_a_key() {
+        // The fix, in the soulbound standard: authority is the collection's linear authority cell,
+        // and its lock is free, so each spend re-creates it under the NEXT one-time key. Three
+        // consecutive mints, each signed for real by a key that signs exactly one digest.
+        use noesis_core::lamport;
+        let keys: Vec<[u8; 32]> = (0..4u8).map(|g| [0x60 + g; 32]).collect();
+        let roots: Vec<[u8; 32]> = keys.iter().map(lamport::keygen_root).collect();
+        let mut node = Node::new(0, vec![v(0, 0.0, 100.0, 100.0)], Constitution::default());
+        node.ledger.token_cells.push(sb_auth(100, &roots[0], 0));
+        let mut signed: Vec<[u8; 32]> = Vec::new();
+        for g in 0..3usize {
+            let h = g as u64 + 1;
+            let mut tx = sb_tx(
+                vec![sb_auth(100 + g as u64, &roots[g], g as u64)],
+                vec![sb_auth(101 + g as u64, &roots[g + 1], h), sb_ident(200 + h, b"cell-key", h, 9)],
+            );
+            let d = tx.digest();
+            // an unsigned or wrong-key spend of this generation's authority is refused when presented
+            if g > 0 {
+                tx.auths = vec![lamport::sign(&keys[g - 1], &d)];
+                assert!(!tx.is_valid_in_ledger(&node.ledger.token_cells), "the previous key cannot spend generation {g}");
+            }
+            tx.auths = vec![lamport::sign(&keys[g], &d)];
+            assert!(tx.is_valid_in_ledger(&node.ledger.token_cells), "mint {h} signed by key {g}");
+            let block = carrier_at(h, h, h as u8, format!("carrier payload for mint number {h}").as_bytes())
+                .with_token_txs(vec![tx]);
+            assert!(node.validate(&block), "mint block {h}");
+            node.apply(&block);
+            signed.push(d);
+        }
+        let distinct: std::collections::HashSet<[u8; 32]> = roots.iter().copied().collect();
+        assert_eq!(distinct.len(), 4, "four generations, four distinct one-time keys");
+        assert_eq!(signed.len(), 3, "keys 0, 1 and 2 each signed exactly one digest; key 3 none yet");
+        let live_auth: Vec<&Cell> = node
+            .ledger
+            .token_cells
+            .iter()
+            .filter(|c| c.data == crate::tokens::soulbound::encode_authority(3))
+            .collect();
+        assert_eq!(live_auth.len(), 1, "one authority, at generation 3");
+        assert_eq!(live_auth[0].lock.args, roots[3].to_vec(), "locked by the unused fourth key");
+        let identities = node.ledger.token_cells.iter().filter(|c| c.data.first() == Some(&1)).count();
+        assert_eq!(identities, 3, "three mints landed");
+    }
+
+    #[test]
     fn soulbound_mint_of_a_live_serial_is_rejected_in_ledger() {
         let (mut node, block) = node_and_carrier_block();
         node.ledger.token_cells.push(sb_auth(1, b"k0", 0));
