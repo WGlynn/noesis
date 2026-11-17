@@ -53,19 +53,23 @@ default_alloc!();
 const CONTROL_ENFORCED: bool = false;
 
 /// Map the token type-script `code_hash` → its `TokenStandard` tag byte (Fungible 0 / Nft 1 /
-/// Multi 2, matching the node's `standard as u8`). DERIVED from consensus state, never a free field:
-/// an unknown code is rejected so `standard` can never be attacker-chosen. The three constants are
-/// the per-standard type-script codes; pre-deploy the reference + tests use these sentinels.
+/// Multi 2 / Soulbound 3, matching the node's `standard as u8`). DERIVED from consensus state, never
+/// a free field: an unknown code is rejected so `standard` can never be attacker-chosen. Fungible,
+/// Nft and Multi are pre-deploy sentinels; SOULBOUND is the node's `tokens::soulbound::CODE_HASH`
+/// byte for byte (`node/tests/ckb_vm_locksig.rs` signs with the node constant, so a drift fails it).
 fn standard_of(code_hash: &[u8; 32]) -> Option<u8> {
     const FUNGIBLE: [u8; 32] = [0xF1; 32];
     const NFT: [u8; 32] = [0x71; 32];
     const MULTI: [u8; 32] = [0x11; 32];
+    const SOULBOUND: [u8; 32] = *b"NOESIS-SOULBOUND-IDENTITY-TYPE-1";
     if code_hash == &FUNGIBLE {
         Some(0)
     } else if code_hash == &NFT {
         Some(1)
     } else if code_hash == &MULTI {
         Some(2)
+    } else if code_hash == &SOULBOUND {
+        Some(3)
     } else {
         None
     }

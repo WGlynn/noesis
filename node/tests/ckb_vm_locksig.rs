@@ -279,3 +279,54 @@ fn a_wrong_signature_on_a_later_input_cannot_smuggle_past_the_first() {
     let (res, _) = run_typescript_t7(ELF, &inputs[0], inputs.clone(), outputs, vec![], wits);
     assert_eq!(res.unwrap(), 42, "input 1 signed by the wrong owner is caught — the loop gates every input");
 }
+
+// ---- soulbound identities (B3): the lock script knows the soulbound standard (tag 3) ----
+
+/// A soulbound issuer spend: the authority (generation 0, locked by key A) is consumed and re-created
+/// at generation 1 under key B, minting serial 1 and re-tiering serial 2 (its own cell key C). Built
+/// with the NODE's constants (`tokens::soulbound::CODE_HASH`, `TokenStandard::Soulbound as u8`), so
+/// the test fails if the ELF's `standard_of` mirror drifts from the node.
+fn soulbound_issuer_spend(sign_tag: u8) -> (Vec<Cell>, Vec<Cell>, Vec<Vec<u8>>) {
+    use noesis::runtime::TokenStandard;
+    use noesis::tokens::soulbound::{encode_authority, encode_identity, Identity, Tier, CODE_HASH};
+    let (seed_a, root_a) = keypair(0x31);
+    let (_seed_b, root_b) = keypair(0x32);
+    let (seed_c, root_c) = keypair(0x33);
+    let collection = b"test-identity-v1";
+    let ident = |serial: u64, tier: Tier| encode_identity(&Identity { serial, tier, holder: [0xAB; 32] });
+    let authority_in = cell(1, root_a, CODE_HASH, collection, &encode_authority(0));
+    let retier_in = cell(2, root_c, CODE_HASH, collection, &ident(2, Tier::Identity));
+    let authority_out = cell(3, root_b, CODE_HASH, collection, &encode_authority(1));
+    let minted = cell(4, root_b, CODE_HASH, collection, &ident(1, Tier::Identity));
+    let retiered = cell(5, root_b, CODE_HASH, collection, &ident(2, Tier::Revoked));
+    let inputs = vec![authority_in, retier_in];
+    let outputs = vec![authority_out, minted, retiered];
+    assert_eq!(TokenStandard::Soulbound as u8, 3);
+    let d = digest(sign_tag, &CODE_HASH, collection, &inputs, &outputs);
+    let wits = vec![lamport::sign(&seed_a, &d), lamport::sign(&seed_c, &d)];
+    (inputs.iter().map(served).collect(), outputs.iter().map(served).collect(), wits)
+}
+
+#[test]
+fn a_soulbound_issuer_spend_is_authorized_on_vm() {
+    let (inputs, outputs, wits) = soulbound_issuer_spend(noesis::runtime::TokenStandard::Soulbound as u8);
+    let (res, _) = run_typescript_t7(ELF, &inputs[0], inputs.clone(), outputs, vec![], wits);
+    assert_eq!(res.unwrap(), 0, "the soulbound code hash maps to tag 3 and both one-time keys verify on-VM");
+}
+
+#[test]
+fn a_soulbound_spend_signed_under_another_standard_tag_is_refused_on_vm() {
+    // The tag is derived on-VM from the code hash, never taken from the spender: a digest signed
+    // as if this were an Nft (tag 1) does not match the digest the script recomputes (tag 3).
+    let (inputs, outputs, wits) = soulbound_issuer_spend(1);
+    let (res, _) = run_typescript_t7(ELF, &inputs[0], inputs.clone(), outputs, vec![], wits);
+    assert_eq!(res.unwrap(), 42, "a signature over the wrong standard's digest is refused");
+}
+
+#[test]
+fn a_soulbound_spend_with_a_wrong_key_is_refused_on_vm() {
+    let (inputs, outputs, mut wits) = soulbound_issuer_spend(noesis::runtime::TokenStandard::Soulbound as u8);
+    wits[1] = wits[0].clone(); // the authority's signature presented for the identity cell (key C's lock)
+    let (res, _) = run_typescript_t7(ELF, &inputs[0], inputs.clone(), outputs, vec![], wits);
+    assert_eq!(res.unwrap(), 42, "the identity cell's own one-time key must sign");
+}
