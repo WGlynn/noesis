@@ -48,7 +48,7 @@ struct WCommitted {
 
 #[derive(Serialize, Deserialize)]
 struct WTokenTx {
-    standard: u8, // TokenStandard tag: 0=Fungible, 1=Nft, 2=Multi
+    standard: u8, // TokenStandard tag: 0=Fungible, 1=Nft, 2=Multi, 3=Soulbound
     code_hash: [u8; 32],
     args: Vec<u8>,
     inputs: Vec<WCell>,
@@ -127,6 +127,7 @@ fn w_standard(s: &TokenStandard) -> u8 {
         TokenStandard::Fungible => 0,
         TokenStandard::Nft => 1,
         TokenStandard::Multi => 2,
+        TokenStandard::Soulbound => 3,
     }
 }
 fn w_tokentx(t: &TokenTx) -> WTokenTx {
@@ -181,6 +182,7 @@ fn r_standard(tag: u8) -> Result<TokenStandard, WireError> {
         0 => Ok(TokenStandard::Fungible),
         1 => Ok(TokenStandard::Nft),
         2 => Ok(TokenStandard::Multi),
+        3 => Ok(TokenStandard::Soulbound),
         other => Err(WireError(format!("unknown TokenStandard tag {other}"))),
     }
 }
@@ -237,6 +239,18 @@ pub fn decode_block(bytes: &[u8]) -> Result<Block, WireError> {
     r_block(wb)
 }
 
+/// One token movement as JSON, in the same mirror shape the block codec uses (so a tx handed to a
+/// node and the block that later carries it share one format).
+pub fn token_tx_to_json(t: &TokenTx) -> serde_json::Value {
+    serde_json::to_value(w_tokentx(t)).expect("WTokenTx has no non-string map keys ⇒ always serializable")
+}
+
+/// Decode a token movement from [`token_tx_to_json`]'s shape. An unknown standard tag is an error.
+pub fn token_tx_from_json(v: serde_json::Value) -> Result<TokenTx, WireError> {
+    let wt: WTokenTx = serde_json::from_value(v).map_err(|e| WireError(e.to_string()))?;
+    r_tokentx(wt)
+}
+
 // ============ block-log persistence ============
 
 /// An append-only log of finalized blocks on disk (one JSON-encoded block per line). Load replays
@@ -284,5 +298,76 @@ impl BlockLog {
             out.push(block);
         }
         Ok(out)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tokens::soulbound::{self, Identity, Tier};
+
+    fn sb_cell(id: u64, lock: &[u8], data: Vec<u8>) -> Cell {
+        Cell {
+            id,
+            lock: Script { code_hash: [0u8; 32], args: lock.to_vec() },
+            type_script: Script { code_hash: soulbound::CODE_HASH, args: b"test-identity-v1".to_vec() },
+            parent: None,
+            timestamp: 0,
+            data,
+        }
+    }
+
+    fn soulbound_tx() -> TokenTx {
+        let ident = Identity { serial: 9, tier: Tier::Member, holder: [5u8; 32] };
+        TokenTx {
+            standard: TokenStandard::Soulbound,
+            code_hash: soulbound::CODE_HASH,
+            args: b"test-identity-v1".to_vec(),
+            inputs: vec![sb_cell(1, &[1u8; 32], soulbound::encode_authority(0))],
+            outputs: vec![
+                sb_cell(2, &[2u8; 32], soulbound::encode_authority(1)),
+                sb_cell(3, &[3u8; 32], soulbound::encode_identity(&ident)),
+            ],
+            auths: vec![vec![7u8; 64]],
+        }
+    }
+
+    fn same_tx(a: &TokenTx, b: &TokenTx) -> bool {
+        let cells_eq = |x: &[Cell], y: &[Cell]| {
+            x.len() == y.len()
+                && x.iter().zip(y).all(|(p, q)| {
+                    p.id == q.id && p.lock == q.lock && p.type_script == q.type_script && p.data == q.data
+                })
+        };
+        a.standard == b.standard
+            && a.code_hash == b.code_hash
+            && a.args == b.args
+            && a.auths == b.auths
+            && cells_eq(&a.inputs, &b.inputs)
+            && cells_eq(&a.outputs, &b.outputs)
+    }
+
+    #[test]
+    fn soulbound_tx_round_trips_through_the_block_codec_with_tag_3() {
+        let tx = soulbound_tx();
+        assert_eq!(TokenStandard::Soulbound as u8, 3, "the digest tag (standard as u8) is 3");
+        assert_eq!(w_standard(&TokenStandard::Soulbound), 3, "the wire tag is 3");
+        let block = Block::assemble(1, &[]).with_token_txs(vec![tx.clone()]);
+        let bytes = encode_block(&block);
+        let back = decode_block(&bytes).expect("a soulbound block decodes");
+        assert_eq!(back.token_txs.len(), 1);
+        assert!(same_tx(&back.token_txs[0], &tx), "every field survives the round trip");
+        assert_eq!(encode_block(&back), bytes, "byte-identical re-encode");
+        // and the single-tx JSON codec
+        let back_tx = token_tx_from_json(token_tx_to_json(&tx)).expect("tx JSON decodes");
+        assert!(same_tx(&back_tx, &tx));
+        assert_eq!(back_tx.digest(), tx.digest(), "the signed digest survives the codec");
+    }
+
+    #[test]
+    fn an_unknown_standard_tag_is_still_rejected() {
+        let mut v = token_tx_to_json(&soulbound_tx());
+        v["standard"] = serde_json::json!(4);
+        assert!(token_tx_from_json(v).is_err(), "tag 4 is unknown");
     }
 }

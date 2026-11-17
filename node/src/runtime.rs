@@ -330,6 +330,9 @@ pub enum TokenStandard {
     Nft,
     /// ERC-1155 — per-sub-id independent conservation.
     Multi,
+    /// ERC-5484 "IssuerOnly" — soulbound identities: holder fixed in the cell, only the issuer mints,
+    /// re-tiers or burns ([`tokens::soulbound`]). Tag 3 (`standard as u8`, the wire tag, the on-VM map).
+    Soulbound,
 }
 
 /// A token value-movement carried inside a block: consume `inputs`, produce `outputs`,
@@ -375,6 +378,27 @@ impl TokenTx {
         if self.args.is_empty() {
             return false;
         }
+        // SOULBOUND CONFINEMENT: a soulbound cell moves only under its own rule, and a soulbound tx
+        // carries only its own collection. The match below checks the DECLARED token alone and
+        // `apply_transition` persists every output, so without this a tx declared as another token
+        // could mint, re-holder or burn soulbound cells unchecked (the JUL smuggling shape, closed
+        // here by the cells' real code hash). Additive: no cell carried this code hash before.
+        let sb = tokens::soulbound::CODE_HASH;
+        let declared_sb = self.standard == TokenStandard::Soulbound;
+        if declared_sb && self.code_hash != sb {
+            return false;
+        }
+        let confined = self.inputs.iter().chain(&self.outputs).all(|c| {
+            let is_sb = c.type_script.code_hash == sb;
+            if declared_sb {
+                is_sb && c.type_script.args == self.args
+            } else {
+                !is_sb
+            }
+        });
+        if !confined {
+            return false;
+        }
         let issuer_controls_authority_input = self.inputs.iter().any(|c| {
             c.type_script.code_hash == self.code_hash
                 && c.type_script.args == self.args
@@ -403,6 +427,10 @@ impl TokenTx {
             // the starter multi analog has no issuer-mint path ⇒ pure conservation only.
             TokenStandard::Multi => {
                 tokens::multi::conserves(&self.inputs, &self.outputs, &self.code_hash, &self.args)
+            }
+            // issuer authority is the collection's linear authority cell, not `minter` (see the module).
+            TokenStandard::Soulbound => {
+                tokens::soulbound::valid(&self.inputs, &self.outputs, &self.code_hash, &self.args)
             }
         }
     }
@@ -441,6 +469,12 @@ impl TokenTx {
             })
         };
         if !self.inputs.iter().all(input_is_live) || !self.is_valid() {
+            return false;
+        }
+        // Soulbound: a minted serial must not already be live (the pure rule sees only the tx).
+        if self.standard == TokenStandard::Soulbound
+            && !tokens::soulbound::serials_fresh(live, &self.inputs, &self.outputs, &self.code_hash, &self.args)
+        {
             return false;
         }
         // EXISTENCE→CONTROL: each consumed input must be authorized by its owner, not merely exist.
@@ -3375,6 +3409,91 @@ mod tests {
             "token movement must show up in the token digest (it changed token state)"
         );
         assert!(a_tok.is_empty(), "the no-token run must hold no token cells");
+    }
+
+    // ---- soulbound identities (TokenStandard::Soulbound, tokens::soulbound) ----
+
+    const SB_COL: &[u8] = b"test-identity-v1";
+
+    fn sb_cell(id: u64, lock: &[u8], data: Vec<u8>) -> Cell {
+        Cell {
+            id,
+            lock: Script { code_hash: [0u8; 32], args: lock.to_vec() },
+            type_script: Script { code_hash: crate::tokens::soulbound::CODE_HASH, args: SB_COL.to_vec() },
+            parent: None,
+            timestamp: 0,
+            data,
+        }
+    }
+    fn sb_auth(id: u64, lock: &[u8], generation: u64) -> Cell {
+        sb_cell(id, lock, crate::tokens::soulbound::encode_authority(generation))
+    }
+    fn sb_ident(id: u64, lock: &[u8], serial: u64, holder: u8) -> Cell {
+        use crate::tokens::soulbound::{encode_identity, Identity, Tier};
+        sb_cell(id, lock, encode_identity(&Identity { serial, tier: Tier::Identity, holder: [holder; 32] }))
+    }
+    fn sb_tx(inputs: Vec<Cell>, outputs: Vec<Cell>) -> TokenTx {
+        TokenTx {
+            standard: TokenStandard::Soulbound,
+            code_hash: crate::tokens::soulbound::CODE_HASH,
+            args: SB_COL.to_vec(),
+            inputs,
+            outputs,
+            auths: vec![],
+        }
+    }
+
+    #[test]
+    fn soulbound_cells_move_only_under_their_own_rule() {
+        let (mut node, block) = node_and_carrier_block();
+        node.ledger.token_cells.push(sb_auth(1, b"k0", 0));
+        node.ledger.token_cells.push(ft_cell(b"USD", b"alice", 10));
+        // the honest mint validates
+        let mint = sb_tx(vec![sb_auth(1, b"k0", 0)], vec![sb_auth(2, b"k1", 1), sb_ident(3, b"c", 1, 9)]);
+        assert!(node.validate(&block.clone().with_token_txs(vec![mint.clone()])));
+        // a USD transfer that smuggles a soulbound output (a mint with no authority, unchecked by the
+        // fungible rule) is rejected by the cell's real code hash
+        let smuggle = TokenTx {
+            standard: TokenStandard::Fungible,
+            auths: vec![],
+            code_hash: [20u8; 32],
+            args: b"USD".to_vec(),
+            inputs: vec![ft_cell(b"USD", b"alice", 10)],
+            outputs: vec![ft_cell(b"USD", b"bob", 10), sb_ident(4, b"m", 2, 9)],
+        };
+        assert!(!smuggle.is_valid(), "a soulbound cell rode a fungible tx");
+        // a fungible tx declared over the soulbound code hash cannot treat identities as amounts
+        let mut disguised = smuggle.clone();
+        disguised.code_hash = crate::tokens::soulbound::CODE_HASH;
+        disguised.args = SB_COL.to_vec();
+        disguised.inputs = vec![sb_auth(1, b"k0", 0)];
+        disguised.outputs = vec![sb_auth(2, b"k1", 1)];
+        assert!(!disguised.is_valid(), "the soulbound code hash under another standard");
+        // a soulbound tx cannot carry another token's cells (no smuggling vehicle either way)
+        let mut vehicle = mint.clone();
+        vehicle.outputs.push(ft_cell(b"USD", b"mallory", 1_000_000));
+        assert!(!vehicle.is_valid(), "a USD mint rode a soulbound tx");
+        // a soulbound tx must name the soulbound program
+        let mut wrong_code = mint.clone();
+        wrong_code.code_hash = [21u8; 32];
+        assert!(!wrong_code.is_valid());
+        // nor another collection's cells
+        let mut other_col = mint;
+        other_col.outputs[1].type_script.args = b"other-collection".to_vec();
+        assert!(!other_col.is_valid());
+    }
+
+    #[test]
+    fn soulbound_mint_of_a_live_serial_is_rejected_in_ledger() {
+        let (mut node, block) = node_and_carrier_block();
+        node.ledger.token_cells.push(sb_auth(1, b"k0", 0));
+        node.ledger.token_cells.push(sb_ident(5, b"c", 7, 9)); // serial 7 is live
+        let dup = sb_tx(vec![sb_auth(1, b"k0", 0)], vec![sb_auth(2, b"k1", 1), sb_ident(6, b"c2", 7, 8)]);
+        assert!(dup.is_valid(), "the pure rule cannot see the ledger");
+        assert!(!dup.is_valid_in_ledger(&node.ledger.token_cells), "serial 7 minted twice");
+        assert!(!node.validate(&block.clone().with_token_txs(vec![dup])));
+        let fresh = sb_tx(vec![sb_auth(1, b"k0", 0)], vec![sb_auth(2, b"k1", 1), sb_ident(6, b"c2", 8, 8)]);
+        assert!(node.validate(&block.with_token_txs(vec![fresh])));
     }
 
     #[test]
