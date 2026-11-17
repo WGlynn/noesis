@@ -9,6 +9,7 @@
 //!                      the ONE proven per-block engine ([`crate::chainspec::ChainSpec::produce_block`]),
 //!                      and returns the new state. A submitted contribution travels the EXACT path the
 //!                      tested chain does — no second, drifting pipeline.
+//!   * `GET  /tokens`   — live non-JUL token cells (soulbound identities decoded).
 //!
 //! DELIBERATELY LEAN (the `net` precedent): std `TcpListener` + threads, NO async runtime and NO web
 //! framework. The request parser is bounded (a body cap + socket read timeout) — enough for a LOCAL
@@ -62,6 +63,54 @@ fn hex_decode(s: &str) -> Option<Vec<u8>> {
         return None;
     }
     (0..s.len()).step_by(2).map(|i| u8::from_str_radix(&s[i..i + 2], 16).ok()).collect()
+}
+
+/// One token cell as `GET /tokens` shows it: every identity field in hex (enough to rebuild the exact
+/// cell a tx must name as an input), plus the decoded record for a soulbound cell.
+pub fn token_cell_json(c: &Cell) -> Value {
+    use crate::tokens::soulbound::{self, Record};
+    let mut v = json!({
+        "id": c.id,
+        "lock_code_hash": hex_encode(&c.lock.code_hash),
+        "lock_args": hex_encode(&c.lock.args),
+        "type_code_hash": hex_encode(&c.type_script.code_hash),
+        "type_args": hex_encode(&c.type_script.args),
+        "data": hex_encode(&c.data),
+    });
+    if c.type_script.code_hash == soulbound::CODE_HASH {
+        v["standard"] = json!("soulbound");
+        v["collection"] = json!(String::from_utf8_lossy(&c.type_script.args));
+        v["record"] = match soulbound::decode(&c.data) {
+            Some(Record::Authority { generation }) => json!({ "kind": "authority", "generation": generation }),
+            Some(Record::Identity(i)) => json!({
+                "kind": "identity",
+                "serial": i.serial,
+                "tier": i.tier.name(),
+                "holder": hex_encode(&i.holder),
+            }),
+            None => Value::Null,
+        };
+    }
+    v
+}
+
+/// Rebuild a token cell from [`token_cell_json`]'s hex fields (`parent`/`timestamp` are not part of a
+/// cell's identity and come back as `None`/0, the token-cell convention).
+pub fn token_cell_from_json(v: &Value) -> Result<Cell, String> {
+    let hex = |f: &str| -> Result<Vec<u8>, String> {
+        v.get(f).and_then(Value::as_str).and_then(hex_decode).ok_or(format!("token cell: '{f}' missing or not hex"))
+    };
+    let h32 = |f: &str| -> Result<[u8; 32], String> {
+        <[u8; 32]>::try_from(hex(f)?.as_slice()).map_err(|_| format!("token cell: '{f}' must be 32 bytes"))
+    };
+    Ok(Cell {
+        id: v.get("id").and_then(Value::as_u64).ok_or("token cell: 'id' missing")?,
+        lock: Script { code_hash: h32("lock_code_hash")?, args: hex("lock_args")? },
+        type_script: Script { code_hash: h32("type_code_hash")?, args: hex("type_args")? },
+        parent: None,
+        timestamp: 0,
+        data: hex("data")?,
+    })
 }
 /// Decode a hex field expected to be exactly 32 bytes (an address / root / sibling).
 fn hex32(v: &Value, field: &str) -> Result<[u8; 32], String> {
@@ -181,9 +230,30 @@ impl ServerState {
             "work": work,
             "jul_issued": self.node.ledger.jul_supply.issued() / crate::jul::JUL_BASE_UNITS,
             "cells": ids.len(),
-            "coinbase_cells": tokens.len(),
+            // JUL cells only (every token cell was one before other tokens existed); the rest: /tokens.
+            "coinbase_cells": self.node.ledger.token_cells.iter().filter(|c| crate::jul::is_jul(c)).count(),
+            "token_cells": tokens.len(),
             "pow_enforced": self.spec.constitution.pow_enforced,
             "contributors": contributors,
+        })
+    }
+
+    /// `GET /tokens`: every live non-JUL token cell (JUL coinbase cells are summed in `/state`).
+    fn tokens_json(&self) -> Value {
+        let cells: Vec<Value> = self
+            .node
+            .ledger
+            .token_cells
+            .iter()
+            .filter(|c| !crate::jul::is_jul(c))
+            .map(token_cell_json)
+            .collect();
+        let jul_cells = self.node.ledger.token_cells.len() - cells.len();
+        json!({
+            "chain_id": self.spec.chain_id,
+            "height": self.node.ledger.height,
+            "jul_cells": jul_cells,
+            "cells": cells,
         })
     }
 
@@ -330,6 +400,7 @@ pub fn handle_request(
         ("GET", "/questions.json") => (200, "application/json; charset=utf-8", QUESTIONS_JSON.as_bytes().to_vec()),
         ("GET", "/state") => out(200, state.state_json()),
         ("GET", "/contributions") => out(200, state.contributions_json()),
+        ("GET", "/tokens") => out(200, state.tokens_json()),
         ("POST", "/submit") => {
             let parsed: Result<Value, _> = serde_json::from_slice(body);
             let v = match parsed {
@@ -444,6 +515,7 @@ pub fn serve_api(addr: &str, store_path: &str, spec: ChainSpec) {
     println!("  open http://{bound}/ in a browser — the node serves its own frontend (one URL = whole app)");
     println!("  GET  /                   -> the embedded web UI (submit + watch PoM/JUL)");
     println!("  GET  /state              -> chain view (height, jul, contributors)");
+    println!("  GET  /tokens             -> live non-JUL token cells (soulbound identities decoded)");
     println!("  POST /submit {{address,index,ots_root,auth,ots_sig,data}} -> signed contribution, mine+finalize");
 
     let state = Arc::new(Mutex::new(server_state));
@@ -661,5 +733,42 @@ mod tests {
         let (status, _ct, resp) = handle_request(&mut st, "POST", "/submit", body.to_string().as_bytes());
         assert_eq!(status, 400);
         assert!(state_of(&resp)["error"].as_str().unwrap().contains("names no finalized contribution"));
+    }
+
+    // ---- B5: GET /tokens ----
+
+    #[test]
+    fn get_tokens_lists_soulbound_cells_and_keeps_jul_out() {
+        use crate::tokens::soulbound::{encode_identity, Identity, Tier, CODE_HASH};
+        let mut st = ServerState::new();
+        let ident = Cell {
+            id: 77,
+            lock: Script { code_hash: [0u8; 32], args: vec![0x5A; 32] },
+            type_script: Script { code_hash: CODE_HASH, args: b"test-identity-v1".to_vec() },
+            parent: None,
+            timestamp: 0,
+            data: encode_identity(&Identity { serial: 4, tier: Tier::Member, holder: [0xAB; 32] }),
+        };
+        st.node.ledger.token_cells.push(ident.clone());
+        // a block adds a JUL coinbase cell: counted, not listed
+        assert_eq!(handle_request(&mut st, "POST", "/submit", &signed_body(&[0x11; 32], 0, "a first note on river deltas")).0, 200);
+        let (status, _, body) = handle_request(&mut st, "GET", "/tokens", b"");
+        assert_eq!(status, 200);
+        let t = state_of(&body);
+        assert_eq!(t["height"], 1);
+        assert_eq!(t["jul_cells"], 1);
+        let cells: Vec<&Value> =
+            t["cells"].as_array().unwrap().iter().filter(|c| c["standard"] == "soulbound").collect();
+        let c = cells.iter().find(|c| c["id"] == 77).expect("the identity is listed");
+        assert_eq!(c["collection"], "test-identity-v1");
+        assert_eq!(c["record"]["kind"], "identity");
+        assert_eq!(c["record"]["serial"], 4);
+        assert_eq!(c["record"]["tier"], "member");
+        assert_eq!(c["record"]["holder"], "ab".repeat(32));
+        // the hex fields rebuild the exact cell (what a tx must name as its input)
+        let back = token_cell_from_json(c).unwrap();
+        assert!(back.id == ident.id && back.lock == ident.lock && back.type_script == ident.type_script && back.data == ident.data);
+        let s = state_of(&handle_request(&mut st, "GET", "/state", b"").2);
+        assert_eq!(s["coinbase_cells"], 1, "coinbase_cells counts JUL cells only");
     }
 }
