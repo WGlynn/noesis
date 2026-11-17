@@ -3484,6 +3484,90 @@ mod tests {
     }
 
     #[test]
+    fn identity_mints_carry_zero_pom_and_zero_finality_weight() {
+        // B2, the load-bearing property of the soulbound lane: identities carry ZERO PoM standing and
+        // ZERO finality weight. Two replicas apply the same N contribution blocks; replica B also mints
+        // an identity in every block and re-tiers one. The holders are the SAME 32 bytes as the
+        // contributor key, so any fold of identity cells into attribution would show up as a changed
+        // score. Vesting W > 0, so `finality_pom_weight` (cleared cells only) is a different map from
+        // `pom` and both are checked. After every block: identical cells, index root, PoM, work clock
+        // and finality weight; only token state differs.
+        use crate::tokens::soulbound::{encode_identity, Identity, Tier};
+        const N: u64 = 6;
+        let contributor = [0xAAu8; 32];
+        let c = Constitution { vesting_w: 2, work_clock_ceiling: 1 << 20, ..Default::default() };
+        let carrier = |h: u64| {
+            let cell = Cell {
+                id: h,
+                lock: Script { code_hash: [0u8; 32], args: b"al".to_vec() },
+                type_script: Script { code_hash: [1u8; 32], args: contributor.to_vec() },
+                parent: None,
+                timestamp: h,
+                data: format!("contribution {h}: a distinct note about tides, light and rivers").into_bytes(),
+            };
+            Block::assemble(h, &[(cell, Committed { height: h, secret: [h as u8; 32] })])
+        };
+        let ident = |id: u64, serial: u64, tier: Tier| {
+            sb_cell(id, b"issuer-cell", encode_identity(&Identity { serial, tier, holder: contributor }))
+        };
+        let mut a = Node::new(0, vec![v(0, 0.0, 100.0, 100.0)], c.clone());
+        let mut b = Node::new(0, vec![v(0, 0.0, 100.0, 100.0)], c);
+        b.ledger.token_cells.push(sb_auth(1000, b"k0", 0));
+        for h in 1..=N {
+            let g = h - 1;
+            let mut inputs = vec![sb_auth(1000 + g, b"k", g)];
+            let mut outputs = vec![sb_auth(1000 + h, b"k", h), ident(2000 + h, h, Tier::Identity)];
+            if h == 4 {
+                // re-tier serial 1 to member in the same tx
+                inputs.push(ident(2001, 1, Tier::Identity));
+                outputs.push(ident(3001, 1, Tier::Member));
+            }
+            if g == 0 {
+                inputs[0] = sb_auth(1000, b"k0", 0);
+            }
+            let block_b = carrier(h).with_token_txs(vec![sb_tx(inputs, outputs)]);
+            assert!(b.validate(&block_b), "mint block {h} must be a VALID block, not just applied");
+            a.apply(&carrier(h));
+            b.apply(&block_b);
+
+            let (a_ids, a_root, a_pom, a_tok, a_work) = a.ledger.state_digest();
+            let (b_ids, b_root, b_pom, b_tok, b_work) = b.ledger.state_digest();
+            assert_eq!(
+                (&a_ids, &a_root, &a_pom, a_work),
+                (&b_ids, &b_root, &b_pom, b_work),
+                "block {h}: an identity mint moved cells, the index root, PoM or the work clock"
+            );
+            assert_eq!(
+                a.finality_pom_weight(),
+                b.finality_pom_weight(),
+                "block {h}: an identity mint moved finality weight"
+            );
+            assert_ne!(a_tok, b_tok, "the mints are real token state");
+            assert!(!b.ledger.pom.contains_key(SB_COL), "the collection id never becomes a PoM key");
+            // the finality decision itself, fed from the bridge, is the same on both replicas
+            let sourced = |n: &Node| {
+                let w = n.finality_pom_weight().get(contributor.as_slice()).copied().unwrap_or(0);
+                vec![v(0, 0.0, 100.0, w as f64), v(1, 0.0, 100.0, 0.0)]
+            };
+            let (va, vb) = (sourced(&a), sourced(&b));
+            assert_eq!(
+                a.checkpoint_finalizes(&va[..1], &va),
+                b.checkpoint_finalizes(&vb[..1], &vb),
+                "block {h}: the finality decision changed"
+            );
+        }
+        let identities = b
+            .ledger
+            .token_cells
+            .iter()
+            .filter(|c| matches!(crate::tokens::soulbound::decode(&c.data), Some(crate::tokens::soulbound::Record::Identity(_))))
+            .count();
+        assert_eq!(identities as u64, N, "N identities live (serial 1 re-tiered, not duplicated)");
+        assert!(a.finality_pom_weight().contains_key(contributor.as_slice()), "vesting cleared some weight (non-vacuous)");
+        assert_ne!(a.finality_pom_weight(), a.ledger.pom.clone(), "W > 0 makes the two maps differ (both checked)");
+    }
+
+    #[test]
     fn soulbound_mint_of_a_live_serial_is_rejected_in_ledger() {
         let (mut node, block) = node_and_carrier_block();
         node.ledger.token_cells.push(sb_auth(1, b"k0", 0));
