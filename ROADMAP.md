@@ -33,6 +33,23 @@
    `internal/DESIGN-joint-decay-damping-rate.md`. Code comments + patent line 233 relabeled to match.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-11-18 (calibrated judges: does weighting value judges by track record break the circle?)**: a
+  measure-only simulation; no consensus code touched. Pre-registered in `50ef8b86` before any data
+  (`docs/research/calibrated-judges-2026-11-18.md`; sim `node/examples/calibrated_judges_sim.rs`, 23,808 runs,
+  77 s). Judges weighted by standing alone (today's circle) settle on the ring: a plain ring holding 30% or more
+  of standing grows (0.60 to 0.90 of the weight, 95% of the mint). Weighting judges by how well their past
+  valuations predicted later independent use removes the plain ring at the first reveal and the patient ring 5
+  rounds after it defects (CONFIRMED in both calibration arms). BOUNDARY: a selective ring, honest on everyone
+  else, inflates its own worthless items by less than honest judges' noise (0.25 against 0.3), looks better
+  calibrated than the honest judges, and grows its influence (0.60 to 0.78 under calibration alone).
+  Calibration caps its take at 4% to 22% of the mint, against 26% to 76% under standing alone; standing x
+  calibration holds it up to 49% of standing, not at 60%. A ring that buys half the use signal flips
+  calibration weighting at every share (f_break 0.40 to 0.50, f_flip 0.50); it then holds 0.90 to 1.00 of the
+  weight, worse than standing alone. Pointer from a reported variant: under a coarse 2/3-to-refute verdict
+  (today's dispute shape) calibration does catch the selective ring (its weight 0.02 or less; every ring 3% to
+  7% of the mint at 49% and 60% of standing), so calibrate verdicts, not prices, and let realized use set the
+  price; that needs its own pre-registered run. Honest floor: a model of judges and weights, not the node, and
+  most outcomes were derivable from its arithmetic before the run.
 - **2026-11-18 (wallet A8: limits on the agent-held issuer key)**: tool and state file only; no genesis,
   rule or wire format changed (genesis token cells pinned by a test). The issuer seed can be sealed at rest
   (`identity-mint encrypt-seed`, AES-256-GCM under PBKDF2-SHA256 600,000 rounds, verify before the plain

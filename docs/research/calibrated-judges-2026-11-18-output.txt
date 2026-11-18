@@ -1,0 +1,360 @@
+== Calibrated judges (pre-registered 2026-11-18, commit 50ef8b86) ==
+   N 100, rounds 60, budget 10/round, report cap 3, sigma_J 0.3, sigma_U 0.3, reveal delay 3, eta 5, gamma 0.9, seeds 32
+   TWO_THIRDS_BPS read from noesis::consensus = 6667 (dispute variant threshold 0.6667)
+   cells 124, Delta grid 6, runs 23808
+
+Reading the tables: I(t) = ring share of judge weight in round t (mean over seeds); I_end = mean over
+rounds 51-60; M = ring share of value minted in the scoring window (every ring item there is wash, so the
+honest contributors' share is 1 - M); TV = mean total-variation distance between minted shares and true-worth
+shares. Each arm faces the ring's best response for that arm (Delta*, the value it reports on its own items).
+
+### Adversary 1: plain ring (Delta on own items, 0 on others)
+
+  ring share s = 0.10
+    arm                 | Delta* |  I( 1) |  I( 5) |  I(10) |  I(20) |  I(30) |  I(40) |  I(50) |  I(60) |  I_end (+-SE)    |  M ring mint (+-SE) | honest share | misalloc TV
+    A standing          |   3.00 |  0.100 |  0.081 |  0.066 |  0.050 |  0.042 |  0.036 |  0.032 |  0.028 | 0.030 +- 0.000 | 0.0163 +- 0.0000    |       0.9837 | 0.0225
+    B calibration       |   3.00 |  0.100 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 | 0.000 +- 0.000 | 0.0037 +- 0.0000    |       0.9963 | 0.0153
+    C standing x calib  |   3.00 |  0.100 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 | 0.000 +- 0.000 | 0.0035 +- 0.0000    |       0.9965 | 0.0151
+    B vs A: H1 (I_end <= 0.050) holds | H2 (M <= half of A's, or < 0.005) holds | WORKS
+    C vs A: H1 (I_end <= 0.050) holds | H2 (M <= half of A's, or < 0.005) holds | WORKS
+
+  ring share s = 0.30
+    arm                 | Delta* |  I( 1) |  I( 5) |  I(10) |  I(20) |  I(30) |  I(40) |  I(50) |  I(60) |  I_end (+-SE)    |  M ring mint (+-SE) | honest share | misalloc TV
+    A standing          |   3.00 |  0.300 |  0.318 |  0.335 |  0.360 |  0.377 |  0.391 |  0.402 |  0.412 | 0.408 +- 0.000 | 0.4315 +- 0.0005    |       0.5685 | 0.4315
+    B calibration       |   3.00 |  0.300 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 | 0.000 +- 0.000 | 0.0296 +- 0.0001    |       0.9704 | 0.0405
+    C standing x calib  |   3.00 |  0.300 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 | 0.000 +- 0.000 | 0.0301 +- 0.0001    |       0.9699 | 0.0410
+    B vs A: H1 (I_end <= 0.150) holds | H2 (M <= half of A's, or < 0.005) holds | WORKS
+    C vs A: H1 (I_end <= 0.150) holds | H2 (M <= half of A's, or < 0.005) holds | WORKS
+
+  ring share s = 0.49
+    arm                 | Delta* |  I( 1) |  I( 5) |  I(10) |  I(20) |  I(30) |  I(40) |  I(50) |  I(60) |  I_end (+-SE)    |  M ring mint (+-SE) | honest share | misalloc TV
+    A standing          |   3.00 |  0.490 |  0.567 |  0.630 |  0.707 |  0.753 |  0.784 |  0.807 |  0.824 | 0.817 +- 0.000 | 0.8815 +- 0.0002    |       0.1185 | 0.8815
+    B calibration       |   3.00 |  0.490 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 | 0.000 +- 0.000 | 0.0642 +- 0.0002    |       0.9358 | 0.0736
+    C standing x calib  |   3.00 |  0.490 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 | 0.000 +- 0.000 | 0.0658 +- 0.0002    |       0.9342 | 0.0752
+    B vs A: H1 (I_end <= 0.245) holds | H2 (M <= half of A's, or < 0.005) holds | WORKS
+    C vs A: H1 (I_end <= 0.245) holds | H2 (M <= half of A's, or < 0.005) holds | WORKS
+
+  ring share s = 0.60
+    arm                 | Delta* |  I( 1) |  I( 5) |  I(10) |  I(20) |  I(30) |  I(40) |  I(50) |  I(60) |  I_end (+-SE)    |  M ring mint (+-SE) | honest share | misalloc TV
+    A standing          |   3.00 |  0.600 |  0.682 |  0.744 |  0.811 |  0.849 |  0.872 |  0.889 |  0.901 | 0.896 +- 0.000 | 0.9529 +- 0.0001    |       0.0471 | 0.9529
+    B calibration       |   3.00 |  0.600 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 | 0.000 +- 0.000 | 0.0848 +- 0.0002    |       0.9152 | 0.0924
+    C standing x calib  |   3.00 |  0.600 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 | 0.000 +- 0.000 | 0.0859 +- 0.0002    |       0.9141 | 0.0934
+    B vs A: H1 (I_end <= 0.300) holds | H2 (M <= half of A's, or < 0.005) holds | WORKS
+    C vs A: H1 (I_end <= 0.300) holds | H2 (M <= half of A's, or < 0.005) holds | WORKS
+
+### Adversary 2: selective ring (Delta on own items, honest on others)
+
+  ring share s = 0.10
+    arm                 | Delta* |  I( 1) |  I( 5) |  I(10) |  I(20) |  I(30) |  I(40) |  I(50) |  I(60) |  I_end (+-SE)    |  M ring mint (+-SE) | honest share | misalloc TV
+    A standing          |   3.00 |  0.100 |  0.080 |  0.065 |  0.049 |  0.040 |  0.035 |  0.030 |  0.027 | 0.029 +- 0.000 | 0.0150 +- 0.0000    |       0.9850 | 0.0213
+    B calibration       |   0.50 |  0.100 |  0.094 |  0.073 |  0.058 |  0.052 |  0.049 |  0.048 |  0.048 | 0.049 +- 0.001 | 0.0035 +- 0.0000    |       0.9965 | 0.0142
+    C standing x calib  |   3.00 |  0.100 |  0.001 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 | 0.000 +- 0.000 | 0.0033 +- 0.0000    |       0.9967 | 0.0149
+    B vs A: H1 (I_end <= 0.050) holds | H2 (M <= half of A's, or < 0.005) holds | WORKS (UNDECIDED within 2 SE)
+    C vs A: H1 (I_end <= 0.050) holds | H2 (M <= half of A's, or < 0.005) holds | WORKS
+
+  ring share s = 0.30
+    arm                 | Delta* |  I( 1) |  I( 5) |  I(10) |  I(20) |  I(30) |  I(40) |  I(50) |  I(60) |  I_end (+-SE)    |  M ring mint (+-SE) | honest share | misalloc TV
+    A standing          |   3.00 |  0.300 |  0.294 |  0.288 |  0.281 |  0.277 |  0.274 |  0.271 |  0.269 | 0.270 +- 0.000 | 0.2639 +- 0.0002    |       0.7361 | 0.2639
+    B calibration       |   0.25 |  0.300 |  0.311 |  0.338 |  0.381 |  0.396 |  0.388 |  0.389 |  0.390 | 0.394 +- 0.004 | 0.0385 +- 0.0002    |       0.9615 | 0.0403
+    C standing x calib  |   3.00 |  0.300 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 | 0.000 +- 0.000 | 0.0243 +- 0.0001    |       0.9757 | 0.0353
+    B vs A: H1 (I_end <= 0.150) fails | H2 (M <= half of A's, or < 0.005) holds | PARTIAL
+    C vs A: H1 (I_end <= 0.150) holds | H2 (M <= half of A's, or < 0.005) holds | WORKS
+
+  ring share s = 0.49
+    arm                 | Delta* |  I( 1) |  I( 5) |  I(10) |  I(20) |  I(30) |  I(40) |  I(50) |  I(60) |  I_end (+-SE)    |  M ring mint (+-SE) | honest share | misalloc TV
+    A standing          |   3.00 |  0.490 |  0.519 |  0.542 |  0.567 |  0.581 |  0.591 |  0.598 |  0.603 | 0.601 +- 0.000 | 0.6222 +- 0.0003    |       0.3778 | 0.6222
+    B calibration       |   0.25 |  0.490 |  0.508 |  0.564 |  0.630 |  0.651 |  0.639 |  0.650 |  0.651 | 0.655 +- 0.004 | 0.1294 +- 0.0004    |       0.8706 | 0.1294
+    C standing x calib  |   0.25 |  0.490 |  0.395 |  0.367 |  0.339 |  0.307 |  0.262 |  0.245 |  0.227 | 0.239 +- 0.003 | 0.0690 +- 0.0004    |       0.9310 | 0.0695
+    B vs A: H1 (I_end <= 0.245) fails | H2 (M <= half of A's, or < 0.005) holds | PARTIAL
+    C vs A: H1 (I_end <= 0.245) holds | H2 (M <= half of A's, or < 0.005) holds | WORKS (UNDECIDED within 2 SE)
+
+  ring share s = 0.60
+    arm                 | Delta* |  I( 1) |  I( 5) |  I(10) |  I(20) |  I(30) |  I(40) |  I(50) |  I(60) |  I_end (+-SE)    |  M ring mint (+-SE) | honest share | misalloc TV
+    A standing          |   3.00 |  0.600 |  0.639 |  0.667 |  0.697 |  0.713 |  0.724 |  0.731 |  0.736 | 0.734 +- 0.000 | 0.7593 +- 0.0002    |       0.2407 | 0.7593
+    B calibration       |   0.25 |  0.600 |  0.621 |  0.685 |  0.751 |  0.776 |  0.766 |  0.773 |  0.772 | 0.775 +- 0.003 | 0.2174 +- 0.0004    |       0.7826 | 0.2174
+    C standing x calib  |   0.25 |  0.600 |  0.500 |  0.485 |  0.477 |  0.461 |  0.413 |  0.397 |  0.377 | 0.390 +- 0.005 | 0.1441 +- 0.0008    |       0.8559 | 0.1441
+    B vs A: H1 (I_end <= 0.300) fails | H2 (M <= half of A's, or < 0.005) holds | PARTIAL
+    C vs A: H1 (I_end <= 0.300) fails | H2 (M <= half of A's, or < 0.005) holds | PARTIAL
+
+### Adversary 3: patient ring (honest rounds 1-20, then plain; window rounds 21-60)
+
+  ring share s = 0.10
+    arm                 | Delta* |  I( 1) |  I( 5) |  I(10) |  I(20) |  I(30) |  I(40) |  I(50) |  I(60) |  I_end (+-SE)    |  M ring mint (+-SE) | honest share | misalloc TV
+    A standing          |   3.00 |  0.100 |  0.100 |  0.100 |  0.100 |  0.084 |  0.073 |  0.065 |  0.058 | 0.061 +- 0.000 | 0.0261 +- 0.0001    |       0.9739 | 0.0299
+    B calibration       |   3.00 |  0.100 |  0.101 |  0.100 |  0.101 |  0.000 |  0.000 |  0.000 |  0.000 | 0.000 +- 0.000 | 0.0049 +- 0.0001    |       0.9951 | 0.0161
+    C standing x calib  |   3.00 |  0.100 |  0.101 |  0.100 |  0.101 |  0.000 |  0.000 |  0.000 |  0.000 | 0.000 +- 0.000 | 0.0047 +- 0.0001    |       0.9953 | 0.0160
+    A standing          I(20) = 0.100; rounds after defection until mean I(t) <= half of I(20): not within the horizon
+    B calibration       I(20) = 0.101; rounds after defection until mean I(t) <= half of I(20): 5
+    C standing x calib  I(20) = 0.101; rounds after defection until mean I(t) <= half of I(20): 5
+    B vs A: H1 (I_end <= 0.050) holds | H2 (M <= half of A's, or < 0.005) holds | WORKS
+    C vs A: H1 (I_end <= 0.050) holds | H2 (M <= half of A's, or < 0.005) holds | WORKS
+
+  ring share s = 0.30
+    arm                 | Delta* |  I( 1) |  I( 5) |  I(10) |  I(20) |  I(30) |  I(40) |  I(50) |  I(60) |  I_end (+-SE)    |  M ring mint (+-SE) | honest share | misalloc TV
+    A standing          |   3.00 |  0.300 |  0.301 |  0.300 |  0.300 |  0.314 |  0.327 |  0.338 |  0.347 | 0.343 +- 0.000 | 0.3838 +- 0.0004    |       0.6162 | 0.3838
+    B calibration       |   3.00 |  0.300 |  0.301 |  0.296 |  0.299 |  0.000 |  0.000 |  0.000 |  0.000 | 0.000 +- 0.000 | 0.0412 +- 0.0002    |       0.9588 | 0.0517
+    C standing x calib  |   3.00 |  0.300 |  0.301 |  0.296 |  0.299 |  0.000 |  0.000 |  0.000 |  0.000 | 0.000 +- 0.000 | 0.0415 +- 0.0002    |       0.9585 | 0.0520
+    A standing          I(20) = 0.300; rounds after defection until mean I(t) <= half of I(20): not within the horizon
+    B calibration       I(20) = 0.299; rounds after defection until mean I(t) <= half of I(20): 5
+    C standing x calib  I(20) = 0.299; rounds after defection until mean I(t) <= half of I(20): 5
+    B vs A: H1 (I_end <= 0.150) holds | H2 (M <= half of A's, or < 0.005) holds | WORKS
+    C vs A: H1 (I_end <= 0.150) holds | H2 (M <= half of A's, or < 0.005) holds | WORKS
+
+  ring share s = 0.49
+    arm                 | Delta* |  I( 1) |  I( 5) |  I(10) |  I(20) |  I(30) |  I(40) |  I(50) |  I(60) |  I_end (+-SE)    |  M ring mint (+-SE) | honest share | misalloc TV
+    A standing          |   3.00 |  0.490 |  0.491 |  0.490 |  0.490 |  0.551 |  0.601 |  0.639 |  0.669 | 0.656 +- 0.000 | 0.8073 +- 0.0003    |       0.1927 | 0.8073
+    B calibration       |   3.00 |  0.490 |  0.490 |  0.485 |  0.488 |  0.000 |  0.000 |  0.000 |  0.000 | 0.000 +- 0.000 | 0.0878 +- 0.0002    |       0.9122 | 0.0968
+    C standing x calib  |   3.00 |  0.490 |  0.491 |  0.486 |  0.488 |  0.000 |  0.000 |  0.000 |  0.000 | 0.000 +- 0.000 | 0.0887 +- 0.0002    |       0.9113 | 0.0977
+    A standing          I(20) = 0.490; rounds after defection until mean I(t) <= half of I(20): not within the horizon
+    B calibration       I(20) = 0.488; rounds after defection until mean I(t) <= half of I(20): 5
+    C standing x calib  I(20) = 0.488; rounds after defection until mean I(t) <= half of I(20): 5
+    B vs A: H1 (I_end <= 0.245) holds | H2 (M <= half of A's, or < 0.005) holds | WORKS
+    C vs A: H1 (I_end <= 0.245) holds | H2 (M <= half of A's, or < 0.005) holds | WORKS
+
+  ring share s = 0.60
+    arm                 | Delta* |  I( 1) |  I( 5) |  I(10) |  I(20) |  I(30) |  I(40) |  I(50) |  I(60) |  I_end (+-SE)    |  M ring mint (+-SE) | honest share | misalloc TV
+    A standing          |   3.00 |  0.600 |  0.601 |  0.601 |  0.600 |  0.666 |  0.716 |  0.751 |  0.778 | 0.766 +- 0.000 | 0.9150 +- 0.0001    |       0.0850 | 0.9150
+    B calibration       |   3.00 |  0.600 |  0.600 |  0.599 |  0.599 |  0.000 |  0.000 |  0.000 |  0.000 | 0.000 +- 0.000 | 0.1127 +- 0.0002    |       0.8873 | 0.1200
+    C standing x calib  |   3.00 |  0.600 |  0.601 |  0.599 |  0.599 |  0.000 |  0.000 |  0.000 |  0.000 | 0.000 +- 0.000 | 0.1133 +- 0.0002    |       0.8867 | 0.1206
+    A standing          I(20) = 0.600; rounds after defection until mean I(t) <= half of I(20): not within the horizon
+    B calibration       I(20) = 0.599; rounds after defection until mean I(t) <= half of I(20): 5
+    C standing x calib  I(20) = 0.599; rounds after defection until mean I(t) <= half of I(20): 5
+    B vs A: H1 (I_end <= 0.300) holds | H2 (M <= half of A's, or < 0.005) holds | WORKS
+    C vs A: H1 (I_end <= 0.300) holds | H2 (M <= half of A's, or < 0.005) holds | WORKS
+
+### Adversary 4: bought anchor, plain base (ring controls fraction f of the use signal)
+
+  ring share s = 0.10
+      f   | A: Delta*  I_end   M      | B: Delta*  I_end   M      outcome   | C: Delta*  I_end   M      outcome
+     0.00 |  3.00  0.030  0.0163  |  3.00  0.000  0.0037  WORKS      |  3.00  0.000  0.0035  WORKS     
+     0.10 |  3.00  0.030  0.0163  |  3.00  0.000  0.0037  WORKS      |  3.00  0.000  0.0035  WORKS     
+     0.20 |  3.00  0.030  0.0163  |  3.00  0.000  0.0037  WORKS      |  3.00  0.000  0.0035  WORKS     
+     0.30 |  3.00  0.030  0.0163  |  3.00  0.000  0.0037  WORKS      |  3.00  0.000  0.0035  WORKS     
+     0.40 |  3.00  0.030  0.0163  |  3.00  0.000  0.0039  WORKS      |  3.00  0.000  0.0037  WORKS     
+     0.45 |  3.00  0.030  0.0163  |  1.00  0.047  0.0065  WORKS   ?  |  3.00  0.000  0.0043  WORKS     
+     0.50 |  3.00  0.030  0.0163  |  3.00  0.897  0.5645  FAILS    ! |  3.00  0.991  0.7264  FAILS    !
+     0.55 |  3.00  0.030  0.0163  |  3.00  1.000  0.8965  FAILS    ! |  3.00  1.000  0.8971  FAILS    !
+     0.60 |  3.00  0.030  0.0163  |  3.00  1.000  0.9182  FAILS    ! |  3.00  1.000  0.9172  FAILS    !
+     0.80 |  3.00  0.030  0.0163  |  3.00  1.000  0.9347  FAILS    ! |  3.00  1.000  0.9342  FAILS    !
+    arm B: f_break = 0.50, f_flip = 0.50
+    arm C: f_break = 0.50, f_flip = 0.50
+
+  ring share s = 0.30
+      f   | A: Delta*  I_end   M      | B: Delta*  I_end   M      outcome   | C: Delta*  I_end   M      outcome
+     0.00 |  3.00  0.408  0.4315  |  3.00  0.000  0.0296  WORKS      |  3.00  0.000  0.0301  WORKS     
+     0.10 |  3.00  0.408  0.4315  |  3.00  0.000  0.0296  WORKS      |  3.00  0.000  0.0302  WORKS     
+     0.20 |  3.00  0.408  0.4315  |  3.00  0.000  0.0298  WORKS      |  3.00  0.000  0.0303  WORKS     
+     0.30 |  3.00  0.408  0.4315  |  3.00  0.000  0.0300  WORKS      |  3.00  0.000  0.0305  WORKS     
+     0.40 |  3.00  0.408  0.4315  |  3.00  0.000  0.0307  WORKS      |  3.00  0.000  0.0313  WORKS     
+     0.45 |  3.00  0.408  0.4315  |  0.50  0.371  0.1055  PARTIAL    |  1.00  0.043  0.0454  WORKS     
+     0.50 |  3.00  0.408  0.4315  |  3.00  0.966  0.8845  FAILS    ! |  3.00  0.997  0.9159  FAILS    !
+     0.55 |  3.00  0.408  0.4315  |  3.00  1.000  0.9536  FAILS    ! |  3.00  1.000  0.9545  FAILS    !
+     0.60 |  3.00  0.408  0.4315  |  3.00  1.000  0.9565  FAILS    ! |  3.00  1.000  0.9571  FAILS    !
+     0.80 |  3.00  0.408  0.4315  |  3.00  1.000  0.9571  FAILS    ! |  3.00  1.000  0.9576  FAILS    !
+    arm B: f_break = 0.45, f_flip = 0.50
+    arm C: f_break = 0.50, f_flip = 0.50
+
+  ring share s = 0.49
+      f   | A: Delta*  I_end   M      | B: Delta*  I_end   M      outcome   | C: Delta*  I_end   M      outcome
+     0.00 |  3.00  0.817  0.8815  |  3.00  0.000  0.0642  WORKS      |  3.00  0.000  0.0658  WORKS     
+     0.10 |  3.00  0.817  0.8815  |  3.00  0.000  0.0644  WORKS      |  3.00  0.000  0.0659  WORKS     
+     0.20 |  3.00  0.817  0.8815  |  3.00  0.000  0.0648  WORKS      |  3.00  0.000  0.0664  WORKS     
+     0.30 |  3.00  0.817  0.8815  |  3.00  0.000  0.0656  WORKS      |  3.00  0.000  0.0671  WORKS     
+     0.40 |  3.00  0.817  0.8815  |  0.50  0.097  0.0913  WORKS      |  3.00  0.000  0.0687  WORKS     
+     0.45 |  3.00  0.817  0.8815  |  0.50  0.748  0.5194  FAILS      |  0.50  0.716  0.4553  FAILS   ? 
+     0.50 |  3.00  0.817  0.8815  |  3.00  0.984  0.9617  FAILS    ! |  3.00  0.998  0.9737  FAILS    !
+     0.55 |  3.00  0.817  0.8815  |  3.00  1.000  0.9820  FAILS    ! |  3.00  1.000  0.9837  FAILS    !
+     0.60 |  3.00  0.817  0.8815  |  3.00  1.000  0.9823  FAILS    ! |  3.00  1.000  0.9839  FAILS    !
+     0.80 |  3.00  0.817  0.8815  |  3.00  1.000  0.9824  FAILS    ! |  3.00  1.000  0.9839  FAILS    !
+    arm B: f_break = 0.45, f_flip = 0.50
+    arm C: f_break = 0.45, f_flip = 0.50
+
+  ring share s = 0.60
+      f   | A: Delta*  I_end   M      | B: Delta*  I_end   M      outcome   | C: Delta*  I_end   M      outcome
+     0.00 |  3.00  0.896  0.9529  |  3.00  0.000  0.0848  WORKS      |  3.00  0.000  0.0859  WORKS     
+     0.10 |  3.00  0.896  0.9529  |  3.00  0.000  0.0851  WORKS      |  3.00  0.000  0.0861  WORKS     
+     0.20 |  3.00  0.896  0.9529  |  3.00  0.000  0.0859  WORKS      |  3.00  0.000  0.0869  WORKS     
+     0.30 |  3.00  0.896  0.9529  |  3.00  0.000  0.0873  WORKS      |  3.00  0.000  0.0883  WORKS     
+     0.40 |  3.00  0.896  0.9529  |  0.25  0.557  0.3254  PARTIAL    |  0.50  0.088  0.1744  WORKS     
+     0.45 |  3.00  0.896  0.9529  |  0.50  0.880  0.7813  FAILS      |  0.50  0.944  0.8223  FAILS     
+     0.50 |  3.00  0.896  0.9529  |  3.00  0.988  0.9821  FAILS    ! |  3.00  0.999  0.9880  FAILS    !
+     0.55 |  3.00  0.896  0.9529  |  3.00  1.000  0.9913  FAILS    ! |  3.00  1.000  0.9924  FAILS    !
+     0.60 |  3.00  0.896  0.9529  |  3.00  1.000  0.9914  FAILS    ! |  3.00  1.000  0.9924  FAILS    !
+     0.80 |  3.00  0.896  0.9529  |  3.00  1.000  0.9914  FAILS    ! |  3.00  1.000  0.9924  FAILS    !
+    arm B: f_break = 0.40, f_flip = 0.50
+    arm C: f_break = 0.45, f_flip = 0.50
+
+### R4 (reported, not decisive): bought anchor, selective base
+
+  ring share s = 0.10
+      f   | A: Delta*  I_end   M      | B: Delta*  I_end   M      outcome   | C: Delta*  I_end   M      outcome
+     0.00 |  3.00  0.029  0.0150  |  0.50  0.049  0.0035  WORKS   ?  |  3.00  0.000  0.0033  WORKS     
+     0.10 |  3.00  0.029  0.0150  |  0.50  0.061  0.0040  PARTIAL    |  3.00  0.000  0.0033  WORKS     
+     0.20 |  3.00  0.029  0.0150  |  0.50  0.077  0.0047  PARTIAL    |  3.00  0.000  0.0033  WORKS     
+     0.30 |  3.00  0.029  0.0150  |  0.50  0.097  0.0054  PARTIAL    |  3.00  0.000  0.0034  WORKS     
+     0.40 |  3.00  0.029  0.0150  |  1.00  0.062  0.0077  FAILS      |  3.00  0.000  0.0036  WORKS     
+     0.45 |  3.00  0.029  0.0150  |  1.00  0.097  0.0108  FAILS      |  2.00  0.005  0.0046  WORKS     
+     0.50 |  3.00  0.029  0.0150  |  3.00  0.154  0.0457  FAILS    ! |  3.00  0.059  0.0241  FAILS    !
+     0.55 |  3.00  0.029  0.0150  |  3.00  0.935  0.2032  FAILS    ! |  3.00  0.967  0.2050  FAILS    !
+     0.60 |  3.00  0.029  0.0150  |  3.00  0.999  0.2264  FAILS    ! |  3.00  1.000  0.2254  FAILS    !
+     0.80 |  3.00  0.029  0.0150  |  3.00  1.000  0.2341  FAILS    ! |  3.00  1.000  0.2337  FAILS    !
+    arm B: f_break = 0.10, f_flip = 0.50
+    arm C: f_break = 0.50, f_flip = 0.50
+
+  ring share s = 0.30
+      f   | A: Delta*  I_end   M      | B: Delta*  I_end   M      outcome   | C: Delta*  I_end   M      outcome
+     0.00 |  3.00  0.270  0.2639  |  0.25  0.394  0.0385  PARTIAL    |  3.00  0.000  0.0243  WORKS     
+     0.10 |  3.00  0.270  0.2639  |  0.25  0.439  0.0420  PARTIAL    |  3.00  0.000  0.0244  WORKS     
+     0.20 |  3.00  0.270  0.2639  |  0.25  0.485  0.0455  PARTIAL    |  3.00  0.000  0.0245  WORKS     
+     0.30 |  3.00  0.270  0.2639  |  0.50  0.273  0.0565  PARTIAL    |  3.00  0.000  0.0247  WORKS     
+     0.40 |  3.00  0.270  0.2639  |  0.50  0.440  0.0808  PARTIAL    |  0.50  0.138  0.0384  WORKS     
+     0.45 |  3.00  0.270  0.2639  |  1.00  0.273  0.1072  PARTIAL    |  1.00  0.085  0.0555  WORKS     
+     0.50 |  3.00  0.270  0.2639  |  3.00  0.593  0.4000  FAILS    ! |  3.00  0.685  0.4211  FAILS    !
+     0.55 |  3.00  0.270  0.2639  |  3.00  1.000  0.5410  FAILS    ! |  3.00  1.000  0.5409  FAILS    !
+     0.60 |  3.00  0.270  0.2639  |  3.00  1.000  0.5430  FAILS    ! |  3.00  1.000  0.5429  FAILS    !
+     0.80 |  3.00  0.270  0.2639  |  3.00  1.000  0.5436  FAILS    ! |  3.00  1.000  0.5435  FAILS    !
+    arm B: f_break = 0.00, f_flip = 0.50
+    arm C: f_break = 0.50, f_flip = 0.50
+
+  ring share s = 0.49
+      f   | A: Delta*  I_end   M      | B: Delta*  I_end   M      outcome   | C: Delta*  I_end   M      outcome
+     0.00 |  3.00  0.601  0.6222  |  0.25  0.655  0.1294  PARTIAL    |  0.25  0.239  0.0690  WORKS   ? 
+     0.10 |  3.00  0.601  0.6222  |  0.25  0.720  0.1388  PARTIAL    |  0.25  0.315  0.0814  PARTIAL   
+     0.20 |  3.00  0.601  0.6222  |  0.25  0.777  0.1471  PARTIAL    |  0.25  0.404  0.0948  PARTIAL   
+     0.30 |  3.00  0.601  0.6222  |  0.50  0.436  0.1760  PARTIAL    |  0.25  0.499  0.1082  PARTIAL   
+     0.40 |  3.00  0.601  0.6222  |  0.50  0.721  0.2435  PARTIAL    |  0.50  0.445  0.1800  PARTIAL   
+     0.45 |  3.00  0.601  0.6222  |  1.00  0.437  0.2977  PARTIAL    |  0.50  0.639  0.2231  PARTIAL   
+     0.50 |  3.00  0.601  0.6222  |  3.00  0.866  0.6892  FAILS    ! |  3.00  0.929  0.7041  FAILS    !
+     0.55 |  3.00  0.601  0.6222  |  3.00  1.000  0.7316  FAILS    ! |  3.00  1.000  0.7320  FAILS    !
+     0.60 |  3.00  0.601  0.6222  |  3.00  1.000  0.7319  FAILS    ! |  3.00  1.000  0.7323  FAILS    !
+     0.80 |  3.00  0.601  0.6222  |  3.00  1.000  0.7319  FAILS    ! |  3.00  1.000  0.7323  FAILS    !
+    arm B: f_break = 0.00, f_flip = 0.50
+    arm C: f_break = 0.10, f_flip = 0.50
+
+  ring share s = 0.60
+      f   | A: Delta*  I_end   M      | B: Delta*  I_end   M      outcome   | C: Delta*  I_end   M      outcome
+     0.00 |  3.00  0.734  0.7593  |  0.25  0.775  0.2174  PARTIAL    |  0.25  0.390  0.1441  PARTIAL   
+     0.10 |  3.00  0.734  0.7593  |  0.25  0.833  0.2282  PARTIAL    |  0.25  0.507  0.1672  PARTIAL   
+     0.20 |  3.00  0.734  0.7593  |  0.25  0.879  0.2368  PARTIAL    |  0.25  0.620  0.1881  PARTIAL   
+     0.30 |  3.00  0.734  0.7593  |  0.50  0.534  0.2910  PARTIAL    |  0.25  0.718  0.2055  PARTIAL   
+     0.40 |  3.00  0.734  0.7593  |  0.50  0.834  0.3711  PARTIAL    |  0.50  0.661  0.3249  PARTIAL   
+     0.45 |  3.00  0.734  0.7593  |  1.00  0.532  0.4481  FAILS      |  1.00  0.358  0.3835  FAILS   ? 
+     0.50 |  3.00  0.734  0.7593  |  3.00  0.936  0.7954  FAILS    ! |  3.00  0.970  0.8020  FAILS    !
+     0.55 |  3.00  0.734  0.7593  |  3.00  1.000  0.8122  FAILS    ! |  3.00  1.000  0.8126  FAILS    !
+     0.60 |  3.00  0.734  0.7593  |  3.00  1.000  0.8123  FAILS    ! |  3.00  1.000  0.8127  FAILS    !
+     0.80 |  3.00  0.734  0.7593  |  3.00  1.000  0.8123  FAILS    ! |  3.00  1.000  0.8127  FAILS    !
+    arm B: f_break = 0.00, f_flip = 0.50
+    arm C: f_break = 0.00, f_flip = 0.50
+
+### R1 (reported, not decisive): other aggregators
+
+  Median aggregator, Plain ring
+      s    | A: Delta*  I_end   M      | B: Delta*  I_end   M      outcome   | C: Delta*  I_end   M      outcome
+     0.10 |  0.25  0.018  0.0026  |  0.25  0.000  0.0020  WORKS      |  1.00  0.000  0.0020  WORKS     
+     0.30 |  0.50  0.070  0.0267  |  0.50  0.000  0.0127  WORKS      |  0.25  0.000  0.0120  WORKS     
+     0.49 |  2.00  0.913  0.9919  |  1.00  0.000  0.0598  WORKS      |  1.00  0.000  0.0774  WORKS     
+     0.60 |  0.10  0.938  1.0000  |  0.25  0.000  0.1011  WORKS      |  0.25  0.000  0.1026  WORKS     
+
+  Median aggregator, Selective ring
+      s    | A: Delta*  I_end   M      | B: Delta*  I_end   M      outcome   | C: Delta*  I_end   M      outcome
+     0.10 |  0.25  0.018  0.0026  |  0.10  0.142  0.0062  FAILS    ! |  0.10  0.027  0.0030  WORKS    !
+     0.30 |  0.50  0.068  0.0244  |  0.25  0.394  0.0875  FAILS    ! |  0.10  0.220  0.0380  FAILS    !
+     0.49 |  1.00  0.202  0.1423  |  0.25  0.655  0.1938  FAILS    ! |  0.25  0.377  0.1850  FAILS    !
+     0.60 |  3.00  0.784  0.8183  |  0.25  0.775  0.2732  PARTIAL    |  0.25  0.525  0.2731  PARTIAL   
+
+  Median aggregator, Patient ring
+      s    | A: Delta*  I_end   M      | B: Delta*  I_end   M      outcome   | C: Delta*  I_end   M      outcome
+     0.10 |  0.25  0.049  0.0037  |  0.25  0.000  0.0021  WORKS      |  0.25  0.000  0.0021  WORKS     
+     0.30 |  0.50  0.167  0.0486  |  0.50  0.000  0.0152  WORKS      |  0.50  0.000  0.0147  WORKS     
+     0.49 |  2.00  0.746  0.9730  |  1.00  0.000  0.0809  WORKS      |  1.00  0.000  0.0896  WORKS     
+     0.60 |  0.10  0.814  1.0000  |  0.25  0.000  0.1341  WORKS      |  0.25  0.000  0.1348  WORKS     
+
+  Dispute aggregator, Plain ring
+      s    | A: Delta*  I_end   M      | B: Delta*  I_end   M      outcome   | C: Delta*  I_end   M      outcome
+     0.10 |  0.10  0.016  0.0000  |  0.10  0.000  0.0000  WORKS      |  0.10  0.000  0.0000  WORKS     
+     0.30 |  0.50  0.051  0.0052  |  0.50  0.000  0.0106  PARTIAL  ! |  0.50  0.000  0.0052  PARTIAL   
+     0.49 |  0.50  0.524  0.5302  |  0.50  0.000  0.0348  WORKS      |  0.50  0.000  0.0348  WORKS     
+     0.60 |  0.50  0.885  0.9436  |  0.50  0.000  0.0455  WORKS      |  0.50  0.000  0.0461  WORKS     
+
+  Dispute aggregator, Selective ring
+      s    | A: Delta*  I_end   M      | B: Delta*  I_end   M      outcome   | C: Delta*  I_end   M      outcome
+     0.10 |  0.10  0.016  0.0000  |  0.10  0.142  0.0000  PARTIAL    |  0.10  0.023  0.0000  WORKS     
+     0.30 |  0.50  0.051  0.0052  |  0.50  0.039  0.0109  PARTIAL  ! |  0.50  0.005  0.0052  PARTIAL ? 
+     0.49 |  0.50  0.490  0.4900  |  0.50  0.020  0.0481  WORKS      |  0.50  0.003  0.0479  WORKS     
+     0.60 |  0.50  0.600  0.6000  |  0.50  0.014  0.0664  WORKS      |  0.50  0.002  0.0662  WORKS     
+
+  Dispute aggregator, Patient ring
+      s    | A: Delta*  I_end   M      | B: Delta*  I_end   M      outcome   | C: Delta*  I_end   M      outcome
+     0.10 |  0.10  0.047  0.0000  |  0.10  0.000  0.0000  WORKS      |  0.10  0.000  0.0000  WORKS     
+     0.30 |  0.50  0.151  0.0178  |  0.50  0.000  0.0171  PARTIAL    |  0.50  0.000  0.0139  PARTIAL   
+     0.49 |  0.50  0.509  0.5257  |  0.50  0.000  0.0522  WORKS      |  0.50  0.000  0.0523  WORKS     
+     0.60 |  0.50  0.670  0.7589  |  0.50  0.000  0.0679  WORKS      |  0.50  0.000  0.0682  WORKS     
+
+### R2 (reported, not decisive): calibration settings, selective ring
+    setting            |   s   | A: Delta*  I_end   M      | B: Delta*  I_end   M      outcome   | C: Delta*  I_end   M      outcome
+    eta 1, gamma 0.9   |  0.10 |  3.00  0.029  0.0150  |  1.00  0.043  0.0060  WORKS      |  3.00  0.000  0.0035  WORKS     
+    eta 20, gamma 0.9  |  0.10 |  3.00  0.029  0.0150  |  0.25  0.160  0.0046  PARTIAL    |  3.00  0.000  0.0039  WORKS     
+    eta 5, gamma 1.0   |  0.10 |  3.00  0.029  0.0150  |  0.25  0.198  0.0043  PARTIAL    |  3.00  0.000  0.0035  WORKS     
+    eta 1, gamma 0.9   |  0.30 |  3.00  0.270  0.2639  |  0.50  0.211  0.0468  PARTIAL    |  3.00  0.000  0.0247  WORKS     
+    eta 20, gamma 0.9  |  0.30 |  3.00  0.270  0.2639  |  0.25  0.671  0.0593  PARTIAL    |  0.10  0.894  0.0328  PARTIAL   
+    eta 5, gamma 1.0   |  0.30 |  3.00  0.270  0.2639  |  0.25  0.778  0.0561  PARTIAL    |  0.25  0.392  0.0287  PARTIAL   
+    eta 1, gamma 0.9   |  0.49 |  3.00  0.601  0.6222  |  0.50  0.308  0.1418  PARTIAL    |  0.50  0.068  0.0683  WORKS     
+    eta 20, gamma 0.9  |  0.49 |  3.00  0.601  0.6222  |  0.25  0.921  0.1677  PARTIAL    |  0.25  0.752  0.1406  PARTIAL   
+    eta 5, gamma 1.0   |  0.49 |  3.00  0.601  0.6222  |  0.25  0.965  0.1599  PARTIAL    |  0.25  0.865  0.1267  PARTIAL   
+    eta 1, gamma 0.9   |  0.60 |  3.00  0.734  0.7593  |  0.50  0.369  0.2378  PARTIAL    |  0.50  0.092  0.1269  WORKS     
+    eta 20, gamma 0.9  |  0.60 |  3.00  0.734  0.7593  |  0.25  0.969  0.2545  PARTIAL    |  0.25  0.896  0.2367  PARTIAL   
+    eta 5, gamma 1.0   |  0.60 |  3.00  0.734  0.7593  |  0.25  0.990  0.2461  PARTIAL    |  0.25  0.961  0.2191  PARTIAL   
+
+### R3 (reported, not decisive): concentrated selective ring (10 identities hold standing share s; B starts at 0.10)
+
+  ring share s = 0.10
+    arm                 | Delta* |  I( 1) |  I( 5) |  I(10) |  I(20) |  I(30) |  I(40) |  I(50) |  I(60) |  I_end (+-SE)    |  M ring mint (+-SE) | honest share | misalloc TV
+    A standing          |   3.00 |  0.100 |  0.080 |  0.065 |  0.049 |  0.040 |  0.035 |  0.030 |  0.027 | 0.029 +- 0.000 | 0.0150 +- 0.0000    |       0.9850 | 0.0213
+    B calibration       |   0.50 |  0.100 |  0.094 |  0.073 |  0.058 |  0.052 |  0.049 |  0.048 |  0.048 | 0.049 +- 0.001 | 0.0035 +- 0.0000    |       0.9965 | 0.0142
+    C standing x calib  |   3.00 |  0.100 |  0.001 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 | 0.000 +- 0.000 | 0.0033 +- 0.0000    |       0.9967 | 0.0149
+    B vs A: H1 (I_end <= 0.050) holds | H2 (M <= half of A's, or < 0.005) holds | WORKS (UNDECIDED within 2 SE)
+    C vs A: H1 (I_end <= 0.050) holds | H2 (M <= half of A's, or < 0.005) holds | WORKS
+
+  ring share s = 0.30
+    arm                 | Delta* |  I( 1) |  I( 5) |  I(10) |  I(20) |  I(30) |  I(40) |  I(50) |  I(60) |  I_end (+-SE)    |  M ring mint (+-SE) | honest share | misalloc TV
+    A standing          |   3.00 |  0.300 |  0.238 |  0.193 |  0.145 |  0.119 |  0.102 |  0.090 |  0.081 | 0.085 +- 0.000 | 0.0432 +- 0.0001    |       0.9568 | 0.0448
+    B calibration       |   0.50 |  0.100 |  0.094 |  0.073 |  0.058 |  0.052 |  0.049 |  0.048 |  0.048 | 0.049 +- 0.001 | 0.0035 +- 0.0000    |       0.9965 | 0.0142
+    C standing x calib  |   3.00 |  0.300 |  0.004 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 | 0.000 +- 0.000 | 0.0069 +- 0.0000    |       0.9931 | 0.0183
+    B vs A: H1 (I_end <= 0.150) holds | H2 (M <= half of A's, or < 0.005) holds | WORKS
+    C vs A: H1 (I_end <= 0.150) holds | H2 (M <= half of A's, or < 0.005) holds | WORKS
+
+  ring share s = 0.49
+    arm                 | Delta* |  I( 1) |  I( 5) |  I(10) |  I(20) |  I(30) |  I(40) |  I(50) |  I(60) |  I_end (+-SE)    |  M ring mint (+-SE) | honest share | misalloc TV
+    A standing          |   3.00 |  0.490 |  0.387 |  0.313 |  0.234 |  0.191 |  0.163 |  0.144 |  0.129 | 0.136 +- 0.000 | 0.0677 +- 0.0001    |       0.9323 | 0.0683
+    B calibration       |   0.50 |  0.100 |  0.094 |  0.073 |  0.058 |  0.052 |  0.049 |  0.048 |  0.048 | 0.049 +- 0.001 | 0.0035 +- 0.0000    |       0.9965 | 0.0142
+    C standing x calib  |   3.00 |  0.490 |  0.008 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 | 0.000 +- 0.000 | 0.0099 +- 0.0000    |       0.9901 | 0.0214
+    B vs A: H1 (I_end <= 0.245) holds | H2 (M <= half of A's, or < 0.005) holds | WORKS
+    C vs A: H1 (I_end <= 0.245) holds | H2 (M <= half of A's, or < 0.005) holds | WORKS
+
+  ring share s = 0.60
+    arm                 | Delta* |  I( 1) |  I( 5) |  I(10) |  I(20) |  I(30) |  I(40) |  I(50) |  I(60) |  I_end (+-SE)    |  M ring mint (+-SE) | honest share | misalloc TV
+    A standing          |   3.00 |  0.600 |  0.473 |  0.381 |  0.284 |  0.232 |  0.198 |  0.174 |  0.157 | 0.164 +- 0.000 | 0.0810 +- 0.0001    |       0.9190 | 0.0814
+    B calibration       |   0.50 |  0.100 |  0.094 |  0.073 |  0.058 |  0.052 |  0.049 |  0.048 |  0.048 | 0.049 +- 0.001 | 0.0035 +- 0.0000    |       0.9965 | 0.0142
+    C standing x calib  |   3.00 |  0.600 |  0.011 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 |  0.000 | 0.000 +- 0.000 | 0.0116 +- 0.0000    |       0.9884 | 0.0230
+    B vs A: H1 (I_end <= 0.300) holds | H2 (M <= half of A's, or < 0.005) holds | WORKS
+    C vs A: H1 (I_end <= 0.300) holds | H2 (M <= half of A's, or < 0.005) holds | WORKS
+
+== VERDICTS (pre-registered criteria) ==
+  Adversary 1, arm B: CONFIRMED  [s=0.10 WORKS, s=0.30 WORKS, s=0.49 WORKS, s=0.60 WORKS]
+  Adversary 1, arm C: CONFIRMED  [s=0.10 WORKS, s=0.30 WORKS, s=0.49 WORKS, s=0.60 WORKS]
+  Adversary 2, arm B: BOUNDARY  [s=0.10 WORKS?, s=0.30 PARTIAL, s=0.49 PARTIAL, s=0.60 PARTIAL]
+  Adversary 2, arm C: BOUNDARY  [s=0.10 WORKS, s=0.30 WORKS, s=0.49 WORKS?, s=0.60 PARTIAL]
+  Adversary 3, arm B: CONFIRMED  [s=0.10 WORKS, s=0.30 WORKS, s=0.49 WORKS, s=0.60 WORKS]
+  Adversary 3, arm C: CONFIRMED  [s=0.10 WORKS, s=0.30 WORKS, s=0.49 WORKS, s=0.60 WORKS]
+  Adversary 4, arm B: H4 CONFIRMED  [s=0.10 f_break 0.50 f_flip 0.50; s=0.30 f_break 0.45 f_flip 0.50; s=0.49 f_break 0.45 f_flip 0.50; s=0.60 f_break 0.40 f_flip 0.50]
+  Adversary 4, arm C: H4 CONFIRMED  [s=0.10 f_break 0.50 f_flip 0.50; s=0.30 f_break 0.50 f_flip 0.50; s=0.49 f_break 0.45 f_flip 0.50; s=0.60 f_break 0.45 f_flip 0.50]
+
+== Reported, not decisive ==
+  R4 (reported, not decisive), arm B: H4 BOUNDARY  [s=0.10 f_break 0.10 f_flip 0.50; s=0.30 f_break 0.00 f_flip 0.50; s=0.49 f_break 0.00 f_flip 0.50; s=0.60 f_break 0.00 f_flip 0.50]
+  R4 (reported, not decisive), arm C: H4 BOUNDARY  [s=0.10 f_break 0.50 f_flip 0.50; s=0.30 f_break 0.50 f_flip 0.50; s=0.49 f_break 0.10 f_flip 0.50; s=0.60 f_break 0.00 f_flip 0.50]
+  R3 concentrated selective, arm B: CONFIRMED (reading only)
+  R3 concentrated selective, arm C: CONFIRMED (reading only)
+
+  ('?' marks a cell UNDECIDED within 2 SE; '!' marks an arm whose ring mint share M is above arm A's by more than 2 SE, paired.)
+
+Runtime: 76.3 s for the runs, 76.3 s total.

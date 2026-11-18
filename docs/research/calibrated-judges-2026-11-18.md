@@ -207,3 +207,199 @@ INCONCLUSIVE under the same 2-SE rule.
   worker threads in the run.
 - The full printed output is saved next to this doc as `calibrated-judges-2026-11-18-output.txt`.
 - Any change to the above after this commit is listed in the results as a deviation, with its reason.
+
+---
+
+*Everything above this line is the pre-registration as committed in `50ef8b86` (2026-11-18), unchanged.
+Everything below was written after the run.*
+
+## Results (run 2026-11-18)
+
+- Sim: `node/examples/calibrated_judges_sim.rs`. Full output: `calibrated-judges-2026-11-18-output.txt`.
+- 124 cells x 6 Delta values x 32 seeds = 23,808 runs, 77 s on two threads (release build of the example
+  only, in `target/calib-sim`, 47 s). Deterministic: a second run gave identical numbers.
+- The dispute variant read `consensus::TWO_THIRDS_BPS = 6667` from the library.
+
+### Verdicts (pre-registered criteria)
+
+| Adversary | Arm B (calibration alone) | Arm C (standing x calibration) |
+|---|---|---|
+| 1. Plain ring | **CONFIRMED** (WORKS at all four shares) | **CONFIRMED** |
+| 2. Selective ring | **BOUNDARY**: WORKS at 0.10 (undecided within 2 SE); PARTIAL at 0.30, 0.49, 0.60 (H1 fails: influence does not halve, it grows) | **BOUNDARY**: WORKS at 0.10, 0.30, 0.49 (0.49 undecided); PARTIAL at 0.60 (H1 fails) |
+| 3. Patient ring | **CONFIRMED** (influence halves 5 rounds after defection) | **CONFIRMED** (same) |
+| 4. Bought anchor (H4: breaks at about half) | **CONFIRMED**: f_break 0.50 / 0.45 / 0.45 / 0.40 at s = 0.10 / 0.30 / 0.49 / 0.60; f_flip 0.50 at every share | **CONFIRMED**: f_break 0.50 / 0.50 / 0.45 / 0.45; f_flip 0.50 at every share |
+
+### Ring influence over rounds, and what it took
+
+I(t) is the ring's share of judge weight; M is its share of the value minted in the window (all of it wash,
+so the honest contributors' share is 1 - M); TV is the mean misallocation. Each arm faces the ring's best
+Delta for that arm.
+
+**Adversary 1, plain ring** (window rounds 1-60)
+
+| s | arm | Delta* | I(1) | I(10) | I(30) | I(60) | I_end (SE) | M (SE) | honest share | TV |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 0.10 | A | 3.00 | 0.100 | 0.066 | 0.042 | 0.028 | 0.030 (0.000) | 0.0163 (0.0000) | 0.9837 | 0.0225 |
+|  | B | 3.00 | 0.100 | 0.000 | 0.000 | 0.000 | 0.000 (0.000) | 0.0037 (0.0000) | 0.9963 | 0.0153 |
+|  | C | 3.00 | 0.100 | 0.000 | 0.000 | 0.000 | 0.000 (0.000) | 0.0035 (0.0000) | 0.9965 | 0.0151 |
+| 0.30 | A | 3.00 | 0.300 | 0.335 | 0.377 | 0.412 | 0.408 (0.000) | 0.4315 (0.0005) | 0.5685 | 0.4315 |
+|  | B | 3.00 | 0.300 | 0.000 | 0.000 | 0.000 | 0.000 (0.000) | 0.0296 (0.0001) | 0.9704 | 0.0405 |
+|  | C | 3.00 | 0.300 | 0.000 | 0.000 | 0.000 | 0.000 (0.000) | 0.0301 (0.0001) | 0.9699 | 0.0410 |
+| 0.49 | A | 3.00 | 0.490 | 0.630 | 0.753 | 0.824 | 0.817 (0.000) | 0.8815 (0.0002) | 0.1185 | 0.8815 |
+|  | B | 3.00 | 0.490 | 0.000 | 0.000 | 0.000 | 0.000 (0.000) | 0.0642 (0.0002) | 0.9358 | 0.0736 |
+|  | C | 3.00 | 0.490 | 0.000 | 0.000 | 0.000 | 0.000 (0.000) | 0.0658 (0.0002) | 0.9342 | 0.0752 |
+| 0.60 | A | 3.00 | 0.600 | 0.744 | 0.849 | 0.901 | 0.896 (0.000) | 0.9529 (0.0001) | 0.0471 | 0.9529 |
+|  | B | 3.00 | 0.600 | 0.000 | 0.000 | 0.000 | 0.000 (0.000) | 0.0848 (0.0002) | 0.9152 | 0.0924 |
+|  | C | 3.00 | 0.600 | 0.000 | 0.000 | 0.000 | 0.000 (0.000) | 0.0859 (0.0002) | 0.9141 | 0.0934 |
+
+**Adversary 2, selective ring** (window rounds 1-60)
+
+| s | arm | Delta* | I(1) | I(10) | I(30) | I(60) | I_end (SE) | M (SE) | honest share | TV |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 0.10 | A | 3.00 | 0.100 | 0.065 | 0.040 | 0.027 | 0.029 (0.000) | 0.0150 (0.0000) | 0.9850 | 0.0213 |
+|  | B | 0.50 | 0.100 | 0.073 | 0.052 | 0.048 | 0.049 (0.001) | 0.0035 (0.0000) | 0.9965 | 0.0142 |
+|  | C | 3.00 | 0.100 | 0.000 | 0.000 | 0.000 | 0.000 (0.000) | 0.0033 (0.0000) | 0.9967 | 0.0149 |
+| 0.30 | A | 3.00 | 0.300 | 0.288 | 0.277 | 0.269 | 0.270 (0.000) | 0.2639 (0.0002) | 0.7361 | 0.2639 |
+|  | B | 0.25 | 0.300 | 0.338 | 0.396 | 0.390 | 0.394 (0.004) | 0.0385 (0.0002) | 0.9615 | 0.0403 |
+|  | C | 3.00 | 0.300 | 0.000 | 0.000 | 0.000 | 0.000 (0.000) | 0.0243 (0.0001) | 0.9757 | 0.0353 |
+| 0.49 | A | 3.00 | 0.490 | 0.542 | 0.581 | 0.603 | 0.601 (0.000) | 0.6222 (0.0003) | 0.3778 | 0.6222 |
+|  | B | 0.25 | 0.490 | 0.564 | 0.651 | 0.651 | 0.655 (0.004) | 0.1294 (0.0004) | 0.8706 | 0.1294 |
+|  | C | 0.25 | 0.490 | 0.367 | 0.307 | 0.227 | 0.239 (0.003) | 0.0690 (0.0004) | 0.9310 | 0.0695 |
+| 0.60 | A | 3.00 | 0.600 | 0.667 | 0.713 | 0.736 | 0.734 (0.000) | 0.7593 (0.0002) | 0.2407 | 0.7593 |
+|  | B | 0.25 | 0.600 | 0.685 | 0.776 | 0.772 | 0.775 (0.003) | 0.2174 (0.0004) | 0.7826 | 0.2174 |
+|  | C | 0.25 | 0.600 | 0.485 | 0.461 | 0.377 | 0.390 (0.005) | 0.1441 (0.0008) | 0.8559 | 0.1441 |
+
+**Adversary 3, patient ring** (honest through round 20; window rounds 21-60)
+
+| s | arm | Delta* | I(20) | I(30) | I(60) | I_end (SE) | M (SE) | honest share | TV |
+|---|---|---|---|---|---|---|---|---|---|
+| 0.10 | A | 3.00 | 0.100 | 0.084 | 0.058 | 0.061 (0.000) | 0.0261 (0.0001) | 0.9739 | 0.0299 |
+|  | B | 3.00 | 0.101 | 0.000 | 0.000 | 0.000 (0.000) | 0.0049 (0.0001) | 0.9951 | 0.0161 |
+|  | C | 3.00 | 0.101 | 0.000 | 0.000 | 0.000 (0.000) | 0.0047 (0.0001) | 0.9953 | 0.0160 |
+| 0.30 | A | 3.00 | 0.300 | 0.314 | 0.347 | 0.343 (0.000) | 0.3838 (0.0004) | 0.6162 | 0.3838 |
+|  | B | 3.00 | 0.299 | 0.000 | 0.000 | 0.000 (0.000) | 0.0412 (0.0002) | 0.9588 | 0.0517 |
+|  | C | 3.00 | 0.299 | 0.000 | 0.000 | 0.000 (0.000) | 0.0415 (0.0002) | 0.9585 | 0.0520 |
+| 0.49 | A | 3.00 | 0.490 | 0.551 | 0.669 | 0.656 (0.000) | 0.8073 (0.0003) | 0.1927 | 0.8073 |
+|  | B | 3.00 | 0.488 | 0.000 | 0.000 | 0.000 (0.000) | 0.0878 (0.0002) | 0.9122 | 0.0968 |
+|  | C | 3.00 | 0.488 | 0.000 | 0.000 | 0.000 (0.000) | 0.0887 (0.0002) | 0.9113 | 0.0977 |
+| 0.60 | A | 3.00 | 0.600 | 0.666 | 0.778 | 0.766 (0.000) | 0.9150 (0.0001) | 0.0850 | 0.9150 |
+|  | B | 3.00 | 0.599 | 0.000 | 0.000 | 0.000 (0.000) | 0.1127 (0.0002) | 0.8873 | 0.1200 |
+|  | C | 3.00 | 0.599 | 0.000 | 0.000 | 0.000 (0.000) | 0.1133 (0.0002) | 0.8867 | 0.1206 |
+
+Under A the ring's influence never falls to half of I(20) within the horizon (it grows at s >= 0.30); under B
+and C it halves 5 rounds after defection at every share. Five rounds is the reveal lag: wash from round 21 is
+graded at the end of round 24 and the weights move in round 25. Most of what the patient ring took under B
+and C it took in those rounds. Part of every B and C figure is a floor that needs no ring weight: honest
+judges' noise on a worthless item averages to a small positive value once the aggregate is clipped at 0. By
+arithmetic (not measured separately) it is about 3% of the mint when 60 of 100 items are wash.
+
+**Adversary 4, bought anchor (plain base).** Up to f = 0.40 calibration weighting holds (B's ring takes
+0.4%, 3.1%, 9.1% of the mint at s = 0.10, 0.30, 0.49; at s = 0.60 it already keeps influence 0.56 and takes
+33%). At f = 0.45 it starts to give. At **f = 0.50 it flips at every share, for both B and C**: the ring holds
+0.90 to 1.00 of the judge weight at the end and takes 56% / 88% / 96% / 98% of the mint under B (73% / 92% /
+97% / 99% under C), against 1.6% / 43% / 88% / 95% under standing alone. That is worse than standing alone by
+more than 2 SE at every share. Above f = 0.5 the ring holds all the weight.
+
+### Reported, not decisive
+
+- **R4, selective ring with a bought anchor.** The flip is again at f = 0.50 at every share for both arms.
+  Arm B is already PARTIAL at f = 0 for s >= 0.30, so its f_break is 0.00 to 0.10; arm C holds to f = 0.45 at
+  s <= 0.30.
+- **R1, weighted median.** The median alone (arm A) already neutralizes a minority selective ring (it takes
+  0.3%, 2.4%, 14% at s = 0.10, 0.30, 0.49), and calibration weighting made it **worse**: B's ring grew to
+  influence 0.14 / 0.39 / 0.66 and took 0.6% / 8.8% / 19% (C: 0.3% / 3.8% / 19%), all above A by more than
+  2 SE. Plain and patient rings: B and C WORKS at every share (A's ring captures 97% to 100% of the mint at
+  s >= 0.49).
+- **R1, dispute-style 2/3 to refute (today's verdict shape).** Standing alone stops every ring below a third
+  (it takes 0% to 1.8%) and loses to every ring above a third: at s = 0.49 / 0.60 the plain ring takes 53% /
+  94%, and the selective ring takes exactly its share, 49% / 60% (its wash survives because it blocks
+  refutation: the club resting point). With calibration weighting, all three rings fall to 3% to 7% of the
+  mint at s = 0.49 and 0.60, and the selective ring's influence falls to 0.02 / 0.01 (B) and 0.003 / 0.002
+  (C). The reason: to block a refutation the ring must report at least 0.5 on worthless items, which is
+  outside honest judges' noise (0.3), so calibration sees it. At s = 0.30 arm B did slightly worse than A
+  (1.1% against 0.5%, more than 2 SE).
+- **R2, calibration settings (selective ring).** Sharper weighting (eta 20) or no forgetting (gamma 1.0)
+  makes the selective ring stronger under B: influence 0.67 to 0.99 at s >= 0.30. Gentler weighting (eta 1)
+  weakens it, and arm C at eta 1 was WORKS at all four shares (ring influence 0.000 / 0.000 / 0.068 / 0.092,
+  mint 0.4% / 2.5% / 6.8% / 13%). eta 1 was not run against the other adversaries.
+- **R3, concentrated selective ring** (10 identities holding share s). Both B and C WORKS at every share, but
+  standing alone also shrinks this ring: with only 10 items a round it cannot mint enough to keep its
+  standing even with 60% of it (A: influence 0.60 to 0.16, mint 8%). B starts at 0.10 because it counts
+  identities, not standing.
+
+### Predictions against outcomes
+
+| Prediction (written before data) | Outcome |
+|---|---|
+| A: ring grows at s = 0.30, 0.49, 0.60; shrinks at 0.10 | Held for the plain ring. Missed for the selective ring at 0.30: it shrinks slowly (0.30 to 0.27), because valuing others honestly leaves honest items their full value. |
+| Plain: B and C CONFIRMED | Held. Weight gone by round 5 (the first reveal). |
+| Selective: B BOUNDARY, H1 failing at most shares, best Delta below 0.3 | Held. Delta* = 0.25 at s >= 0.30 (0.50 at s = 0.10), and influence grew. |
+| Selective: C BOUNDARY | Held (fails only at 0.60). |
+| Patient: B and C CONFIRMED | Held; the take is confined to the 5-round lag. |
+| Bought anchor: f_break 0.4 to 0.5, f_flip about 0.5 | Held: f_break 0.40 to 0.50, f_flip exactly 0.50 everywhere. |
+
+Nearly every outcome matched a prediction derived from the model's own arithmetic before the run. So the
+run mostly checks that arithmetic and measures the dynamics (the standing feedback in C, the lag burst, the
+ring's best response). It is not independent evidence about real judges.
+
+### Deviations from the pre-registration
+
+1. After the first run, a print-only change added a flag ('!') to the compact tables marking an arm whose
+   ring mint share is above arm A's by more than 2 SE. The rerun's numbers are identical to the first run's
+   (checked by diff).
+2. Details the pre-registration left open, fixed in the code before any run: the misallocation average is
+   over rounds that minted anything (every round under the mean aggregator); the patient ring's "rounds to
+   halve" is read from the mean trajectory; INCONCLUSIVE is checked before CONFIRMED; H2 counts as undecided
+   unless it can be read as "holds by 2 SE" or "fails by 2 SE" from its parts; for H4, INCONCLUSIVE means
+   that at two or more shares the f_break cell or the cell before it is undecided (one share each for B and
+   C, so not triggered).
+
+## What it means, in plain words
+
+1. **The circle has the ring resting point, and it is a real attractor.** With judges weighted by standing
+   alone and a weighted-average price, a ring holding 30% or more of standing grows: the plain ring goes from
+   0.30 to 0.41 of the weight and from 0.60 to 0.90, taking 43% to 95% of what is minted. A smaller ring
+   shrinks, because the report cap limits what it can steal.
+2. **Calibration weighting removes the crude ring and the patient ring.** The plain ring loses all its
+   weight at the first reveal. The patient ring's 20 rounds of good behavior buy it nothing: its influence
+   halves 5 rounds after it defects, which is the reveal lag. A good record does not shield a later
+   defection when the score forgets.
+3. **The selective ring keeps its influence, and grows it.** Calibration rewards precision, and a ring knows
+   its own items are worthless. So it inflates them by less than honest judges' noise (0.25 against 0.3) and
+   looks better calibrated than the honest judges. At 30% to 60% of the weight its influence rises (0.30 to
+   0.39, 0.60 to 0.78). What calibration does do is cap the theft: the ring takes 4% to 22% of the mint,
+   against 26% to 76% under standing alone. **Global calibration bounds the ring's theft to the honest
+   noise band; it does not remove the ring.** Under a weighted median it is worse than standing alone.
+4. **Mixing standing back in helps, up to a point.** Arm C held the selective ring at shares up to 0.49,
+   because wash that mints little loses standing. It failed at 0.60.
+5. **Calibration is only as good as the anchor.** A ring that controls half the use signal turns calibration
+   weighting against the honest judges: at f = 0.5 it holds 90% to 100% of the weight at every share, worse
+   than standing alone. Calibration converts "own half the judges" into "own half the use signal". That helps
+   only if independent use costs more to buy than standing does, which is the capital-independence oracle's
+   job (designed, not built).
+
+## The one design change the results point to
+
+**Have calibration-weighted judges cast coarse verdicts, not fine prices, and let realized use set the
+price.** The selective ring's whole edge is a lie smaller than honest judges' noise, which a continuous
+valuation cannot see and a squared-error score rewards. A coarse verdict ("is this worth at least half its
+claim?", today's dispute shape) forces any lie that changes the outcome to be larger than that noise, and
+then calibration catches it: in R1 the selective ring's influence fell to 0.02 or less at 49% and 60% of the
+weight, and every ring took 3% to 7% of the mint, against 49% to 94% under standing alone. The design rule:
+the verdict's threshold must sit well outside honest judges' noise band. The price itself then comes from
+realized use paid later, which is the periphery design's "pay the honest outcome" (ARCHITECTURE.md, value
+measure, item 4).
+
+Status: this is a pointer from a reported variant, not a verdict. It needs its own pre-registered run
+across all four adversaries, including the bought anchor (not run under the dispute aggregator here), and a
+check of the regime where honest noise approaches the threshold. A second candidate aimed at the same root
+cause, grading each judge on its signed error per author it judges (a consistent generosity toward
+particular authors), was not tested; its known weak point is fresh identities with no history.
+
+## What this run adds to "What this cannot show"
+
+- The selective ring's edge depends on its own reports being noise-free while honest judges' are not. A ring
+  that cannot value its own items precisely, or honest judges much more precise than 0.3, would shrink it.
+- The flip at f = 0.5 is partly by construction: the bought use mirrors the ring's reports and the loss is
+  symmetric squared error. The measurement adds where it breaks first (0.40 to 0.45 at higher shares) and
+  how completely (0.90 to 1.00 of the weight).
