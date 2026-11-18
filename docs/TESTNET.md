@@ -23,7 +23,7 @@ A testnet is a network other people join. This is not one yet. What is missing, 
 | 3 | A faucet, so newcomers hold test JUL | open (designed: app layer, a funded wallet) |
 | 4 | An explorer for blocks, cells and identities | built, basic: `GET /blocks` and the page show the newest blocks, the contribution graph and identities |
 | 5 | A stable public address, TLS and connection caps | open (a temporary tunnel URL works today) |
-| 6 | One process serving the wallet and peers | open (`--listen` already serves the durable log) |
+| 6 | One process serving the wallet and peers | built: `--serve-api <http> <store> <peers>`, a one-time sync per joiner, read fresh for each |
 | 7 | Live gossip, so a follower tracks new blocks as they land | open (a joiner replays history once; new blocks do not propagate yet) |
 | 8 | Contributors as finality voters | open |
 

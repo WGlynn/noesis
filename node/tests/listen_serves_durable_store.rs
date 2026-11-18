@@ -160,3 +160,43 @@ fn testnet_joiner_boots_the_testnet_genesis_and_converges() {
     assert_eq!(seed_digest, joiner_digest, "testnet seed and joiner converged to different state");
     assert!(joiner_digest.contains("height=2"), "expected the 2-block testnet chain; digest was: {joiner_digest}");
 }
+
+/// Testnet step 6: one process serves the page AND joiners. `--serve-api <http> <store> <peers>` opens
+/// a peers listener beside the HTTP API, and a `--connect` joiner converges to the durable chain.
+#[test]
+fn serve_api_also_serves_joiners_from_one_process() {
+    let bin = env!("CARGO_BIN_EXE_noesisd");
+    let store = tmp_store("one-process");
+    build_durable_store_on(ChainSpec::testnet(), &store, 2);
+    let mut node = Command::new(bin)
+        .env("NOESIS_NET", "testnet")
+        .arg("--serve-api")
+        .arg("127.0.0.1:0")
+        .arg(&store)
+        .arg("127.0.0.1:0")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .expect("spawn noesisd --serve-api with a peers address");
+    let mut lines = BufReader::new(node.stdout.take().expect("piped stdout")).lines();
+    let peers = loop {
+        let line = lines.next().expect("node exited before announcing its peers address").expect("read stdout");
+        if let Some(a) = line.strip_prefix("PEERS LISTENING ") {
+            break a.trim().to_string();
+        }
+    };
+    let joiner = Command::new(bin)
+        .env("NOESIS_NET", "testnet")
+        .arg("--connect")
+        .arg(&peers)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .output()
+        .expect("run joiner");
+    let _ = node.kill();
+    let _ = node.wait();
+    let _ = std::fs::remove_file(&store);
+    assert!(joiner.status.success(), "joiner exited non-zero: {:?}", joiner.status);
+    let digest = extract_digest(&String::from_utf8_lossy(&joiner.stdout));
+    assert!(digest.contains("height=2") && digest.contains("cells=[1, 2]"), "expected the 2-block durable chain; digest was: {digest}");
+}

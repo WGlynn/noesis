@@ -48,6 +48,15 @@ NOESIS_NET=testnet ./target/release/noesisd --connect <seed-host>:9944          
 
 Both print a `DIGEST` line. Matching lines mean the two nodes hold the same state.
 
+Or run one process for the page AND joiners: add a peers address after the chain log.
+
+```
+NOESIS_NET=testnet ./target/release/noesisd --serve-api 127.0.0.1:9955 ~/.noesis/testnet-chain.log 0.0.0.0:9944
+```
+
+It prints `PEERS LISTENING <addr>`, and it reads the chain log fresh for each joiner, so a joiner gets
+the chain as it stands when it connects.
+
 Both sides must use the same `NOESIS_NET`. If they differ, the joiner starts from a different genesis and
 the sync fails. Before commit 23d1d4e3 (2026-11-17) the joiner booted the dev genesis whatever
 `NOESIS_NET` said, so a testnet join failed this way; the test
@@ -57,7 +66,6 @@ the sync fails. Before commit 23d1d4e3 (2026-11-17) the joiner booted the dev ge
 
 - **Live sync.** The seed serves the chain as it was when the seed started, and the joiner syncs once and
   exits. New blocks do not reach other nodes as they land. This is testnet step 7, the critical path.
-- **One process for the page and peers.** `--serve-api` and `--listen` are separate modes (step 6).
 - **Mining rewards for you.** Each block's JUL reward goes to the first validator in the chain spec, a
   placeholder key on the testnet, not to whoever runs the node. Test JUL is worthless by design, and a
   faucet is step 3.

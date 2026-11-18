@@ -265,6 +265,48 @@ fn run_listen(addr: &str, store: Option<&str>) {
     }
 }
 
+/// `--serve-api <http> <store> <peers>` — one process for the page AND peers (testnet step 6). A
+/// background listener on `<peers>` serves the durable chain to `--connect` joiners. Unlike `--listen`,
+/// it re-reads the log for EACH joiner, so a joiner gets the chain as it stands when it connects, not
+/// as it stood at boot. Honest scope: still a one-time sync per joiner (live gossip is step 7), and a
+/// joiner that connects mid-append may read a partial last frame; that sync fails loudly and the
+/// joiner simply retries.
+fn spawn_peer_seed(addr: &str, store: &str) {
+    let listener = Listener::bind(addr).unwrap_or_else(|e| {
+        eprintln!("noesisd: failed to bind peers address {addr}: {e}");
+        std::process::exit(1);
+    });
+    let bound = listener.local_addr().expect("listener has a local address");
+    println!("PEERS LISTENING {bound}");
+    let store = std::path::PathBuf::from(store);
+    thread::spawn(move || loop {
+        match listener.accept() {
+            Ok(mut peer) => {
+                let store = store.clone();
+                thread::spawn(move || {
+                    let who = peer.peer_addr().map(|a| a.to_string()).unwrap_or_else(|_| "?".into());
+                    match noesis::store::load_blocks(&store, &spec_from_env()) {
+                        Ok((_node, blocks)) => match serve(&mut peer, &blocks) {
+                            Ok(()) => {
+                                let _ = writeln!(io::stdout(), "served {} blocks to joiner {who}", blocks.len());
+                            }
+                            Err(e) => {
+                                let _ = writeln!(io::stderr(), "noesisd: serve to {who} failed: {e}");
+                            }
+                        },
+                        Err(e) => {
+                            let _ = writeln!(io::stderr(), "noesisd: could not read the chain for {who}: {e}");
+                        }
+                    }
+                });
+            }
+            Err(e) => {
+                let _ = writeln!(io::stderr(), "noesisd: peers accept failed: {e}");
+            }
+        }
+    });
+}
+
 /// `--connect <addr>` — the JOINER. Boot a fresh genesis identical to the seed's, dial it, pull +
 /// re-validate + replay its block log (slice-4 `sync_from`), and converge. Prints `DIGEST <...>` — a
 /// joiner that reached the seed's state prints the SAME line the seed did. Exits 0 on success.
@@ -305,18 +347,19 @@ fn main() {
             // local). A public testnet node sets NOESIS_NET=testnet so a stranger who joins boots the
             // ONE testnet block-zero (distinct chain_id ⇒ testnet blocks never cross to dev/mainnet).
             let spec = spec_from_env();
-            noesis::rpc::serve_api(
-                args.get(2).map(String::as_str).unwrap_or("127.0.0.1:9955"),
-                args.get(3).map(String::as_str).unwrap_or("noesis-chain.log"),
-                spec,
-            );
+            let store = args.get(3).map(String::as_str).unwrap_or("noesis-chain.log");
+            // Optional 4th arg: ALSO serve the chain to joiners from this process (testnet step 6).
+            if let Some(peer_addr) = args.get(4) {
+                spawn_peer_seed(peer_addr, store);
+            }
+            noesis::rpc::serve_api(args.get(2).map(String::as_str).unwrap_or("127.0.0.1:9955"), store, spec);
         }
         Some(other) => {
             eprintln!("noesisd: unknown mode {other:?}");
             eprintln!("usage: noesisd                    # T0 devnet (produce a chain locally)");
             eprintln!("       noesisd --listen [addr] [store]  # T1 seed (default 127.0.0.1:0; store ⇒ serve the durable log)");
             eprintln!("       noesisd --connect <addr>   # T1 joiner (sync from a seed)");
-            eprintln!("       noesisd --serve-api [addr] [store]  # live HTTP API + embedded UI (NOESIS_NET=dev|testnet, default dev)");
+            eprintln!("       noesisd --serve-api [addr] [store] [peers]  # live HTTP API + embedded UI (NOESIS_NET=dev|testnet, default dev); peers ⇒ also serve joiners");
             std::process::exit(2);
         }
     }
