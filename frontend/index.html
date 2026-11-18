@@ -1,624 +1,267 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Noēsis · contribution ledger</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NOESIS</title>
 <style>
-  :root {
-    --bg:      #0e0f12;
-    --panel:   #16181d;
-    --panel-2: #1b1e24;
-    --line:    #262a32;
-    --ink:     #e9e5db;
-    --muted:   #8b909b;
-    --faint:   #5c616c;
-    --gold:    #d8a24a;   /* JUL — energy-anchored money */
-    --mind:    #7fb2bf;   /* PoM — earned standing */
-    --bad:     #c96a5e;
-    --radius:  10px;
-  }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; background: var(--bg); color: var(--ink); }
-  body {
-    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    padding: 48px 20px 72px;
-  }
-  .wrap { max-width: 720px; margin: 0 auto; }
-  code, .mono { font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace; }
-
-  header { margin-bottom: 34px; }
-  .wordmark {
-    font-family: Iowan Old Style, "Palatino Linotype", Palatino, Georgia, serif;
-    font-size: 40px; font-weight: 600; letter-spacing: .5px; margin: 0;
-  }
-  .wordmark .dot { color: var(--gold); }
-  .tagline { color: var(--muted); margin: 6px 0 0; font-size: 15px; }
-  .tagline b { color: var(--ink); font-weight: 600; }
-
-  .card {
-    background: var(--panel); border: 1px solid var(--line);
-    border-radius: var(--radius); padding: 22px 22px 20px; margin: 18px 0;
-  }
-  .card h2 {
-    font-size: 12px; text-transform: uppercase; letter-spacing: .12em;
-    color: var(--faint); margin: 0 0 16px; font-weight: 600;
-  }
-
-  label { display: block; font-size: 13px; color: var(--muted); margin: 0 0 6px; }
-  textarea {
-    width: 100%; background: var(--panel-2); border: 1px solid var(--line);
-    color: var(--ink); border-radius: 8px; padding: 11px 12px; font-size: 15px;
-    font-family: inherit; resize: vertical; min-height: 78px;
-  }
-  textarea:focus { outline: none; border-color: var(--gold); }
-  .field { margin-bottom: 14px; }
-  .hint { font-size: 12px; color: var(--faint); margin-top: 6px; }
-
-  .upload { display: block; margin: 0 0 14px; padding: 12px 14px; border: 1px dashed var(--line);
-            border-radius: 8px; color: var(--muted); font-size: 13px; cursor: pointer; text-align: center; }
-  .upload:hover, .upload.drag { border-color: var(--gold); color: var(--ink); background: var(--panel-2); }
-  .upload b { color: var(--mind); font-weight: 600; }
-
-  button {
-    background: var(--gold); color: #1a1206; border: 0; border-radius: 8px;
-    padding: 11px 18px; font-size: 14px; font-weight: 700; cursor: pointer; letter-spacing: .01em;
-  }
-  button:hover { filter: brightness(1.06); }
-  button:disabled { opacity: .5; cursor: default; }
-  button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); font-weight: 600; }
-  button.ghost:hover { color: var(--ink); border-color: var(--faint); filter: none; }
-  button.sm { padding: 5px 10px; font-size: 12px; }
-
-  .toast { margin-top: 14px; font-size: 13px; min-height: 18px; }
-  .toast.ok  { color: var(--mind); }
-  .toast.err { color: var(--bad); }
-
-  /* ---- wallet ---- */
-  .wallet-id { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
-               padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
-  .wallet-id .k { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--faint); }
-  .addr { font-size: 19px; margin-top: 4px; display: flex; align-items: center; gap: 10px; }
-  .addr b { color: var(--ink); font-weight: 600; }
-  .wallet-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
-                  background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-  .wallet-stats .stat { background: var(--panel-2); padding: 14px 16px; }
-  .wallet-stats .k { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--faint); }
-  .wallet-stats .v { font-size: 24px; font-weight: 600; margin-top: 4px; }
-  .wallet-stats .v.mind { color: var(--mind); }
-  .wallet-stats .u { font-size: 11px; color: var(--faint); margin-top: 2px; }
-  .keyline { font-size: 12px; color: var(--faint); margin-top: 14px; display: flex; gap: 14px; flex-wrap: wrap; }
-  .keyline a { color: var(--muted); cursor: pointer; text-decoration: underline; }
-  .seedbox { margin-top: 12px; padding: 12px; background: var(--panel-2); border: 1px solid var(--bad);
-             border-radius: 8px; font-size: 12px; word-break: break-all; }
-  .seedbox .warn { color: var(--bad); font-weight: 700; display: block; margin-bottom: 6px; }
-  .contrib-as { font-size: 13px; color: var(--muted); margin: 0 0 14px; }
-  .contrib-as b { color: var(--mind); font-weight: 600; }
-
-  /* chain stats */
-  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line);
-           border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-  .stat { background: var(--panel-2); padding: 14px 16px; }
-  .stat .k { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--faint); }
-  .stat .v { font-size: 26px; font-weight: 600; margin-top: 4px; }
-  .stat .v.gold { color: var(--gold); }
-  .stat .u { font-size: 12px; color: var(--muted); margin-left: 4px; font-weight: 400; }
-
-  .board { margin-top: 18px; }
-  .board .row { display: flex; align-items: center; gap: 12px; padding: 9px 2px; border-bottom: 1px solid var(--line); }
-  .board .row:last-child { border-bottom: 0; }
-  .board .row.you { background: rgba(127,178,191,.07); border-radius: 6px; padding-left: 8px; padding-right: 8px; }
-  .board .rank { width: 22px; color: var(--faint); font-size: 13px; font-variant-numeric: tabular-nums; }
-  .board .name { flex: 1; }
-  .board .name b { font-weight: 600; }
-  .board .name .metag { color: var(--mind); font-size: 11px; font-weight: 700; margin-left: 6px;
-                        text-transform: uppercase; letter-spacing: .08em; }
-  .board .pom  { font-family: ui-monospace, Menlo, monospace; color: var(--mind); font-weight: 600; }
-  .bar { height: 4px; border-radius: 3px; background: var(--mind); opacity: .55; margin-top: 4px; }
-  .empty { color: var(--faint); font-size: 14px; padding: 6px 0; }
-
-  .statusline { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--faint); margin-top: 4px; }
-  .dot-live { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
-  .dot-live.up { background: #6fbf7f; } .dot-live.down { background: var(--bad); }
-
-  footer { margin-top: 30px; color: var(--faint); font-size: 12px; line-height: 1.7; }
-  footer .cfg { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
-  footer .cfg input { max-width: 260px; padding: 7px 10px; font-size: 12px; background: var(--panel-2);
-                      border: 1px solid var(--line); color: var(--ink); border-radius: 6px; }
-  a { color: var(--muted); }
-
-  @media (max-width: 480px) {
-    body { padding: 32px 14px 56px; }
-    .wordmark { font-size: 32px; }
-    .wallet-stats, .stats { grid-template-columns: 1fr 1fr; }
-    .addr { font-size: 16px; }
-  }
+/* Barebones, TempleOS style (Will 2026-11-17: "less wasted tokens and less bugs"): one font, the VGA
+   palette, plain text frames, no framework, no animation. Signing lives in /crypto.js, unchanged. */
+:root { --bg:#fff; --fg:#0000aa; --red:#aa0000; --grn:#00aa00; --dim:#555; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.4 "Courier New",Courier,monospace; }
+main { max-width:82ch; margin:0 auto; padding:0 1ch 2em; }
+.bar { background:var(--fg); color:var(--bg); padding:2px 1ch; white-space:pre-wrap; }
+fieldset { border:2px solid var(--fg); margin:1em 0 0; padding:.4em 1ch; }
+legend { padding:0 1ch; color:var(--red); }
+pre { margin:0; white-space:pre-wrap; word-break:break-all; font:inherit; }
+button, input, select, textarea { font:inherit; color:var(--fg); background:var(--bg); border:2px solid var(--fg); border-radius:0; }
+button { cursor:pointer; padding:0 1ch; }
+button:disabled { color:var(--dim); border-color:var(--dim); cursor:default; }
+textarea { width:100%; min-height:8em; }
+select, input[type=text] { width:100%; }
+.red { color:var(--red); } .grn { color:var(--grn); } .dim { color:var(--dim); }
+[hidden] { display:none !important; }
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="bar" id="live">NOESIS  connecting...</div>
+<main>
 
-  <header>
-    <h1 class="wordmark">Noēsis<span class="dot">.</span></h1>
-    <p class="tagline">A coordination primitive, not a casino. Contribution that <b>adds up</b> instead of running out — your standing is earned, never pre‑minted.</p>
-    <div class="statusline"><span id="live" class="dot-live"></span><span id="livetext">connecting…</span></div>
-  </header>
-
-  <!-- ============ Wallet ============ -->
-  <section class="card" id="wallet-card">
-    <h2>Your wallet</h2>
-
-    <!-- no wallet yet -->
-    <div id="wallet-new">
-      <p class="hint" style="font-size:13px;color:var(--muted);margin-top:0">
-        A wallet is a <b>real post‑quantum keypair</b> generated in your browser — hash‑based
-        (Lamport leaves under an XMSS Merkle root), the same key math the node verifies. Your
-        <b>address is your identity</b>; standing is earned by that key and can't be claimed by anyone
-        else. The secret key never leaves this device. A wallet can sign 256 contributions; moving standing
-        to a new key is designed, not built, so standing stays with the address that earned it.
-      </p>
-      <button id="create-wallet" type="button">Generate wallet</button>
-      <div id="gen-status" class="toast"></div>
-    </div>
-
-    <!-- wallet exists -->
-    <div id="wallet-view" hidden>
-      <div class="wallet-id">
-        <div>
-          <div class="k">Your address</div>
-          <div class="addr"><b id="w-addr" class="mono" title="">—</b>
-            <button id="copy-addr" class="ghost sm" type="button">copy</button></div>
-        </div>
-        <button id="forget" class="ghost sm" type="button">switch</button>
-      </div>
-      <div class="wallet-stats">
-        <div class="stat"><div class="k">PoM standing</div><div class="v mind" id="w-pom">—</div><div class="u">earned · soulbound</div></div>
-        <div class="stat"><div class="k">Rank</div><div class="v" id="w-rank">—</div><div class="u" id="w-rank-u">of contributors</div></div>
-        <div class="stat"><div class="k">Signatures left</div><div class="v" id="w-left">—</div><div class="u">one‑time keys</div></div>
-      </div>
-      <div class="keyline">
-        <a id="backup-toggle">Back up secret key</a>
-        <span id="w-jul-note">JUL (money layer) is producer‑minted on this devnet — your real asset here is PoM standing.</span>
-      </div>
-      <div id="seedbox" class="seedbox" hidden>
-        <span class="warn">Secret key — anyone with this controls your standing. Copy it somewhere safe; there is no recovery.</span>
-        <span id="w-seed" class="mono"></span>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ Contribute ============ -->
-  <section class="card">
-    <h2>Contribute</h2>
-    <p class="contrib-as" id="contrib-as" hidden>Signing as <b id="contrib-addr">—</b>.</p>
-    <div class="field">
-      <label for="what">Your contribution</label>
-      <textarea id="what" placeholder="Write something genuinely new. Near‑duplicates of earlier work earn no novelty."></textarea>
-      <div class="hint">The chain measures novelty: new content earns standing, and near-copies of what's already committed are rejected (a reworded paraphrase can still get through). Each submission is signed with a fresh one‑time key.</div>
-    </div>
-    <label class="upload" id="drop" for="file">
-      <input id="file" type="file" hidden
-        accept=".rs,.js,.ts,.tsx,.jsx,.py,.go,.c,.h,.cpp,.cc,.hpp,.sol,.move,.md,.txt,.json,.toml,.yaml,.yml,.sh,.java,.rb,.php,.swift,.kt,.lua,.sql,text/*" />
-      <span id="file-label">📎 Upload a code file — or drop it here. It reads into your contribution to review, then sign.</span>
-    </label>
-    <label class="buildon" for="parent" style="display:flex;align-items:center;gap:8px;margin:4px 0 10px;font-size:.9em;opacity:.85">Build on
-      <select id="parent" style="flex:1;background:rgba(255,255,255,.05);color:inherit;border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:6px 8px">
-        <option value="">— nothing (foundational)</option>
-      </select>
-    </label>
-    <button id="send">Sign &amp; submit</button>
-    <div id="toast" class="toast"></div>
-  </section>
-
-  <!-- ============ The chain ============ -->
-  <section class="card">
-    <h2>The chain</h2>
-    <div class="stats">
-      <div class="stat"><div class="k">Height</div><div class="v" id="s-height">—</div></div>
-      <div class="stat"><div class="k">JUL issued</div><div class="v gold"><span id="s-jul">—</span><span class="u">JUL</span></div></div>
-      <div class="stat"><div class="k">Contributors</div><div class="v" id="s-people">—</div></div>
-    </div>
-    <div class="board" id="board"></div>
-  </section>
-
-  <!-- ============ Contribution graph (provenance DAG) ============ -->
-  <section class="card">
-    <h2>Contribution graph</h2>
-    <p style="margin-top:-6px;opacity:.7;font-size:.9em">Each contribution, what it builds on, and how many built on it — the on‑chain provenance that connects a contribution to whether it mattered.</p>
-    <div class="dag" id="dag"></div>
-  </section>
-  <style>
-    /* ---- contribution TREE (foundational roots, children nested under what they build on) ---- */
-    .dag{display:flex;flex-direction:column;gap:6px;margin-top:8px}
-    .tnode,.tleaf{border:1px solid rgba(255,255,255,.08);border-radius:10px;background:rgba(255,255,255,.02)}
-    .tnode.you,.tleaf.you{border-color:rgba(120,180,255,.5);background:rgba(120,180,255,.06)}
-    .tnode{padding:0}
-    .tnode>summary{cursor:pointer;padding:10px 12px;list-style:none;display:block}
-    .tnode>summary::-webkit-details-marker{display:none}
-    .tnode>summary::before{content:"▸";display:inline-block;width:14px;opacity:.5;font-size:.8em}
-    .tnode[open]>summary::before{content:"▾"}
-    .tleaf{padding:10px 12px 10px 26px}
-    .thead{display:flex;align-items:center;gap:8px;font-size:.92em}
-    .thead .dim{opacity:.6}
-    .thead .nov{opacity:.7;font-size:.85em}
-    .tprev{opacity:.8;font-size:.88em;margin:6px 0 0 22px;white-space:pre-wrap;word-break:break-word;max-height:3.2em;overflow:hidden}
-    .tkids{display:block;font-size:.78em;opacity:.55;margin:4px 0 0 22px}
-    .tchildren{margin:0 0 8px 20px;padding-left:10px;border-left:1px solid rgba(255,255,255,.09)}
-    .edge{padding:2px 8px;border-radius:999px;font-size:.82em}
-    .edge.down{background:rgba(120,255,180,.12);color:#8affc0;margin-left:auto}
-    .edge.root{opacity:.5}
-    /* ---- flowing questions feed (deterministic shuffle, seeded by chain height) ---- */
-    .qfeed{margin-top:8px;height:168px;overflow:hidden;position:relative;
-           border:1px solid rgba(255,255,255,.06);border-radius:10px;background:rgba(255,255,255,.02);
-           -webkit-mask-image:linear-gradient(180deg,transparent,#000 14%,#000 86%,transparent);
-           mask-image:linear-gradient(180deg,transparent,#000 14%,#000 86%,transparent)}
-    .qtrack{position:absolute;left:0;right:0;padding:0 14px;animation:qflow linear infinite;will-change:transform}
-    .qfeed:hover .qtrack{animation-play-state:paused}
-    .qitem{padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:.92em;line-height:1.4}
-    .qitem .qsrc{display:block;opacity:.45;font-size:.76em;margin-top:3px}
-    @keyframes qflow{from{transform:translateY(0)}to{transform:translateY(-50%)}}
-    @media (prefers-reduced-motion: reduce){.qtrack{animation:none}.qfeed{height:auto;max-height:340px;overflow:auto}}
-  </style>
-
-  <!-- ============ Open questions from the corpus ============ -->
-  <section class="card">
-    <h2>Open questions from the corpus</h2>
-    <p style="margin-top:-6px;opacity:.7;font-size:.9em">Drawn from the current Noēsis docs, shuffled deterministically and flowing as the chain grows. Pick one and contribute an answer above. <span style="opacity:.6">(hover to pause)</span></p>
-    <div class="qfeed" id="qfeed"><div class="empty" style="padding:12px">loading questions…</div></div>
-  </section>
-
-  <footer>
-    <div class="cfg">
-      <span>node</span>
-      <input id="api" type="text" value="http://127.0.0.1:9955" spellcheck="false" />
-    </div>
-    Every contribution is <b>signed</b> by your wallet's post‑quantum hash‑based key and verified by the
-    node — no plaintext handles, standing accrues only to a key someone actually holds. JUL is
-    energy‑anchored money minted from the proof‑of‑work that seals each block; no pre‑mine.
-    <b>Demo simplification (honest):</b> PoM standing is scored here on <i>novelty at submission</i>
-    (first‑appearance coverage; near‑duplicates are rejected), with no vesting delay on this devnet. What a
-    contribution is <i>worth</i> (downstream use, a learned judge) is a separate value layer, still open
-    research and not shown here; a test keeps it out of finality. So this shows the plumbing, not the value
-    moat. This is a single-node devnet: three placeholder validators finalize every block, and difficulty is
-    a low placeholder for instant mining.
-    Built in the open · <a href="https://github.com/WGlynn/noesis">WGlynn/noesis</a>
-  </footer>
-
+<fieldset>
+<legend>WALLET</legend>
+<div id="wallet-new">
+  <pre>No wallet in this browser. A wallet is a post-quantum keypair (256 one-time keys).
+The address is your identity. The key never leaves this browser.</pre>
+  <button id="create-wallet">Generate wallet</button> <span id="gen-status"></span>
 </div>
+<div id="wallet-view" hidden>
+  <pre id="w-info"></pre>
+  <button id="copy-addr">Copy address</button>
+  <button id="backup-toggle">Show secret key</button>
+  <button id="forget">Switch wallet</button>
+  <pre id="seedbox" class="red" hidden></pre>
+</div>
+</fieldset>
+
+<fieldset>
+<legend>CONTRIBUTE</legend>
+<label for="parent">Builds on:</label>
+<select id="parent"><option value="">nothing (a new root)</option></select>
+<label for="what">Contribution:</label>
+<textarea id="what" placeholder="Write something new. Copies of what is already on the chain score zero."></textarea>
+<input type="file" id="file"> <span class="dim">(text file, 32 KB max)</span><br>
+<button id="send">Sign and submit</button> <span class="dim">(Ctrl+Enter)</span>
+<pre id="toast"></pre>
+</fieldset>
+
+<fieldset>
+<legend>CHAIN</legend>
+<pre id="chain">...</pre>
+</fieldset>
+
+<fieldset>
+<legend>CONTRIBUTION GRAPH</legend>
+<pre id="dag" class="dim">...</pre>
+</fieldset>
+
+<fieldset>
+<legend>IDENTITIES</legend>
+<pre id="ids" class="dim">...</pre>
+</fieldset>
+
+<fieldset>
+<legend>NODE</legend>
+<label for="api">Address:</label> <input type="text" id="api" value="http://127.0.0.1:9955">
+</fieldset>
+
+</main>
 
 <script src="/crypto.js"></script>
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
   if (location.protocol.startsWith("http")) $("api").value = location.origin;
-  const apiBase = () => $("api").value.replace(/\/+$/, "");
+  const api = () => $("api").value.replace(/\/+$/, "");
   const C = window.NoesisCrypto;
+  const esc = (s) => String(s).replace(/[<>&"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c]));
+  const short = (h) => (h = String(h || "")).length > 14 ? h.slice(0, 6) + ".." + h.slice(-6) : h;
+  const pad = (s, n) => String(s).padEnd(n);
+  const say = (el, cls, text) => { el.className = cls; el.textContent = text; };
 
-  // ---- wallet: a real hash-based keypair, kept in this browser ----
+  // ---- wallet: same storage format as before (key noesis_wallet_v1), so existing wallets load ----
   const KEY = "noesis_wallet_v1";
-  let wallet = null;      // { seed:Uint8Array, address:hex, nextIndex }
-  let leaves = null;      // cached XMSS leaves (in memory) for fast signing
-  let lastState = null;
-
-  const short = (hex) => hex ? hex.slice(0, 6) + "…" + hex.slice(-6) : "—";
+  let wallet = null, leaves = null, lastState = null;
 
   function saveWallet() {
-    localStorage.setItem(KEY, JSON.stringify({
-      v: 1, seed: C.hexEncode(wallet.seed), address: wallet.address, nextIndex: wallet.nextIndex
-    }));
+    localStorage.setItem(KEY, JSON.stringify({ v: 1, seed: C.hexEncode(wallet.seed), address: wallet.address, nextIndex: wallet.nextIndex }));
   }
-
-  function showView() {
-    if (wallet) {
-      $("wallet-new").hidden = true;
-      $("wallet-view").hidden = false;
-      $("w-addr").textContent = short(wallet.address);
-      $("w-addr").title = wallet.address;
-      $("contrib-as").hidden = false;
-      $("contrib-addr").textContent = short(wallet.address);
-      $("w-left").textContent = (C.LEAVES - wallet.nextIndex);
-    } else {
-      $("wallet-new").hidden = false;
-      $("wallet-view").hidden = true;
-      $("contrib-as").hidden = true;
-    }
-    if (lastState) renderWallet(lastState);
+  function showWallet() {
+    $("wallet-new").hidden = !!wallet;
+    $("wallet-view").hidden = !wallet;
+    if (!wallet) return;
+    const people = (lastState && lastState.contributors) || {};
+    const names = Object.keys(people).sort((a, b) => people[b] - people[a]);
+    const rank = names.indexOf(wallet.address);
+    $("w-info").textContent =
+      "address   " + wallet.address + "\n" +
+      "standing  " + (people[wallet.address] || 0) + (rank >= 0 ? "  (#" + (rank + 1) + " of " + names.length + ")" : "  (unranked)") + "\n" +
+      "keys left " + (C.LEAVES - wallet.nextIndex) + " of " + C.LEAVES;
   }
-
   function loadWallet() {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) { showView(); return; }
     try {
-      const w = JSON.parse(raw);
-      wallet = { seed: C.hexDecode(w.seed), address: w.address, nextIndex: w.nextIndex | 0 };
-    } catch (e) { wallet = null; showView(); return; }
-    showView();
-    // rebuild the leaf cache in the background so signing is instant
-    setTimeout(() => { leaves = C.buildLeaves(wallet.seed); }, 30);
+      const w = JSON.parse(localStorage.getItem(KEY) || "null");
+      if (w) wallet = { seed: C.hexDecode(w.seed), address: w.address, nextIndex: w.nextIndex | 0 };
+    } catch (e) { wallet = null; }
+    showWallet();
+    if (wallet) setTimeout(() => { leaves = C.buildLeaves(wallet.seed); }, 30);
   }
-
   function createWallet() {
-    const btn = $("create-wallet");
-    btn.disabled = true;
-    $("gen-status").className = "toast";
-    $("gen-status").textContent = "generating post‑quantum keys…";
-    // let the message paint before the ~0.5s keygen
-    setTimeout(() => {
+    $("create-wallet").disabled = true;
+    say($("gen-status"), "", "generating keys...");
+    setTimeout(() => { // let the message paint before the ~0.5 s keygen
       const seed = C.randomSeed();
       leaves = C.buildLeaves(seed);
-      const address = C.hexEncode(leaves.length ? C.keygenAddress(seed) : new Uint8Array(0));
-      wallet = { seed, address, nextIndex: 0 };
+      wallet = { seed, address: C.hexEncode(leaves.length ? C.keygenAddress(seed) : new Uint8Array(0)), nextIndex: 0 };
       saveWallet();
-      btn.disabled = false;
-      $("gen-status").textContent = "";
-      showView();
+      $("create-wallet").disabled = false;
+      say($("gen-status"), "", "");
+      showWallet();
     }, 40);
   }
-
   function forgetWallet() {
     if (!confirm("Switch wallets? This forgets the current key in this browser. Back it up first if you want it again.")) return;
     localStorage.removeItem(KEY);
     wallet = null; leaves = null;
     $("seedbox").hidden = true;
-    showView();
+    showWallet();
   }
 
-  function setLive(state, text) { $("live").className = "dot-live " + state; $("livetext").textContent = text; }
-
-  function renderWallet(s) {
-    if (!wallet) return;
+  // ---- views ----
+  function renderChain(s) {
     const people = s.contributors || {};
-    const names = Object.keys(people);
-    const mine = people[wallet.address] || 0;
-    const total = names.reduce((a, n) => a + (people[n] || 0), 0);
-    $("w-pom").textContent = mine;
-    $("w-left").textContent = (C.LEAVES - wallet.nextIndex);
-    if (names.includes(wallet.address)) {
-      const sorted = names.slice().sort((a, b) => people[b] - people[a]);
-      $("w-rank").textContent = "#" + (sorted.indexOf(wallet.address) + 1);
-      $("w-rank-u").textContent = "of " + names.length;
-    } else {
-      $("w-rank").textContent = "—";
-      $("w-rank-u").textContent = "unranked yet";
-    }
+    const names = Object.keys(people).sort((a, b) => people[b] - people[a]);
+    let t = "height " + s.height + "   JUL issued " + s.jul_issued + "   contributors " + names.length +
+            "   chain id " + s.chain_id + "\n\n";
+    t += names.length ? "rank  standing  address\n" : "No contributions yet.";
+    names.forEach((n, i) => {
+      t += pad(i + 1, 6) + pad(people[n], 10) + short(n) + (wallet && n === wallet.address ? "  <- you" : "") + "\n";
+    });
+    $("chain").textContent = t;
   }
-
-  function render(s) {
-    lastState = s;
-    $("s-height").textContent = s.height;
-    $("s-jul").textContent = s.jul_issued;
-    const people = s.contributors || {};
-    const names = Object.keys(people);
-    $("s-people").textContent = names.length;
-    renderWallet(s);
-
-    const board = $("board");
-    if (names.length === 0) {
-      board.innerHTML = '<div class="empty">No contributions yet — be the first to earn standing.</div>';
-      return;
-    }
-    const max = Math.max(...names.map((n) => people[n]));
-    names.sort((a, b) => people[b] - people[a]);
-    board.innerHTML = names.map((n, i) => {
-      const pom = people[n];
-      const w = max > 0 ? Math.round((pom / max) * 100) : 0;
-      const you = wallet && n === wallet.address;
-      const tag = you ? '<span class="metag">you</span>' : "";
-      return `<div class="row${you ? " you" : ""}"><div class="rank">${i + 1}</div>
-                <div class="name mono"><b>${short(n)}</b>${tag}
-                <div class="bar" style="width:${w}%"></div></div>
-              <div class="pom">${pom}</div></div>`;
-    }).join("");
-  }
-
-  let contribs = [];
-  function escapeHtml(s) { return String(s).replace(/[<>&"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c])); }
-  function hx(a) { a = String(a || ""); return a.length > 12 ? a.slice(0, 6) + "…" + a.slice(-4) : a; }
-  function isMine(hex) { return wallet && (hex === wallet.address || hex === String(wallet.address).replace(/^0x/, "")); }
-
-  // Build a forest: each contribution nests under the one it builds on (single parent ⇒ a tree).
-  // Foundational contributions (no parent) are roots. Sorted by downstream impact, then age.
-  function buildForest(items) {
-    const byId = new Map(items.map((c) => [c.id, Object.assign({}, c, { children: [] })]));
-    const roots = [];
-    for (const c of byId.values()) {
-      if (c.parent !== null && c.parent !== undefined && byId.has(c.parent)) byId.get(c.parent).children.push(c);
-      else roots.push(c);
-    }
-    const byImpact = (a, b) => (b.downstream - a.downstream) || (a.id - b.id);
-    const rec = (n) => { n.children.sort(byImpact); n.children.forEach(rec); };
-    roots.sort(byImpact); roots.forEach(rec);
-    return roots;
-  }
-  function nodeHtml(c, depth) {
-    const you = isMine(c.contributor);
-    const yg = you ? '<span class="metag">you</span>' : "";
-    const down = c.downstream > 0 ? `<span class="edge down" title="${c.downstream} build on this">↓ ${c.downstream}</span>` : "";
-    const head =
-      `<span class="thead"><b class="mono">#${c.id}</b> <span class="mono dim">${hx(c.contributor)}</span>${yg}` +
-      `<span class="nov" title="novelty score">ν ${c.novelty}</span>${down}</span>` +
-      `<span class="tprev">${escapeHtml(c.preview)}</span>`;
-    if (!c.children.length) return `<div class="tleaf${you ? " you" : ""}">${head}</div>`;
-    const open = depth < 1 ? " open" : ""; // top two levels expanded so growth is visible
-    return `<details class="tnode${you ? " you" : ""}"${open}><summary>${head}` +
-      `<span class="tkids">${c.children.length} built on this</span></summary>` +
-      `<div class="tchildren">${c.children.map((k) => nodeHtml(k, depth + 1)).join("")}</div></details>`;
-  }
+  // Each contribution sits under the one it builds on (one parent each, so a forest of trees).
   function renderDag(items) {
-    const el = $("dag");
-    if (!el) return;
-    if (!items.length) { el.innerHTML = '<div class="empty">No contributions yet — the tree grows as people build on each other.</div>'; return; }
-    el.innerHTML = buildForest(items).map((n) => nodeHtml(n, 0)).join("");
-  }
-
-  // ---- flowing questions feed: deterministic shuffle of doc-corpus questions, seeded by chain height ----
-  let questionsAll = [];
-  function splitmix(seed) {
-    let s = seed >>> 0;
-    return function () {
-      s = (s + 0x9e3779b9) >>> 0; let z = s;
-      z = Math.imul(z ^ (z >>> 16), 0x21f0aaad) >>> 0;
-      z = Math.imul(z ^ (z >>> 15), 0x735a2d97) >>> 0;
-      return ((z ^ (z >>> 15)) >>> 0) / 4294967296;
+    if (!items.length) { $("dag").textContent = "No contributions yet."; return; }
+    const kids = new Map(), ids = new Set(items.map((c) => c.id)), roots = [];
+    items.forEach((c) => {
+      if (c.parent != null && ids.has(c.parent)) (kids.get(c.parent) || kids.set(c.parent, []).get(c.parent)).push(c);
+      else roots.push(c);
+    });
+    const order = (a, b) => (b.downstream - a.downstream) || (a.id - b.id);
+    const lines = [];
+    const walk = (c, depth) => {
+      lines.push("  ".repeat(depth) + "#" + c.id + " " + short(c.contributor) + " nov " + c.novelty +
+                 (c.downstream ? " built-on " + c.downstream : "") + (wallet && c.contributor === wallet.address ? " (you)" : "") +
+                 "\n" + "  ".repeat(depth) + "   " + String(c.preview).replace(/\s+/g, " ").slice(0, 70));
+      (kids.get(c.id) || []).sort(order).forEach((k) => walk(k, depth + 1));
     };
+    roots.sort(order).forEach((r) => walk(r, 0));
+    $("dag").textContent = lines.join("\n");
   }
-  function seededShuffle(arr, seed) {
-    const a = arr.slice(), rnd = splitmix(seed);
-    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; }
-    return a;
-  }
-  function renderQuestions() {
-    const el = $("qfeed");
-    if (!el || !questionsAll.length) return;
-    const height = (lastState && lastState.height) | 0;
-    const order = seededShuffle(questionsAll, (Math.imul(height + 1, 2654435761)) >>> 0).slice(0, 40);
-    const item = (x) => `<div class="qitem">${escapeHtml(x.q)}<span class="qsrc mono">${escapeHtml(x.source || "")}</span></div>`;
-    const list = order.map(item).join("");
-    const dur = Math.max(28, order.length * 3); // slower for more questions
-    // duplicate the track so the -50% loop is seamless
-    el.innerHTML = `<div class="qtrack" style="animation-duration:${dur}s">${list}${list}</div>`;
-  }
-  async function refreshQuestions() {
-    if (questionsAll.length) return; // corpus questions load once (then flow, seeded by height at load)
-    try {
-      const r = await fetch(apiBase() + "/questions.json", { cache: "no-store" });
-      if (!r.ok) return;
-      const j = await r.json();
-      questionsAll = j.questions || [];
-      renderQuestions();
-    } catch (e) { /* older node without /questions.json — leave the loading state */ }
-  }
-
   function populateParents(items) {
-    const sel = $("parent");
-    if (!sel) return;
-    const cur = sel.value;
-    const opts = ['<option value="">— nothing (foundational)</option>'].concat(
-      items.slice().sort((a, b) => b.id - a.id).map((c) => `<option value="${c.id}">#${c.id} · ${escapeHtml(c.preview.slice(0, 40))}</option>`)
-    );
-    sel.innerHTML = opts.join("");
+    const sel = $("parent"), cur = sel.value;
+    sel.innerHTML = '<option value="">nothing (a new root)</option>' + items.slice().sort((a, b) => b.id - a.id)
+      .map((c) => '<option value="' + c.id + '">#' + c.id + " " + esc(String(c.preview).slice(0, 50)) + "</option>").join("");
     if (cur) sel.value = cur;
   }
-
-  async function refreshDag() {
-    try {
-      const r = await fetch(apiBase() + "/contributions", { cache: "no-store" });
-      if (!r.ok) return;
-      const j = await r.json();
-      contribs = j.contributions || [];
-      renderDag(contribs);
-      populateParents(contribs);
-    } catch (e) { /* an older node without /contributions — ignore */ }
+  function renderIds(cells) {
+    const sb = cells.filter((c) => c.standard === "soulbound" && c.record);
+    if (!sb.length) { $("ids").textContent = "No soulbound identities yet."; return; }
+    const lines = [];
+    sb.forEach((c) => {
+      const r = c.record;
+      if (r.kind === "authority") lines.push("issuer authority  " + c.collection + "  generation " + r.generation);
+      else lines.push("serial " + pad(r.serial, 6) + pad(r.tier, 10) + short(r.holder) + (wallet && r.holder === wallet.address ? "  <- you" : ""));
+    });
+    $("ids").textContent = lines.join("\n");
   }
 
+  async function getJson(path) {
+    const r = await fetch(api() + path, { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return r.json();
+  }
   async function refresh() {
     try {
-      const r = await fetch(apiBase() + "/state", { cache: "no-store" });
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      const s = await r.json();
-      render(s);
-      setLive("up", `live · height ${s.height} · ${s.jul_issued} JUL`);
-      refreshDag();
-      refreshQuestions();
+      const s = await getJson("/state");
+      lastState = s;
+      renderChain(s);
+      showWallet();
+      $("live").textContent = "NOESIS  live  height " + s.height + "  JUL " + s.jul_issued + "  " + api();
     } catch (e) {
-      setLive("down", "node unreachable — is `noesisd --serve-api` running?");
-    }
-  }
-
-  async function submit() {
-    const toast = $("toast");
-    if (!wallet) { toast.className = "toast err"; toast.textContent = "Generate a wallet first."; return; }
-    const data = $("what").value.trim();
-    if (!data) { toast.className = "toast err"; toast.textContent = "Write a contribution to submit."; return; }
-    if (wallet.nextIndex >= C.LEAVES) {
-      toast.className = "toast err";
-      toast.textContent = "This wallet has used all 256 one‑time keys. Its standing stays with this address; a new wallet starts from zero.";
+      $("live").textContent = "NOESIS  node unreachable at " + api() + "  (is noesisd --serve-api running?)";
       return;
     }
+    getJson("/contributions").then((j) => { renderDag(j.contributions || []); populateParents(j.contributions || []); }).catch(() => {});
+    getJson("/tokens").then((j) => renderIds(j.cells || [])).catch(() => {});
+  }
+
+  // ---- submit: the same signing path as before; the node runs the same check ----
+  async function submit() {
+    const toast = $("toast");
+    if (!wallet) return say(toast, "red", "Generate a wallet first.");
+    const data = $("what").value.trim();
+    if (!data) return say(toast, "red", "Write a contribution to submit.");
+    if (wallet.nextIndex >= C.LEAVES) return say(toast, "red", "This wallet has used all " + C.LEAVES + " one-time keys. Its standing stays with this address; a new wallet starts from zero.");
     $("send").disabled = true;
-    toast.className = "toast"; toast.textContent = "signing (post‑quantum)…";
+    say(toast, "", "signing...");
     try {
       if (!leaves) leaves = C.buildLeaves(wallet.seed);
       const index = wallet.nextIndex;
-      const addrBytes = C.hexDecode(wallet.address);
-      const msg = C.contributionDigest(addrBytes, index, C.utf8(data));
+      const addr = C.hexDecode(wallet.address);
+      const msg = C.contributionDigest(addr, index, C.utf8(data));
       const sig = C.xmssSign(wallet.seed, index, msg, leaves);
-      // self-check before spending the one-time leaf (the exact check the node runs)
-      if (!C.xmssVerify(addrBytes, msg, sig)) throw new Error("local signature self‑check failed");
-      toast.textContent = "mining…";
-      const body = {
-        address: wallet.address,
-        index: index,
-        ots_root: C.hexEncode(sig.ots_root),
-        ots_sig: C.hexEncode(sig.ots_sig),
-        auth: sig.auth.map((a) => C.hexEncode(a)),
-        data: data
-      };
-      // optional provenance: the contribution this one builds on (forms the DAG + downstream events)
-      const parentSel = $("parent");
-      if (parentSel && parentSel.value) body.parent = Number(parentSel.value);
-      const r = await fetch(apiBase() + "/submit", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
-      });
+      if (!C.xmssVerify(addr, msg, sig)) throw new Error("local signature self-check failed");
+      say(toast, "", "mining...");
+      const body = { address: wallet.address, index, ots_root: C.hexEncode(sig.ots_root), ots_sig: C.hexEncode(sig.ots_sig),
+                     auth: sig.auth.map((a) => C.hexEncode(a)), data };
+      if ($("parent").value) body.parent = Number($("parent").value);
+      const r = await fetch(api() + "/submit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const s = await r.json();
-      if (!r.ok || s.error) throw new Error(s.error || ("HTTP " + r.status));
-      // accepted → this one-time leaf is spent; advance the wallet
-      wallet.nextIndex = index + 1;
+      if (!r.ok || s.error) throw new Error(s.error || "HTTP " + r.status);
+      wallet.nextIndex = index + 1; // accepted, so this one-time key is spent
       saveWallet();
-      render(s);
-      const earned = (s.contributors && s.contributors[wallet.address]) || 0;
-      toast.className = "toast ok";
-      toast.textContent = `Block ${s.block_height} finalized — you now hold ${earned} PoM standing.`;
       $("what").value = "";
+      say(toast, "grn", "Block " + s.block_height + " finalized. You hold " + ((s.contributors || {})[wallet.address] || 0) + " standing.");
+      refresh();
     } catch (e) {
-      toast.className = "toast err";
-      toast.textContent = "Rejected: " + e.message + (/novel|zero/i.test(e.message) ? "" : " (try a more novel contribution?)");
+      say(toast, "red", "Rejected: " + e.message);
     } finally {
       $("send").disabled = false;
     }
   }
 
-  // wiring
-  $("create-wallet").addEventListener("click", createWallet);
-  $("forget").addEventListener("click", forgetWallet);
-  $("copy-addr").addEventListener("click", () => {
-    navigator.clipboard && navigator.clipboard.writeText(wallet.address);
-    const b = $("copy-addr"); const t = b.textContent; b.textContent = "copied"; setTimeout(() => (b.textContent = t), 1200);
-  });
-  $("backup-toggle").addEventListener("click", () => {
+  // ---- wiring ----
+  $("create-wallet").onclick = createWallet;
+  $("forget").onclick = forgetWallet;
+  $("copy-addr").onclick = () => { if (navigator.clipboard) navigator.clipboard.writeText(wallet.address); };
+  $("backup-toggle").onclick = () => {
     const box = $("seedbox");
-    if (box.hidden) { $("w-seed").textContent = C.hexEncode(wallet.seed); box.hidden = false; $("backup-toggle").textContent = "Hide secret key"; }
-    else { box.hidden = true; $("backup-toggle").textContent = "Back up secret key"; }
-  });
-  // ---- code upload: read a file into the contribution (same sign+submit path) ----
-  const MAX_UPLOAD = 32 * 1024; // fits under the node body cap alongside the signature
-  function loadFile(file) {
-    if (!file) return;
-    const toast = $("toast");
-    if (file.size > MAX_UPLOAD) {
-      toast.className = "toast err";
-      toast.textContent = `File is ${(file.size / 1024).toFixed(1)} KB — max ${MAX_UPLOAD / 1024} KB of code per contribution.`;
-      return;
-    }
+    box.hidden = !box.hidden;
+    box.textContent = box.hidden ? "" : "SECRET KEY (anyone with it controls this identity):\n" + C.hexEncode(wallet.seed);
+    $("backup-toggle").textContent = box.hidden ? "Show secret key" : "Hide secret key";
+  };
+  $("file").onchange = (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    if (f.size > 32 * 1024) return say($("toast"), "red", "File is " + (f.size / 1024).toFixed(1) + " KB; the limit is 32 KB.");
     const r = new FileReader();
-    r.onload = () => {
-      $("what").value = r.result;
-      const nm = file.name.replace(/[<>&]/g, "");
-      $("file-label").innerHTML = `📎 Loaded <b>${nm}</b> (${(file.size / 1024).toFixed(1)} KB) — review below, then Sign &amp; submit.`;
-      toast.className = "toast"; toast.textContent = "";
-    };
-    r.readAsText(file);
-  }
-  $("file").addEventListener("change", (e) => loadFile(e.target.files[0]));
-  const drop = $("drop");
-  ["dragover", "dragenter"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("drag"); }));
-  ["dragleave", "dragend"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("drag"); }));
-  drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("drag"); loadFile(e.dataTransfer.files[0]); });
-
-  $("send").addEventListener("click", submit);
-  $("what").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit(); });
-  $("api").addEventListener("change", refresh);
+    r.onload = () => { $("what").value = r.result; say($("toast"), "", "Loaded " + f.name + ". Review it, then sign and submit."); };
+    r.readAsText(f);
+  };
+  $("send").onclick = submit;
+  $("what").onkeydown = (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit(); };
+  $("api").onchange = refresh;
 
   loadWallet();
   refresh();
