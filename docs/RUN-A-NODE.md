@@ -30,7 +30,8 @@ target\release\noesisd.exe --serve-api 127.0.0.1:9955 %USERPROFILE%\.noesis\test
 ```
 
 Open http://127.0.0.1:9955/ in a browser. From the page you can:
-- generate a wallet: a post-quantum keypair with 256 one-time keys, kept in that browser;
+- generate a wallet: a post-quantum hot key with 65,536 one-time keys, kept in that browser, and a
+  cold recovery key shown once for you to store offline (recovery itself is designed, not built);
 - sign and submit a contribution, which the node mines into a block at once;
 - see the chain, the contribution graph, and the soulbound identities.
 

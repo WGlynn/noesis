@@ -5,7 +5,9 @@
 //! Three routes, plus CORS so a browser frontend on another origin can also call them:
 //!   * `GET  /`       — the embedded frontend itself (`text/html`), so ONE public URL is the whole app.
 //!   * `GET  /state`  — the chain view: height, JUL issued, per-contributor PoM standing, cell counts.
-//!   * `POST /submit` — a JSON `{ "contributor": "...", "data": "..." }`; the node builds a cell, runs
+//!   * `POST /submit` — a contribution signed in wallet format v2 (`parse_signed`: identity, hot_root,
+//!                      cold_commit, index, the XMSS^MT `bottom`/`top` signature, optional `parent`,
+//!                      `data`); the node verifies it, builds a cell, runs
 //!                      the ONE proven per-block engine ([`crate::chainspec::ChainSpec::produce_block`]),
 //!                      and returns the new state. A submitted contribution travels the EXACT path the
 //!                      tested chain does — no second, drifting pipeline.
@@ -34,9 +36,9 @@ use crate::commit_order::Committed;
 use crate::runtime::{txs_conserve_and_single_use, Node, TokenStandard, TokenTx};
 use crate::{Cell, Script};
 
-/// Max request body we will read. A SIGNED contribution carries a 16 KiB Lamport OTS signature
-/// (~32 KiB as hex) plus the Merkle auth path, so the budget is larger than a plain JSON post — still
-/// bounded to keep per-connection memory sane.
+/// Max request body we will read. A SIGNED contribution carries an XMSS^MT signature: two 16 KiB
+/// Lamport OTS signatures plus two Merkle auth paths, about 66 KiB as hex, so the budget is larger
+/// than a plain JSON post — still bounded to keep per-connection memory sane.
 pub const MAX_BODY: usize = 160 * 1024;
 /// Per-socket read/write deadline — a stalled client's thread dies instead of hanging forever.
 const IO_TIMEOUT: Duration = Duration::from_secs(30);
@@ -128,27 +130,66 @@ fn hex32(v: &Value, field: &str) -> Result<[u8; 32], String> {
     <[u8; 32]>::try_from(b.as_slice()).map_err(|_| format!("'{field}' must be 32 bytes"))
 }
 
-/// Parse a signed contribution request into (address, data, XMSS signature). The wallet signs
-/// `xmss::contribution_digest(address, index, data)`; the node re-derives that digest and verifies —
-/// so the identity that earns PoM standing is a real key the submitter controls, not a claimed handle.
-fn parse_signed(v: &Value) -> Result<([u8; 32], String, noesis_core::xmss::Signature), String> {
+/// A signed contribution in wallet format v2 (`noesis_core::wallet`): the identity, the two roots it
+/// hashes from, the one-time index, the hot key's XMSS^MT signature, the optional parent, and the data.
+struct SignedContribution {
+    identity: [u8; 32],
+    hot_root: [u8; 32],
+    cold_commit: [u8; 32],
+    index: u32,
+    sig: noesis_core::wallet::Signature,
+    parent: Option<u64>,
+    data: String,
+}
+
+/// One tree's part of an XMSS^MT signature (`bottom` or `top`): `{ots_root, auth, ots_sig}`.
+fn parse_tree_sig(v: &Value, field: &str, index: u32) -> Result<noesis_core::xmss::Signature, String> {
     use noesis_core::xmss;
-    let address = hex32(v, "address")?;
-    let ots_root = hex32(v, "ots_root")?;
-    let index = v.get("index").and_then(Value::as_u64).ok_or("missing 'index'")? as u32;
-    let data = v.get("data").and_then(Value::as_str).ok_or("missing 'data'")?.to_string();
-    let ots_sig = hex_decode(v.get("ots_sig").and_then(Value::as_str).unwrap_or(""))
-        .ok_or("'ots_sig' is not valid hex")?;
-    let auth_arr = v.get("auth").and_then(Value::as_array).ok_or("missing 'auth' path")?;
+    let part = v.get(field).ok_or_else(|| format!("missing '{field}' signature"))?;
+    let ots_root = hex32(part, "ots_root").map_err(|e| format!("{field}: {e}"))?;
+    let ots_sig = hex_decode(part.get("ots_sig").and_then(Value::as_str).unwrap_or(""))
+        .ok_or_else(|| format!("{field}: 'ots_sig' is not valid hex"))?;
+    let auth_arr = part.get("auth").and_then(Value::as_array).ok_or_else(|| format!("{field}: missing 'auth' path"))?;
     if auth_arr.len() != xmss::H {
-        return Err(format!("'auth' path must have exactly {} entries", xmss::H));
+        return Err(format!("{field}: 'auth' path must have exactly {} entries", xmss::H));
     }
     let mut auth = [[0u8; 32]; xmss::H];
     for (i, e) in auth_arr.iter().enumerate() {
-        let b = hex_decode(e.as_str().unwrap_or("")).ok_or("'auth' entry is not valid hex")?;
-        auth[i] = <[u8; 32]>::try_from(b.as_slice()).map_err(|_| "'auth' entry must be 32 bytes")?;
+        let b = hex_decode(e.as_str().unwrap_or("")).ok_or_else(|| format!("{field}: 'auth' entry is not valid hex"))?;
+        auth[i] = <[u8; 32]>::try_from(b.as_slice()).map_err(|_| format!("{field}: 'auth' entry must be 32 bytes"))?;
     }
-    Ok((address, data, xmss::Signature { index, ots_root, auth, ots_sig }))
+    Ok(xmss::Signature { index, ots_root, auth, ots_sig })
+}
+
+/// Parse a `POST /submit` body (wallet format v2). The wallet signs `wallet::contribution_digest(
+/// identity, index, parent, data)` with its hot key; [`ServerState::submit_signed`] re-derives the
+/// identity and the digest and verifies, so the identity that earns PoM standing is a real key the
+/// submitter controls, and the parent it builds on is the one it signed.
+fn parse_signed(v: &Value) -> Result<SignedContribution, String> {
+    use noesis_core::{wallet, xmss, xmss_mt};
+    if v.get("hot_root").is_none() && v.get("address").is_some() {
+        return Err("wallet format v1 is retired: this node takes format v2 (identity, hot_root, cold_commit, \
+                    an XMSS^MT signature over a digest that covers the parent)"
+            .into());
+    }
+    let identity = hex32(v, "identity")?;
+    let hot_root = hex32(v, "hot_root")?;
+    let cold_commit = hex32(v, "cold_commit")?;
+    let index = v
+        .get("index")
+        .and_then(Value::as_u64)
+        .filter(|&g| g < wallet::MAX_SIGS)
+        .ok_or_else(|| format!("'index' must be a one-time key index below {}", wallet::MAX_SIGS))? as u32;
+    let parent = match v.get("parent") {
+        None | Some(Value::Null) => None,
+        Some(p) => Some(p.as_u64().ok_or("'parent' must be a contribution id")?),
+    };
+    let data = v.get("data").and_then(Value::as_str).ok_or("missing 'data'")?.to_string();
+    // The MT index splits into (subtree, leaf); each tree's part carries its own index.
+    let bottom = parse_tree_sig(v, "bottom", index & (xmss::LEAVES as u32 - 1))?;
+    let top = parse_tree_sig(v, "top", index >> xmss::H)?;
+    let sig = xmss_mt::MtSignature { g: index, bottom, top };
+    Ok(SignedContribution { identity, hot_root, cold_commit, index, sig, parent, data })
 }
 
 /// The live node's mutable state behind the API: the chain spec (the genesis + per-block engine), the
@@ -163,9 +204,9 @@ pub struct ServerState {
     /// The node-local ingress screen: rejects trivial / near-duplicate submissions before the mempool.
     /// Advisory (never consensus); rebuilt from the persisted chain on boot so originality survives a restart.
     screen: crate::screen::Screen,
-    /// Anti-replay for the one-time XMSS leaves: the highest leaf `index` accepted per wallet address.
+    /// Anti-replay for the one-time XMSS^MT leaves: the highest index accepted per wallet identity.
     /// A new signed submit must use a STRICTLY GREATER index (each Lamport leaf signs at most once).
-    /// Durable by construction — rebuilt on boot from each cell's `lock.args` (`address‖index_le`), so
+    /// Durable by construction — rebuilt on boot from each cell's `lock.args` (`identity‖index_le`), so
     /// it needs no sidecar and survives a restart along with the chain.
     used_index: std::collections::HashMap<[u8; 32], u64>,
     /// Signed soulbound txs from `POST /token-tx`, waiting for the next contribution block to carry
@@ -193,14 +234,14 @@ fn block_summary(b: &crate::runtime::Block) -> Value {
     })
 }
 
-/// A finalized contribution cell binds its signer + one-time leaf into `lock.args = address(32)‖
+/// A finalized contribution cell binds its signer + one-time leaf into `lock.args = identity(32)‖
 /// index_le(8)` (40 bytes). This lets the anti-replay map rebuild from the durable chain alone.
-fn pack_lock_args(address: &[u8; 32], index: u32) -> Vec<u8> {
-    let mut a = address.to_vec();
+fn pack_lock_args(identity: &[u8; 32], index: u32) -> Vec<u8> {
+    let mut a = identity.to_vec();
     a.extend_from_slice(&(index as u64).to_le_bytes());
     a
 }
-/// Recover `(address, index)` from a contribution cell's `lock.args`, if it is the 40-byte signed form.
+/// Recover `(identity, index)` from a contribution cell's `lock.args`, if it is the 40-byte signed form.
 fn unpack_lock_args(args: &[u8]) -> Option<([u8; 32], u64)> {
     if args.len() != 40 {
         return None;
@@ -277,8 +318,9 @@ impl ServerState {
     /// The chain view as JSON.
     fn state_json(&self) -> Value {
         let (ids, _root, pom, tokens, work) = self.node.ledger.state_digest();
-        // PoM standing is keyed by the contributor's soulbound identity = their wallet ADDRESS (32
-        // bytes), so it is presented as hex (a real key, not a human-typed handle).
+        // PoM standing is keyed by the contributor's soulbound identity = their wallet address (32
+        // bytes, the hash of the hot root and cold commitment), presented as hex (a real key, not a
+        // human-typed handle).
         let contributors: serde_json::Map<String, Value> =
             pom.iter().map(|(k, v)| (hex_encode(k), json!(v))).collect();
         json!({
@@ -402,18 +444,15 @@ impl ServerState {
         json!({ "height": self.node.ledger.height, "count": items.len(), "contributions": items })
     }
 
-    /// Ingest a SIGNED contribution and try to finalize a block from it. The submitter proves control
-    /// of their `address` (a real hash-based key) by signing `contribution_digest(address, index,
-    /// data)` — no plaintext-handle theater; standing accrues only to a key someone actually holds.
+    /// Ingest a SIGNED contribution (wallet format v2) and try to finalize a block from it. The
+    /// submitter proves control of their identity (a real hash-based key, fixed with its recovery
+    /// commitment at creation) by signing `wallet::contribution_digest(identity, index, parent, data)`
+    /// with the hot key: no plaintext-handle theater, standing accrues only to a key someone holds.
     /// Returns the finalized height on success, or an error string (rejected/not-finalized).
-    fn submit_signed(
-        &mut self,
-        address: [u8; 32],
-        data: &str,
-        sig: noesis_core::xmss::Signature,
-        parent: Option<u64>,
-    ) -> Result<u64, String> {
-        use noesis_core::xmss;
+    fn submit_signed(&mut self, c: SignedContribution) -> Result<u64, String> {
+        use noesis_core::wallet;
+        let SignedContribution { identity, hot_root, cold_commit, index, sig, parent, data } = c;
+        let data = data.as_str();
         if data.is_empty() {
             return Err("data must be non-empty".into());
         }
@@ -427,37 +466,41 @@ impl ServerState {
                 return Err(format!("parent {p} names no finalized contribution"));
             }
         }
-        let index = sig.index;
-        // 1. Cryptographic authorization: the signature must verify under this address over the exact
-        //    (address, index, data) message. This is what makes the identity REAL (existence ≠ control).
-        let digest = xmss::contribution_digest(&address, index, data.as_bytes());
-        if !xmss::verify(&address, &digest, &sig) {
-            return Err("signature does not verify under this address".into());
+        // 1. The identity is fixed at creation: it must hash from this hot root and cold commitment.
+        if wallet::identity(&hot_root, &cold_commit) != identity {
+            return Err("identity is not the hash of this hot_root and cold_commit".into());
         }
-        // 2. One-time-leaf anti-replay: each XMSS leaf signs at most once, so a wallet must advance its
-        //    index. Reuse or regression is a replay attempt (or a stale wallet) — reject it.
-        if let Some(&last) = self.used_index.get(&address) {
+        // 2. Cryptographic authorization: the hot key's signature must verify over the exact
+        //    (identity, index, parent, data) message. This is what makes the identity REAL (existence ≠
+        //    control), and the signed parent means a relay cannot re-point what this builds on.
+        let digest = wallet::contribution_digest(&identity, index, parent, data.as_bytes());
+        if !wallet::verify(&hot_root, index, &digest, &sig) {
+            return Err("signature does not verify under this identity's hot key".into());
+        }
+        // 3. One-time-leaf anti-replay, per identity: each XMSS^MT leaf signs at most once, so a wallet
+        //    must advance its index. Reuse or regression is a replay attempt (or a stale wallet).
+        if let Some(&last) = self.used_index.get(&identity) {
             if index as u64 <= last {
                 return Err(format!(
-                    "leaf index {index} already used for this address (last accepted {last}); the wallet must advance"
+                    "leaf index {index} already used for this identity (last accepted {last}); the wallet must advance"
                 ));
             }
         }
-        // 3. Bootstrap ingress screen (advisory, node-local): reject trivial / near-duplicate content.
+        // 4. Bootstrap ingress screen (advisory, node-local): reject trivial / near-duplicate content.
         if let Err(reject) = self.screen.check(data.as_bytes()) {
             return Err(reject.message());
         }
         let id = self.next_id;
         self.next_id += 1;
-        // Soulbound identity (`type_script.args`) = the wallet address. The lock binds address‖index so
-        // the anti-replay high-water mark rebuilds from the durable chain. A distinct per-id secret
+        // Soulbound identity (`type_script.args`) = the wallet identity. The lock binds identity‖index
+        // so the anti-replay high-water mark rebuilds from the durable chain. A distinct per-id secret
         // keeps ordering coordinates unique.
         let mut secret = [0u8; 32];
         secret[..8].copy_from_slice(&id.to_le_bytes());
         let cell = Cell {
             id,
-            lock: Script { code_hash: [0u8; 32], args: pack_lock_args(&address, index) },
-            type_script: Script { code_hash: [1u8; 32], args: address.to_vec() },
+            lock: Script { code_hash: [0u8; 32], args: pack_lock_args(&identity, index) },
+            type_script: Script { code_hash: [1u8; 32], args: identity.to_vec() },
             parent,
             timestamp: id,
             data: data.as_bytes().to_vec(),
@@ -475,9 +518,9 @@ impl ServerState {
                 let excess = self.included_token_txs.len().saturating_sub(MAX_INCLUDED_RECORD);
                 self.included_token_txs.drain(..excess);
                 // Accepted + finalized ⇒ fold its shingles into the screen so later copies are caught,
-                // and advance this address's one-time-leaf high-water mark.
+                // and advance this identity's one-time-leaf high-water mark.
                 self.screen.record(data.as_bytes());
-                self.used_index.insert(address, index as u64);
+                self.used_index.insert(identity, index as u64);
                 self.blocks.push(block_summary(&block));
                 let over = self.blocks.len().saturating_sub(MAX_BLOCK_SUMMARIES);
                 self.blocks.drain(..over);
@@ -551,13 +594,12 @@ pub fn handle_request(
                 Ok(v) => v,
                 Err(e) => return out(400, json!({ "error": format!("invalid JSON: {e}") })),
             };
-            let (address, data, sig) = match parse_signed(&v) {
+            // The optional provenance link (`parent`) is parsed here and covered by the signature.
+            let signed = match parse_signed(&v) {
                 Ok(t) => t,
                 Err(e) => return out(400, json!({ "error": e })),
             };
-            // Optional provenance: the id of the finalized contribution this one builds on.
-            let parent = v.get("parent").and_then(Value::as_u64);
-            match state.submit_signed(address, &data, sig, parent) {
+            match state.submit_signed(signed) {
                 Ok(height) => {
                     let mut resp = state.state_json();
                     resp["finalized"] = json!(true);
@@ -567,8 +609,8 @@ pub fn handle_request(
                 Err(e) => out(400, json!({ "error": e })),
             }
         }
-        // A wallet's one-time-key high-water mark (wallet design decision 6): the highest leaf index
-        // this node has accepted for the address, or null. A wallet resumes at max(local, this + 1),
+        // A wallet's one-time-key high-water mark (wallet design decision 6): the highest index this
+        // node has accepted for the identity (the address), or null. A wallet resumes at max(local, this + 1),
         // so a lost or rolled-back local counter can never reuse a one-time key the chain already saw.
         ("GET", p) if p.starts_with("/index/") => match hex_decode(&p["/index/".len()..]) {
             Some(a) if a.len() == 32 => {
@@ -670,7 +712,7 @@ pub fn serve_api(addr: &str, store_path: &str, spec: ChainSpec) {
     println!("  GET  /                   -> the embedded web UI (submit + watch PoM/JUL)");
     println!("  GET  /state              -> chain view (height, jul, contributors)");
     println!("  GET  /tokens             -> live non-JUL token cells (soulbound identities decoded)");
-    println!("  POST /submit {{address,index,ots_root,auth,ots_sig,data}} -> signed contribution, mine+finalize");
+    println!("  POST /submit {{identity,hot_root,cold_commit,index,bottom,top,parent?,data}} -> signed contribution (wallet v2), mine+finalize");
     println!("  POST /token-tx {{tx,auths}} -> signed soulbound tx, carried by the next contribution block");
 
     let state = Arc::new(Mutex::new(server_state));
@@ -711,47 +753,101 @@ mod tests {
         serde_json::from_slice(bytes).expect("response is JSON")
     }
 
-    /// Build a real signed-contribution request body the way the browser wallet does: derive the
-    /// address from a master seed, sign `contribution_digest(address, index, data)`, hex-encode.
-    fn signed_body(master: &[u8; 32], index: u32, data: &str) -> Vec<u8> {
-        use noesis_core::xmss;
-        let address = xmss::keygen_address(master);
-        let digest = xmss::contribution_digest(&address, index, data.as_bytes());
-        let sig = xmss::sign(master, index, &digest);
-        let auth: Vec<String> = sig.auth.iter().map(|s| hex_encode(s)).collect();
-        json!({
-            "address": hex_encode(&address),
-            "index": index,
-            "ots_root": hex_encode(&sig.ots_root),
-            "ots_sig": hex_encode(&sig.ots_sig),
-            "auth": auth,
-            "data": data,
-        })
-        .to_string()
-        .into_bytes()
+    /// Test wallets commit to a fixed cold root (the node never sees a cold key, only its commitment).
+    const TEST_COLD_ROOT: [u8; 32] = [0xC0; 32];
+
+    /// The wallet identity for hot seed `master` (and the test cold commitment).
+    fn identity_of(master: &[u8; 32]) -> ([u8; 32], [u8; 32], [u8; 32]) {
+        use noesis_core::wallet;
+        let hot_root = wallet::key_root(master);
+        let cold_commit = wallet::cold_commit(&TEST_COLD_ROOT);
+        (wallet::identity(&hot_root, &cold_commit), hot_root, cold_commit)
     }
 
-    fn addr_hex(master: &[u8; 32]) -> String {
-        hex_encode(&noesis_core::xmss::keygen_address(master))
+    /// One tree's part of an MT signature, as the browser wallet sends it.
+    fn tree_json(t: &noesis_core::xmss::Signature) -> Value {
+        json!({
+            "ots_root": hex_encode(&t.ots_root),
+            "auth": t.auth.iter().map(|s| hex_encode(s)).collect::<Vec<String>>(),
+            "ots_sig": hex_encode(&t.ots_sig),
+        })
+    }
+
+    /// Build a real signed-contribution request body the way the browser wallet does (format v2):
+    /// derive the identity, sign `wallet::contribution_digest(identity, index, parent, data)` with
+    /// the hot key, hex-encode.
+    fn signed_body_on(master: &[u8; 32], index: u32, parent: Option<u64>, data: &str) -> Vec<u8> {
+        use noesis_core::wallet;
+        let (identity, hot_root, cold_commit) = identity_of(master);
+        let sig = wallet::sign(master, index, &wallet::contribution_digest(&identity, index, parent, data.as_bytes()));
+        let mut body = json!({
+            "identity": hex_encode(&identity),
+            "hot_root": hex_encode(&hot_root),
+            "cold_commit": hex_encode(&cold_commit),
+            "index": index,
+            "bottom": tree_json(&sig.bottom),
+            "top": tree_json(&sig.top),
+            "data": data,
+        });
+        if let Some(p) = parent {
+            body["parent"] = json!(p);
+        }
+        body.to_string().into_bytes()
+    }
+
+    /// A signed contribution that builds on nothing.
+    fn signed_body(master: &[u8; 32], index: u32, data: &str) -> Vec<u8> {
+        signed_body_on(master, index, None, data)
+    }
+
+    fn id_hex(master: &[u8; 32]) -> String {
+        hex_encode(&identity_of(master).0)
     }
 
     /// Cross-implementation parity anchor. These exact bytes are also asserted by the browser wallet's
     /// `frontend/parity-test.mjs`, so the Rust verifier and the JS signer can NEVER silently diverge
     /// (a hashing change on either side breaks this test loudly). No theater: the key math is one math.
+    /// The signature is deterministic, so its pinned hash proves the JS signer makes these exact bytes,
+    /// and this side verifies them.
     #[test]
-    fn xmss_parity_vectors_are_pinned() {
-        use noesis_core::xmss;
-        let seed = [7u8; 32];
-        let addr = xmss::keygen_address(&seed);
+    fn wallet_v2_parity_vectors_are_pinned() {
+        use noesis_core::{wallet, xmss};
+        let (hot, cold) = ([7u8; 32], [8u8; 32]);
         assert_eq!(
-            hex_encode(&addr),
+            hex_encode(&xmss::keygen_address(&hot)),
             "b8034627416d512d88c00d9cda4dfe0d1edb513102674e018c4c02732a34612e",
-            "XMSS address for seed=[7;32]"
+            "single-tree XMSS address for seed=[7;32]"
         );
+        let hot_root = wallet::key_root(&hot);
+        assert_eq!(hex_encode(&hot_root), "12d796f0ff1476ddf8f735cf76d07eba31c2b282d26f926baf4834f13bc3cc2f", "XMSS^MT root");
+        let cold_commit = wallet::cold_commit(&wallet::key_root(&cold));
+        assert_eq!(hex_encode(&cold_commit), "67c96506105d8c24e3c4656e70625808b8117eeafad410c8623087cb8e1e811c", "cold_commit");
+        let id = wallet::identity(&hot_root, &cold_commit);
+        assert_eq!(hex_encode(&id), "af3b14f66bde666ba77b3f7486f678f88b39ece95dded520587d8c9ebcf4ebe7", "identity");
         assert_eq!(
-            hex_encode(&xmss::contribution_digest(&addr, 5, b"hello noesis")),
-            "01dd86bf1b750baaefabf0b09d274eac98d2026b734b0b28f367f4b68a410f6d",
-            "contribution_digest(addr, 5, \"hello noesis\")"
+            hex_encode(&wallet::contribution_digest(&id, 300, None, b"hello noesis")),
+            "172e999b35d8e167e3c8a9d7cfaebf61b6cf124950320349fb013f60e6f07d93",
+            "digest, no parent"
+        );
+        let on_one = wallet::contribution_digest(&id, 300, Some(1), b"hello noesis");
+        assert_eq!(hex_encode(&on_one), "92bdcd71855d9533256b66e95fd0cc4765371487ca204aae6b09a6ed1b8bffe9", "digest, parent 1");
+        let sig = wallet::sign(&hot, 300, &on_one);
+        assert!(wallet::verify(&hot_root, 300, &on_one, &sig), "the pinned signature verifies");
+        // BLAKE2b-512 over the signature bytes in wire order (bottom then top: ots_root, auth, ots_sig)
+        let mut h = blake2b_ref::Blake2bBuilder::new(64).build();
+        for t in [&sig.bottom, &sig.top] {
+            h.update(&t.ots_root);
+            for a in &t.auth {
+                h.update(a);
+            }
+            h.update(&t.ots_sig);
+        }
+        let mut out = [0u8; 64];
+        h.finalize(&mut out);
+        assert_eq!(
+            hex_encode(&out),
+            "406733314cd931ba7fe698409ffd3174fcb51fc0a29cdfe83679614028a4c59eff95e26e634a6ab0676f46731970b240dc7d74e39b0ccc23ec0bc256bd31a543",
+            "blake2b-512 of the MT signature at 300"
         );
     }
 
@@ -797,7 +893,7 @@ mod tests {
     fn index_route_reports_the_highest_used_one_time_key() {
         let mut st = ServerState::new();
         let key = [0x33u8; 32];
-        let addr = addr_hex(&key);
+        let addr = id_hex(&key);
         let (s, _, b) = handle_request(&mut st, "GET", &format!("/index/{addr}"), b"");
         assert_eq!(s, 200);
         assert!(state_of(&b)["highest_used"].is_null(), "a fresh address has used no key");
@@ -846,7 +942,7 @@ mod tests {
         assert_eq!(v["block_height"], 1);
         assert_eq!(v["height"], 1);
         assert!(v["jul_issued"].as_u64().unwrap() > 0, "mined work issued JUL");
-        assert!(v["contributors"].get(addr_hex(&dave)).is_some(), "dave's ADDRESS earned standing");
+        assert!(v["contributors"].get(id_hex(&dave)).is_some(), "dave's identity earned standing");
         // a second contributor (different key) advances the chain to height 2
         let erin = [0x22u8; 32];
         let body2 = signed_body(&erin, 0, "an entirely separate subject, cold rivers");
@@ -855,7 +951,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_reused_leaf_index_and_forged_address() {
+    fn rejects_reused_leaf_index_and_forged_identity() {
         let mut st = ServerState::new();
         let dave = [0x11u8; 32];
         // valid submit at leaf 0
@@ -866,11 +962,108 @@ mod tests {
         assert!(state_of(&r)["error"].as_str().unwrap().contains("already used"));
         // advancing to leaf 1 works
         assert_eq!(handle_request(&mut st, "POST", "/submit", &signed_body(&dave, 1, "a properly novel thought about tides")).0, 200);
-        // a signature whose address is swapped (claim someone else's identity) fails verification
+        // a body whose identity is swapped (claim someone else's identity) is rejected
         let mut forged: Value = serde_json::from_slice(&signed_body(&dave, 2, "identity theft attempt")).unwrap();
-        forged["address"] = json!(hex_encode(&[0xEEu8; 32]));
-        let (sf, _, _) = handle_request(&mut st, "POST", "/submit", forged.to_string().as_bytes());
-        assert_eq!(sf, 400, "a signature not matching the claimed address is rejected");
+        forged["identity"] = json!(hex_encode(&[0xEEu8; 32]));
+        let (sf, _, rf) = handle_request(&mut st, "POST", "/submit", forged.to_string().as_bytes());
+        assert_eq!(sf, 400, "a signature not matching the claimed identity is rejected");
+        assert!(state_of(&rf)["error"].as_str().unwrap().contains("identity is not the hash"));
+    }
+
+    #[test]
+    fn the_identity_must_hash_from_its_hot_root_and_cold_commitment() {
+        let mut st = ServerState::new();
+        let erin = [0x22u8; 32];
+        let genuine: Value = serde_json::from_slice(&signed_body(&erin, 0, "a sketch of a tide-driven water clock")).unwrap();
+        // a relay swaps the cold commitment (to plant its own recovery key): the identity no longer hashes
+        let mut cold = genuine.clone();
+        cold["cold_commit"] = json!(hex_encode(&noesis_core::wallet::cold_commit(&[0xBAu8; 32])));
+        let (s, _, r) = handle_request(&mut st, "POST", "/submit", cold.to_string().as_bytes());
+        assert_eq!(s, 400);
+        assert!(state_of(&r)["error"].as_str().unwrap().contains("identity is not the hash"));
+        // ... and re-derives the identity to match: the signature covers the identity, so it fails
+        let mut both = cold.clone();
+        let (hot_root, cold_commit) = (hex32(&both, "hot_root").unwrap(), hex32(&both, "cold_commit").unwrap());
+        both["identity"] = json!(hex_encode(&noesis_core::wallet::identity(&hot_root, &cold_commit)));
+        let (s, _, r) = handle_request(&mut st, "POST", "/submit", both.to_string().as_bytes());
+        assert_eq!(s, 400);
+        assert!(state_of(&r)["error"].as_str().unwrap().contains("signature does not verify"));
+        // another hot root (with the identity re-derived): the signature is not under that key
+        let mut hot = genuine.clone();
+        let other_root = noesis_core::wallet::key_root(&[0x23u8; 32]);
+        let cc = hex32(&hot, "cold_commit").unwrap();
+        hot["hot_root"] = json!(hex_encode(&other_root));
+        hot["identity"] = json!(hex_encode(&noesis_core::wallet::identity(&other_root, &cc)));
+        assert_eq!(handle_request(&mut st, "POST", "/submit", hot.to_string().as_bytes()).0, 400);
+        // nothing was spent: the genuine body still lands, at the same index
+        assert_eq!(handle_request(&mut st, "POST", "/submit", genuine.to_string().as_bytes()).0, 200);
+        assert!(state_of(&handle_request(&mut st, "GET", "/state", b"").2)["contributors"].get(id_hex(&erin)).is_some());
+    }
+
+    #[test]
+    fn the_parent_is_signed_so_a_relay_cannot_rewire_it() {
+        let mut st = ServerState::new();
+        let (alice, bob, carol) = ([0x33u8; 32], [0x44u8; 32], [0x55u8; 32]);
+        assert_eq!(handle_request(&mut st, "POST", "/submit", &signed_body(&alice, 0, "a first idea about salt marsh carbon")).0, 200);
+        // bob signed a root; a relay adds a parent (to hand cell 1 downstream credit): rejected
+        let bob_root: Value = serde_json::from_slice(&signed_body(&bob, 0, "an unrelated note on bell founding")).unwrap();
+        let mut added = bob_root.clone();
+        added["parent"] = json!(1);
+        let (s, _, r) = handle_request(&mut st, "POST", "/submit", added.to_string().as_bytes());
+        assert_eq!(s, 400, "an added parent is rejected");
+        assert!(state_of(&r)["error"].as_str().unwrap().contains("signature does not verify"));
+        assert_eq!(handle_request(&mut st, "POST", "/submit", bob_root.to_string().as_bytes()).0, 200);
+        // carol signed "builds on 1"; a relay re-points it to 2, or strips it: both rejected
+        let carol_on_1: Value = serde_json::from_slice(&signed_body_on(&carol, 0, Some(1), "marsh carbon, measured by season")).unwrap();
+        let mut repointed = carol_on_1.clone();
+        repointed["parent"] = json!(2);
+        assert_eq!(handle_request(&mut st, "POST", "/submit", repointed.to_string().as_bytes()).0, 400, "re-pointed");
+        let mut stripped = carol_on_1.clone();
+        stripped.as_object_mut().unwrap().remove("parent");
+        assert_eq!(handle_request(&mut st, "POST", "/submit", stripped.to_string().as_bytes()).0, 400, "stripped");
+        // the genuine link lands, and the chain shows the parent carol signed
+        assert_eq!(handle_request(&mut st, "POST", "/submit", carol_on_1.to_string().as_bytes()).0, 200);
+        let v = state_of(&handle_request(&mut st, "GET", "/contributions", b"").2);
+        let items = v["contributions"].as_array().unwrap();
+        assert_eq!(items.iter().find(|c| c["id"] == 3).unwrap()["parent"], 1);
+        assert_eq!(items.iter().find(|c| c["id"] == 2).unwrap()["parent"], Value::Null);
+    }
+
+    #[test]
+    fn an_mt_key_spans_subtrees_and_its_index_only_goes_up() {
+        let mut st = ServerState::new();
+        let dave = [0x11u8; 32];
+        assert_eq!(handle_request(&mut st, "POST", "/submit", &signed_body(&dave, 0, "a note from the first subtree")).0, 200);
+        // index 300 = subtree 1, leaf 44: past the 256 leaves a single tree had; skipping is allowed
+        assert_eq!(handle_request(&mut st, "POST", "/submit", &signed_body(&dave, 300, "a later note, about kelp forests")).0, 200);
+        // a validly signed lower index (256, the first leaf of subtree 1) is refused: indexes only go up
+        let (s, _, r) = handle_request(&mut st, "POST", "/submit", &signed_body(&dave, 256, "an out-of-order note on dune grass"));
+        assert_eq!(s, 400);
+        assert!(state_of(&r)["error"].as_str().unwrap().contains("already used"));
+        let (_, _, b) = handle_request(&mut st, "GET", &format!("/index/{}", id_hex(&dave)), b"");
+        assert_eq!(state_of(&b)["highest_used"], 300);
+    }
+
+    #[test]
+    fn v1_bodies_out_of_range_indexes_and_bad_parents_are_refused_before_any_signature_check() {
+        let mut st = ServerState::new();
+        let h = "ab".repeat(32);
+        let v1 = json!({ "address": h, "index": 0, "ots_root": h, "ots_sig": "", "auth": [], "data": "x" });
+        let (s, _, r) = handle_request(&mut st, "POST", "/submit", v1.to_string().as_bytes());
+        assert_eq!(s, 400);
+        assert!(state_of(&r)["error"].as_str().unwrap().contains("format v1 is retired"));
+        let base = json!({ "identity": h, "hot_root": h, "cold_commit": h, "index": 0, "data": "x" });
+        let mut far = base.clone();
+        far["index"] = json!(noesis_core::wallet::MAX_SIGS);
+        let (s, _, r) = handle_request(&mut st, "POST", "/submit", far.to_string().as_bytes());
+        assert_eq!(s, 400);
+        assert!(state_of(&r)["error"].as_str().unwrap().contains("'index' must be"));
+        let mut bad_parent = base.clone();
+        bad_parent["parent"] = json!("one");
+        let (s, _, r) = handle_request(&mut st, "POST", "/submit", bad_parent.to_string().as_bytes());
+        assert_eq!(s, 400);
+        assert!(state_of(&r)["error"].as_str().unwrap().contains("'parent' must be"));
+        assert_eq!(state_of(&handle_request(&mut st, "GET", "/state", b"").2)["height"], 0);
     }
 
     #[test]
@@ -903,9 +1096,8 @@ mod tests {
         );
         // B builds ON A via the live API (parent = 1) ⇒ cell id 2.
         let bob = [0x44u8; 32];
-        let mut b: Value = serde_json::from_slice(&signed_body(&bob, 0, "wave-lensing lattices and lunar-phase timing, a separate downstream method")).unwrap();
-        b["parent"] = json!(1);
-        assert_eq!(handle_request(&mut st, "POST", "/submit", b.to_string().as_bytes()).0, 200);
+        let b = signed_body_on(&bob, 0, Some(1), "wave-lensing lattices and lunar-phase timing, a separate downstream method");
+        assert_eq!(handle_request(&mut st, "POST", "/submit", &b).0, 200);
 
         let (status, _ct, body) = handle_request(&mut st, "GET", "/contributions", b"");
         assert_eq!(status, 200);
@@ -924,9 +1116,8 @@ mod tests {
     fn a_dangling_parent_is_rejected() {
         let mut st = ServerState::new();
         let carol = [0x55u8; 32];
-        let mut body: Value = serde_json::from_slice(&signed_body(&carol, 0, "an idea claiming to build on a contribution that does not exist")).unwrap();
-        body["parent"] = json!(999);
-        let (status, _ct, resp) = handle_request(&mut st, "POST", "/submit", body.to_string().as_bytes());
+        let body = signed_body_on(&carol, 0, Some(999), "an idea claiming to build on a contribution that does not exist");
+        let (status, _ct, resp) = handle_request(&mut st, "POST", "/submit", &body);
         assert_eq!(status, 400);
         assert!(state_of(&resp)["error"].as_str().unwrap().contains("names no finalized contribution"));
     }
@@ -1045,7 +1236,7 @@ mod tests {
         let s = state_of(&handle_request(&mut st, "GET", "/state", b"").2);
         let contributors = s["contributors"].as_object().unwrap();
         assert_eq!(contributors.len(), 1);
-        assert!(contributors.contains_key(&addr_hex(&dave)));
+        assert!(contributors.contains_key(&id_hex(&dave)));
         let mut twin = ServerState::new();
         handle_request(&mut twin, "POST", "/submit", &signed_body(&dave, 0, "a note on estuary sediment"));
         assert_eq!(s["contributors"], state_of(&handle_request(&mut twin, "GET", "/state", b"").2)["contributors"]);

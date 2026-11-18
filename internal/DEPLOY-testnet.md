@@ -105,6 +105,10 @@ For a real hostname + TLS, point a domain at the IP and front it with Caddy/ngin
   crypto (`frontend/crypto.js`) is **parity-tested byte-for-byte** against the Rust
   (`rpc::tests::xmss_parity_vectors_are_pinned` ↔ `frontend/parity-test.mjs`). Existence ≠ control:
   standing accrues only to a key someone actually holds.
+  - **Superseded 2026-11-17 by wallet format v2** (`noesis_core::wallet`): identity = hash of an
+    XMSS^MT hot root (65,536 sigs) and a cold-key commitment; the digest also signs the parent; `lock.args
+    = identity‖index_le`; the parity test is now `rpc::tests::wallet_v2_parity_vectors_are_pinned`. The
+    node refuses v1 bodies. A v1 wallet stays in browser storage and is shown read-only.
   - **Portable identity across nets** — now POSSIBLE (same key on any `chain_id`). Standing policy is
     unchanged and deliberate: **testnet standing must NOT auto-translate to mainnet** (testnets are
     wiped; carrying test-earned standing invites farming). Carry the **key/address**, start mainnet

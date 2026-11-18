@@ -1,7 +1,7 @@
 # Source hashes of the on-VM ELF fixtures (scripts/fixture-freshness.py). Stamp only after
 # rebuilding: `make elf`, or build each crate and copy it here, then --stamp.
-e43e056cdbce5be0b5af2ce0e9a0832dfc21cb9c15cb6389ba0e8d4b5aa99b5d  pom-typescript
-267b62edfe4ac51204f28da41ecc5760215fd51841b31834521c146cb6187959  finalization-typescript
-cf161c34e42aaab57fbe594dd06b375e2d95379fbb885b95ce80d49967bd9100  commit-order-typescript
-4782d6dcf96c5baaddacb36d5dcbc4f4ae04d5de4a1ecf3bf3475fbfa53482a8  locksig-typescript
-b1a0ce7f2fad3bb3edea9e807a8ae61115b72760d3807b8d03399161cb2c77f5  index-typescript
+06c6e611e2a5cad6963e963cdc8ef679bd7c7f8f4211e92b5678c3a66adfa354  pom-typescript
+2c4f8be2743d59d550f85b2914bc4affbc109532f14281d8495c4c044785dea2  finalization-typescript
+99a8c381f5e39d17e0d408c0dfa35526ef456fe6d01b48f78bf2df207241f212  commit-order-typescript
+955bc1646574768e16ca134d79a3bb74a896b2414c7680914fec64cab81ceabc  locksig-typescript
+ef741670c58686ea6629b6694057c5cb2c796e5d582a1522651b7683e1f94a00  index-typescript

@@ -6,7 +6,7 @@
 <title>NOESIS</title>
 <style>
 /* Barebones, TempleOS style (Will 2026-11-17: "less wasted tokens and less bugs"): one font, the VGA
-   palette, plain text frames, no framework, no animation. Signing lives in /crypto.js, unchanged. */
+   palette, plain text frames, no framework, no animation. Signing lives in /crypto.js. */
 :root { --bg:#fff; --fg:#0000aa; --red:#aa0000; --grn:#00aa00; --dim:#555; }
 * { box-sizing:border-box; }
 body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.4 "Courier New",Courier,monospace; }
@@ -30,15 +30,27 @@ select, input[type=text] { width:100%; }
 
 <fieldset>
 <legend>WALLET</legend>
+<pre id="v1-note" class="dim" hidden></pre>
 <div id="wallet-new">
-  <pre>No wallet in this browser. A wallet is a post-quantum keypair (256 one-time keys).
-The address is your identity. The key never leaves this browser.</pre>
+  <pre>No wallet in this browser. A wallet is two post-quantum keys: a hot key that signs here
+(65,536 one-time keys) and a cold recovery key you keep offline. Your address is fixed by
+both when the wallet is made. The keys never leave this browser.</pre>
   <button id="create-wallet">Generate wallet</button> <span id="gen-status"></span>
+</div>
+<div id="cold-backup" hidden>
+  <pre class="red">RECOVERY KEY, SHOWN ONCE. Write it on paper and keep it offline, away from this
+computer. This page does not keep it: once you continue, it is gone from here. It is
+what can recover this address if the hot key is lost or stolen (recovery is designed,
+not built yet). Nobody, including Jarvis or a node operator, will ever ask you for it.</pre>
+  <pre id="cold-key"></pre>
+  <label for="cold-check">Type its last 8 characters to confirm you stored it:</label>
+  <input type="text" id="cold-check" autocomplete="off" spellcheck="false">
+  <button id="cold-done">I stored it offline. Continue</button> <span id="cold-status" class="red"></span>
 </div>
 <div id="wallet-view" hidden>
   <pre id="w-info"></pre>
   <button id="copy-addr">Copy address</button>
-  <button id="backup-toggle">Show secret key</button>
+  <button id="backup-toggle">Show hot key</button>
   <button id="forget">Switch wallet</button>
   <pre id="seedbox" class="red" hidden></pre>
 </div>
@@ -94,51 +106,86 @@ The address is your identity. The key never leaves this browser.</pre>
   const pad = (s, n) => String(s).padEnd(n);
   const say = (el, cls, text) => { el.className = cls; el.textContent = text; };
 
-  // ---- wallet: same storage format as before (key noesis_wallet_v1), so existing wallets load ----
-  const KEY = "noesis_wallet_v1";
-  let wallet = null, leaves = null, lastState = null;
+  // ---- wallet, format v2: a hot key that signs here and a cold recovery key kept offline ----
+  // Stored under noesis_wallet_v2: the hot seed, the hot root, the cold key's commitment, the address
+  // (identity = hash of both) and the counter. The cold key is shown once at creation and never stored.
+  // A v1 wallet (noesis_wallet_v1, one 256-key tree) is left in storage untouched and shown read-only.
+  const KEY = "noesis_wallet_v2", KEY_V1 = "noesis_wallet_v1";
+  let wallet = null, cache = null, lastState = null, fresh = null, oldAddress = null;
 
   function saveWallet() {
-    localStorage.setItem(KEY, JSON.stringify({ v: 1, seed: C.hexEncode(wallet.seed), address: wallet.address, nextIndex: wallet.nextIndex }));
+    localStorage.setItem(KEY, JSON.stringify({ v: 2, seed: C.hexEncode(wallet.seed), address: wallet.address,
+      hot_root: wallet.hotRoot, cold_commit: wallet.coldCommit, nextIndex: wallet.nextIndex }));
   }
   function showWallet() {
-    $("wallet-new").hidden = !!wallet;
+    const people = (lastState && lastState.contributors) || {};
+    $("v1-note").hidden = !oldAddress;
+    if (oldAddress) $("v1-note").textContent = "Old-format (v1) wallet in this browser: " + oldAddress + "\n" +
+      "standing " + (people[oldAddress] || 0) + ". The node takes only format v2 signatures, so it is read-only here.\n" +
+      "It stays in this browser's storage untouched.";
+    $("wallet-new").hidden = !!wallet || !!fresh;
     $("wallet-view").hidden = !wallet;
     if (!wallet) return;
-    const people = (lastState && lastState.contributors) || {};
     const names = Object.keys(people).sort((a, b) => people[b] - people[a]);
     const rank = names.indexOf(wallet.address);
     $("w-info").textContent =
       "address   " + wallet.address + "\n" +
       "standing  " + (people[wallet.address] || 0) + (rank >= 0 ? "  (#" + (rank + 1) + " of " + names.length + ")" : "  (unranked)") + "\n" +
-      "keys left " + (C.LEAVES - wallet.nextIndex) + " of " + C.LEAVES;
+      "keys left " + (C.MT_MAX_SIGS - wallet.nextIndex) + " of " + C.MT_MAX_SIGS + "\n" +
+      "recovery  cold key offline, committed in the address";
   }
   function loadWallet() {
     try {
       const w = JSON.parse(localStorage.getItem(KEY) || "null");
-      if (w) wallet = { seed: C.hexDecode(w.seed), address: w.address, nextIndex: w.nextIndex | 0 };
+      if (w && w.v === 2) wallet = { seed: C.hexDecode(w.seed), address: w.address, hotRoot: w.hot_root, coldCommit: w.cold_commit, nextIndex: w.nextIndex | 0 };
     } catch (e) { wallet = null; }
+    try { oldAddress = (JSON.parse(localStorage.getItem(KEY_V1) || "null") || {}).address || null; } catch (e) { oldAddress = null; }
     showWallet();
-    if (wallet) setTimeout(() => { leaves = C.buildLeaves(wallet.seed); }, 30);
+    if (wallet) setTimeout(() => { // build the top tree once; check the stored record still matches its key
+      cache = C.mtCache(wallet.seed);
+      const id = C.hexEncode(C.identity(cache.root, C.hexDecode(wallet.coldCommit)));
+      if (C.hexEncode(cache.root) !== wallet.hotRoot || id !== wallet.address) {
+        wallet.broken = true; // submit() refuses to sign with it
+        say($("toast"), "red", "This stored wallet does not match its own key, so this page will not sign with it.");
+      }
+    }, 30);
   }
   function createWallet() {
     $("create-wallet").disabled = true;
-    say($("gen-status"), "", "generating keys...");
-    setTimeout(() => { // let the message paint before the ~0.5 s keygen
-      const seed = C.randomSeed();
-      leaves = C.buildLeaves(seed);
-      wallet = { seed, address: C.hexEncode(leaves.length ? C.keygenAddress(seed) : new Uint8Array(0)), nextIndex: 0 };
-      saveWallet();
+    say($("gen-status"), "", "generating two keys (a few seconds)...");
+    setTimeout(() => { // let the message paint before keygen
+      const seed = C.randomSeed(), cold = C.randomSeed();
+      const hotCache = C.mtCache(seed);
+      const coldCommit = C.coldCommit(C.mtKeygenRoot(cold));
+      const address = C.hexEncode(C.identity(hotCache.root, coldCommit));
+      // nothing is saved until the cold key is confirmed; a reload here simply starts over
+      fresh = { wallet: { seed, address, hotRoot: C.hexEncode(hotCache.root), coldCommit: C.hexEncode(coldCommit), nextIndex: 0 }, cache: hotCache, cold };
+      $("cold-key").textContent = C.hexEncode(cold).match(/.{8}/g).join(" ");
+      $("cold-check").value = "";
       $("create-wallet").disabled = false;
       say($("gen-status"), "", "");
+      $("cold-backup").hidden = false;
       showWallet();
     }, 40);
   }
+  function confirmCold() {
+    if (!fresh) return;
+    if ($("cold-check").value.replace(/\s+/g, "").toLowerCase() !== C.hexEncode(fresh.cold).slice(-8))
+      return say($("cold-status"), "red", "That does not match. Check what you wrote down.");
+    fresh.cold.fill(0); // best effort: JavaScript cannot promise the bytes are gone from memory
+    wallet = fresh.wallet; cache = fresh.cache; fresh = null;
+    saveWallet();
+    $("cold-key").textContent = ""; $("cold-check").value = ""; say($("cold-status"), "red", "");
+    $("cold-backup").hidden = true;
+    showWallet();
+    refresh();
+  }
   function forgetWallet() {
-    if (!confirm("Switch wallets? This forgets the current key in this browser. Back it up first if you want it again.")) return;
+    if (!confirm("Switch wallets? This forgets the hot key in this browser. Without a copy of it this address can sign no more (recovery with the cold key is designed, not built).")) return;
     localStorage.removeItem(KEY);
-    wallet = null; leaves = null;
+    wallet = null; cache = null;
     $("seedbox").hidden = true;
+    $("backup-toggle").textContent = "Show hot key";
     showWallet();
   }
 
@@ -237,27 +284,30 @@ The address is your identity. The key never leaves this browser.</pre>
   async function submit() {
     const toast = $("toast");
     if (!wallet) return say(toast, "red", "Generate a wallet first.");
+    if (wallet.broken) return say(toast, "red", "This stored wallet does not match its own key, so this page will not sign with it.");
     const data = $("what").value.trim();
     if (!data) return say(toast, "red", "Write a contribution to submit.");
-    if (wallet.nextIndex >= C.LEAVES) return say(toast, "red", "This wallet has used all " + C.LEAVES + " one-time keys. Its standing stays with this address; a new wallet starts from zero.");
+    const parent = $("parent").value ? Number($("parent").value) : null; // signed, so read once
+    if (wallet.nextIndex >= C.MT_MAX_SIGS) return say(toast, "red", "This wallet has used all " + C.MT_MAX_SIGS + " one-time keys. Its standing stays with this address.");
     $("send").disabled = true;
     say(toast, "", "signing...");
     try {
       await syncIndex();
-      if (wallet.nextIndex >= C.LEAVES) throw new Error("this wallet has used all " + C.LEAVES + " one-time keys");
-      if (!leaves) leaves = C.buildLeaves(wallet.seed);
+      if (wallet.nextIndex >= C.MT_MAX_SIGS) throw new Error("this wallet has used all " + C.MT_MAX_SIGS + " one-time keys");
+      if (!cache) cache = C.mtCache(wallet.seed);
       const index = wallet.nextIndex;
-      const addr = C.hexDecode(wallet.address);
-      const msg = C.contributionDigest(addr, index, C.utf8(data));
-      const sig = C.xmssSign(wallet.seed, index, msg, leaves);
+      // the digest covers the address, the one-time index, the parent link and the data
+      const msg = C.contributionDigest(C.hexDecode(wallet.address), index, parent, C.utf8(data));
+      const sig = C.mtSign(wallet.seed, index, msg, cache);
       // spent from here on, whatever the node says: saved before the signature leaves this page
       wallet.nextIndex = index + 1;
       saveWallet();
-      if (!C.xmssVerify(addr, msg, sig)) throw new Error("local signature self-check failed");
+      if (!C.mtVerify(C.hexDecode(wallet.hotRoot), index, msg, sig)) throw new Error("local signature self-check failed");
       say(toast, "", "mining...");
-      const body = { address: wallet.address, index, ots_root: C.hexEncode(sig.ots_root), ots_sig: C.hexEncode(sig.ots_sig),
-                     auth: sig.auth.map((a) => C.hexEncode(a)), data };
-      if ($("parent").value) body.parent = Number($("parent").value);
+      const part = (t) => ({ ots_root: C.hexEncode(t.ots_root), auth: t.auth.map((a) => C.hexEncode(a)), ots_sig: C.hexEncode(t.ots_sig) });
+      const body = { identity: wallet.address, hot_root: wallet.hotRoot, cold_commit: wallet.coldCommit, index,
+                     bottom: part(sig.bottom), top: part(sig.top), data };
+      if (parent != null) body.parent = parent;
       const r = await fetch(api() + "/submit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const s = await r.json();
       if (!r.ok || s.error) throw new Error(s.error || "HTTP " + r.status);
@@ -274,13 +324,15 @@ The address is your identity. The key never leaves this browser.</pre>
 
   // ---- wiring ----
   $("create-wallet").onclick = createWallet;
+  $("cold-done").onclick = confirmCold;
+  $("cold-check").onkeydown = (e) => { if (e.key === "Enter") confirmCold(); };
   $("forget").onclick = forgetWallet;
   $("copy-addr").onclick = () => { if (navigator.clipboard) navigator.clipboard.writeText(wallet.address); };
   $("backup-toggle").onclick = () => {
     const box = $("seedbox");
     box.hidden = !box.hidden;
-    box.textContent = box.hidden ? "" : "SECRET KEY (anyone with it controls this identity):\n" + C.hexEncode(wallet.seed);
-    $("backup-toggle").textContent = box.hidden ? "Show secret key" : "Hide secret key";
+    box.textContent = box.hidden ? "" : "HOT KEY (anyone with it can sign as this address; the recovery key is separate and not stored here):\n" + C.hexEncode(wallet.seed);
+    $("backup-toggle").textContent = box.hidden ? "Show hot key" : "Hide hot key";
   };
   $("file").onchange = (e) => {
     const f = e.target.files[0];

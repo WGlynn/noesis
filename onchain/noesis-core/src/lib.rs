@@ -1048,9 +1048,10 @@ pub mod xmss {
     /// Number of one-time leaves in a wallet's tree.
     pub const LEAVES: usize = 1 << H;
 
-    /// Domain-separated 32-byte blake2b for the XMSS layer. `tag` separates the four uses (leaf-seed
-    /// derivation / Merkle node / contribution digest / data hash); the personalization separates
-    /// these from the smt, lamport, and tx digests.
+    /// Domain-separated 32-byte blake2b for the XMSS layer. `tag` separates the uses (0x01 leaf-seed
+    /// derivation, 0x02 Merkle node; 0x03 and 0x04 were the format-v1 contribution digest and data
+    /// hash, retired by [`crate::wallet`]); the personalization separates these from the smt,
+    /// lamport, wallet and tx digests.
     fn h(tag: u8, parts: &[&[u8]]) -> [u8; 32] {
         let mut hasher = blake2b_ref::Blake2bBuilder::new(32).personal(b"noesis-xmss-v1\0\0").build();
         hasher.update(&[tag]);
@@ -1163,17 +1164,14 @@ pub mod xmss {
         Some(fold_root(sig.index, sig.ots_root, &sig.auth))
     }
 
-    /// The canonical 32-byte message a CONTRIBUTION signs over - binds the signer's address, the
-    /// one-time leaf index (anti-replay), and the contribution bytes. SINGLE SOURCE: the browser
-    /// wallet and the node MUST compute this identically or every signature fails.
-    pub fn contribution_digest(address: &[u8; 32], index: u32, data: &[u8]) -> [u8; 32] {
-        let data_hash = h(0x04, &[data]);
-        h(0x03, &[address, &index.to_le_bytes(), &data_hash])
-    }
-
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        /// The message a contribution signs (wallet format v2), with no parent.
+        fn contribution_digest(addr: &[u8; 32], index: u32, data: &[u8]) -> [u8; 32] {
+            crate::wallet::contribution_digest(addr, index, None, data)
+        }
 
         #[test]
         fn sign_verify_roundtrips_across_multiple_leaves() {
@@ -1305,12 +1303,6 @@ pub mod xmss_mt {
         xmss::verify(address, &r_s, &sig.top)
     }
 
-    /// Convenience: the contribution message at global index `g` (reuses the single-tree digest so the
-    /// node + browser agree). `g` is the anti-replay counter, monotone per address.
-    pub fn contribution_digest(address: &[u8; 32], g: u32, data: &[u8]) -> [u8; 32] {
-        xmss::contribution_digest(address, g, data)
-    }
-
     /// A cached tree of bottom-subtree seeds is unnecessary here (seeds are cheap to re-derive); the
     /// browser wallet caches the built leaves per subtree, not this crate.
     #[allow(dead_code)]
@@ -1321,6 +1313,11 @@ pub mod xmss_mt {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        /// The message a contribution signs (wallet format v2), with no parent.
+        fn contribution_digest(addr: &[u8; 32], g: u32, data: &[u8]) -> [u8; 32] {
+            crate::wallet::contribution_digest(addr, g, None, data)
+        }
 
         #[test]
         fn mt_sign_verify_across_subtrees() {
@@ -1462,7 +1459,7 @@ pub mod wallet {
         use super::*;
 
         #[test]
-        fn the_digest_covers_the_parent_and_is_apart_from_v1() {
+        fn the_digest_covers_the_parent() {
             let id = identity(&[1u8; 32], &cold_commit(&[2u8; 32]));
             let root = contribution_digest(&id, 5, None, b"hello noesis");
             let on_1 = contribution_digest(&id, 5, Some(1), b"hello noesis");
@@ -1470,7 +1467,6 @@ pub mod wallet {
             assert!(root != on_1 && on_1 != on_2, "the parent link changes the digest");
             // `Some(0)` is a link to cell 0, not the same bytes as no link
             assert_ne!(root, contribution_digest(&id, 5, Some(0), b"hello noesis"));
-            assert_ne!(root, super::super::xmss::contribution_digest(&id, 5, b"hello noesis"), "v1 and v2 differ");
         }
 
         #[test]

@@ -1,7 +1,8 @@
 // Noesis wallet crypto — REAL post-quantum hash-based keys, in the browser. No theater: this is a
-// faithful port of the Rust `noesis_core::{lamport, xmss}` (byte-for-byte, verified against Rust test
-// vectors — see the parity check). A wallet is a hash-based keypair; the address is a Merkle root over
-// Lamport one-time public keys; every contribution is signed and the node verifies it.
+// faithful port of the Rust `noesis_core::{lamport, xmss, xmss_mt, wallet}` (byte-for-byte, verified
+// against Rust test vectors — see the parity check). A wallet (format v2) holds a hot XMSS^MT key that
+// signs here and commits to a cold recovery key kept offline; its address is the identity hash of
+// both roots; every contribution is signed and the node verifies it.
 //
 // Works in the browser (served by the node at /crypto.js) AND in Node (for the parity test). Pure
 // Uint8Array in/out; the only host dependency is `crypto.getRandomValues` for seeding.
@@ -219,11 +220,66 @@
            bytesEqual(foldRoot(sig.index, sig.ots_root, sig.auth), address);
   }
 
-  // The canonical message a contribution signs — binds address, one-time index, and data.
+  // The root a signature folds to over `msg`, or null if its one-time signature fails (Rust
+  // `xmss::recover_root`, used by the multi-tree layer below).
+  function xmssRecoverRoot(msg, sig) {
+    if (sig.index >= LEAVES || !lampVerify(sig.ots_root, msg, sig.ots_sig)) return null;
+    return foldRoot(sig.index, sig.ots_root, sig.auth);
+  }
+
+  // ============ XMSS^MT multi-tree key (matches Rust xmss_mt) ============
+  // Top leaf s signs the root of bottom subtree s; bottom leaf l signs the message; g = s * 256 + l,
+  // so one root covers 65,536 one-time leaves. Making the root builds only the top tree.
+  var P_XMMT = personalBytes('noesis-xmmt-v1');
+  var MT_MAX_SIGS = LEAVES * LEAVES;
+  function mtTopSeed(master) { return hash(P_XMMT, 0x10, [master]); }
+  function mtBottomSeed(master, s) { return hash(P_XMMT, 0x11, [master, u32le(s)]); }
+  // A signing cache for one key: the top tree's leaves and root, plus the last bottom subtree used.
+  function mtCache(master) {
+    var top = buildLeaves(mtTopSeed(master));
+    return { top: top, root: rootOf(top), s: -1, bottom: null, bottomRoot: null };
+  }
+  function mtKeygenRoot(master) { return mtCache(master).root; }
+  // Sign `msg` at global index g. Pass the same cache to every call for one key (optional).
+  function mtSign(master, g, msg, cache) {
+    cache = cache || mtCache(master);
+    var s = g >>> H, l = g & (LEAVES - 1), bseed = mtBottomSeed(master, s);
+    if (cache.s !== s) { cache.bottom = buildLeaves(bseed); cache.bottomRoot = rootOf(cache.bottom); cache.s = s; }
+    return {
+      g: g,
+      bottom: xmssSign(bseed, l, msg, cache.bottom),
+      top: xmssSign(mtTopSeed(master), s, cache.bottomRoot, cache.top)
+    };
+  }
+  // The exact check the node runs (Rust `xmss_mt::verify`).
+  function mtVerify(root, g, msg, sig) {
+    if (!Number.isInteger(g) || g < 0 || g >= MT_MAX_SIGS || sig.g !== g) return false;
+    if (sig.bottom.index !== (g & (LEAVES - 1)) || sig.top.index !== (g >>> H)) return false;
+    var rS = xmssRecoverRoot(msg, sig.bottom);
+    return rS !== null && xmssVerify(root, rS, sig.top);
+  }
+
+  // ============ wallet format v2 (matches Rust noesis_core::wallet) ============
+  // identity = H(0x01 | scheme | hot_root | cold_commit), cold_commit = H(0x02 | scheme | cold_root).
+  // The digest covers the parent link. Own personalization: a v1 digest can never equal a v2 one.
+  var P_WAL2 = personalBytes('noesis-wallet-v2');
+  var SCHEME = 1; // XMSS^MT, for both the hot and the cold key
+  function coldCommit(coldRoot) { return hash(P_WAL2, 0x02, [Uint8Array.of(SCHEME), coldRoot]); }
+  function identity(hotRoot, coldCommitBytes) {
+    return hash(P_WAL2, 0x01, [Uint8Array.of(SCHEME), hotRoot, coldCommitBytes]);
+  }
+  // The message a contribution signs: identity, one-time index, parent (a cell id or null), data.
   var TE = new TextEncoder();
-  function contributionDigest(address, index, dataBytes) {
-    var dh = hash(P_XMSS, 0x04, [dataBytes]);
-    return hash(P_XMSS, 0x03, [address, u32le(index), dh]);
+  function contributionDigest(identityBytes, index, parent, dataBytes) {
+    var link = new Uint8Array(parent == null ? 1 : 9);
+    if (parent != null) {
+      if (!Number.isSafeInteger(parent) || parent < 0) throw new Error('parent must be a contribution id');
+      link[0] = 1;
+      link.set(u32le(parent % 0x100000000), 1);
+      link.set(u32le(Math.floor(parent / 0x100000000)), 5);
+    }
+    var dh = hash(P_WAL2, 0x04, [dataBytes]);
+    return hash(P_WAL2, 0x03, [identityBytes, u32le(index), link, dh]);
   }
 
   // ============ helpers ============
@@ -255,7 +311,8 @@
     keygenRoot: keygenRoot, lampSign: lampSign, lampVerify: lampVerify,
     buildLeaves: buildLeaves, keygenAddress: keygenAddress,
     xmssSign: xmssSign, xmssVerify: xmssVerify,
-    contributionDigest: contributionDigest,
+    MT_MAX_SIGS: MT_MAX_SIGS, mtCache: mtCache, mtKeygenRoot: mtKeygenRoot, mtSign: mtSign, mtVerify: mtVerify,
+    SCHEME: SCHEME, coldCommit: coldCommit, identity: identity, contributionDigest: contributionDigest,
     hexEncode: hexEncode, hexDecode: hexDecode, randomSeed: randomSeed, utf8: utf8,
     u32le: u32le, bytesEqual: bytesEqual
   };

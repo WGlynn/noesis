@@ -15,18 +15,24 @@ fn get(st: &mut ServerState, path: &str) -> Value {
     serde_json::from_slice(&body).unwrap()
 }
 
-/// A signed contribution, built the way the browser wallet builds one.
+/// A signed contribution (wallet format v2, no parent), built the way the browser wallet builds one.
 fn contribution(master: &[u8; 32], index: u32, data: &str) -> Vec<u8> {
-    use noesis_core::xmss;
+    use noesis_core::wallet;
     let hex = |b: &[u8]| b.iter().map(|x| format!("{x:02x}")).collect::<String>();
-    let address = xmss::keygen_address(master);
-    let sig = xmss::sign(master, index, &xmss::contribution_digest(&address, index, data.as_bytes()));
+    let tree = |t: &noesis_core::xmss::Signature| {
+        json!({ "ots_root": hex(&t.ots_root), "auth": t.auth.iter().map(|s| hex(s)).collect::<Vec<_>>(), "ots_sig": hex(&t.ots_sig) })
+    };
+    let hot_root = wallet::key_root(master);
+    let cold_commit = wallet::cold_commit(&[0xC0; 32]);
+    let identity = wallet::identity(&hot_root, &cold_commit);
+    let sig = wallet::sign(master, index, &wallet::contribution_digest(&identity, index, None, data.as_bytes()));
     json!({
-        "address": hex(&address),
+        "identity": hex(&identity),
+        "hot_root": hex(&hot_root),
+        "cold_commit": hex(&cold_commit),
         "index": index,
-        "ots_root": hex(&sig.ots_root),
-        "ots_sig": hex(&sig.ots_sig),
-        "auth": sig.auth.iter().map(|s| hex(s)).collect::<Vec<_>>(),
+        "bottom": tree(&sig.bottom),
+        "top": tree(&sig.top),
         "data": data,
     })
     .to_string()

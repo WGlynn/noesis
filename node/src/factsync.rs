@@ -17,8 +17,9 @@
 //! HONEST SCOPE: CONSENSUS-ISOLATED SHADOW, like `reconcile`. Nothing is written to `Ledger`,
 //! validation, finality or `state_digest`. One exchange per connection; each side sends everything
 //! it holds. Only the demo chains can sign today: the live chain drops the wallet's signature after
-//! the submit check, and the wallet signs `xmss::contribution_digest` (address, index, data), which
-//! does not cover the parent, not [`fact_digest`]. The demo keys derive from public names, so anyone
+//! the submit check, and the wallet (format v2) signs `noesis_core::wallet::contribution_digest`
+//! (identity, index, parent, data) with an XMSS^MT key, not [`fact_digest`] with a single-tree key,
+//! and its author is the identity hash, not a key root. The demo keys derive from public names, so anyone
 //! can sign as a demo author. XMSS leaves are one-time and nothing here detects one leaf signing two
 //! different facts. A Lamport signature is 16 KiB, so a signed record is about 16.8 KB on the wire (measured).
 //!

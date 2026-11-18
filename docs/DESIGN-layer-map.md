@@ -52,8 +52,10 @@ retroactive public-goods funding) is not surveyed yet, so we make no novelty cla
 
 ### 3.1 Records
 
-- **Built:** the wallet signs `xmss::contribution_digest(address, index, data)` and the node verifies it
-  at submit (`rpc.rs:73-77`).
+- **Built:** the wallet (format v2, `noesis_core::wallet`) signs `wallet::contribution_digest(identity,
+  index, parent, data)` with its hot XMSS^MT key, so the parent link is signed. At submit the node checks
+  that the identity hashes from the hot root and the cold commitment, then verifies the signature
+  (`node/src/rpc.rs:470-479`).
 - **Not built:** content ids in the live `Cell`. Its `id` is a local `u64` counter and `parent` points at
   that counter (`lib.rs:138-149`), so no chain can name another chain's work. The signature is checked
   at the door and then dropped. Key rotation, several devices and restoring from backup are not built.
