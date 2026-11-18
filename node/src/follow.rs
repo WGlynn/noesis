@@ -135,8 +135,9 @@ pub fn apply_page(st: &mut ServerState, body: &[u8]) -> Result<(usize, bool), Fo
         let bytes = serde_json::to_vec(bv).map_err(|e| Retry(e.to_string()))?;
         let block = decode_block(&bytes)
             .map_err(|e| Stop(format!("block {} from the producer does not decode: {e}", ours + applied as u64 + 1)))?;
-        st.follow_block(&block).map_err(|e| {
-            Stop(format!("refused a block from the producer: {e}. This node keeps its chain at height {}.", st.height()))
+        st.follow_block(&block).map_err(|e| match st.store_failed() {
+            Some(_) => Stop(e), // this node's own block log failed the write; it says so itself
+            None => Stop(format!("refused a block from the producer: {e}. This node keeps its chain at height {}.", st.height())),
         })?;
         applied += 1;
     }

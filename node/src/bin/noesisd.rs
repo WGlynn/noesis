@@ -273,9 +273,9 @@ fn run_listen(addr: &str, store: Option<&str>) {
 /// `--serve-api <http> <store> <peers>` — one process for the page AND peers (testnet step 6). A
 /// background listener on `<peers>` serves the durable chain to `--connect` joiners. Unlike `--listen`,
 /// it re-reads the log for EACH joiner, so a joiner gets the chain as it stands when it connects, not
-/// as it stood at boot. Honest scope: still a one-time sync per joiner (live gossip is step 7), and a
-/// joiner that connects mid-append may read a partial last frame; that sync fails loudly and the
-/// joiner simply retries.
+/// as it stood at boot. Honest scope: still a one-time sync per joiner (live gossip is step 7). A joiner
+/// that connects mid-append gets the chain without the block being written: the read-only load treats a
+/// partial last frame as a torn tail and leaves the file to the writer (`store::load_blocks`).
 fn spawn_peer_seed(addr: &str, store: &str) {
     let listener = Listener::bind(addr).unwrap_or_else(|e| {
         eprintln!("noesisd: failed to bind peers address {addr}: {e}");

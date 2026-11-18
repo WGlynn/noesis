@@ -69,7 +69,9 @@ User=ubuntu
 WantedBy=multi-user.target
 ```
 `sudo systemctl enable --now noesisd`. Open port 9955 in the VM firewall / security list. A restart
-replays the durable log (✅ `store::load_chain`), so the chain resumes instead of resetting to genesis.
+replays the durable log (✅ `store::load_for_append`), so the chain resumes instead of resetting to genesis.
+A torn last record from a crash is set aside next to the log (`<log>.torn-at-<offset>-<unix seconds>`)
+and the log cut back before anything is appended; a log damaged any other way stops the boot, untouched.
 For a real hostname + TLS, point a domain at the IP and front it with Caddy/nginx (optional).
 
 ## 3. What a stranger gets TODAY (honest)

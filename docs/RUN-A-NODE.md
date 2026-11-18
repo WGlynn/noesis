@@ -60,6 +60,12 @@ On the testnet, `POST /faucet {"address": "<64 hex>"}` asks the node's faucet fo
 `docs/TESTNET.md` (the faucet) for the limits and what the address must be.
 
 The chain log survives a restart: start the node again with the same file and it resumes the same chain.
+If the node stopped in the middle of writing a block (a crash or a power cut), the next start moves the
+half-written record to a file next to the log, `<log name>.torn-at-<byte offset>-<unix seconds>`, cuts
+the log back to its last whole block, and says so in one line. That file is never deleted; keep it or
+remove it yourself. If the log is damaged any other way (for example, whole blocks after a broken record),
+the node refuses to start, says at which byte, and leaves the file as it is: restore it from a copy, or
+start the node on a new chain log and keep the old one. A follower's chain log works the same way.
 
 ## 3. Join another node (one-time sync)
 

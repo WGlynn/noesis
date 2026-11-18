@@ -213,6 +213,128 @@ fn serve_api_also_serves_joiners_from_one_process() {
     assert!(digest.contains("height=2") && digest.contains("cells=[1, 2]"), "expected the 2-block durable chain; digest was: {digest}");
 }
 
+/// The files a boot set aside next to `log` (`<log name>.torn-at-<offset>-<time>`).
+fn aside_files(log: &Path) -> Vec<PathBuf> {
+    let prefix = format!("{}.torn-at-", log.file_name().unwrap().to_string_lossy());
+    std::fs::read_dir(log.parent().unwrap())
+        .unwrap()
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.file_name().is_some_and(|n| n.to_string_lossy().starts_with(&prefix)))
+        .collect()
+}
+
+/// The whole frames of a clean log: a 4-byte big-endian length, then that many bytes.
+fn frames_of(path: &Path) -> Vec<Vec<u8>> {
+    let bytes = std::fs::read(path).unwrap();
+    let (mut out, mut at) = (Vec::new(), 0usize);
+    while at < bytes.len() {
+        let len = u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap()) as usize;
+        out.push(bytes[at..at + 4 + len].to_vec());
+        at += 4 + len;
+    }
+    out
+}
+
+/// A crash mid-write tears the last record of the chain log. A real `--serve-api` process sets those bytes
+/// aside in a file next to the log, cuts the log back to its last whole record, says so in one line, and
+/// starts on the whole blocks.
+#[test]
+fn serve_api_sets_a_torn_tail_aside_and_starts_on_the_whole_blocks() {
+    let bin = env!("CARGO_BIN_EXE_noesisd");
+    let store = tmp_store("torn");
+    build_durable_store(&store, 2);
+    let whole = std::fs::read(&store).unwrap();
+    let torn = [&999u32.to_be_bytes()[..], b"{\"height\":3,\"cel"].concat();
+    let mut bytes = whole.clone();
+    bytes.extend_from_slice(&torn);
+    std::fs::write(&store, &bytes).unwrap();
+    let mut node = Command::new(bin)
+        .env("NOESIS_NET", "dev")
+        .arg("--serve-api")
+        .arg("127.0.0.1:0")
+        .arg(&store)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn noesisd --serve-api");
+    let mut seen = Vec::new();
+    for line in BufReader::new(node.stdout.take().expect("piped stdout")).lines() {
+        let line = line.expect("read stdout");
+        let up = line.starts_with("LISTENING http://");
+        seen.push(line);
+        if up {
+            break;
+        }
+    }
+    let _ = node.kill();
+    let _ = node.wait();
+    let mut err = String::new();
+    std::io::Read::read_to_string(&mut node.stderr.take().unwrap(), &mut err).unwrap();
+    let aside = aside_files(&store);
+    let on_disk = std::fs::read(&store).unwrap();
+    let held = aside.first().map(|a| std::fs::read(a).unwrap());
+    for a in &aside {
+        let _ = std::fs::remove_file(a);
+    }
+    let _ = std::fs::remove_file(&store);
+    let seen = seen.join("\n");
+    assert!(seen.contains("replayed 2 blocks, height 2") && seen.contains("LISTENING http://"), "stdout:\n{seen}\nstderr:\n{err}");
+    assert!(on_disk == whole, "the log is cut back to its last whole record: {} bytes, {} whole", on_disk.len(), whole.len());
+    assert_eq!(aside.len(), 1, "one set-aside file; stderr:\n{err}");
+    assert!(held.unwrap() == torn, "it holds the torn bytes");
+    let name = aside[0].file_name().unwrap().to_string_lossy().into_owned();
+    assert!(err.contains("torn record") && err.contains(&name) && err.lines().filter(|l| l.contains("torn")).count() == 1, "one plain line names the file:\n{err}");
+}
+
+/// Whole blocks after a broken record are damage, not a crash (a crash tears only the last record). A real
+/// `--serve-api` process refuses to start, says why, and leaves the file alone.
+#[test]
+fn serve_api_refuses_to_start_on_whole_blocks_after_a_broken_record() {
+    let bin = env!("CARGO_BIN_EXE_noesisd");
+    let built = tmp_store("damaged-src");
+    build_durable_store(&built, 4);
+    let f = frames_of(&built);
+    let store = tmp_store("damaged");
+    let torn = [&999u32.to_be_bytes()[..], b"{\"height\":3"].concat();
+    std::fs::write(&store, [f[0].clone(), f[1].clone(), torn, f[2].clone(), f[3].clone()].concat()).unwrap();
+    let before = std::fs::read(&store).unwrap();
+    let mut node = Command::new(bin)
+        .env("NOESIS_NET", "dev")
+        .arg("--serve-api")
+        .arg("127.0.0.1:0")
+        .arg(&store)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn noesisd --serve-api");
+    // It must exit on its own; a node that started on the damaged log would serve forever.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    let status = loop {
+        if let Some(s) = node.try_wait().expect("poll the node") {
+            break Some(s);
+        }
+        if std::time::Instant::now() > deadline {
+            let _ = node.kill();
+            let _ = node.wait();
+            break None;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    };
+    let (mut out, mut err) = (String::new(), String::new());
+    std::io::Read::read_to_string(&mut node.stdout.take().unwrap(), &mut out).unwrap();
+    std::io::Read::read_to_string(&mut node.stderr.take().unwrap(), &mut err).unwrap();
+    let after = std::fs::read(&store).unwrap();
+    let aside = aside_files(&store);
+    let _ = (std::fs::remove_file(&store), std::fs::remove_file(&built));
+    let status = status.unwrap_or_else(|| panic!("the node started on a damaged log and kept running; stdout:\n{out}"));
+    assert!(!status.success(), "a damaged log must not start a node; stderr:\n{err}");
+    let at = f[0].len() + f[1].len();
+    assert!(err.contains(&format!("damaged at byte {at}")) && err.contains("file is unchanged"), "says why:\n{err}");
+    assert!(!out.contains("LISTENING http"), "it never opened the API");
+    assert!(after == before, "the file is untouched");
+    assert!(aside.is_empty(), "nothing is set aside");
+}
+
 /// The testnet pays its block reward to the faucet, so `--serve-api` on it refuses to start without the
 /// faucet seed (fail loud, never a silent fallback to the placeholder key), and says why.
 #[test]

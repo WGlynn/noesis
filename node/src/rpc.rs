@@ -262,6 +262,10 @@ pub struct ServerState {
     /// once following has stopped, why.
     follow_error: Option<String>,
     follow_stopped: Option<String>,
+    /// `Some(why)`: a finalized block could not be written to the block log. Nothing after it is
+    /// written (the log would have a gap no boot can replay) and this node takes no more blocks until it
+    /// is restarted, when it resumes from the blocks that did reach the log.
+    store_failed: Option<String>,
 }
 
 /// How many block summaries the explorer keeps (the newest).
@@ -319,6 +323,7 @@ impl ServerState {
             producer: None,
             follow_error: None,
             follow_stopped: None,
+            store_failed: None,
         }
     }
 
@@ -331,10 +336,11 @@ impl ServerState {
     /// Boot a DURABLE node: replay the persisted block log at `path` (or start at genesis if absent),
     /// and append every future finalized block there. This is what makes a hosted node "stay on" — a
     /// process restart resumes the chain rather than wiping it. Returns the state + how many blocks were
-    /// replayed so the caller can announce it.
+    /// replayed so the caller can announce it. A torn last record (a crash mid-write) is set aside before
+    /// anything is appended; a damaged log is an error and is left as it is ([`crate::store::load_for_append`]).
     pub fn with_store(path: impl Into<std::path::PathBuf>, spec: ChainSpec) -> std::io::Result<(Self, usize)> {
         let path = path.into();
-        let (node, loaded, offsets) = crate::store::load_blocks_indexed(&path, &spec)?;
+        let (node, loaded, offsets) = crate::store::load_for_append(&path, &spec)?;
         let replayed = loaded.len();
         let skip = replayed.saturating_sub(MAX_BLOCK_SUMMARIES);
         let blocks: Vec<Value> = loaded[skip..].iter().map(block_summary).collect();
@@ -373,6 +379,7 @@ impl ServerState {
                 producer: None,
                 follow_error: None,
                 follow_stopped: None,
+                store_failed: None,
             },
             replayed,
         ))
@@ -424,21 +431,27 @@ impl ServerState {
         self.follow_stopped = Some(why);
     }
 
+    /// Why this node takes no more blocks, if a finalized block could not be written to its block log.
+    pub fn store_failed(&self) -> Option<&str> {
+        self.store_failed.as_deref()
+    }
+
     /// FOLLOWER: accept a block pulled from the producer through the producer's own acceptance path
     /// ([`ChainSpec::accept_block`]: the rulebook, with PoW and control binding, then the finality
     /// gate), then record it exactly as a produced block is recorded (screen, one-time-key marks,
     /// explorer, chain link, durable store). Standing is what this node's `apply` derives. On a refusal
-    /// nothing changes, in memory or on disk.
+    /// nothing changes, in memory or on disk. An error after acceptance means the block could not be
+    /// written to the block log ([`Self::store_failed`]).
     pub fn follow_block(&mut self, block: &crate::runtime::Block) -> Result<(), String> {
         self.spec.accept_block(&mut self.node, block)?;
-        self.record_block(block);
-        Ok(())
+        self.record_block(block)
     }
 
     /// Fold a block that has just been accepted into the node-local views, the same for a produced
     /// block and a followed one: the ingress screen, the per-identity one-time-key high-water mark, the
     /// id counter, token-tx inclusions, the explorer summaries, the chain link, and the durable store.
-    fn record_block(&mut self, block: &crate::runtime::Block) {
+    /// `Err` iff the block could not be written to the block log (see [`Self::persist`]).
+    fn record_block(&mut self, block: &crate::runtime::Block) -> Result<(), String> {
         for c in &block.cells {
             self.screen.record(&c.data);
             if let Some((addr, index)) = unpack_lock_args(&c.lock.args) {
@@ -459,15 +472,40 @@ impl ServerState {
         self.blocks.drain(..over);
         let link = crate::follow::chain_link(self.links.last().expect("starts with genesis"), block);
         self.links.push(link);
-        // Durability: append the finalized block. Best-effort: the block is already applied in memory, so
-        // a write failure degrades durability (a restart would lose this block), not correctness; it is
-        // surfaced loudly. The served log (`offsets`) stops at the first gap, so a follower is never
-        // handed a block that is not on disk in order.
-        if let Some(path) = &self.store {
-            match crate::store::append_block_at(path, block) {
-                Ok(offset) if self.offsets.len() as u64 + 1 == block.height => self.offsets.push(offset),
-                Ok(_) => {}
-                Err(e) => eprintln!("noesisd: WARN failed to persist block {}: {e}", block.height),
+        self.persist(block)
+    }
+
+    /// Durability: append the finalized block to the block log, written and flushed to disk
+    /// (`store::append_block_at`), and only then add it to the served log (`offsets`), so `GET /blocks`
+    /// hands a follower only blocks already on disk, in order. If the write fails the block stays applied
+    /// in memory but is not served, and this node writes nothing more and takes no more blocks
+    /// (`store_failed`): a later block written without it would leave a gap no boot can replay. A restart
+    /// resumes from the blocks that reached the log.
+    fn persist(&mut self, block: &crate::runtime::Block) -> Result<(), String> {
+        let Some(path) = &self.store else { return Ok(()) };
+        if let Some(why) = &self.store_failed {
+            return Err(why.clone());
+        }
+        let written = if self.offsets.len() as u64 + 1 != block.height {
+            Err(format!("the log holds {} blocks, so block {} would leave a gap", self.offsets.len(), block.height))
+        } else {
+            crate::store::append_block_at(path, block).map_err(|e| e.to_string())
+        };
+        match written {
+            Ok(offset) => {
+                self.offsets.push(offset);
+                Ok(())
+            }
+            Err(e) => {
+                let why = format!(
+                    "block {} could not be written to the block log {}: {e}. It is not served and will not survive a \
+                     restart; this node takes no more blocks until it is restarted",
+                    block.height,
+                    path.display()
+                );
+                eprintln!("noesisd: ERROR {why}");
+                self.store_failed = Some(why.clone());
+                Err(why)
             }
         }
     }
@@ -821,8 +859,9 @@ impl ServerState {
                 }
                 // Accepted + finalized ⇒ fold its shingles into the screen so later copies are caught,
                 // advance this identity's one-time-leaf high-water mark, and append it to the durable
-                // log (before returning), the same bookkeeping a follower does for a pulled block.
-                self.record_block(&block);
+                // log (before returning), the same bookkeeping a follower does for a pulled block. A block
+                // the log could not take is not reported final.
+                self.record_block(&block)?;
                 debug_assert_eq!(self.used_index.get(&identity), Some(&(index as u64)));
                 Ok(block.height)
             }
@@ -852,6 +891,12 @@ pub fn handle_request(
     if method == "POST" && matches!(path, "/submit" | "/faucet" | "/token-tx") {
         if let Some(refusal) = state.replica_refusal() {
             return out(409, refusal);
+        }
+    }
+    // A node whose block log failed a write makes no more blocks until it is restarted.
+    if method == "POST" && path == "/submit" {
+        if let Some(why) = state.store_failed() {
+            return out(503, json!({ "error": why }));
         }
     }
     match (method, path) {
@@ -922,6 +967,8 @@ pub fn handle_request(
                     resp["block_height"] = json!(height);
                     out(200, resp)
                 }
+                // the block log failed this block's write: a server fault, not the submitter's
+                Err(e) if state.store_failed().is_some() => out(503, json!({ "error": e })),
                 Err(e) => out(400, json!({ "error": e })),
             }
         }
@@ -2151,5 +2198,207 @@ mod tests {
         assert_eq!(state_of(&handle_request(&mut f, "GET", &bal, b"").2)["jul"], 10, "the replica shows the payout");
         assert_eq!(state_of(&handle_request(&mut f, "GET", "/faucet", b"").2)["enabled"], false);
         let _ = (std::fs::remove_file(&pp), std::fs::remove_file(&fp));
+    }
+
+    // ============ Crash safety of the chain log (2026-11-18) ============
+
+    /// Append raw bytes to a log, the way a crash mid-write or old damage leaves them.
+    fn append_raw(path: &std::path::Path, bytes: &[u8]) {
+        use std::io::Write;
+        std::fs::OpenOptions::new().append(true).open(path).unwrap().write_all(bytes).unwrap();
+    }
+
+    /// The files a boot set aside next to `log` (`<log name>.torn-at-<offset>-<time>`).
+    fn aside_files(log: &std::path::Path) -> Vec<std::path::PathBuf> {
+        let prefix = format!("{}.torn-at-", log.file_name().unwrap().to_string_lossy());
+        let mut v: Vec<_> = std::fs::read_dir(log.parent().unwrap())
+            .unwrap()
+            .filter_map(|e| e.ok().map(|e| e.path()))
+            .filter(|p| p.file_name().is_some_and(|n| n.to_string_lossy().starts_with(&prefix)))
+            .collect();
+        v.sort();
+        v
+    }
+
+    fn remove_with_aside(log: &std::path::Path) {
+        for a in aside_files(log) {
+            let _ = std::fs::remove_file(a);
+        }
+        let _ = std::fs::remove_file(log);
+    }
+
+    /// A crash mid-write leaves a torn last record. The next boot sets those bytes aside in a file next to
+    /// the log and cuts the log back to its last whole record, so the blocks made after the restart land
+    /// on a record boundary and survive the restart after that. Before this fix the second restart stopped
+    /// at the torn bytes and silently dropped every later block.
+    #[test]
+    fn a_torn_tail_is_set_aside_at_boot_and_every_later_block_survives() {
+        let spec = ChainSpec::dev();
+        let (mut p, pp) = producer_on(spec.clone(), "torn-p");
+        submit(&mut p, 0);
+        submit(&mut p, 1);
+        drop(p); // the process ends
+        let whole = std::fs::read(&pp).unwrap();
+        let torn = [&999u32.to_be_bytes()[..], b"{\"height\":3,\"cel"].concat(); // a length, then part of a body
+        append_raw(&pp, &torn);
+        let (mut p, replayed) = ServerState::with_store(&pp, spec.clone()).unwrap();
+        assert_eq!((replayed, p.height()), (2, 2));
+        let (cut_back, aside) = (std::fs::read(&pp).unwrap(), aside_files(&pp));
+        submit(&mut p, 2);
+        submit(&mut p, 3);
+        let digest = p.state_digest();
+        drop(p);
+        let (again, replayed) = ServerState::with_store(&pp, spec).unwrap();
+        assert_eq!((replayed, again.height()), (4, 4), "every block survives the second restart");
+        assert_eq!(again.state_digest(), digest);
+        assert!(cut_back == whole, "the first boot cut the log back to its last whole record: {} bytes, {} whole", cut_back.len(), whole.len());
+        assert_eq!(aside.len(), 1, "one set-aside file");
+        assert!(std::fs::read(&aside[0]).unwrap() == torn, "it holds the torn bytes as they were");
+        let name = aside[0].file_name().unwrap().to_string_lossy().into_owned();
+        assert!(name.contains(&format!(".torn-at-{}-", whole.len())), "named with the byte offset: {name}");
+        assert_eq!(aside_files(&pp).len(), 1, "a clean boot sets nothing more aside");
+        remove_with_aside(&pp);
+    }
+
+    /// The same for a follower's store: a follower that crashed mid-write sets its torn tail aside at
+    /// boot, follows the producer on, and keeps every block across the next restart.
+    #[test]
+    fn a_follower_sets_its_torn_tail_aside_and_keeps_every_block_it_follows_after() {
+        let spec = ChainSpec::dev();
+        let (mut p, pp) = producer_on(spec.clone(), "torn-fp");
+        for n in 0..4 {
+            submit(&mut p, n);
+        }
+        let (mut f, fp) = follower_on(spec.clone(), "torn-f");
+        apply_page(&mut f, &handle_request(&mut p, "GET", "/blocks?since=0&limit=2", b"").2).unwrap();
+        assert_eq!(f.height(), 2);
+        drop(f);
+        let whole = std::fs::read(&fp).unwrap();
+        let torn = [0x00u8, 0x00, 0x0B]; // a crash three bytes into the next record's length
+        append_raw(&fp, &torn);
+        let (f, replayed) = ServerState::with_store(&fp, spec.clone()).unwrap();
+        let mut f = f.as_replica("http://producer.test".into());
+        assert_eq!(replayed, 2);
+        let (cut_back, aside) = (std::fs::read(&fp).unwrap(), aside_files(&fp));
+        sync(&mut f, &mut p, 32).unwrap();
+        assert_eq!(f.height(), 4);
+        drop(f);
+        let (f, replayed) = ServerState::with_store(&fp, spec).unwrap();
+        assert_eq!((replayed, f.height()), (4, 4), "every followed block survives the restart");
+        assert_eq!(f.state_digest(), p.state_digest());
+        assert!(cut_back == whole, "cut back to the last whole record: {} bytes, {} whole", cut_back.len(), whole.len());
+        assert_eq!(aside.len(), 1);
+        assert!(std::fs::read(&aside[0]).unwrap() == torn, "it holds the torn bytes");
+        remove_with_aside(&fp);
+        let _ = std::fs::remove_file(&pp);
+    }
+
+    /// Good records after a broken one cannot come from a crash: a crash tears only the record being
+    /// written, which is the last. So that is damage, and the boot refuses, says where, and leaves the
+    /// file as it is rather than cut good blocks away. Covered: a torn record with whole blocks written
+    /// after it (what an older node left by appending after a torn tail), on a producer's log and on a
+    /// follower's; a whole record that is not a block, in the middle and at the end; and a block the
+    /// chain's rules refuse (a repeated block).
+    #[test]
+    fn a_broken_record_that_is_not_a_torn_tail_stops_the_boot_and_the_file_is_left_alone() {
+        let spec = ChainSpec::dev();
+        let (mut p, pp) = producer_on(spec.clone(), "bad-p");
+        for n in 0..4 {
+            submit(&mut p, n);
+        }
+        let (mut f, fp) = follower_on(spec.clone(), "bad-f");
+        sync(&mut f, &mut p, 32).unwrap();
+        drop((p, f));
+        // the whole frames of a log: its 4-byte big-endian length, then that many bytes
+        let frames = |path: &std::path::Path| {
+            let bytes = std::fs::read(path).unwrap();
+            let (mut out, mut at) = (Vec::new(), 0usize);
+            while at < bytes.len() {
+                let len = u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap()) as usize;
+                out.push(bytes[at..at + 4 + len].to_vec());
+                at += 4 + len;
+            }
+            out
+        };
+        let (pf, ff) = (frames(&pp), frames(&fp));
+        assert_eq!((pf.len(), ff.len()), (4, 4));
+        let torn = [&999u32.to_be_bytes()[..], b"{\"height\":3"].concat();
+        let not_a_block = [&11u32.to_be_bytes()[..], b"not a block"].concat();
+        let cases: Vec<(&str, Vec<Vec<u8>>, ChainSpec)> = vec![
+            ("producer, torn then whole", vec![pf[0].clone(), pf[1].clone(), torn.clone(), pf[2].clone(), pf[3].clone()], spec.clone()),
+            ("follower, torn then whole", vec![ff[0].clone(), ff[1].clone(), torn.clone(), ff[2].clone(), ff[3].clone()], spec.clone()),
+            ("not a block, mid-log", vec![pf[0].clone(), pf[1].clone(), not_a_block.clone(), pf[2].clone()], spec.clone()),
+            ("not a block, at the end", vec![pf[0].clone(), pf[1].clone(), not_a_block.clone()], spec.clone()),
+            ("a repeated block", vec![pf[0].clone(), pf[1].clone(), pf[1].clone()], spec.clone()),
+        ];
+        let at = pf[0].len() + pf[1].len();
+        for (what, parts, boot_spec) in cases {
+            let path = tmp_log("bad-case");
+            std::fs::write(&path, parts.concat()).unwrap();
+            let before = std::fs::read(&path).unwrap();
+            let err = match ServerState::with_store(&path, boot_spec.clone()) {
+                Err(e) => e.to_string(),
+                Ok((s, n)) => panic!("{what}: booted at height {} ({n} replayed)", s.height()),
+            };
+            assert!(err.contains(&format!("damaged at byte {at}")) && err.contains("file is unchanged"), "{what}: {err}");
+            assert!(std::fs::read(&path).unwrap() == before, "{what}: the file is untouched");
+            assert!(aside_files(&path).is_empty(), "{what}: nothing is set aside");
+            // a read-only reader (`--listen <store>`, the peers seed) refuses it too, rather than serve a prefix
+            assert!(crate::store::load_blocks(&path, &boot_spec).is_err(), "{what}: read-only load");
+            remove_with_aside(&path);
+        }
+        let _ = (std::fs::remove_file(&pp), std::fs::remove_file(&fp));
+    }
+
+    /// A clean log boots exactly as before: the same chain, the file byte for byte, nothing set aside.
+    #[test]
+    fn a_clean_log_boots_as_before_and_nothing_is_set_aside() {
+        let spec = ChainSpec::dev();
+        let (mut p, pp) = producer_on(spec.clone(), "clean-p");
+        for n in 0..3 {
+            submit(&mut p, n);
+        }
+        let digest = p.state_digest();
+        drop(p);
+        let before = std::fs::read(&pp).unwrap();
+        let (again, replayed) = ServerState::with_store(&pp, spec.clone()).unwrap();
+        assert_eq!((replayed, again.state_digest()), (3, digest));
+        assert!(std::fs::read(&pp).unwrap() == before, "the file is byte-identical");
+        assert!(aside_files(&pp).is_empty());
+        let absent = tmp_log("clean-absent");
+        let (g, replayed) = ServerState::with_store(&absent, spec).unwrap();
+        assert_eq!((replayed, g.height()), (0, 0));
+        assert!(!absent.exists() && aside_files(&absent).is_empty(), "an absent log is genesis and creates nothing");
+        remove_with_aside(&pp);
+    }
+
+    /// The write path: a block reaches `GET /blocks` (a follower) only once it is written and flushed to
+    /// disk. A block the log cannot take is not reported final and not served, and the node takes no more
+    /// blocks until it is restarted: a later block written without it would leave a gap no boot can
+    /// replay. The log keeps its last whole record.
+    #[test]
+    fn a_block_the_log_cannot_take_is_not_reported_final_or_served_and_production_stops() {
+        let (mut p, pp) = producer_on(ChainSpec::dev(), "nowrite-p");
+        submit(&mut p, 0);
+        // the log can no longer be written: a directory now stands where the file was
+        let saved = std::fs::read(&pp).unwrap();
+        std::fs::remove_file(&pp).unwrap();
+        std::fs::create_dir(&pp).unwrap();
+        let (s, _, b) = handle_request(&mut p, "POST", "/submit", &signed_body(&[0x41u8; 32], 0, TEXTS[1]));
+        assert_eq!(s, 503, "{}", String::from_utf8_lossy(&b));
+        let e = state_of(&b)["error"].as_str().unwrap().to_string();
+        assert!(e.contains("could not be written to the block log") && !String::from_utf8_lossy(&b).contains("finalized"), "{e}");
+        assert_eq!(page(&mut p, 1)["tip"], 1, "the unwritten block is not served");
+        let (s, _, b) = handle_request(&mut p, "POST", "/submit", &signed_body(&[0x42u8; 32], 0, TEXTS[2]));
+        assert_eq!(s, 503, "no more blocks until a restart: {}", String::from_utf8_lossy(&b));
+        assert_eq!(p.height(), 2, "block 2 is in memory only; block 3 was never made");
+        // put the log back and restart: the durable chain is block 1, and the node produces again
+        std::fs::remove_dir(&pp).unwrap();
+        std::fs::write(&pp, &saved).unwrap();
+        let (mut q, replayed) = ServerState::with_store(&pp, ChainSpec::dev()).unwrap();
+        assert_eq!(replayed, 1);
+        submit(&mut q, 3);
+        assert_eq!(page(&mut q, 0)["tip"], 2);
+        remove_with_aside(&pp);
     }
 }

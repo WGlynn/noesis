@@ -162,7 +162,7 @@ which consensus checks only once control binding is on (see the honest floor bel
   once. Identity cells get their own per-(g, serial) keys (`:61`).
   Test: `soulbound_key_chain_mints_two_and_three_times_without_reusing_a_key` (`runtime.rs:3654`).
 - **Mint path.** A batch file (the bot's format) -> `identity-mint mint` reads `GET /tokens`
-  (`rpc.rs:867`) -> one tx, signed -> `POST /token-tx` (`rpc.rs:886`; node-local policy: soulbound
+  (`rpc.rs:912`) -> one tx, signed -> `POST /token-tx` (`rpc.rs:931`; node-local policy: soulbound
   only, every input signed and verified, valid with all pending txs, queue of 16, `rpc.rs:94`) -> the
   next contribution block carries it (`chainspec.rs:218`). A token tx never makes a block alone
   (`EmptyBlock`, `runtime.rs:1294`, unchanged). Per tx at most 64 mints and 2 re-tiers
@@ -191,20 +191,20 @@ Testnet step 3 (`docs/TESTNET.md`), built as designed there: app layer, a funded
   (`:1360`) for Bound-B deposits, and the sub-block tier gets it too. With it on, an empty `auth` no
   longer authorizes a spend; a presented one is verified the same either way. Contribution cells and the
   coinbase are not spends, so `POST /submit` is unchanged
-  (`a_v2_submit_lands_on_the_testnet_with_control_binding_on_and_pays_the_faucet`, `rpc.rs:1377`, on the
+  (`a_v2_submit_lands_on_the_testnet_with_control_binding_on_and_pays_the_faucet`, `rpc.rs:1424`, on the
   real testnet spec). On in `ChainSpec::testnet()` only.
 - **The reward funds the faucet.** `ChainSpec::reward_to_faucet` (`chainspec.rs:52`, on for the testnet)
   makes the producing node pay each block reward to the faucet (`produce_block_paying`,
-  `chainspec.rs:230`; `rpc.rs:817`). Consensus fixes the amount and never checks the recipient. A chain
+  `chainspec.rs:230`; `rpc.rs:855`). Consensus fixes the amount and never checks the recipient. A chain
   that pays the faucet produces nothing without the faucet seed: `--serve-api` refuses to start
-  (`rpc.rs:1071`) and an in-memory node refuses the block (`rpc.rs:755`). A replica (`--follow`, below)
+  (`rpc.rs:1118`) and an in-memory node refuses the block (`rpc.rs:793`). A replica (`--follow`, below)
   produces nothing and needs no seed: it validates a reward paid to the faucet without the faucet's key.
 - **A key per cell.** A lock is a Lamport one-time key, so one fixed faucet address would sign every payout
   with one key. Each reward is locked by its own key derived from (faucet seed, height)
   (`faucet.rs:83`); the change goes to a purse whose key is derived from (seed, generation) (`:88`), and
   each payout spends purse `g` and writes `g + 1`. A pending payout's signatures leave the node only in
   the finalized block that spends its cells, so the faucet re-signs it freely until then.
-- **Route and limits.** `POST /faucet {address}` (`rpc.rs:929`), `GET /faucet`, `GET /balance/<address>`.
+- **Route and limits.** `POST /faucet {address}` (`rpc.rs:976`), `GET /faucet`, `GET /balance/<address>`.
   10 JUL per payout (`DRIP`, `faucet.rs:58`), one per address per 24 hours (`:60`), 30 per hour overall
   (`:62-64`), 8 waiting per block (`:66`), node-local and reset by a restart. A payout lands with the
   next contribution block.
@@ -225,21 +225,22 @@ Testnet step 3 (`docs/TESTNET.md`), built as designed there: app layer, a funded
 Testnet step 7, topology A of `docs/DESIGN-live-gossip.md` (Will 2026-11-17: "one producer, for now").
 
 - **Roles.** The producer is `noesisd --serve-api`. A follower is `noesisd --follow <producer-url> <http>
-  <store>` (`rpc.rs:1056`, loop `follow.rs:217`): its own page and read API over its own durable store. It
+  <store>` (`rpc.rs:1103`, loop `follow.rs:218`): its own page and read API over its own durable store. It
   produces nothing: `POST /submit`, `/faucet` and `/token-tx` answer 409 with the producer's URL
-  (`rpc.rs:579`), and the page re-sends the same signed body there once.
-- **Route.** `GET /blocks?since=N[&limit=M]` (`rpc.rs:870`, `blocks_page` `:480`): the full finalized blocks
+  (`rpc.rs:617`), and the page re-sends the same signed body there once.
+- **Route.** `GET /blocks?since=N[&limit=M]` (`rpc.rs:915`, `blocks_page` `:518`): the full finalized blocks
   after height N, oldest first, at most 32 a page (`PAGE_MAX_BLOCKS`, `follow.rs:45`) and about 1 MiB of
   block bytes (`PAGE_MAX_BYTES`, `:49`; at least one block), with `tip`, `more`, and the chain link at N as
-  `anchor`. Blocks are read back from the store by frame offset (`store.rs:35`, `:76`). Only blocks in the
-  durable log are served, and a block is appended only after it finalized, so a pending faucet payout's
+  `anchor`. Blocks are read back from the store by frame offset (`store.rs:56`, `:128`). Only blocks in the
+  durable log are served (written and flushed to disk first, see the chain log bullet below), and a
+  block is appended only after it finalized, so a pending faucet payout's
   signatures do not leave the producer early (`blocks_since_serves_only_finalized_blocks_and_never_a_pending_payout`,
-  `rpc.rs:2073`). A follower polls every 2 s (`POLL`, `follow.rs:52`), backing off to 30 s on errors; no long-poll.
+  `rpc.rs:2120`). A follower polls every 2 s (`POLL`, `follow.rs:52`), backing off to 30 s on errors; no long-poll.
 - **Validation.** Every pulled block goes through `ChainSpec::accept_block` (`chainspec.rs:264`), the
   producer's own path: `validate_block` (PoW seal, token conservation, spend signatures under control
   binding), the finality gate, then apply. A refused block stops following and the follower keeps its
-  chain (`a_follower_refuses_a_tampered_block_and_keeps_its_chain`, `rpc.rs:1924`;
-  `a_follower_refuses_a_payout_whose_signature_was_tampered`, `:1956`). Standing on a follower is what its
+  chain (`a_follower_refuses_a_tampered_block_and_keeps_its_chain`, `rpc.rs:1971`;
+  `a_follower_refuses_a_payout_whose_signature_was_tampered`, `:2003`). Standing on a follower is what its
   own apply derives from the blocks.
 - **Rewrite detection.** `chain_link` (`follow.rs:63`) chains every block's header digest from genesis
   (`header_digest` binds the cells, coords, token txs with their signatures, coinbase, seal and timestamp;
@@ -247,11 +248,34 @@ Testnet step 7, topology A of `docs/DESIGN-live-gossip.md` (Will 2026-11-17: "on
   applying a page (`apply_page`, `:99`) the follower compares the producer's link at its own height, and
   stops if they differ, if the producer's height is below its own, or if the chain id differs; `GET /state`
   then says why (`replica.stopped`). Tests: `a_follower_stops_on_a_rewritten_history_even_one_that_keeps_the_later_blocks`
-  (`rpc.rs:2009`; blocks name no parent hash, so the tip's digest alone would miss that rewrite) and
-  `a_follower_stops_on_a_producer_behind_it_and_on_another_network` (`:2041`). The link is node-local, not consensus.
+  (`rpc.rs:2056`; blocks name no parent hash, so the tip's digest alone would miss that rewrite) and
+  `a_follower_stops_on_a_producer_behind_it_and_on_another_network` (`:2088`). The link is node-local, not consensus.
 - **Restart.** A follower replays its own store and asks only for what it lacks
-  (`a_follower_resumes_from_its_own_store_after_a_restart`, `rpc.rs:1984`; two real processes in
+  (`a_follower_resumes_from_its_own_store_after_a_restart`, `rpc.rs:2031`; two real processes in
   `node/tests/follow_live.rs`).
+- **The chain log across a crash (built 2026-11-18, producer and follower alike).** A block's record goes
+  out in one write call and is flushed to disk (`sync_all`) before the append returns
+  (`append_block_at`, `store.rs:56`); only then is it served by `GET /blocks` or reported final by
+  `POST /submit` (`persist`, `rpc.rs:484`). If a write fails, the log is cut back to its last whole record,
+  the block is neither served nor reported final (503), and the node takes no more blocks until it is
+  restarted, since a later block written without it would leave a gap no boot can replay
+  (`a_block_the_log_cannot_take_is_not_reported_final_or_served_and_production_stops`, `rpc.rs:2380`).
+  At boot (`load_for_append`, `store.rs:139`, called by `with_store`, `rpc.rs:341`): if the bytes after
+  the last good record are what a crash mid-write leaves (part of one record with no whole block record
+  among them, or all zeros, `torn_tail`, `store.rs:251`), they are copied to
+  `<log name>.torn-at-<byte offset>-<unix seconds>` next to the log (never deleted), the log is cut back
+  to the last good record, both are flushed, one line on stderr says so, and only then does the node
+  append. Before this fix the torn bytes stayed, new blocks went after them, and the next boot stopped at
+  the torn record and dropped every later block, so the producer fell below its followers and finalized
+  blocks were lost (`a_torn_tail_is_set_aside_at_boot_and_every_later_block_survives`, `rpc.rs:2235`;
+  follower, `:2266`; real process, `node/tests/listen_serves_durable_store.rs`). Anything else (good
+  records after a bad one, a whole record that is not a block, a block the rules refuse) is damage, not a
+  crash: the node refuses to start, says where, and leaves the file as it is (`:2303`). A read-only load
+  (`--listen <store>`, the peers seed) never changes the file, and judges only the bytes it saw when its
+  replay began, so a record the writer finishes meanwhile is not mistaken for damage. Honest floor: no power-cut test was run;
+  on Windows the directory entry of a newly created log is not flushed (std cannot open a directory
+  there); a log an older node already damaged this way (whole blocks after a torn record) now stops the
+  boot instead of booting short, and repairing one is by hand.
 - **Honest floor.** One producer: if it stops, the chain stops (no failover, no leader election). A follower
   checks every rule the rulebook covers, but trusts the producer URL (and TLS, for https) for who made the
   chain: a block carries no producer signature, and a contribution cell does not carry its wallet signature

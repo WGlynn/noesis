@@ -33,6 +33,22 @@
    `internal/DESIGN-joint-decay-damping-rate.md`. Code comments + patent line 233 relabeled to match.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-11-18 (chain log crash safety, the store hazard below)**: replay stopped at the first broken
+  record and the node then appended after it, so after a crash mid-write (a torn last record) every block
+  written after the restart was dropped at the next boot; the producer fell below its followers and
+  finalized blocks were lost from disk. Now an appending boot (`load_for_append`, store.rs:139) copies a
+  torn tail (part of one record with no whole block record in it, or zeros) to
+  `<log>.torn-at-<offset>-<unix seconds>` next to the log, cuts the log back to its last good record,
+  flushes both, prints one line, and only then appends; anything else (good records after a bad one, a
+  whole record that is not a block, a block the rules refuse) stops the boot and leaves the file alone,
+  because a crash cannot produce it and cutting it would throw away good blocks. Write path: each record is
+  now one write call plus `sync_all` (store.rs:56, before: two writes and a flush that does not reach disk)
+  and is served or reported final only after that (rpc.rs:484); a failed write cuts the log back, answers
+  503, and stops production until a restart (before: a warning, the block reported final, and later
+  blocks written after the gap). Red before the fix: producer and follower restart tests (height 2 where 4
+  was written), the damage refusal (booted on a damaged log), the failed-write test (200 "finalized"), and
+  two real-process tests. Honest floor: no power-cut test; on Windows a new log's directory entry is not
+  flushed; a log an older node already damaged this way now refuses to boot, and repairing it is by hand.
 - **2026-11-17 (testnet step 7: live sync, one producer)**: `noesisd --follow <producer> <http> <store>`
   pulls `GET /blocks?since=N` (32 blocks or about 1 MiB a page, every 2 s once level) and runs every block
   through the same `ChainSpec::accept_block` the producer uses (chainspec.rs:264). A follower refuses a
