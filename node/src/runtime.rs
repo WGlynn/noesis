@@ -3483,6 +3483,43 @@ mod tests {
         assert!(!other_col.is_valid());
     }
 
+    /// Token confinement for every standard (found 2026-11-17 while building soulbound identities):
+    /// `is_valid` conserves only the DECLARED token and `apply_transition` persists every output, so a
+    /// third token's cells could ride a declared transfer unchecked and be minted from nothing. JUL was
+    /// already safe (its own rule keys on the real cells) and soulbound cells are confined above; the
+    /// same now holds for any token. JUL cells may still ride, under the JUL rule.
+    #[test]
+    fn a_token_tx_cannot_mint_another_token_from_nothing() {
+        let (mut node, block) = node_and_carrier_block();
+        node.ledger.token_cells.push(ft_cell(b"USD", b"alice", 10));
+        let honest = TokenTx {
+            standard: TokenStandard::Fungible,
+            auths: vec![],
+            code_hash: [20u8; 32],
+            args: b"USD".to_vec(),
+            inputs: vec![ft_cell(b"USD", b"alice", 10)],
+            outputs: vec![ft_cell(b"USD", b"bob", 10)],
+        };
+        assert!(honest.is_valid());
+        assert!(node.validate(&block.clone().with_token_txs(vec![honest.clone()])));
+        // the USD transfer carries an EUR output nobody issued: EUR from nothing
+        let mut smuggle = honest.clone();
+        smuggle.outputs.push(ft_cell(b"EUR", b"mallory", 1_000_000));
+        assert!(!smuggle.is_valid(), "an EUR mint rode a USD transfer");
+        assert!(!node.validate(&block.clone().with_token_txs(vec![smuggle])));
+        // the same token program under another issuer is another token
+        let mut same_code = honest.clone();
+        same_code.outputs.push(ft_cell(b"USD-fake", b"mallory", 5));
+        assert!(!same_code.is_valid(), "another issuer's cell rode the tx");
+        // an NFT tx cannot carry fungible cells either
+        let mut nft_vehicle = honest.clone();
+        nft_vehicle.standard = TokenStandard::Nft;
+        nft_vehicle.args = b"ART".to_vec();
+        nft_vehicle.inputs = vec![];
+        nft_vehicle.outputs = vec![ft_cell(b"USD", b"mallory", 7)];
+        assert!(!nft_vehicle.is_valid(), "a USD mint rode an NFT tx");
+    }
+
     #[test]
     fn identity_mints_carry_zero_pom_and_zero_finality_weight() {
         // B2, the load-bearing property of the soulbound lane: identities carry ZERO PoM standing and
