@@ -4,6 +4,25 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## 2026-11-17 (evening): first testnet node up (devnet stage), four fixes, the path to a testnet
+
+- **Running:** one node on the maintainer's PC, `NOESIS_NET=testnet`, local only (127.0.0.1:9955),
+  height 0, issuer cell present. Devnet stage running the testnet genesis (the 2026-10-21 frame).
+- **Fixed, each with a test that failed first:**
+  - `13e4a812` token confinement: a token tx may carry only its declared token's cells plus JUL; before,
+    a USD transfer could mint EUR from nothing. Counterfactual branch `counterfactual/token-confinement`.
+  - `39b73bb4` genesis rule: `Constitution::genesis_unscored` (default off, on in `ChainSpec::testnet()`),
+    the chain's first contribution earns no standing. One cell only; a zero-for-every-root rule would be
+    dodged for free, since scoring never reads `parent`. Keyed on the cell id (finality scores a subset).
+  - `23d1d4e3` `--connect` boots the genesis `NOESIS_NET` selects (it always booted dev).
+  - `e61dd95e` explorer: `GET /blocks`, newest first, rebuilt from the log at boot.
+- **Docs:** `docs/TESTNET.md` (status, the path easiest first, reset policy), `docs/RUN-A-NODE.md`.
+  Page rewritten barebones (`8a381239`); crypto.js unchanged.
+- **Next:** (1) maintainer decision: control binding as a chain-spec setting, on for testnet, and the
+  block reward to a faucet address instead of the placeholder validator (gates the faucet, step 3);
+  (2) step 6, one process for page + peers; (3) the wallet modeled on VibeSwap's design (counter that
+  cannot be lost, seed encrypted at rest, recovery), design in progress; (4) step 7 live gossip.
+
 ## 2026-11-17: soulbound identities (Vibeswap chat identity, Phase B) built in the token-cell lane
 
 - Built (reference node, additive): `TokenStandard::Soulbound` (tag 3) + `tokens::soulbound`; issuer
