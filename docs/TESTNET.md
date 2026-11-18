@@ -19,7 +19,7 @@ A testnet is a network other people join. This is not one yet. What is missing, 
 | # | Step | Status |
 |---|------|--------|
 | 1 | This page: status and reset policy | built (this file) |
-| 2 | A tagged release and a guide to run a node and mine | open |
+| 2 | A guide to run and join a node (`docs/RUN-A-NODE.md`); a tagged release | guide built; release held until sharing |
 | 3 | A faucet, so newcomers hold test JUL | open (designed: app layer, a funded wallet) |
 | 4 | An explorer for blocks, cells and identities | open (the node's own page shows state today) |
 | 5 | A stable public address, TLS and connection caps | open (a temporary tunnel URL works today) |
