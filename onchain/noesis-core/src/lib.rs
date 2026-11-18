@@ -1375,6 +1375,128 @@ pub mod xmss_mt {
     }
 }
 
+/// Wallet format v2: the identity a contributor's standing is keyed on, and the digest a
+/// contribution signs. SINGLE SOURCE: `frontend/crypto.js` mirrors it byte for byte (vectors pinned
+/// in `frontend/parity-test.mjs` and `rpc::tests::wallet_v2_parity_vectors_are_pinned`).
+///
+/// IDENTITY (wallet design decision 2): `identity = H(0x01 || SCHEME || hot_root || cold_commit)`,
+/// fixed when the wallet is made. `hot_root` is the signing key's public root. `cold_commit =
+/// H(0x02 || SCHEME || cold_root)` commits to a recovery key kept offline; its root stays hidden
+/// until a recovery (designed, not built). The commitment is inside the identity from birth, so a
+/// thief who later takes the hot key cannot register a recovery key of his own first. 32 bytes, like
+/// the v1 address, so `type_script.args`, `lock.args` and the soulbound `holder` keep their shapes.
+///
+/// KEY SCHEME: [`key_root`] / [`sign`] / [`verify`] are the only functions that name it, and the
+/// [`SCHEME`] byte is hashed into both the identity and the cold commitment, so a later scheme is a
+/// new byte plus these three functions, and an identity is never read under a scheme it was not made
+/// with. Today both keys are XMSS^MT ([`crate::xmss_mt`]): 65,536 one-time leaves under one root.
+///
+/// DIGEST (decision 9): `H(0x03 || identity || index_le32 || parent || H(0x04 || data))` with
+/// `parent` = `0x00` (a root) or `0x01 || cell_id_le64`. It covers the parent, so a relay cannot
+/// re-point what a contribution builds on. The v2 personalization keeps every hash here apart from
+/// the v1 digest (personal `noesis-xmss-v1`, tag 0x03) and from every other hasher in the crate, so
+/// an old and a new digest never collide.
+pub mod wallet {
+    use super::xmss_mt;
+
+    /// The key scheme byte hashed into identities and cold commitments. 1 = XMSS^MT.
+    pub const SCHEME: u8 = 1;
+    /// Signatures one key can make (`xmss_mt::MAX_SIGS`).
+    pub const MAX_SIGS: u64 = xmss_mt::MAX_SIGS;
+    /// A signature under the current scheme.
+    pub type Signature = xmss_mt::MtSignature;
+
+    fn h(tag: u8, parts: &[&[u8]]) -> [u8; 32] {
+        let mut hasher = blake2b_ref::Blake2bBuilder::new(32).personal(b"noesis-wallet-v2").build();
+        hasher.update(&[tag]);
+        for p in parts {
+            hasher.update(p);
+        }
+        let mut out = [0u8; 32];
+        hasher.finalize(&mut out);
+        out
+    }
+
+    /// The commitment to a cold recovery key's public root.
+    pub fn cold_commit(cold_root: &[u8; 32]) -> [u8; 32] {
+        h(0x02, &[&[SCHEME], cold_root])
+    }
+
+    /// The 32-byte identity (the address a wallet shows).
+    pub fn identity(hot_root: &[u8; 32], cold_commit: &[u8; 32]) -> [u8; 32] {
+        h(0x01, &[&[SCHEME], hot_root, cold_commit])
+    }
+
+    /// The message a contribution signs: identity, one-time index, parent link and data.
+    pub fn contribution_digest(identity: &[u8; 32], index: u32, parent: Option<u64>, data: &[u8]) -> [u8; 32] {
+        let data_hash = h(0x04, &[data]);
+        let mut link = [0u8; 9];
+        let link_len = match parent {
+            None => 1,
+            Some(id) => {
+                link[0] = 1;
+                link[1..].copy_from_slice(&id.to_le_bytes());
+                9
+            }
+        };
+        h(0x03, &[identity, &index.to_le_bytes(), &link[..link_len], &data_hash])
+    }
+
+    /// A key's public root from its 32-byte seed (hot or cold).
+    pub fn key_root(seed: &[u8; 32]) -> [u8; 32] {
+        xmss_mt::keygen_address(seed)
+    }
+
+    /// Sign `msg` at one-time `index`. Never sign two different messages at one index.
+    pub fn sign(seed: &[u8; 32], index: u32, msg: &[u8; 32]) -> Signature {
+        xmss_mt::sign(seed, index, msg)
+    }
+
+    /// Verify `sig` over `msg` at `index` under the public `root`.
+    pub fn verify(root: &[u8; 32], index: u32, msg: &[u8; 32], sig: &Signature) -> bool {
+        xmss_mt::verify(root, index, msg, sig)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn the_digest_covers_the_parent_and_is_apart_from_v1() {
+            let id = identity(&[1u8; 32], &cold_commit(&[2u8; 32]));
+            let root = contribution_digest(&id, 5, None, b"hello noesis");
+            let on_1 = contribution_digest(&id, 5, Some(1), b"hello noesis");
+            let on_2 = contribution_digest(&id, 5, Some(2), b"hello noesis");
+            assert!(root != on_1 && on_1 != on_2, "the parent link changes the digest");
+            // `Some(0)` is a link to cell 0, not the same bytes as no link
+            assert_ne!(root, contribution_digest(&id, 5, Some(0), b"hello noesis"));
+            assert_ne!(root, super::super::xmss::contribution_digest(&id, 5, b"hello noesis"), "v1 and v2 differ");
+        }
+
+        #[test]
+        fn the_identity_binds_both_roots() {
+            let (hot, cold) = ([1u8; 32], [2u8; 32]);
+            let id = identity(&hot, &cold_commit(&cold));
+            assert_ne!(id, identity(&[3u8; 32], &cold_commit(&cold)), "another hot root");
+            assert_ne!(id, identity(&hot, &cold_commit(&[3u8; 32])), "another cold root");
+            assert_ne!(id, identity(&cold_commit(&cold), &hot), "the two fields are not interchangeable");
+        }
+
+        #[test]
+        fn a_signature_verifies_only_for_its_own_parent() {
+            let seed = [9u8; 32];
+            let root = key_root(&seed);
+            let id = identity(&root, &cold_commit(&[4u8; 32]));
+            let g = 300; // subtree 1, leaf 44
+            let msg = contribution_digest(&id, g, Some(7), b"builds on seven");
+            let sig = sign(&seed, g, &msg);
+            assert!(verify(&root, g, &msg, &sig));
+            assert!(!verify(&root, g, &contribution_digest(&id, g, Some(8), b"builds on seven"), &sig), "re-pointed parent");
+            assert!(!verify(&root, g, &contribution_digest(&id, g, None, b"builds on seven"), &sig), "parent stripped");
+        }
+    }
+}
+
 /// Canonical transaction digest - SINGLE SOURCE for the bytes a lock-signature covers and the
 /// replica-deterministic identity of a value movement. Lives here (no_std, builds riscv) so the
 /// on-VM lock-script type-script recomputes the SAME digest the node signs/verifies over - paying the
