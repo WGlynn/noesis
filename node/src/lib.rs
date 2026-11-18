@@ -115,6 +115,9 @@ pub mod follow;
 /// batch parsing, the one-time key chain, tx building and signing. Off-consensus; the block gate checks
 /// what it builds. Used by the `identity-mint` binary.
 pub mod identity_mint;
+/// Identity keys (wallet decisions A1 and A7): an identity's series of hot keys and its cold-key
+/// recovery behind a time lock, recorded in a key cell and checked by the rulebook (reference node).
+pub mod identity_key;
 
 /// faucet — testnet step 3: a funded wallet that pays small amounts of test JUL to newcomers. The block
 /// reward funds it on the testnet spec; each faucet cell has its own one-time key derived from a seed

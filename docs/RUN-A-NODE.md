@@ -45,7 +45,11 @@ target\release\noesisd.exe --serve-api 127.0.0.1:9955 %USERPROFILE%\.noesis\test
 Open http://localhost:9955/ in a browser, that exact address. From the page you can:
 - generate a wallet: a post-quantum hot key with 65,536 one-time keys, kept in that browser encrypted
   under a passphrase you choose (a passkey can be added as a second way to unlock), and a cold recovery
-  key shown once for you to store offline (recovery itself is designed, not built);
+  key shown once for you to store offline, with the address and its first hot key root (write all three
+  down);
+- rotate the wallet to the next hot key of its series (the same backup covers it), and recover an address
+  with its cold key behind a delay in blocks that the current hot key can cancel (`docs/TESTNET.md`,
+  identity keys);
 - sign and submit a contribution, which the node mines into a block at once;
 - see the chain, the contribution graph, and the soulbound identities.
 
@@ -152,7 +156,9 @@ target\release\noesisd.exe --follow https://<producer-url> 127.0.0.1:9956 %USERP
   saved before every signature. Still open: a malicious page or extension running while the wallet is
   unlocked can read the key, and clearing browser storage loses the wallet unless you kept the hot key
   (Show hot key, after unlock). Do not restore an old copy of a wallet that has signed since: reusing a
-  one-time key weakens it. Backups, key rotation and recovery with the cold key are designed, not built.
+  one-time key weakens it. Key rotation and recovery with the cold key are built (reference node; see
+  `docs/TESTNET.md`, identity keys); recovery helps when the hot key is lost, not when it is stolen, since
+  the current hot key can cancel a recovery. An encrypted backup file is designed, not built.
 
 ## Contributions and standing
 

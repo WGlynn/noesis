@@ -4,7 +4,13 @@
 //
 // At rest, under localStorage key noesis_wallet_v2_sealed:
 //   in plain text: v, sealed, address, hot_root, cold_commit, nextIndex (all public; the page shows the
-//                  wallet and its keys left while locked)
+//                  wallet and its keys left while locked), and since the key series (wallet decision A1,
+//                  2026-11-18): keyIndex and keyRoot, the number and public root of the hot key in the
+//                  series that signs now (absent = key 0, the seed itself, whose root is hot_root), and
+//                  pendingKeyOp, a signed key operation kept until the chain shows it, so it is re-sent
+//                  byte for byte and never signed twice. nextIndex is the counter of key keyIndex: the pair
+//                  (keyIndex, nextIndex) only ever goes up. A record made by a cold-key recovery carries
+//                  recovered: 1; its hot_root is the root of its own seed, not the address's first key.
 //   seed_ct:       the 32-byte hot seed, AES-256-GCM under a random 32-byte data key. The associated data
 //                  binds it to the address, hot root and cold commitment, so a swapped field fails to open.
 //   pass:          the data key, AES-256-GCM under PBKDF2-SHA256(passphrase, random 16-byte salt, 600,000)
@@ -35,6 +41,12 @@
   var KEY_SEALED = 'noesis_wallet_v2_sealed';
   var KEY_PLAIN = 'noesis_wallet_v2';   // the old plain-text record: read only to migrate it, then removed
   var KEY_V1 = 'noesis_wallet_v1';      // the old v1 record: read for its address only, never changed
+  // A7: a cold-key recovery made in this browser waits here (sealed like a wallet, with its signed request)
+  // until the chain puts its key in effect; then it becomes the wallet, and a wallet of the same address
+  // already here is kept under KEY_RETIRED (its key is retired on chain, but nothing is ever deleted).
+  // The cold key itself is never stored anywhere.
+  var KEY_RECOVERY = 'noesis_wallet_v2_recovery';
+  var KEY_RETIRED = 'noesis_wallet_v2_retired';
   // 600,000 rounds: OWASP's figure for PBKDF2-HMAC-SHA256 (Password Storage Cheat Sheet, 2023 and after),
   // and the figure VibeSwap's password fallback used. About half a second per unlock on a desktop. The
   // count is stored with each wrap, so it can be raised later without breaking old records.
@@ -98,10 +110,19 @@
   function checkPublic(r) {
     if (!r || !HEX64.test(r.address) || !HEX64.test(r.hot_root) || !HEX64.test(r.cold_commit) ||
         !Number.isSafeInteger(r.nextIndex) || r.nextIndex < 0) throw new Error('malformed wallet record');
+    if (r.keyIndex != null && (!Number.isSafeInteger(r.keyIndex) || r.keyIndex < 0)) throw new Error('malformed wallet record');
+    if (r.keyRoot != null && !HEX64.test(r.keyRoot)) throw new Error('malformed wallet record');
   }
+  // The signing key's number and root (key 0, the seed itself, when the record predates the key series).
+  function keyOf(r) { return { keyIndex: r.keyIndex || 0, keyRoot: r.keyRoot || r.hot_root }; }
+  // (keyIndex, nextIndex) ordered as a pair: a later key is always ahead of any counter of an earlier one.
+  function ahead(a, b) { var ka = keyOf(a).keyIndex, kb = keyOf(b).keyIndex; return ka > kb || (ka === kb && a.nextIndex > b.nextIndex); }
   // Encrypt `seed` under a new random data key, wrapped by the passphrase key `kek` (from passKek).
   async function seal(seed, pub, kek) {
     var r = { v: 2, sealed: 1, address: pub.address, hot_root: pub.hot_root, cold_commit: pub.cold_commit, nextIndex: pub.nextIndex };
+    if (pub.keyIndex) r.keyIndex = pub.keyIndex;
+    if (pub.keyRoot && pub.keyRoot !== pub.hot_root) r.keyRoot = pub.keyRoot;
+    if (pub.recovered) r.recovered = 1;
     checkPublic(r);
     var dataKey = random(32);
     r.seed_ct = await encrypt(await aesKey(dataKey), seed, seedAad(r));
@@ -169,29 +190,106 @@
       throw new Error('the stored wallet changed (in another tab?), so this page will not sign; reload it');
     return s;
   }
+  function writeSealed(storage, s, what) {
+    var text = JSON.stringify(s);
+    storage.setItem(KEY_SEALED, text);
+    if (storage.getItem(KEY_SEALED) !== text) throw new Error(what + ' did not save');
+  }
   // The counter as stored now (another tab may have raised it).
   function storedNext(storage, address) { return sealedFor(storage, address).nextIndex; }
+  // The stored signing key and counter: { keyIndex, keyRoot, nextIndex, pendingKeyOp }.
+  function storedKey(storage, address) {
+    var s = sealedFor(storage, address), k = keyOf(s);
+    return { keyIndex: k.keyIndex, keyRoot: k.keyRoot, nextIndex: s.nextIndex, pendingKeyOp: s.pendingKeyOp || null };
+  }
   // Raise the stored counter to at least `next`, synchronously, and never lower it. Returns the stored value.
-  function saveCounter(storage, address, next) {
+  // With `keyIndex`, refuses when the stored wallet signs with another key now (rotated in another tab).
+  function saveCounter(storage, address, next, keyIndex) {
     var s = sealedFor(storage, address);
+    if (keyIndex != null && keyOf(s).keyIndex !== keyIndex)
+      throw new Error('the wallet moved to another key (in another tab?), so this page will not sign; reload it');
     if (next > s.nextIndex) {
       s.nextIndex = next;
-      var text = JSON.stringify(s);
-      storage.setItem(KEY_SEALED, text);
-      if (storage.getItem(KEY_SEALED) !== text) throw new Error('the one-time-key counter did not save');
+      writeSealed(storage, s, 'the one-time-key counter');
     }
     return s.nextIndex;
   }
-  // Write a sealed record for its own address, keeping the higher counter if one is already stored.
+  // A1: move the stored wallet to key `keyIndex` of its series (root `keyRoot`), with that key's counter at
+  // 0. Only forward: a key number at or below the stored one is refused, so no key is ever used again.
+  function saveRotation(storage, address, keyIndex, keyRoot) {
+    var s = sealedFor(storage, address);
+    if (!Number.isSafeInteger(keyIndex) || keyIndex <= keyOf(s).keyIndex || !HEX64.test(keyRoot))
+      throw new Error('a rotation only moves forward in the key series');
+    s.keyIndex = keyIndex; s.keyRoot = keyRoot; s.nextIndex = 0;
+    writeSealed(storage, s, 'the rotation');
+    return s;
+  }
+  // A signed key operation, saved before it is sent (so a lost response re-sends the same bytes), and
+  // cleared once the chain shows it or refuses it.
+  function saveKeyOp(storage, address, op) {
+    var s = sealedFor(storage, address);
+    if (op) s.pendingKeyOp = op; else delete s.pendingKeyOp;
+    writeSealed(storage, s, 'the key operation');
+  }
+  // Write a sealed record for its own address, keeping the stored key and counter if they are ahead.
   function store(storage, r) {
     checkPublic(r);
     var cur = parse(storage, KEY_SEALED);
     if (cur && cur.address !== r.address) throw new Error('this browser already holds a different encrypted wallet (' + cur.address + ')');
-    if (cur && Number.isSafeInteger(cur.nextIndex) && cur.nextIndex > r.nextIndex) r = Object.assign({}, r, { nextIndex: cur.nextIndex });
+    if (cur && Number.isSafeInteger(cur.nextIndex) && ahead(cur, r)) {
+      r = Object.assign({}, r, { nextIndex: cur.nextIndex, keyIndex: cur.keyIndex, keyRoot: cur.keyRoot, pendingKeyOp: cur.pendingKeyOp });
+      ['keyIndex', 'keyRoot', 'pendingKeyOp'].forEach(function (f) { if (r[f] == null) delete r[f]; });
+    }
     var text = JSON.stringify(r);
     storage.setItem(KEY_SEALED, text);
     if (storage.getItem(KEY_SEALED) !== text) throw new Error('the wallet did not save');
     return r;
+  }
+
+  // ============ A7: a recovery in progress ============
+  // The recovery record: a sealed wallet of the address (the new hot seed, encrypted) with `recovery`, the
+  // signed request as sent. Saved before the request leaves the page: the cold key signed it, and only
+  // that body is ever sent again, so no cold one-time key signs two messages.
+  function readRecovery(storage) {
+    try {
+      var r = parse(storage, KEY_RECOVERY);
+      if (!r) return null;
+      checkPublic(r);
+      if (!r.seed_ct || !r.pass || !r.recovery || typeof r.recovery.body !== 'string') return null;
+      r.keyRoot = keyOf(r).keyRoot;
+      return r;
+    } catch (e) { return null; }
+  }
+  function storeRecovery(storage, r) {
+    checkPublic(r);
+    if (storage.getItem(KEY_RECOVERY) != null) throw new Error('a recovery is already in progress in this browser');
+    var cur = parse(storage, KEY_SEALED);
+    if (cur && cur.address !== r.address) throw new Error('this browser holds a wallet of another address (' + cur.address + '); recover in another browser profile');
+    var text = JSON.stringify(r);
+    storage.setItem(KEY_RECOVERY, text);
+    if (storage.getItem(KEY_RECOVERY) !== text) throw new Error('the recovery did not save');
+    return r;
+  }
+  // Remove a recovery the chain refused or the hot key cancelled (its key never took effect).
+  function dropRecovery(storage) { storage.removeItem(KEY_RECOVERY); }
+  // The chain put the recovered key in effect: it becomes this browser's wallet. A wallet of the same
+  // address already here is moved to KEY_RETIRED first (its key is retired on chain); nothing is deleted.
+  function promoteRecovery(storage) {
+    var r = readRecovery(storage);
+    if (!r) throw new Error('no recovery in progress');
+    var cur = parse(storage, KEY_SEALED);
+    if (cur && cur.address !== r.address) throw new Error('this browser holds a wallet of another address');
+    if (cur) {
+      storage.setItem(KEY_RETIRED, JSON.stringify(cur));
+      if (storage.getItem(KEY_RETIRED) == null) throw new Error('the retired wallet did not save');
+    }
+    var w = Object.assign({}, r);
+    delete w.recovery;
+    var text = JSON.stringify(w);
+    storage.setItem(KEY_SEALED, text);
+    if (storage.getItem(KEY_SEALED) !== text) throw new Error('the recovered wallet did not save');
+    storage.removeItem(KEY_RECOVERY);
+    return w;
   }
   // A new wallet: refused if any wallet is stored, so creation can never overwrite one.
   function storeNew(storage, r) {
@@ -309,10 +407,13 @@
 
   root.NoesisWallet = {
     CANONICAL_ORIGIN: CANONICAL_ORIGIN, KEY_SEALED: KEY_SEALED, KEY_PLAIN: KEY_PLAIN, KEY_V1: KEY_V1,
+    KEY_RECOVERY: KEY_RECOVERY, KEY_RETIRED: KEY_RETIRED,
     PBKDF2_ITER: PBKDF2_ITER, MIN_PASS: MIN_PASS,
     originOk: originOk, checkPass: checkPass, passKek: passKek, seal: seal,
     unlockPass: unlockPass, unlockPrf: unlockPrf, addPasskey: addPasskey,
     read: read, storedNext: storedNext, saveCounter: saveCounter, store: store, storeNew: storeNew, forget: forget,
+    keyOf: keyOf, storedKey: storedKey, saveRotation: saveRotation, saveKeyOp: saveKeyOp,
+    readRecovery: readRecovery, storeRecovery: storeRecovery, dropRecovery: dropRecovery, promoteRecovery: promoteRecovery,
     migrate: migrate, passkeyCreate: passkeyCreate, passkeyEval: passkeyEval
   };
 })(typeof window !== 'undefined' ? window : globalThis);

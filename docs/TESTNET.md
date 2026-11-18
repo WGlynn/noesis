@@ -5,14 +5,15 @@ Status words: built, designed, open. Never rounded up. Every protocol number bel
 ## Where it stands (2026-11-17)
 
 **Devnet stage, running the testnet genesis.** One node, run by the project on its own machine,
-using the testnet chain spec (`ChainSpec::testnet()`, `node/src/chainspec.rs:164`):
+using the testnet chain spec (`ChainSpec::testnet()`, `node/src/chainspec.rs:180`):
 
-- chain id `0x7e57` (`chainspec.rs:172`). The dev chain has a different id (`0xde0`, `chainspec.rs:92`). Every block carries its chain id and the rulebook refuses another network's block, so a block or a chain log of one network is refused by the other (since 2026-11-18; before, blocks named no chain and a dev log loaded on the testnet genesis);
+- chain id `0x7e57` (`chainspec.rs:188`). The dev chain has a different id (`0xde0`, `chainspec.rs:104`). Every block carries its chain id and the rulebook refuses another network's block, so a block or a chain log of one network is refused by the other (since 2026-11-18; before, blocks named no chain and a dev log loaded on the testnet genesis);
 - proof of work enforced in consensus (`pow_enforced: true`, `chainspec.rs:168`), so the testnet tests the real issuance model;
-- difficulty `0x1f00_ffff` (`pow_bits`, `chainspec.rs:177`), which every block's seal must claim (no retarget, so every height uses it; since 2026-11-18, before which a seal was checked only against the bits it named). About 1 hash in 65,536 meets it: a placeholder that is harder than dev, not a measured mainnet difficulty;
+- difficulty `0x1f00_ffff` (`pow_bits`, `chainspec.rs:193`), which every block's seal must claim (no retarget, so every height uses it; since 2026-11-18, before which a seal was checked only against the bits it named). About 1 hash in 65,536 meets it: a placeholder that is harder than dev, not a measured mainnet difficulty;
 - the identity issuer's authority cell, present from genesis (`chainspec.rs:59`). Identities minted under it get no PoM standing and no finality weight. A test checks this: `identity_mints_carry_zero_pom_and_zero_finality_weight`;
-- control binding on (`control_binding: true`, `chainspec.rs:171`): every spend of a cell must carry its owner's signature;
-- the block reward paid to the faucet, not to the placeholder validator key (`reward_to_faucet: true`, `chainspec.rs:201`). Each reward is locked by the faucet's own one-time key for that block. Who receives the reward changes no standing and no finality weight (test `the_reward_recipient_and_faucet_payouts_move_no_standing_and_no_finality_weight`).
+- control binding on (`control_binding: true`, `chainspec.rs:187`): every spend of a cell must carry its owner's signature;
+- the block reward paid to the faucet, not to the placeholder validator key (`reward_to_faucet: true`, `chainspec.rs:221`). Each reward is locked by the faucet's own one-time key for that block. Who receives the reward changes no standing and no finality weight (test `the_reward_recipient_and_faucet_payouts_move_no_standing_and_no_finality_weight`);
+- identity keys on (`key_rotation: true`, `chainspec.rs:196`; since 2026-11-18): an identity can rotate to the next hot key of its series, and its cold key can request a new hot key that takes effect 100 blocks after the request lands unless the current hot key cancels it (`recovery_delay_blocks`, `TESTNET_RECOVERY_DELAY_BLOCKS`, `chainspec.rs:74`). Turning this on changes nothing for an identity that never uses it, and no earlier block. See the section below.
 
 Test JUL is worthless by construction: it mints from trivial CPU work, on a chain of its own.
 
@@ -62,6 +63,30 @@ curl http://<node>/balance/<64 hex characters> # JUL held under that address
   forged. For the same reason a reset needs a new faucet seed: the keys derive from the seed and the
   block height, so the old seed on a new chain would sign a second message with each key.
 
+## Identity keys: rotation and cold-key recovery (wallet decisions A1 and A7)
+
+Built 2026-11-18 in the reference node (`node/src/identity_key.rs`); the page offers both.
+
+- **Rotate.** Unlock the wallet and press "Rotate to the next key". The current hot key signs a move to the
+  next key of the series derived from the same hot seed, so the existing backup covers the new key. It rides
+  the next contribution block; from that block on the new key signs (its one-time-key counter starts at 0)
+  and the old key signs nothing for the address. The address and its standing do not change.
+- **Recover.** In the RECOVER section, paste the address and the cold key from paper, choose a passphrase
+  for a new hot key made in that browser, and send. The request takes effect 100 blocks after the block that
+  carries it. Until then anyone holding the address's current hot key can cancel it, so recovery helps when
+  the hot key is lost, not when it is stolen. While no key change for the address is on the chain yet, the
+  request must also name the address's first hot key root: write it down with the cold key (the wallet page
+  shows it, and a new wallet's recovery sheet includes it).
+- **Notice.** A wallet page whose address has a recovery request pending shows a red warning with the block
+  it takes effect at, and a button to cancel it.
+- `GET /keys/<address>` shows an address's key record, and `POST /key` takes a signed rotate, recover or
+  cancel. A follower answers `POST /key` with 409 and the producer's URL.
+
+Honest floor: the delay counts blocks, and testnet blocks are made on demand, so someone making many blocks
+shortens it in wall-clock time. Key operations waiting for a block live in the producer's memory; a page that
+sent one re-sends the same signed bytes after a restart. These rules are the reference node's, not the on-VM
+scripts'.
+
 ## Live sync (step 7)
 
 One producer, for now (decided 2026-11-17): the project's node makes every block of this chain, and a node
@@ -73,7 +98,7 @@ for this stage.
   (`node/src/follow.rs:48-52`), and says whether more are waiting. An up-to-date follower asks again every
   2 seconds (`follow.rs:55`), backing off to 30 seconds while the producer cannot be reached.
 - It runs every block through the producer's own acceptance path (`ChainSpec::accept_block`,
-  `node/src/chainspec.rs:282`): the block's chain id, the proof-of-work seal at the testnet's own difficulty,
+  `node/src/chainspec.rs:302`): the block's chain id, the proof-of-work seal at the testnet's own difficulty,
   token conservation, every spend's signature (control binding), the finality gate. Standing on a follower is whatever its own
   replay of the blocks gives; it is not taken on the producer's word.
 - It stops, keeps its chain, and says why (on its console and in `GET /state` under `replica.stopped`) when
@@ -81,8 +106,8 @@ for this stage.
   id on the page differs (each block's own chain id is checked as well, by the rulebook), or when the producer's history differs from its own (a running hash over every block from
   genesis, compared before each page). It never switches to the other history by itself.
 - A follower that restarts replays its own chain log and asks only for the blocks after it.
-- Submitting a contribution or asking the faucet at a follower returns HTTP 409 with the producer's URL. The
-  page sends the same signed contribution to the producer once.
+- Submitting a contribution, asking the faucet or sending a key operation at a follower returns HTTP 409 with
+  the producer's URL. The page sends the same signed body to the producer once.
 - A follower needs no faucet seed: the chain fixes the reward amount and never checks who receives it, so a
   follower checks a block that pays the faucet without the faucet's key.
 - Only finalized blocks are served, so a faucet payout's signatures do not leave the producer before the

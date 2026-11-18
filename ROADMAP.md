@@ -33,6 +33,15 @@
    `internal/DESIGN-joint-decay-damping-rate.md`. Code comments + patent line 233 relabeled to match.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-11-18 (wallet A1/A7, first cut: identity-key cell, derived key series, cold-key recovery)**: additive,
+  no reset. One identity-key cell per identity (token standard tag 4) records the current hot root; key i
+  derives from the hot seed and i (key 0 = the seed, so existing v2 wallets adopt with no migration);
+  recovery is signed by the cold key and takes effect after `Constitution::recovery_delay_blocks` (100 on
+  testnet), cancelable by the hot key. Enforced in the rulebook (`identity_key::check_block`). DEVIATION from
+  the approved design (Desktop wallet DESIGN.md, decision 7 and the key-cell section): rotation here is
+  immediate and the cold key can neither cancel it nor freeze, so a stolen hot key beats the cold key. Held
+  off the live node until a follow-up conforms it (rotation pending T blocks, cold-key cancel, cold-key
+  freeze). Also open: the delay counts blocks, which a producer can make on demand, not wall-clock time.
 - **2026-11-18 (blocks bound to their chain spec: exact PoW bits and a chain id)**: two rulebook gaps
   closed at height 0, before any testnet block. (1) A seal claiming any bits other than
   `Constitution::pow_bits` is refused before its hash is checked (`Violation::PowBitsWrong`); before, a

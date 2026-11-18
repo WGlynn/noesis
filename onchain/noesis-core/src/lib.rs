@@ -1393,6 +1393,17 @@ pub mod xmss_mt {
 /// re-point what a contribution builds on. The v2 personalization keeps every hash here apart from
 /// the v1 digest (personal `noesis-xmss-v1`, tag 0x03) and from every other hasher in the crate, so
 /// an old and a new digest never collide.
+///
+/// KEY SERIES (decision A1, 2026-11-18): one identity holds a series of hot keys. Hot key `i` of a
+/// wallet whose hot seed is `S` is [`derive_key`]`(S, i)`: key 0 is `S` itself (the key every v2
+/// wallet already has, so its identity is unchanged), key `i >= 1` is `H(0x06 || SCHEME || S || i_le32)`.
+/// One backup (`S`) covers every later key. No key's public root can be computed without `S`
+/// (hash-based keys have no public derivation), which is fine: the identity is the one address.
+/// KEY OPERATIONS (decisions A1 and A7): a rotation, a recovery request or a cancel signs
+/// [`key_op_digest`] = `H(0x05 || identity || op || chain_id_le64 || generation_le64 || new_root ||
+/// index_le32)`. Tag 0x05 keeps it apart from a contribution digest (0x03), so no contribution
+/// signature can be replayed as a key operation. The chain rules live in the node
+/// (`node/src/identity_key.rs`); no on-VM script reads these two functions.
 pub mod wallet {
     use super::xmss_mt;
 
@@ -1454,9 +1465,76 @@ pub mod wallet {
         xmss_mt::verify(root, index, msg, sig)
     }
 
+    /// The seed of hot key `i` in the series that hot seed `seed` derives (decision A1). Key 0 is the
+    /// seed itself, so a v2 wallet's existing key is key 0 and its identity does not change. A later
+    /// key is a one-way hash of the seed and its number, so a leaked later key reveals neither the seed
+    /// nor any other key; a leaked seed reveals every key (it is the backup).
+    pub fn derive_key(seed: &[u8; 32], i: u32) -> [u8; 32] {
+        if i == 0 {
+            return *seed;
+        }
+        h(0x06, &[&[SCHEME], seed, &i.to_le_bytes()])
+    }
+
+    /// `op` byte of a rotation (signed by the current hot key).
+    pub const OP_ROTATE: u8 = 1;
+    /// `op` byte of a recovery request (signed by the cold key).
+    pub const OP_RECOVER: u8 = 2;
+    /// `op` byte of a cancel of a pending recovery (signed by the current hot key).
+    pub const OP_CANCEL: u8 = 3;
+
+    /// The message a key operation signs: the identity, the operation, the network, the key generation
+    /// it acts on, the new hot root (zeros for a cancel) and the signer's one-time index. Binding the
+    /// generation makes an operation good for one key state only; binding the chain id makes it good on
+    /// one network only.
+    pub fn key_op_digest(
+        identity: &[u8; 32],
+        op: u8,
+        chain_id: u64,
+        generation: u64,
+        new_root: &[u8; 32],
+        index: u32,
+    ) -> [u8; 32] {
+        h(0x05, &[identity, &[op], &chain_id.to_le_bytes(), &generation.to_le_bytes(), new_root, &index.to_le_bytes()])
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn key_zero_is_the_seed_and_later_keys_are_distinct() {
+            let seed = [7u8; 32];
+            assert_eq!(derive_key(&seed, 0), seed, "key 0 is the wallet's existing hot key");
+            let (k1, k2) = (derive_key(&seed, 1), derive_key(&seed, 2));
+            assert!(k1 != seed && k2 != seed && k1 != k2, "every later key differs");
+            assert_ne!(derive_key(&[8u8; 32], 1), k1, "another seed, another series");
+            // the identity a wallet was born with does not move: it hashes key 0's root
+            let cc = cold_commit(&[4u8; 32]);
+            assert_eq!(identity(&key_root(&derive_key(&seed, 0)), &cc), identity(&key_root(&seed), &cc));
+        }
+
+        #[test]
+        fn a_key_op_signature_is_bound_to_every_field() {
+            let seed = [9u8; 32];
+            let root = key_root(&seed);
+            let id = identity(&root, &cold_commit(&[4u8; 32]));
+            let new_root = key_root(&derive_key(&seed, 1));
+            let msg = key_op_digest(&id, OP_ROTATE, 0x7e57, 0, &new_root, 300);
+            let sig = sign(&seed, 300, &msg);
+            assert!(verify(&root, 300, &msg, &sig));
+            for other in [
+                key_op_digest(&id, OP_RECOVER, 0x7e57, 0, &new_root, 300),
+                key_op_digest(&id, OP_ROTATE, 0xde0, 0, &new_root, 300),
+                key_op_digest(&id, OP_ROTATE, 0x7e57, 1, &new_root, 300),
+                key_op_digest(&id, OP_ROTATE, 0x7e57, 0, &[3u8; 32], 300),
+                key_op_digest(&[1u8; 32], OP_ROTATE, 0x7e57, 0, &new_root, 300),
+            ] {
+                assert!(!verify(&root, 300, &other, &sig), "a changed field breaks the signature");
+            }
+            // a contribution digest at the same index is a different message
+            assert_ne!(msg, contribution_digest(&id, 300, None, &new_root));
+        }
 
         #[test]
         fn the_digest_covers_the_parent() {

@@ -43,6 +43,27 @@ const cases = [
     '406733314cd931ba7fe698409ffd3174fcb51fc0a29cdfe83679614028a4c59eff95e26e634a6ab0676f46731970b240dc7d74e39b0ccc23ec0bc256bd31a543'],
 ];
 
+// The key series and key operations (A1/A7): key 1 of the hot seed, its root, a rotate digest at index
+// 300 and a cancel digest at generation 5 and the last index, and the rotation signature's hash. The same
+// bytes are pinned in `rpc::tests::key_series_parity_vectors_are_pinned`.
+const k1 = C.deriveKey(hot, 1);
+const root1 = C.mtKeygenRoot(k1);
+const rotDigest = C.keyOpDigest(id, C.OP_ROTATE, 0x7e57, 0, root1, 300);
+const rotSig = C.mtSign(hot, 300, rotDigest, cache);
+const rotHash = createHash('blake2b512');
+for (const part of [rotSig.bottom, rotSig.top]) for (const b of [part.ots_root, ...part.auth, part.ots_sig]) rotHash.update(b);
+cases.push(
+  ['key 0 is the hot seed itself (an existing wallet keeps its address)', C.hexEncode(C.deriveKey(hot, 0)), C.hexEncode(hot)],
+  ['deriveKey(seed=[7;32], 1)', C.hexEncode(k1), '50daba6867e74718e73d9f282f3980df8d7f2f04e5849a655aed67dcdf2dd63b'],
+  ['root of key 1', C.hexEncode(root1), '5e3e12e768494c491e23c7838a17315520f1e53b327ef9b43cbe5b8e7fa42dca'],
+  ['keyOpDigest(id, rotate, 0x7e57, gen 0, root1, 300)', C.hexEncode(rotDigest),
+    '4fdf5ffb1dc0f2b9becf130282a16e9e0b43af03ba3f4c225121f8f6d46ae597'],
+  ['keyOpDigest(id, cancel, 0x7e57, gen 5, zeros, 65535)', C.hexEncode(C.keyOpDigest(id, C.OP_CANCEL, 0x7e57, 5, new Uint8Array(32), 65535)),
+    '71c7833770367d9344de35ee4211b8c355f25246147d7477887e909abdb232ad'],
+  ['blake2b-512 of the rotation signature at 300', rotHash.digest('hex'),
+    '6142885ad721bec2d17c0a43066851591a28d0c1fdb62b5162c1aadf11ec8144d08ec126e8372b32c0ff680df007e6bb5567c074f4f1071d15b6176db64960f9'],
+);
+
 let ok = true;
 const check = (name, pass) => { ok = ok && pass; console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}`); };
 for (const [name, got, want] of cases) {
@@ -65,6 +86,9 @@ for (const g of [255, 256]) {
   const m = C.contributionDigest(freshId, g, null, C.utf8('a fresh idea ' + g));
   check(`fresh-wallet sign and verify at index ${g}`, C.mtVerify(mc.root, g, m, C.mtSign(master, g, m, mc)));
 }
+
+check('the rotation signature verifies under key 0, and not under key 1', C.mtVerify(hotRoot, 300, rotDigest, rotSig) && !C.mtVerify(root1, 300, rotDigest, rotSig));
+check('a rotation signature does not verify as another generation', !C.mtVerify(hotRoot, 300, C.keyOpDigest(id, C.OP_ROTATE, 0x7e57, 1, root1, 300), rotSig));
 
 console.log(ok ? '\nALL PARITY CHECKS PASS' : '\nPARITY FAILURE');
 process.exit(ok ? 0 : 1);

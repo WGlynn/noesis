@@ -22,9 +22,16 @@
 //!   * `GET  /blocks`   — the explorer: summaries of the newest finalized blocks.
 //!   * `GET  /blocks?since=N[&limit=M]` — full finalized blocks after height N, paged, with the chain link
 //!                      at N: what a follower pulls (testnet step 7, [`crate::follow`]).
+//!   * `GET  /keys/<identity>` — the identity's key record (wallet decisions A1/A7): its current hot key
+//!                      generation and root, the one-time index that key last used, a pending
+//!                      recovery and how many blocks remain to cancel it, and a key operation waiting
+//!                      here for the next block.
+//!   * `POST /key`      — a signed key operation (`parse_key_op`: rotate, recover or cancel), checked by
+//!                      the rulebook's own rule ([`crate::identity_key::build_tx`]) and held until the
+//!                      next contribution block carries it.
 //!
 //! A REPLICA (`noesisd --follow`, [`serve_follower`]) serves the same reads over its own store and answers
-//! `POST /submit`, `/faucet` and `/token-tx` with 409 and the producer's URL: one producer, for now.
+//! `POST /submit`, `/faucet`, `/token-tx` and `/key` with 409 and the producer's URL: one producer, for now.
 //!
 //! DELIBERATELY LEAN (the `net` precedent): std `TcpListener` + threads, NO async runtime and NO web
 //! framework. The request parser is bounded (a body cap + socket read timeout) — enough for a LOCAL
@@ -43,6 +50,7 @@ use serde_json::{json, Value};
 
 use crate::chainspec::ChainSpec;
 use crate::commit_order::Committed;
+use crate::identity_key::{self, pack_label, unpack_label, KeyOp, Kind, Record};
 use crate::runtime::{txs_conserve_and_single_use, Node, TokenStandard, TokenTx};
 use crate::{Cell, Script};
 
@@ -121,6 +129,9 @@ pub fn token_cell_json(c: &Cell) -> Value {
             }),
             None => Value::Null,
         };
+    } else if c.type_script.code_hash == identity_key::CODE_HASH {
+        v["standard"] = json!("identity-key");
+        v["record"] = identity_key::Record::decode(&c.data).map_or(Value::Null, |r| record_json(&r, 0));
     }
     v
 }
@@ -229,11 +240,15 @@ pub struct ServerState {
     /// The node-local ingress screen: rejects trivial / near-duplicate submissions before the mempool.
     /// Advisory (never consensus); rebuilt from the persisted chain on boot so originality survives a restart.
     screen: crate::screen::Screen,
-    /// Anti-replay for the one-time XMSS^MT leaves: the highest index accepted per wallet identity.
-    /// A new signed submit must use a STRICTLY GREATER index (each Lamport leaf signs at most once).
-    /// Durable by construction — rebuilt on boot from each cell's `lock.args` (`identity‖index_le`), so
-    /// it needs no sidecar and survives a restart along with the chain.
-    used_index: std::collections::HashMap<[u8; 32], u64>,
+    /// Anti-replay for the one-time XMSS^MT leaves: the highest index accepted per (identity, key
+    /// generation), so counters are per key (wallet decision A1): a rotated or recovered identity's new
+    /// key starts at 0. A new signed submit must use a STRICTLY GREATER index than its key's (each
+    /// Lamport leaf signs at most once), and above any index that key spent on a key operation
+    /// ([`Self::highest_used`]). Durable by construction: rebuilt on boot from each cell's `lock.args`
+    /// label ([`identity_key::unpack_label`]), so it needs no sidecar and survives a restart.
+    used_index: std::collections::HashMap<([u8; 32], u64), u64>,
+    /// Key operations (`POST /key`) waiting for the next contribution block. Node-local.
+    pending_key_ops: Vec<QueuedKeyOp>,
     /// Signed soulbound txs from `POST /token-tx`, waiting for the next contribution block to carry
     /// them (a block needs a contribution, so a token tx never makes a block alone). Node-local.
     pending_token_txs: Vec<TokenTx>,
@@ -283,21 +298,68 @@ fn block_summary(b: &crate::runtime::Block) -> Value {
     })
 }
 
-/// A finalized contribution cell binds its signer + one-time leaf into `lock.args = identity(32)‖
-/// index_le(8)` (40 bytes). This lets the anti-replay map rebuild from the durable chain alone.
-fn pack_lock_args(identity: &[u8; 32], index: u32) -> Vec<u8> {
-    let mut a = identity.to_vec();
-    a.extend_from_slice(&(index as u64).to_le_bytes());
-    a
+/// A key operation this node holds for the next block (`POST /key`), with the tx the rulebook's rule built
+/// for that block and the record it leaves. Rebuilt before every block ([`ServerState::refresh_key_ops`]);
+/// dropped once a block carries it or once it no longer holds. Node-local: lost on restart (the wallet
+/// keeps the signed body and sends it again).
+struct QueuedKeyOp {
+    identity: [u8; 32],
+    op: KeyOp,
+    encoded: Vec<u8>,
+    height: u64,
+    tx: TokenTx,
+    after: Record,
 }
-/// Recover `(identity, index)` from a contribution cell's `lock.args`, if it is the 40-byte signed form.
-fn unpack_lock_args(args: &[u8]) -> Option<([u8; 32], u64)> {
-    if args.len() != 40 {
-        return None;
+
+/// Most key operations a node holds while they wait for a contribution block (one per identity).
+const MAX_PENDING_KEY_OPS: usize = 16;
+
+/// A key record as the API shows it. `next_block` is the height of the block a cancel would land in.
+fn record_json(r: &Record, next_block: u64) -> Value {
+    json!({
+        "generation": r.generation,
+        "hot_root": hex_encode(&r.hot_root),
+        "cold_commit": hex_encode(&r.cold_commit),
+        "hot_floor": r.hot_floor,
+        "cold_floor": r.cold_floor,
+        "pending": r.pending.map(|p| json!({
+            "new_root": hex_encode(&p.new_root),
+            "effective_at": p.effective_at,
+            "cancel_blocks_left": p.effective_at.saturating_sub(next_block),
+        })),
+    })
+}
+
+/// Parse a `POST /key` body: `{op, identity, index, new_root?, birth?: {hot_root, cold_commit},
+/// cold_root?, bottom, top}`. `new_root` for a rotate or recover, `cold_root` for a recover, `birth` for an
+/// identity's first key operation. The signature is the signer's XMSS^MT signature over
+/// `wallet::key_op_digest(identity, op, chain_id, generation, new_root, index)`.
+fn parse_key_op(v: &Value) -> Result<([u8; 32], KeyOp), String> {
+    use noesis_core::{wallet, xmss, xmss_mt};
+    let kind = v
+        .get("op")
+        .and_then(Value::as_str)
+        .and_then(Kind::from_name)
+        .ok_or("'op' must be rotate, recover or cancel")?;
+    let identity = hex32(v, "identity")?;
+    let index = v
+        .get("index")
+        .and_then(Value::as_u64)
+        .filter(|&g| g < wallet::MAX_SIGS)
+        .ok_or_else(|| format!("'index' must be a one-time key index below {}", wallet::MAX_SIGS))? as u32;
+    let new_root = if kind == Kind::Cancel { [0u8; 32] } else { hex32(v, "new_root")? };
+    let birth = match v.get("birth") {
+        None | Some(Value::Null) => None,
+        Some(b) => Some((hex32(b, "hot_root")?, hex32(b, "cold_commit")?)),
+    };
+    let cold_root = if kind == Kind::Recover { Some(hex32(v, "cold_root")?) } else { None };
+    let bottom = parse_tree_sig(v, "bottom", index & (xmss::LEAVES as u32 - 1))?;
+    let top = parse_tree_sig(v, "top", index >> xmss::H)?;
+    if bottom.ots_sig.len() != 256 * 64 || top.ots_sig.len() != 256 * 64 {
+        return Err("'ots_sig' must be a 16 KiB Lamport signature".into());
     }
-    let addr = <[u8; 32]>::try_from(&args[..32]).ok()?;
-    let index = u64::from_le_bytes(<[u8; 8]>::try_from(&args[32..40]).ok()?);
-    Some((addr, index))
+    let sig = xmss_mt::MtSignature { g: index, bottom, top };
+    Ok((identity, KeyOp { kind, index, new_root, birth, cold_root, sig }))
 }
 
 impl ServerState {
@@ -313,6 +375,7 @@ impl ServerState {
             store: None,
             screen: crate::screen::Screen::new(),
             used_index: std::collections::HashMap::new(),
+            pending_key_ops: Vec::new(),
             pending_token_txs: Vec::new(),
             included_token_txs: Vec::new(),
             blocks: Vec::new(),
@@ -353,11 +416,11 @@ impl ServerState {
         // Rebuild the ingress screen's seen-set AND the per-address anti-replay high-water mark from the
         // replayed chain, so both originality checks and one-time-leaf enforcement survive a restart.
         let mut screen = crate::screen::Screen::new();
-        let mut used_index: std::collections::HashMap<[u8; 32], u64> = std::collections::HashMap::new();
+        let mut used_index: std::collections::HashMap<([u8; 32], u64), u64> = std::collections::HashMap::new();
         for c in &node.ledger.cells {
             screen.record(&c.data);
-            if let Some((addr, index)) = unpack_lock_args(&c.lock.args) {
-                let e = used_index.entry(addr).or_insert(0);
+            if let Some((addr, index, generation)) = unpack_label(&c.lock.args) {
+                let e = used_index.entry((addr, generation)).or_insert(0);
                 *e = (*e).max(index);
             }
         }
@@ -369,6 +432,7 @@ impl ServerState {
                 store: Some(path),
                 screen,
                 used_index,
+                pending_key_ops: Vec::new(),
                 pending_token_txs: Vec::new(),
                 included_token_txs: Vec::new(),
                 blocks,
@@ -454,13 +518,16 @@ impl ServerState {
     fn record_block(&mut self, block: &crate::runtime::Block) -> Result<(), String> {
         for c in &block.cells {
             self.screen.record(&c.data);
-            if let Some((addr, index)) = unpack_lock_args(&c.lock.args) {
-                let e = self.used_index.entry(addr).or_insert(0);
+            if let Some((addr, index, generation)) = unpack_label(&c.lock.args) {
+                let e = self.used_index.entry((addr, generation)).or_insert(0);
                 *e = (*e).max(index);
             }
             self.next_id = self.next_id.max(c.id + 1);
         }
         for t in &block.token_txs {
+            if t.standard == TokenStandard::IdentityKey {
+                self.pending_key_ops.retain(|q| q.identity.as_slice() != t.args.as_slice());
+            }
             let d = t.digest();
             self.pending_token_txs.retain(|p| p.digest() != d);
             self.included_token_txs.push((d, block.height));
@@ -696,7 +763,103 @@ impl ServerState {
                 carried.pop();
             }
         }
+        // Key operations: each was rebuilt for this block by the rulebook's own rule.
+        self.refresh_key_ops();
+        carried.extend(self.pending_key_ops.iter().map(|q| q.tx.clone()));
         carried
+    }
+
+    /// Rebuild every held key operation for the next block, dropping any that no longer holds.
+    fn refresh_key_ops(&mut self) {
+        let height = self.node.ledger.height + 1;
+        let (ledger, c) = (&self.node.ledger, &self.node.constitution);
+        self.pending_key_ops.retain_mut(|q| match identity_key::build_tx(ledger, height, q.identity, &q.op, c) {
+            Ok((tx, after)) => {
+                (q.tx, q.after, q.height) = (tx, after, height);
+                true
+            }
+            Err(_) => false,
+        });
+    }
+
+    /// The key record that governs `identity` in the block at `height`: the record a key operation this
+    /// node holds for that block leaves, else the chain's record as it stands at that height, else
+    /// `None` (no key record: the identity's birth key signs).
+    fn key_state(&self, identity: &[u8; 32], height: u64) -> Option<Record> {
+        if let Some(q) = self.pending_key_ops.iter().find(|q| &q.identity == identity && q.height == height) {
+            return Some(q.after);
+        }
+        identity_key::live_record(&self.node.ledger, identity).map(|r| r.at(height))
+    }
+
+    /// The highest one-time index key `generation` of `identity` has used, for a contribution or for a
+    /// key operation (a cancel raises the key's hot floor past its own index), as of the block at `height`.
+    fn highest_used(&self, identity: &[u8; 32], generation: u64, height: u64) -> Option<u64> {
+        let contributions = self.used_index.get(&(*identity, generation)).copied();
+        let key_ops = self
+            .key_state(identity, height)
+            .filter(|r| r.generation == generation && r.hot_floor > 0)
+            .map(|r| r.hot_floor - 1);
+        contributions.max(key_ops)
+    }
+
+    /// `POST /key`: hold a signed key operation for the next block, if the rulebook's rule takes it there
+    /// ([`identity_key::build_tx`], the function the block check runs). One per identity; re-sending the
+    /// same operation is a no-op.
+    fn queue_key_op(&mut self, identity: [u8; 32], op: KeyOp) -> Result<Value, String> {
+        self.refresh_key_ops();
+        let height = self.node.ledger.height + 1;
+        let encoded = op.encode();
+        if let Some(q) = self.pending_key_ops.iter().find(|q| q.identity == identity) {
+            if q.encoded == encoded {
+                return Ok(self.key_op_json(q));
+            }
+            return Err("another key operation for this identity is waiting for the next block; send this one after it lands".into());
+        }
+        if self.pending_key_ops.len() >= MAX_PENDING_KEY_OPS {
+            return Err("the key operation queue is full; wait for a block".into());
+        }
+        let (tx, after) = identity_key::build_tx(&self.node.ledger, height, identity, &op, &self.node.constitution)?;
+        let q = QueuedKeyOp { identity, op, encoded, height, tx, after };
+        let v = self.key_op_json(&q);
+        self.pending_key_ops.push(q);
+        Ok(v)
+    }
+
+    fn key_op_json(&self, q: &QueuedKeyOp) -> Value {
+        json!({
+            "queued": true,
+            "op": q.op.kind.name(),
+            "identity": hex_encode(&q.identity),
+            "lands_in_block": q.height,
+            "after": record_json(&q.after, q.height),
+            "note": "carried by the next contribution block; from that block on the identity's key is the one in 'after'",
+        })
+    }
+
+    /// `GET /keys/<identity>`: the identity's key record on chain, a key operation held here for the next
+    /// block, and the record that governs the next block (`current`, `null` when the identity has no key
+    /// record and its birth key signs), with the one-time index its key last used.
+    fn keys_json(&self, identity: &[u8; 32]) -> Value {
+        let next = self.node.ledger.height + 1;
+        let c = &self.node.constitution;
+        let on_chain = identity_key::live_record(&self.node.ledger, identity).map(|r| r.at(next));
+        let queued = self.pending_key_ops.iter().find(|q| &q.identity == identity && q.height == next);
+        let current = self.key_state(identity, next);
+        let generation = current.map_or(0, |r| r.generation);
+        json!({
+            "identity": hex_encode(identity),
+            "chain_id": c.chain_id,
+            "height": self.node.ledger.height,
+            "next_block": next,
+            "key_rotation": c.key_rotation,
+            "recovery_delay_blocks": c.recovery_delay_blocks,
+            "on_chain": on_chain.as_ref().map(|r| record_json(r, next)),
+            "queued": queued.map(|q| json!({ "op": q.op.kind.name(), "index": q.op.index, "new_root": hex_encode(&q.op.new_root) })),
+            "current": current.as_ref().map(|r| record_json(r, next)),
+            "generation": generation,
+            "highest_used": self.highest_used(identity, generation, next),
+        })
     }
 
     /// `GET /faucet`: whether this node runs the faucet, what it holds, the drip and the limits.
@@ -810,10 +973,31 @@ impl ServerState {
                 return Err(format!("parent {p} names no finalized contribution"));
             }
         }
-        // 1. The identity is fixed at creation: it must hash from this hot root and cold commitment.
-        if wallet::identity(&hot_root, &cold_commit) != identity {
-            return Err("identity is not the hash of this hot_root and cold_commit".into());
-        }
+        // 1. Who may sign for this identity in this block (wallet decisions A1/A7). With no key record:
+        //    its birth key, exactly as before: the identity must hash from this hot root and cold
+        //    commitment. With a key record (on chain, or a key operation this node holds for this very
+        //    block): its current hot root and nothing else, so a retired key is refused from the block of
+        //    the operation that retired it on. The rulebook cannot re-check this (a contribution's
+        //    signature never enters the block); it checks the key label written below.
+        let generation = match self.key_state(&identity, height) {
+            None => {
+                if wallet::identity(&hot_root, &cold_commit) != identity {
+                    return Err("identity is not the hash of this hot_root and cold_commit".into());
+                }
+                0
+            }
+            Some(rec) => {
+                if hot_root != rec.hot_root || cold_commit != rec.cold_commit {
+                    return Err(format!(
+                        "the key that signed is not this identity's current hot key: the identity is at key \
+                         generation {} (hot root {}); a retired key signs nothing for it",
+                        rec.generation,
+                        hex_encode(&rec.hot_root)
+                    ));
+                }
+                rec.generation
+            }
+        };
         // 2. Cryptographic authorization: the hot key's signature must verify over the exact
         //    (identity, index, parent, data) message. This is what makes the identity REAL (existence ≠
         //    control), and the signed parent means a relay cannot re-point what this builds on.
@@ -821,9 +1005,10 @@ impl ServerState {
         if !wallet::verify(&hot_root, index, &digest, &sig) {
             return Err("signature does not verify under this identity's hot key".into());
         }
-        // 3. One-time-leaf anti-replay, per identity: each XMSS^MT leaf signs at most once, so a wallet
-        //    must advance its index. Reuse or regression is a replay attempt (or a stale wallet).
-        if let Some(&last) = self.used_index.get(&identity) {
+        // 3. One-time-leaf anti-replay, per key: each XMSS^MT leaf signs at most once, so a wallet must
+        //    advance its index past every contribution and key operation this key has signed. Reuse or
+        //    regression is a replay attempt (or a stale wallet).
+        if let Some(last) = self.highest_used(&identity, generation, height) {
             if index as u64 <= last {
                 return Err(format!(
                     "leaf index {index} already used for this identity (last accepted {last}); the wallet must advance"
@@ -836,14 +1021,14 @@ impl ServerState {
         }
         let id = self.next_id;
         self.next_id += 1;
-        // Soulbound identity (`type_script.args`) = the wallet identity. The lock binds identity‖index
-        // so the anti-replay high-water mark rebuilds from the durable chain. A distinct per-id secret
-        // keeps ordering coordinates unique.
+        // Soulbound identity (`type_script.args`) = the wallet identity. The lock carries the key label
+        // (identity, index, and the key generation from 1 on), so the per-key high-water mark rebuilds
+        // from the durable chain. A distinct per-id secret keeps ordering coordinates unique.
         let mut secret = [0u8; 32];
         secret[..8].copy_from_slice(&id.to_le_bytes());
         let cell = Cell {
             id,
-            lock: Script { code_hash: [0u8; 32], args: pack_lock_args(&identity, index) },
+            lock: Script { code_hash: [0u8; 32], args: pack_label(&identity, index as u64, generation) },
             type_script: Script { code_hash: [1u8; 32], args: identity.to_vec() },
             parent,
             timestamp: id,
@@ -862,7 +1047,7 @@ impl ServerState {
                 // log (before returning), the same bookkeeping a follower does for a pulled block. A block
                 // the log could not take is not reported final.
                 self.record_block(&block)?;
-                debug_assert_eq!(self.used_index.get(&identity), Some(&(index as u64)));
+                debug_assert_eq!(self.used_index.get(&(identity, generation)), Some(&(index as u64)));
                 Ok(block.height)
             }
             None => Err("contribution did not finalize a block".into()),
@@ -888,7 +1073,7 @@ pub fn handle_request(
     let out = |status: u16, v: Value| (status, "application/json", v.to_string().into_bytes());
     let (path, query) = path.split_once('?').unwrap_or((path, ""));
     // A replica produces nothing: whatever would need a block goes to the producer (409 + its URL).
-    if method == "POST" && matches!(path, "/submit" | "/faucet" | "/token-tx") {
+    if method == "POST" && matches!(path, "/submit" | "/faucet" | "/token-tx" | "/key") {
         if let Some(refusal) = state.replica_refusal() {
             return out(409, refusal);
         }
@@ -1010,13 +1195,40 @@ pub fn handle_request(
         // A wallet's one-time-key high-water mark (wallet design decision 6): the highest index this
         // node has accepted for the identity (the address), or null. A wallet resumes at max(local, this + 1),
         // so a lost or rolled-back local counter can never reuse a one-time key the chain already saw.
+        // Per key (A1): the identity's CURRENT key, so a rotated or recovered wallet resumes its new key.
         ("GET", p) if p.starts_with("/index/") => match hex_decode(&p["/index/".len()..]) {
             Some(a) if a.len() == 32 => {
                 let addr = <[u8; 32]>::try_from(a.as_slice()).expect("checked length");
-                out(200, json!({ "address": hex_encode(&addr), "highest_used": state.used_index.get(&addr) }))
+                let next = state.node.ledger.height + 1;
+                let generation = state.key_state(&addr, next).map_or(0, |r| r.generation);
+                out(
+                    200,
+                    json!({
+                        "address": hex_encode(&addr),
+                        "highest_used": state.highest_used(&addr, generation, next),
+                        "generation": generation,
+                    }),
+                )
             }
             _ => out(400, json!({ "error": "the address must be 64 hex characters" })),
         },
+        ("GET", p) if p.starts_with("/keys/") => match hex_decode(&p["/keys/".len()..]) {
+            Some(a) if a.len() == 32 => out(200, state.keys_json(&<[u8; 32]>::try_from(a.as_slice()).expect("checked length"))),
+            _ => out(400, json!({ "error": "the identity must be 64 hex characters" })),
+        },
+        ("POST", "/key") => {
+            let parsed = serde_json::from_slice::<Value>(body)
+                .map_err(|e| format!("invalid JSON: {e}"))
+                .and_then(|v| parse_key_op(&v));
+            let (identity, op) = match parsed {
+                Ok(t) => t,
+                Err(e) => return out(400, json!({ "error": e })),
+            };
+            match state.queue_key_op(identity, op) {
+                Ok(v) => out(200, v),
+                Err(e) => out(400, json!({ "error": e })),
+            }
+        }
         ("GET", _) | ("POST", _) => out(404, json!({ "error": "not found" })),
         _ => out(405, json!({ "error": "method not allowed" })),
     }
@@ -1177,11 +1389,12 @@ fn serve(addr: &str, store_path: &str, spec: ChainSpec, producer: Option<&str>) 
     println!("  POST /token-tx {{tx,auths}} -> signed soulbound tx, carried by the next contribution block");
     println!("  GET  /faucet  POST /faucet {{address}}  GET /balance/<address> -> test JUL (faucet chains only)");
     println!("  GET  /blocks?since=N     -> finalized blocks after height N, paged (what a follower pulls)");
+    println!("  GET  /keys/<identity>  POST /key {{op,identity,index,...}} -> identity keys: rotate, recover, cancel");
 
     let height = server_state.height();
     let state = Arc::new(Mutex::new(server_state));
     if let Some(p) = producer {
-        println!("  POST /submit, /faucet, /token-tx -> 409 {{producer}} (this node is a replica)");
+        println!("  POST /submit, /faucet, /token-tx, /key -> 409 {{producer}} (this node is a replica)");
         println!("FOLLOWING {p} from height {height}");
         let follower = Arc::clone(&state);
         std::thread::spawn(move || crate::follow::run(follower, p));
@@ -1318,6 +1531,44 @@ mod tests {
             hex_encode(&out),
             "406733314cd931ba7fe698409ffd3174fcb51fc0a29cdfe83679614028a4c59eff95e26e634a6ab0676f46731970b240dc7d74e39b0ccc23ec0bc256bd31a543",
             "blake2b-512 of the MT signature at 300"
+        );
+    }
+
+    /// The key series and the key-operation digest (wallet decisions A1 and A7), pinned with the same bytes
+    /// as `frontend/parity-test.mjs`, so the browser's rotate, recover and cancel sign exactly what the
+    /// node's rule verifies.
+    #[test]
+    fn key_series_parity_vectors_are_pinned() {
+        use noesis_core::wallet;
+        let (hot, cold) = ([7u8; 32], [8u8; 32]);
+        let id = wallet::identity(&wallet::key_root(&hot), &wallet::cold_commit(&wallet::key_root(&cold)));
+        let k1 = wallet::derive_key(&hot, 1);
+        assert_eq!(hex_encode(&k1), "50daba6867e74718e73d9f282f3980df8d7f2f04e5849a655aed67dcdf2dd63b", "key 1 of seed [7;32]");
+        let root1 = wallet::key_root(&k1);
+        assert_eq!(hex_encode(&root1), "5e3e12e768494c491e23c7838a17315520f1e53b327ef9b43cbe5b8e7fa42dca", "key 1's root");
+        let rot = wallet::key_op_digest(&id, wallet::OP_ROTATE, 0x7e57, 0, &root1, 300);
+        assert_eq!(hex_encode(&rot), "4fdf5ffb1dc0f2b9becf130282a16e9e0b43af03ba3f4c225121f8f6d46ae597", "rotate digest");
+        assert_eq!(
+            hex_encode(&wallet::key_op_digest(&id, wallet::OP_CANCEL, 0x7e57, 5, &[0u8; 32], 65535)),
+            "71c7833770367d9344de35ee4211b8c355f25246147d7477887e909abdb232ad",
+            "cancel digest, generation 5, the last index"
+        );
+        let sig = wallet::sign(&hot, 300, &rot);
+        assert!(wallet::verify(&wallet::key_root(&hot), 300, &rot, &sig));
+        let mut h = blake2b_ref::Blake2bBuilder::new(64).build();
+        for t in [&sig.bottom, &sig.top] {
+            h.update(&t.ots_root);
+            for a in &t.auth {
+                h.update(a);
+            }
+            h.update(&t.ots_sig);
+        }
+        let mut out = [0u8; 64];
+        h.finalize(&mut out);
+        assert_eq!(
+            hex_encode(&out),
+            "6142885ad721bec2d17c0a43066851591a28d0c1fdb62b5162c1aadf11ec8144d08ec126e8372b32c0ff680df007e6bb5567c074f4f1071d15b6176db64960f9",
+            "blake2b-512 of the rotation signature at 300"
         );
     }
 
@@ -2205,7 +2456,8 @@ mod tests {
     fn a_replica_sends_submit_faucet_and_token_tx_to_the_producer() {
         let mut r = ServerState::with_spec(fast_testnet()).as_replica("https://producer.example".into());
         let ask = json!({ "address": hex_encode(&[0x7Au8; 32]) }).to_string().into_bytes();
-        for (path, body) in [("/submit", signed_body(&[0x11u8; 32], 0, TEXTS[0])), ("/faucet", ask), ("/token-tx", b"{}".to_vec())] {
+        let paths = [("/submit", signed_body(&[0x11u8; 32], 0, TEXTS[0])), ("/faucet", ask), ("/token-tx", b"{}".to_vec()), ("/key", b"{}".to_vec())];
+        for (path, body) in paths {
             let (s, _, b) = handle_request(&mut r, "POST", path, &body);
             assert_eq!(s, 409, "{path}");
             let v = state_of(&b);
@@ -2455,5 +2707,272 @@ mod tests {
         submit(&mut q, 3);
         assert_eq!(page(&mut q, 0)["tip"], 2);
         remove_with_aside(&pp);
+    }
+
+    // ---- identity keys (wallet decisions A1 and A7) through the API ----
+
+    /// A wallet with a real cold key (the route tests above commit to a bare cold root).
+    struct KeyWallet {
+        hot: [u8; 32],
+        cold: [u8; 32],
+        hot_root: [u8; 32],
+        cold_commit: [u8; 32],
+        id: [u8; 32],
+    }
+
+    fn key_wallet(hot: u8, cold: u8) -> KeyWallet {
+        use noesis_core::wallet;
+        let (hot, cold) = ([hot; 32], [cold; 32]);
+        let (hot_root, cold_root) = (wallet::key_root(&hot), wallet::key_root(&cold));
+        let cold_commit = wallet::cold_commit(&cold_root);
+        KeyWallet { hot, cold, hot_root, cold_commit, id: wallet::identity(&hot_root, &cold_commit) }
+    }
+
+    /// A contribution by `w`'s identity signed by `signer` (the key the wallet holds now).
+    fn contribution(w: &KeyWallet, signer: &[u8; 32], index: u32, data: &str) -> Vec<u8> {
+        use noesis_core::wallet;
+        let sig = wallet::sign(signer, index, &wallet::contribution_digest(&w.id, index, None, data.as_bytes()));
+        json!({
+            "identity": hex_encode(&w.id),
+            "hot_root": hex_encode(&wallet::key_root(signer)),
+            "cold_commit": hex_encode(&w.cold_commit),
+            "index": index,
+            "bottom": tree_json(&sig.bottom),
+            "top": tree_json(&sig.top),
+            "data": data,
+        })
+        .to_string()
+        .into_bytes()
+    }
+
+    /// A `POST /key` body, signed the way the page signs it.
+    #[allow(clippy::too_many_arguments)]
+    fn key_op_body(w: &KeyWallet, op: &str, signer: &[u8; 32], chain: u64, generation: u64, new_root: [u8; 32], index: u32, first: bool) -> Vec<u8> {
+        use noesis_core::wallet;
+        let kind = Kind::from_name(op).unwrap();
+        let sig = wallet::sign(signer, index, &wallet::key_op_digest(&w.id, kind.byte(), chain, generation, &new_root, index));
+        let mut v = json!({ "op": op, "identity": hex_encode(&w.id), "index": index, "bottom": tree_json(&sig.bottom), "top": tree_json(&sig.top) });
+        if kind != Kind::Cancel {
+            v["new_root"] = json!(hex_encode(&new_root));
+        }
+        if kind == Kind::Recover {
+            v["cold_root"] = json!(hex_encode(&wallet::key_root(signer)));
+        }
+        if first {
+            v["birth"] = json!({ "hot_root": hex_encode(&w.hot_root), "cold_commit": hex_encode(&w.cold_commit) });
+        }
+        v.to_string().into_bytes()
+    }
+
+    fn keys(st: &mut ServerState, w: &KeyWallet) -> Value {
+        let (s, _, b) = handle_request(st, "GET", &format!("/keys/{}", hex_encode(&w.id)), b"");
+        assert_eq!(s, 200);
+        state_of(&b)
+    }
+
+    fn post(st: &mut ServerState, path: &str, body: &[u8]) -> (u16, Value) {
+        let (s, _, b) = handle_request(st, "POST", path, body);
+        (s, state_of(&b))
+    }
+
+    /// Before any key operation an identity works exactly as before: the same check, a 40-byte label (the
+    /// pre-A1 cell bytes), no key record, generation 0.
+    #[test]
+    fn an_identity_with_no_key_record_submits_exactly_as_before() {
+        let mut st = ServerState::new();
+        let dave = [0x11u8; 32];
+        assert_eq!(handle_request(&mut st, "POST", "/submit", &signed_body(&dave, 0, "a note on tidal mills")).0, 200);
+        let cell = &st.node.ledger.cells[0];
+        let mut label = identity_of(&dave).0.to_vec();
+        label.extend_from_slice(&0u64.to_le_bytes());
+        assert_eq!(cell.lock.args, label, "identity || index, 40 bytes, as before A1");
+        let id = id_hex(&dave);
+        let k = state_of(&handle_request(&mut st, "GET", &format!("/keys/{id}"), b"").2);
+        assert_eq!((k["current"].clone(), k["on_chain"].clone(), k["generation"].clone(), k["highest_used"].clone()), (Value::Null, Value::Null, json!(0), json!(0)));
+        assert_eq!((k["key_rotation"].clone(), k["recovery_delay_blocks"].clone()), (json!(true), json!(3)), "the dev spec");
+        let i = state_of(&handle_request(&mut st, "GET", &format!("/index/{id}"), b"").2);
+        assert_eq!((i["highest_used"].clone(), i["generation"].clone()), (json!(0), json!(0)));
+        assert_eq!(ChainSpec::testnet().constitution.recovery_delay_blocks, crate::chainspec::TESTNET_RECOVERY_DELAY_BLOCKS);
+        assert!(ChainSpec::testnet().constitution.key_rotation);
+    }
+
+    /// A1 end to end: the current key signs a rotation to the next key in its series; from the block that
+    /// carries it the old key is refused and the new key signs from index 0; the counters are per key;
+    /// standing stays on the identity.
+    #[test]
+    fn a_rotation_through_the_route_moves_the_identity_to_its_next_key() {
+        use noesis_core::wallet;
+        let mut st = ServerState::new();
+        let chain = st.chain_id();
+        let w = key_wallet(0x13, 0xC3);
+        let k1 = wallet::derive_key(&w.hot, 1);
+        let root1 = wallet::key_root(&k1);
+        assert_eq!(post(&mut st, "/submit", &contribution(&w, &w.hot, 0, TEXTS[0])).0, 200);
+        // a rotation at the leaf the contribution used is refused (one leaf, one message)
+        let (s, v) = post(&mut st, "/key", &key_op_body(&w, "rotate", &w.hot, chain, 0, root1, 0, true));
+        assert_eq!(s, 400);
+        assert!(v["error"].as_str().unwrap().contains("already used"), "{v}");
+        let body = key_op_body(&w, "rotate", &w.hot, chain, 0, root1, 1, true);
+        let (s, v) = post(&mut st, "/key", &body);
+        assert_eq!(s, 200, "{v}");
+        assert_eq!((v["lands_in_block"].clone(), v["after"]["generation"].clone()), (json!(2), json!(1)));
+        assert_eq!(post(&mut st, "/key", &body).0, 200, "re-sending the same operation is a no-op");
+        let k = keys(&mut st, &w);
+        assert_eq!((k["queued"]["op"].clone(), k["current"]["generation"].clone(), k["highest_used"].clone()), (json!("rotate"), json!(1), Value::Null));
+        assert_eq!(k["on_chain"], Value::Null, "nothing on chain until a block carries it");
+        // from the rotation's block on, the old key is refused...
+        let (s, v) = post(&mut st, "/submit", &contribution(&w, &w.hot, 2, TEXTS[1]));
+        assert_eq!(s, 400);
+        assert!(v["error"].as_str().unwrap().contains("not this identity's current hot key"), "{v}");
+        assert_eq!(st.height(), 1, "nothing was made");
+        // ... and the new key signs from index 0, in the block that carries the rotation
+        let (s, v) = post(&mut st, "/submit", &contribution(&w, &k1, 0, TEXTS[1]));
+        assert_eq!(s, 200, "{v}");
+        assert_eq!(st.node.ledger.cells[1].lock.args, identity_key::pack_label(&w.id, 0, 1), "the generation-1 label");
+        let b = state_of(&handle_request(&mut st, "GET", "/blocks", b"").2);
+        assert_eq!((b["blocks"][0]["height"].clone(), b["blocks"][0]["token_txs"].clone()), (json!(2), json!(1)));
+        let k = keys(&mut st, &w);
+        assert_eq!((k["on_chain"]["generation"].clone(), k["on_chain"]["hot_root"].clone()), (json!(1), json!(hex_encode(&root1))));
+        assert_eq!((k["queued"].clone(), k["highest_used"].clone()), (Value::Null, json!(0)));
+        let i = state_of(&handle_request(&mut st, "GET", &format!("/index/{}", hex_encode(&w.id)), b"").2);
+        assert_eq!((i["generation"].clone(), i["highest_used"].clone()), (json!(1), json!(0)), "the wallet resumes its new key");
+        // per-key counters: the new key cannot reuse 0, the old key cannot sign at all
+        assert!(post(&mut st, "/submit", &contribution(&w, &k1, 0, TEXTS[2])).1["error"].as_str().unwrap().contains("already used"));
+        assert_eq!(post(&mut st, "/submit", &contribution(&w, &w.hot, 9, TEXTS[2])).0, 400);
+        assert_eq!(post(&mut st, "/submit", &contribution(&w, &k1, 1, TEXTS[2])).0, 200);
+        // standing: one identity, credited for all three contributions across both keys
+        let state = state_of(&handle_request(&mut st, "GET", "/state", b"").2);
+        assert_eq!(state["contributors"].as_object().unwrap().len(), 1);
+        assert!(state["contributors"][hex_encode(&w.id)].as_u64().unwrap() > 0);
+        let t = tokens(&mut st);
+        let kc = t["cells"].as_array().unwrap().iter().find(|c| c["standard"] == "identity-key").expect("the key cell is listed");
+        assert_eq!(kc["record"]["generation"], 1);
+    }
+
+    /// A7 end to end on dev (delay 3): a wrong cold key is refused; a request waits out its delay; the
+    /// current hot key cancels inside it and that leaf is then spent for contributions too; a replayed
+    /// request is refused; an uncancelled request takes effect, after which the old key is retired and the
+    /// recovered key signs from index 0.
+    #[test]
+    fn recovery_through_the_route_waits_out_the_delay_and_the_hot_key_can_cancel_it() {
+        use noesis_core::wallet;
+        let mut st = ServerState::new();
+        let chain = st.chain_id();
+        let w = key_wallet(0x14, 0xC4);
+        let fresh = [0x15u8; 32]; // the recovering device's new hot seed
+        let fresh_root = wallet::key_root(&fresh);
+        assert_eq!(post(&mut st, "/submit", &contribution(&w, &w.hot, 0, TEXTS[0])).0, 200);
+        // a thief's cold key (the body names its root): its commitment is not the identity's
+        let (s, v) = post(&mut st, "/key", &key_op_body(&w, "recover", &[0x66; 32], chain, 0, fresh_root, 0, true));
+        assert_eq!(s, 400);
+        assert!(v["error"].as_str().unwrap().contains("does not match this identity's cold commitment"), "{v}");
+        // the real cold key: queued, lands with the next block
+        let request = key_op_body(&w, "recover", &w.cold, chain, 0, fresh_root, 0, true);
+        assert_eq!(post(&mut st, "/key", &request).0, 200);
+        assert_eq!(post(&mut st, "/submit", &contribution(&w, &w.hot, 1, TEXTS[1])).0, 200, "the old key still signs");
+        let k = keys(&mut st, &w);
+        assert_eq!(k["current"]["pending"]["effective_at"], 2 + 3 + 1);
+        assert_eq!(k["current"]["pending"]["cancel_blocks_left"], 3);
+        // the hot key cancels; its leaf (2) is then spent for a contribution too
+        assert_eq!(post(&mut st, "/key", &key_op_body(&w, "cancel", &w.hot, chain, 0, [0u8; 32], 2, false)).0, 200);
+        assert!(post(&mut st, "/submit", &contribution(&w, &w.hot, 2, TEXTS[2])).1["error"].as_str().unwrap().contains("already used"));
+        assert_eq!(post(&mut st, "/submit", &contribution(&w, &w.hot, 3, TEXTS[2])).0, 200);
+        let k = keys(&mut st, &w);
+        assert_eq!((k["current"]["pending"].clone(), k["current"]["hot_floor"].clone()), (Value::Null, json!(3)));
+        // the same request bytes again: refused
+        assert_eq!(post(&mut st, "/key", &request).0, 400);
+        // a second request (cold index 1) that nobody cancels
+        let second = key_op_body(&w, "recover", &w.cold, chain, 0, fresh_root, 1, false);
+        assert_eq!(post(&mut st, "/key", &second).0, 200);
+        assert_eq!(post(&mut st, "/submit", &contribution(&w, &w.hot, 4, TEXTS[3])).0, 200); // block 4 carries it
+        assert_eq!(keys(&mut st, &w)["current"]["pending"]["effective_at"], 4 + 3 + 1);
+        for n in 4..7 {
+            submit(&mut st, n); // blocks 5, 6, 7 by other identities
+        }
+        // block 8: in effect. The old key is retired, the replay is refused, the new key signs from 0.
+        let k = keys(&mut st, &w);
+        assert_eq!((k["current"]["generation"].clone(), k["current"]["hot_root"].clone()), (json!(1), json!(hex_encode(&fresh_root))));
+        assert_eq!(post(&mut st, "/submit", &contribution(&w, &w.hot, 5, TEXTS[7])).0, 400);
+        assert!(post(&mut st, "/key", &second).1["error"].as_str().unwrap().contains("already used"));
+        assert_eq!(post(&mut st, "/submit", &contribution(&w, &fresh, 0, TEXTS[7])).0, 200);
+        assert_eq!(keys(&mut st, &w)["highest_used"], 0);
+        let state = state_of(&handle_request(&mut st, "GET", "/state", b"").2);
+        assert!(state["contributors"][hex_encode(&w.id)].as_u64().unwrap() > 0, "standing stayed on the identity");
+    }
+
+    /// The key lane in the rulebook, where every replica runs it: a follower derives the same key record
+    /// from the blocks, refuses a block whose key operation was tampered with (a forged signature or a
+    /// forged output), and a restart rebuilds the per-key counters from the chain log. On the testnet
+    /// constitution (control binding, the faucet, its 100-block delay).
+    #[test]
+    fn the_key_lane_replays_from_the_store_and_a_follower_enforces_it() {
+        use noesis_core::wallet;
+        let spec = fast_testnet();
+        let (mut p, pp) = producer_on(spec.clone(), "keys-p");
+        let chain = p.chain_id();
+        let w = key_wallet(0x16, 0xC6);
+        let k1 = wallet::derive_key(&w.hot, 1);
+        assert_eq!(post(&mut p, "/submit", &contribution(&w, &w.hot, 0, TEXTS[0])).0, 200);
+        assert_eq!(post(&mut p, "/key", &key_op_body(&w, "rotate", &w.hot, chain, 0, wallet::key_root(&k1), 1, true)).0, 200);
+        assert_eq!(post(&mut p, "/submit", &contribution(&w, &k1, 0, TEXTS[1])).0, 200); // block 2: the rotation
+        assert_eq!(post(&mut p, "/key", &key_op_body(&w, "recover", &w.cold, chain, 1, wallet::key_root(&[0x17; 32]), 0, false)).0, 200);
+        assert_eq!(post(&mut p, "/submit", &contribution(&w, &k1, 1, TEXTS[2])).0, 200); // block 3: the request
+        assert_eq!(keys(&mut p, &w)["current"]["pending"]["effective_at"], 3 + crate::chainspec::TESTNET_RECOVERY_DELAY_BLOCKS + 1);
+        // a follower: the same record, derived from the blocks
+        let (mut f, fp) = follower_on(spec.clone(), "keys-f");
+        apply_page(&mut f, &handle_request(&mut p, "GET", "/blocks?since=0&limit=1", b"").2).unwrap();
+        let genuine = page(&mut p, 1);
+        let rot = &genuine["blocks"][0]["token_txs"][0];
+        assert_eq!(rot["standard"], 4, "block 2 carries the rotation");
+        let mut forged_sig = genuine.clone();
+        let byte = rot["auths"][0][500].as_u64().unwrap();
+        forged_sig["blocks"][0]["token_txs"][0]["auths"][0][500] = json!(byte ^ 1);
+        let mut forged_out = genuine.clone(); // the producer names another hot root in the output
+        let mut data: Vec<u8> = serde_json::from_value(rot["outputs"][0]["data"].clone()).unwrap();
+        data[9] ^= 1;
+        forged_out["blocks"][0]["token_txs"][0]["outputs"][0]["data"] = json!(data);
+        for tampered in [forged_sig, forged_out] {
+            let e = stopped(apply_page(&mut f, tampered.to_string().as_bytes()));
+            assert!(e.contains("IdentityKey"), "{e}");
+            assert_eq!(f.height(), 1);
+        }
+        assert_eq!(apply_page(&mut f, genuine.to_string().as_bytes()), Ok((2, false)));
+        assert_eq!(f.state_digest(), p.state_digest());
+        for (who, st) in [("follower", &mut f), ("producer", &mut p)] {
+            let k = keys(st, &w);
+            assert_eq!(k["on_chain"]["generation"], 1, "{who}");
+            assert_eq!(k["highest_used"], 1, "{who}");
+        }
+        // a restart replays the chain log through the rulebook and rebuilds the per-key counters
+        drop(p);
+        let (mut again, replayed) = ServerState::with_store(&pp, spec).unwrap();
+        assert_eq!(replayed, 3);
+        let again = &mut again;
+        let k = keys(again, &w);
+        assert_eq!((k["on_chain"]["generation"].clone(), k["highest_used"].clone()), (json!(1), json!(1)));
+        assert!(k["on_chain"]["pending"]["effective_at"].is_u64());
+        let i = state_of(&handle_request(again, "GET", &format!("/index/{}", hex_encode(&w.id)), b"").2);
+        assert_eq!((i["generation"].clone(), i["highest_used"].clone()), (json!(1), json!(1)));
+        let _ = (std::fs::remove_file(&pp), std::fs::remove_file(&fp));
+    }
+
+    /// Malformed key operations are refused before anything is held: bad JSON, an unknown op, a short
+    /// signature, an out-of-range index.
+    #[test]
+    fn malformed_key_operations_are_refused_and_nothing_is_held() {
+        let mut st = ServerState::new();
+        let w = key_wallet(0x18, 0xC8);
+        let good: Value = serde_json::from_slice(&key_op_body(&w, "rotate", &w.hot, st.chain_id(), 0, [9u8; 32], 0, true)).unwrap();
+        let mut unknown = good.clone();
+        unknown["op"] = json!("transfer");
+        let mut short = good.clone();
+        short["bottom"]["ots_sig"] = json!("00");
+        let mut far = good.clone();
+        far["index"] = json!(noesis_core::wallet::MAX_SIGS);
+        for bad in [b"{".to_vec(), unknown.to_string().into_bytes(), short.to_string().into_bytes(), far.to_string().into_bytes()] {
+            assert_eq!(handle_request(&mut st, "POST", "/key", &bad).0, 400);
+        }
+        assert!(st.pending_key_ops.is_empty());
+        assert_eq!(handle_request(&mut st, "GET", "/keys/not-hex", b"").0, 400);
     }
 }

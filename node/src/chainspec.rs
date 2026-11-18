@@ -61,6 +61,18 @@ pub const TESTNET_IDENTITY_AUTHORITY_ROOT: [u8; 32] = [
     0x63, 0x3a, 0x07, 0xfc, 0xd8, 0xd7, 0xae, 0x0a, 0x1c, 0xd3, 0x15, 0x2a, 0xd2, 0x7d, 0x6c, 0x7e,
 ];
 
+/// The testnet's recovery time lock (`Constitution::recovery_delay_blocks`): a cold-key recovery request
+/// takes effect 101 blocks after the block that carries it, so the identity's current hot key has 100
+/// blocks in which to cancel it. Why 100: testnet blocks are made on demand, one per accepted
+/// contribution, at a few to a few dozen a day, so 100 blocks of ordinary traffic is days to weeks, time
+/// for an owner whose cold key leaked to see the page's warning and cancel; and an owner who lost the hot
+/// key is never stuck waiting on others, because anyone (the owner too, from a second wallet) can make
+/// blocks. HONEST FLOOR: the same is true of a thief: about 100 cheap submissions make 100 blocks in
+/// minutes, so on the testnet the delay bounds chain activity, not wall-clock time. A wall-clock floor
+/// needs block timestamps under clock enforcement (the testnet's existing blocks carry none, so turning it
+/// on would refuse them on replay) or a producer-side block rate; both are open.
+pub const TESTNET_RECOVERY_DELAY_BLOCKS: u64 = 100;
+
 impl ChainSpec {
     /// The network id ([`Constitution::chain_id`]): every block carries it and the rulebook refuses one
     /// whose id differs, so a devnet, a testnet and mainnet never accept each other's blocks.
@@ -93,6 +105,10 @@ impl ChainSpec {
             // 0x2000ffff ⇒ target 0x00ffff·2^232 ≈ 2^248 ⇒ about 1 hash in 256 meets it ⇒ instant
             // local mining. A valid compact the decoder accepts (see pow_arithmetic tests).
             pow_bits: 0x2000_ffff,
+            // Identity keys (A1/A7) on, with a short recovery delay so a local devnet can walk a recovery
+            // through in a few blocks. The testnet's delay is TESTNET_RECOVERY_DELAY_BLOCKS.
+            key_rotation: true,
+            recovery_delay_blocks: 3,
             ..Default::default()
         };
 
@@ -175,6 +191,10 @@ impl ChainSpec {
             // (0x00ffff) ⇒ a compact the decoder accepts. TESTNET PLACEHOLDER — the measured mainnet value
             // is the standing ⚑.
             pow_bits: 0x1f00_ffff,
+            // Identity keys (wallet decisions A1 and A7, 2026-11-18): rotation to the next hot key, and
+            // cold-key recovery behind a time lock the current hot key can cancel.
+            key_rotation: true,
+            recovery_delay_blocks: TESTNET_RECOVERY_DELAY_BLOCKS,
             ..Default::default()
         };
 

@@ -203,6 +203,18 @@ pub struct Constitution {
     /// [`Block::assemble`] also uses, so blocks built and checked against the default rulebook (most
     /// unit tests) are unchanged.
     pub chain_id: u64,
+    /// Identity keys (wallet decisions A1 and A7, 2026-11-18; [`crate::identity_key`]). When `true` a
+    /// block may carry identity-key txs: a rotation to the identity's next hot key, a cold-key recovery
+    /// request behind a time lock, or a cancel of one; and a contribution by an identity with a key
+    /// record must carry its current key's label. Default `false`: every identity-key tx is refused and
+    /// nothing else changes (byte-identical). On in `ChainSpec::dev()` and `ChainSpec::testnet()`.
+    pub key_rotation: bool,
+    /// The recovery time lock, in blocks: a cold-key recovery request carried by block `h` takes effect
+    /// at block `h + recovery_delay_blocks + 1`, so the current hot key has exactly this many blocks to
+    /// cancel it. Read only when `key_rotation` is on; [`Node::new`] refuses `0` there (no cancel
+    /// window). Testnet 100 (`ChainSpec::testnet`, reasons there). Counted in blocks, which the testnet
+    /// makes on demand, so it bounds chain activity, not wall-clock time.
+    pub recovery_delay_blocks: u64,
 }
 
 impl Default for Constitution {
@@ -228,6 +240,8 @@ impl Default for Constitution {
             genesis_unscored: false, // inert: the first cell scores like any other ⇒ byte-identical
             control_binding: false,  // inert: an empty auth authorizes a spend ⇒ byte-identical
             chain_id: 0,             // the id `Block::assemble` stamps, so default-rulebook blocks match
+            key_rotation: false,     // inert: identity-key txs refused ⇒ byte-identical
+            recovery_delay_blocks: 0, // read only when key_rotation is on
         }
     }
 }
@@ -375,6 +389,12 @@ pub enum TokenStandard {
     /// ERC-5484 "IssuerOnly" — soulbound identities: holder fixed in the cell, only the issuer mints,
     /// re-tiers or burns ([`tokens::soulbound`]). Tag 3 (`standard as u8`, the wire tag, the on-VM map).
     Soulbound,
+    /// An identity's key record: a rotation, a cold-key recovery request or a cancel
+    /// ([`crate::identity_key`], wallet decisions A1 and A7). Tag 4 (`standard as u8` and the wire tag).
+    /// Not a value movement: checked only by the block rule `identity_key::check_block`, which needs the
+    /// block height, and refused by every other path ([`TokenTx::is_valid_in_ledger`]). No on-VM script
+    /// knows it (the lock script's `standard_of` refuses its code hash): reference node only.
+    IdentityKey,
 }
 
 /// A token value-movement carried inside a block: consume `inputs`, produce `outputs`,
@@ -418,6 +438,16 @@ impl TokenTx {
         // a token with no issuer identity is not well-formed (also makes the non-issuer minter
         // sentinel below sound: a non-empty issuer can never equal the empty slice).
         if self.args.is_empty() {
+            return false;
+        }
+        // IDENTITY-KEY CONFINEMENT (2026-11-18): an identity's key cell moves only in an identity-key tx,
+        // and no value path takes one: its rule is `identity_key::check_block` (it needs the block
+        // height), so every caller of this function refuses it, and no other tx may carry a key cell.
+        let ik = crate::identity_key::CODE_HASH;
+        if self.standard == TokenStandard::IdentityKey
+            || self.code_hash == ik
+            || self.inputs.iter().chain(&self.outputs).any(|c| c.type_script.code_hash == ik)
+        {
             return false;
         }
         // SOULBOUND CONFINEMENT: a soulbound cell moves only under its own rule, and a soulbound tx
@@ -480,6 +510,8 @@ impl TokenTx {
             TokenStandard::Soulbound => {
                 tokens::soulbound::valid(&self.inputs, &self.outputs, &self.code_hash, &self.args)
             }
+            // refused above: not a value movement (`identity_key::check_block` is its rule)
+            TokenStandard::IdentityKey => false,
         }
     }
 
@@ -1099,6 +1131,13 @@ impl Node {
             "clock_enforced requires pow_enforced — the monotone-timestamp rule needs the seal to \
              header-bind the timestamp, else it is an ordering rule on a malleable field",
         );
+        // Identity keys (A7): a recovery delay of 0 blocks would put a cold-key request in effect in the
+        // block after it lands, with no window for the current hot key to cancel. Fail loud at genesis.
+        assert!(
+            !(constitution.key_rotation && constitution.recovery_delay_blocks == 0),
+            "key_rotation requires recovery_delay_blocks > 0 — the current hot key needs blocks in which \
+             to cancel a cold-key recovery request",
+        );
         Node {
             id,
             ledger: Ledger::new(),
@@ -1363,6 +1402,11 @@ pub enum Violation {
     /// (7b) PoW is enforced and the seal claims bits other than the chain's
     /// ([`Constitution::pow_bits`]), whether or not its hash meets them (2026-11-18).
     PowBitsWrong { expected: u32, got: u32 },
+    /// (13) an identity-key tx breaks its rule (a wrong or retired signer, a cold key that does not match
+    /// the identity's commitment, a spent one-time index, a forged output, two operations for one
+    /// identity, the lane off), or a contribution by an identity with a key record carries a retired
+    /// key's label ([`crate::identity_key::check_block`], 2026-11-18).
+    IdentityKey { reason: &'static str },
 }
 
 /// The acceptance gate: the six conjoined checks of the old `Node::validate`, returning the typed
@@ -1389,6 +1433,9 @@ pub fn validate_block(ledger: &Ledger, b: &Block, c: &Constitution) -> Result<()
     if !token_txs_conserve_and_single_use(ledger, b, c) {
         return Err(Violation::TokenTxInvalidOrDoubleSpend);
     }
+    // (13) identity keys (A1/A7): every key operation, and the key label of each contribution by an
+    // identity with a key record. In the rulebook, so producer, follower, store replay, sync and reorg agree.
+    crate::identity_key::check_block(ledger, b, c).map_err(|reason| Violation::IdentityKey { reason })?;
     pow_check(b, c)?;
     clock_check(ledger, b, c)?; // (11)+(12) inc-CLK-2 monotone timestamp; inert when clock_enforced == false
     check_bonds(ledger, b, c)?; // (9)+(10) Bound-B commit-deposits (L5); inert when submission_deposit == 0
@@ -1487,7 +1534,10 @@ pub fn timestamp_admissible(b: &Block, local_now: u64, delta: u64) -> bool {
 /// nullifier — the crypto nullifier / on-VM UTXO-set retirement is the deploy-coupled layer; this
 /// reference set models both block scopes.
 fn token_txs_conserve_and_single_use(ledger: &Ledger, b: &Block, c: &Constitution) -> bool {
-    txs_conserve_and_single_use(&ledger.token_cells, &b.token_txs, c.control_binding)
+    // Identity-key txs are not value movements: `identity_key::check_block` checks them, and their
+    // cells are confined to them (`TokenTx::is_valid`), so they can share no input with a value tx.
+    let value = b.token_txs.iter().filter(|t| t.standard != TokenStandard::IdentityKey);
+    conserve_and_single_use(&ledger.token_cells, value, c.control_binding)
 }
 
 /// Conserve + single-use for a batch of value txs against a live cell set — the SINGLE consensus rule
@@ -1501,6 +1551,10 @@ fn token_txs_conserve_and_single_use(ledger: &Ledger, b: &Block, c: &Constitutio
 /// reserved coinbase id; and consume each input at most once. `control_binding` is the chain's
 /// [`Constitution::control_binding`] (whether an unsigned input still authorizes).
 pub(crate) fn txs_conserve_and_single_use(live: &[Cell], txs: &[TokenTx], control_binding: bool) -> bool {
+    conserve_and_single_use(live, txs.iter(), control_binding)
+}
+
+fn conserve_and_single_use<'a>(live: &[Cell], txs: impl Iterator<Item = &'a TokenTx>, control_binding: bool) -> bool {
     let mut consumed: HashSet<(u64, Script, Script)> = HashSet::new();
     for tx in txs {
         if !tx.is_valid_in_ledger(live, control_binding) {

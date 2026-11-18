@@ -4,6 +4,10 @@
 // Run: `node frontend/wallet-test.mjs`  (exit 0 = all pass). It takes a minute or two: every wallet here
 // builds real XMSS^MT trees, and every seal or unlock runs real PBKDF2 at 600,000 rounds.
 //
+// Also exercised here: the key series and recovery (A1/A7) on the page, against a fake node that keeps
+// the identity-key rule's states and checks every signature with the real verifier; the rule itself is
+// pinned in Rust (node/src/identity_key.rs and the rpc.rs tests).
+//
 // Only stub-tested: WebAuthn. The "authenticator" below is HMAC-SHA256(credential secret, "WebAuthn PRF"
 // || 0x00 || salt), the shape of what a browser asks a CTAP2 hmac-secret authenticator for. No real
 // browser, platform authenticator or security key took part, and no real browser storage either.
@@ -178,7 +182,7 @@ function openPage({ origin = 'http://localhost:9955', storage, node, creds = nul
   const signs = []; // every seed the page signs with, and the stored counter at that moment
   const realSign = win.NoesisCrypto.mtSign;
   win.NoesisCrypto.mtSign = (master, g, msg, cache) => {
-    signs.push({ seed: master, g, storedNext: JSON.parse(storage.getItem(W.KEY_SEALED)).nextIndex });
+    signs.push({ seed: master, g, storedNext: (JSON.parse(storage.getItem(W.KEY_SEALED)) || {}).nextIndex });
     return realSign(master, g, msg, cache);
   };
   vm.runInContext(INLINE, win, { filename: 'index.html' });
@@ -412,6 +416,245 @@ const v1Text = JSON.stringify({ v: 1, seed: 'aa'.repeat(32), address: 'bb'.repea
   await settle();
   check('blocked storage: the page explains it, hides wallet creation, and still reads the chain',
     !pg.els['store-note'].hidden && /blocks storage/.test(pg.text('store-note')) && pg.els['wallet-new'].hidden && /height 7/.test(pg.text('chain')));
+}
+
+// ============ the key series and recovery (wallet decisions A1 and A7) ============
+// wallet.js: the (key, counter) pair only moves forward; the recovery record; the cold key never stored.
+{
+  const st = new FakeStorage({ [W.KEY_SEALED]: JSON.stringify({ ...recA, nextIndex: 7 }) });
+  const root1 = C.hexEncode(C.mtKeygenRoot(C.deriveKey(hot7, 1)));
+  check('key series: a record from before A1 reads as key 0 with its own hot root',
+    W.keyOf(recA).keyIndex === 0 && W.keyOf(recA).keyRoot === recA.hot_root);
+  W.saveRotation(st, PUB.address, 1, root1);
+  const k = W.storedKey(st, PUB.address);
+  check('key series: a rotation moves to key 1 with its counter at 0', k.keyIndex === 1 && k.keyRoot === root1 && k.nextIndex === 0);
+  check('key series: a rotation never goes back or repeats a key',
+    await rejects(async () => W.saveRotation(st, PUB.address, 1, root1), /only moves forward/) &&
+    await rejects(async () => W.saveRotation(st, PUB.address, 0, PUB.hot_root), /only moves forward/));
+  check('key series: a counter save for the retired key is refused (another tab rotated)',
+    await rejects(async () => W.saveCounter(st, PUB.address, 9, 0), /moved to another key/) && W.saveCounter(st, PUB.address, 3, 1) === 3);
+  W.store(st, { ...recA, nextIndex: 40 }); // an older copy of the record, written back by an old tab
+  const after = W.storedKey(st, PUB.address);
+  check('key series: writing back an older record keeps the later key and its counter (key 1 at 3 beats key 0 at 40)',
+    after.keyIndex === 1 && after.nextIndex === 3 && after.keyRoot === root1);
+}
+
+// A fake node with the key lane: every signature checked with the real verifier, the rule's states
+// (no record, record, pending recovery, maturity after the delay) kept the way node/src/identity_key.rs
+// keeps them. The real rule is pinned in Rust; this checks what the page signs and sends.
+function keyNode() {
+  const node = { height: 7, chain: 0x7e57, delay: 3, recs: new Map(), queued: new Map(), used: new Map(), posts: [], keyPosts: [], lost: false,
+                 state: { height: 7, jul_issued: 0, contributors: {}, chain_id: 0x7e57 } };
+  const at = (r, h) => r && r.pending && h >= r.pending.effective_at
+    ? { generation: r.generation + 1, hot_root: r.pending.new_root, cold_commit: r.cold_commit, hot_floor: 0, cold_floor: r.cold_floor, pending: null } : r;
+  const current = (id, h) => (node.queued.get(id) || {}).after || at(node.recs.get(id), h) || null;
+  const usedKey = (id, g) => node.used.get(id + '|' + g);
+  const highest = (id, g, h) => {
+    const r = current(id, h), ops = r && r.generation === g && r.hot_floor > 0 ? r.hot_floor - 1 : null;
+    const c = usedKey(id, g);
+    return c == null ? ops : ops == null ? c : Math.max(c, ops);
+  };
+  const json = (r, next) => r && { ...r, pending: r.pending && { ...r.pending, cancel_blocks_left: r.pending.effective_at - next } };
+  const sigOf = (b) => ({ g: b.index, bottom: unpart(b.bottom, b.index & 255), top: unpart(b.top, b.index >>> 8) });
+  node.block = () => { // one block: it carries every queued key operation
+    node.height++; node.state.height = node.height;
+    for (const [id, q] of node.queued) node.recs.set(id, q.after);
+    node.queued.clear();
+  };
+  node.fetch = async (url, opts = {}) => {
+    const path = String(url).replace(/^[a-z]+:\/\/[^/]+/, '');
+    const reply = (status, obj) => ({ ok: status === 200, status, json: async () => obj });
+    const next = node.height + 1;
+    if (path === '/state') return reply(200, node.state);
+    if (path.startsWith('/keys/')) {
+      const id = path.slice(6), cur = current(id, next), onChain = at(node.recs.get(id), next) || null, q = node.queued.get(id);
+      const generation = cur ? cur.generation : 0;
+      return reply(200, { identity: id, chain_id: node.chain, height: node.height, next_block: next, key_rotation: true, recovery_delay_blocks: node.delay,
+        on_chain: json(onChain, next), queued: q ? { op: q.op, index: q.index, new_root: q.new_root } : null, current: json(cur, next),
+        generation, highest_used: highest(id, generation, next) ?? null });
+    }
+    if (path.startsWith('/index/')) return reply(404, { error: 'not found' });
+    if (path === '/contributions') return reply(200, { contributions: [] });
+    if (path === '/tokens') return reply(200, { cells: [] });
+    if (path === '/blocks') return reply(200, { blocks: [] });
+    if (path === '/key' && opts.method === 'POST') {
+      const b = JSON.parse(opts.body);
+      node.keyPosts.push({ body: b, raw: opts.body });
+      const id = b.identity, prior = at(node.recs.get(id), next);
+      if (node.queued.has(id)) return reply(400, { error: 'another key operation for this identity is waiting' });
+      let eff = prior;
+      if (!eff) {
+        if (!b.birth || C.hexEncode(C.identity(C.hexDecode(b.birth.hot_root), C.hexDecode(b.birth.cold_commit))) !== id) return reply(400, { error: 'birth roots' });
+        eff = { generation: 0, hot_root: b.birth.hot_root, cold_commit: b.birth.cold_commit, hot_floor: 0, cold_floor: 0, pending: null };
+      } else if (b.birth) return reply(400, { error: 'this identity already has a key record' });
+      const op = { rotate: C.OP_ROTATE, recover: C.OP_RECOVER, cancel: C.OP_CANCEL }[b.op];
+      const newRoot = b.op === 'cancel' ? new Uint8Array(32) : C.hexDecode(b.new_root);
+      const msg = C.keyOpDigest(C.hexDecode(id), op, node.chain, eff.generation, newRoot, b.index);
+      let after;
+      if (b.op === 'recover') {
+        if (C.hexEncode(C.coldCommit(C.hexDecode(b.cold_root))) !== eff.cold_commit) return reply(400, { error: 'the cold key does not match' });
+        if (b.index < eff.cold_floor) return reply(400, { error: 'this one-time index of the cold key is already used' });
+        if (!C.mtVerify(C.hexDecode(b.cold_root), b.index, msg, sigOf(b))) return reply(400, { error: 'not signed by the cold key' });
+        after = { ...eff, cold_floor: b.index + 1, pending: { new_root: b.new_root, effective_at: next + node.delay + 1 } };
+      } else {
+        const hi = highest(id, eff.generation, next);
+        if (b.index < eff.hot_floor || (hi != null && b.index <= hi)) return reply(400, { error: 'already used' });
+        if (!C.mtVerify(C.hexDecode(eff.hot_root), b.index, msg, sigOf(b))) return reply(400, { error: 'not signed by the current hot key' });
+        if (b.op === 'cancel' && !eff.pending) return reply(400, { error: 'no recovery is pending' });
+        after = b.op === 'rotate' ? { ...eff, generation: eff.generation + 1, hot_root: b.new_root, hot_floor: 0, pending: null }
+                                  : { ...eff, hot_floor: b.index + 1, pending: null };
+      }
+      if (!node.lost) node.queued.set(id, { op: b.op, index: b.index, new_root: b.new_root || null, after });
+      return reply(200, { queued: true, after });
+    }
+    if (path === '/submit' && opts.method === 'POST') {
+      const b = JSON.parse(opts.body), id = b.identity, cur = current(id, next);
+      const msg = C.contributionDigest(C.hexDecode(id), b.index, b.parent ?? null, C.utf8(b.data));
+      const keyOk = cur ? b.hot_root === cur.hot_root : C.hexEncode(C.identity(C.hexDecode(b.hot_root), C.hexDecode(b.cold_commit))) === id;
+      const gen = cur ? cur.generation : 0, hi = highest(id, gen, next);
+      const valid = keyOk && C.mtVerify(C.hexDecode(b.hot_root), b.index, msg, sigOf(b)) && (hi == null || b.index > hi);
+      node.posts.push({ body: b, valid, gen });
+      if (!valid) return reply(400, { error: keyOk ? 'already used or bad signature' : 'not this identity\'s current hot key' });
+      node.used.set(id + '|' + gen, b.index);
+      node.block();
+      node.state.contributors[id] = (node.state.contributors[id] || 0) + 1;
+      return reply(200, { block_height: node.height, contributors: node.state.contributors });
+    }
+    return reply(404, { error: 'not found' });
+  };
+  return node;
+}
+
+// ---- A1 on the page: rotate (needs unlock), then the next key signs from index 0 ----
+const COLD8 = new Uint8Array(32).fill(8);
+{
+  const storage = new FakeStorage({ [W.KEY_SEALED]: JSON.stringify(recA) }), node = keyNode();
+  let pg = openPage({ storage, node });
+  await settle();
+  check('page: the wallet shows its key number and the signatures left for that key',
+    /hot key   #0 of this wallet's series, key generation 0 on chain/.test(pg.text('w-info')) && /keys left 65495 of 65536 for this key/.test(pg.text('w-info')));
+  check('page: with no key record on chain, the first hot key root is shown for the recovery sheet', pg.text('w-info').includes('first key ' + PUB.hot_root));
+  await pg.click('rotate');
+  check('rotate: refused while locked', /Unlock first to rotate/.test(pg.text('w-status')) && node.keyPosts.length === 0);
+  await pg.unlock(UPASS);
+  await pg.click('rotate');
+  const kp = node.keyPosts[0];
+  const root1 = C.mtKeygenRoot(C.deriveKey(hot7, 1));
+  const rotMsg = kp && C.keyOpDigest(C.hexDecode(PUB.address), C.OP_ROTATE, 0x7e57, 0, root1, 41);
+  check('rotate: one signed rotation to key 1 of the series, by key 0 at the next one-time index (41), with the birth roots',
+    !!kp && kp.body.op === 'rotate' && kp.body.new_root === C.hexEncode(root1) && kp.body.index === 41 &&
+    kp.body.birth && kp.body.birth.hot_root === PUB.hot_root &&
+    C.mtVerify(root7, 41, rotMsg, { g: 41, bottom: unpart(kp.body.bottom, 41), top: unpart(kp.body.top, 0) }));
+  check('rotate: index 41 was spent (counter 42 stored) before the signature existed', pg.signs[0].g === 41 && pg.signs[0].storedNext === 42);
+  const rec1 = JSON.parse(storage.getItem(W.KEY_SEALED));
+  check('rotate: the wallet moves to key 1, counter 0, and keeps the signed rotation until the chain shows it',
+    rec1.keyIndex === 1 && rec1.keyRoot === C.hexEncode(root1) && rec1.nextIndex === 0 && !!rec1.pendingKeyOp && /Rotated to key #1/.test(pg.text('w-status')));
+  check('rotate: the hot seed in storage is unchanged (one backup covers the series)', rec1.seed_ct.ct === recA.seed_ct.ct);
+  await pg.send('the first note signed by key one');
+  const p0 = node.posts[0];
+  check('after rotate: the next contribution is signed by key 1 at index 0, in the block that carries the rotation',
+    !!p0 && p0.valid && p0.body.index === 0 && p0.body.hot_root === C.hexEncode(root1) && p0.gen === 1 && pg.signs[1].seed.some((x, i) => x !== hot7[i]));
+  await settle();
+  check('after rotate: the chain shows key 1, the pending rotation is cleared',
+    !JSON.parse(storage.getItem(W.KEY_SEALED)).pendingKeyOp && /key generation 1 on chain/.test(pg.text('w-info')) && !pg.text('w-info').includes('first key'));
+  // reload: unlock rebuilds key 1 from the seed and signs with it
+  pg = openPage({ storage, node });
+  await settle();
+  await pg.unlock(UPASS);
+  await pg.send('a second note from key one after a reload');
+  check('reload: the unlocked wallet signs with key 1 at index 1', node.posts[1].valid && node.posts[1].body.index === 1 && node.posts[1].gen === 1);
+
+  // ---- A7 on the page: a recovery request against this address raises a banner; the hot key cancels it ----
+  const thiefRoot = C.mtKeygenRoot(new Uint8Array(32).fill(0x99));
+  node.recs.get(PUB.address).pending = { new_root: C.hexEncode(thiefRoot), effective_at: node.height + 1 + 3 };
+  pg = openPage({ storage, node });
+  await settle();
+  check('banner: a pending recovery against this address is shown in red, with its block and countdown, and a cancel button',
+    !pg.els['key-banner'].hidden && /WARNING: a recovery request against this address is pending/.test(pg.text('key-banner')) &&
+    pg.text('key-banner').includes('at block ' + (node.height + 4)) && /3 blocks from now/.test(pg.text('key-banner')) && !pg.els['cancel-recovery'].hidden);
+  await pg.click('cancel-recovery');
+  check('cancel: refused while locked', /Unlock first to cancel/.test(pg.text('w-status')));
+  await pg.unlock(UPASS);
+  await pg.click('cancel-recovery');
+  const cp = node.keyPosts[node.keyPosts.length - 1];
+  const k1 = C.deriveKey(hot7, 1);
+  const cMsg = cp && C.keyOpDigest(C.hexDecode(PUB.address), C.OP_CANCEL, 0x7e57, 1, new Uint8Array(32), 2);
+  check('cancel: signed by the current key (key 1) at its next index, for generation 1, and queued',
+    cp.body.op === 'cancel' && cp.body.index === 2 && !cp.body.birth &&
+    C.mtVerify(root1, 2, cMsg, { g: 2, bottom: unpart(cp.body.bottom, 2), top: unpart(cp.body.top, 0) }) && node.queued.has(PUB.address));
+  check('cancel: the counter of key 1 moved past the cancel before it was signed', JSON.parse(storage.getItem(W.KEY_SEALED)).nextIndex === 3);
+  node.block(); // a block lands it
+  pg = openPage({ storage, node });
+  await settle();
+  check('cancel: once it lands the banner is gone', pg.els['key-banner'].hidden && pg.els['cancel-recovery'].hidden);
+
+  // ---- a key operation the node lost (a restart) is sent again, byte for byte ----
+  await pg.unlock(UPASS);
+  node.lost = true;
+  await pg.click('rotate');
+  const lost = node.keyPosts[node.keyPosts.length - 1];
+  node.lost = false;
+  const before = node.keyPosts.length;
+  pg = openPage({ storage, node });
+  await settle();
+  const again = node.keyPosts[before];
+  check('re-send: a rotation the node lost is sent again with the identical body, and no second signature',
+    !!again && again.raw === lost.raw && JSON.parse(storage.getItem(W.KEY_SEALED)).keyIndex === 2 && node.queued.has(PUB.address));
+}
+
+// ---- A7 on the page: recover in a fresh browser with the cold key, wait, then use the recovered key ----
+{
+  const node = keyNode();
+  const storage = new FakeStorage();
+  let pg = openPage({ storage, node });
+  await settle();
+  check('recover: the RECOVER section is offered in a browser with no wallet', !pg.els['rec-open'].hidden);
+  await pg.click('rec-open');
+  const coldHex = C.hexEncode(COLD8);
+  pg.set({ 'rec-address': PUB.address, 'rec-cold': coldHex.match(/.{8}/g).join(' '), 'rec-hot': '', 'rec-pass': 'a new phrase for the new key', 'rec-pass2': 'a new phrase for the new key' });
+  await pg.click('recover-go');
+  check('recover: with no key record on chain and no first hot root, the request is refused before any signature',
+    /must name the address's first hot key root/.test(pg.text('rec-status')) && node.keyPosts.length === 0 && pg.signs.length === 0);
+  check('recover: the cold key field is cleared at once', pg.els['rec-cold'].value === '');
+  pg.set({ 'rec-cold': '09'.repeat(32), 'rec-hot': PUB.hot_root, 'rec-pass': 'a new phrase for the new key', 'rec-pass2': 'a new phrase for the new key' });
+  await pg.click('recover-go');
+  check('recover: a cold key that does not make the address is refused', /do not make this address/.test(pg.text('rec-status')) && node.keyPosts.length === 0);
+  pg.set({ 'rec-cold': coldHex, 'rec-hot': PUB.hot_root, 'rec-pass': 'a new phrase for the new key', 'rec-pass2': 'a new phrase for the new key' });
+  await pg.click('recover-go');
+  const rp = node.keyPosts[0];
+  const coldRoot = C.mtKeygenRoot(COLD8);
+  const rMsg = rp && C.keyOpDigest(C.hexDecode(PUB.address), C.OP_RECOVER, 0x7e57, 0, C.hexDecode(rp.body.new_root), rp.body.index);
+  check('recover: one request signed by the cold key, naming its root and the birth roots, at a spread index under 256',
+    !!rp && rp.body.op === 'recover' && rp.body.cold_root === C.hexEncode(coldRoot) && rp.body.birth.hot_root === PUB.hot_root &&
+    rp.body.index < 256 && C.mtVerify(coldRoot, rp.body.index, rMsg, { g: rp.body.index, bottom: unpart(rp.body.bottom, rp.body.index & 255), top: unpart(rp.body.top, 0) }));
+  check('recover: the cold key is nowhere in storage, and the new hot seed is stored encrypted only',
+    !storage.dump().includes(coldHex) && !!storage.getItem(W.KEY_RECOVERY) && !storage.getItem(W.KEY_SEALED));
+  node.block(); // the request lands: pending, in effect 3 blocks later
+  pg = openPage({ storage, node });
+  await settle();
+  check('recover: the status shows PENDING with the block it takes effect at and the countdown, and warns the hot key can cancel',
+    /PENDING\. It takes effect at block 12, 3 blocks from now/.test(pg.text('rec-line')) && /can cancel it/.test(pg.text('rec-line')) && pg.els['recover-finish'].hidden);
+  node.block(); node.block(); node.block(); // the delay runs out
+  pg = openPage({ storage, node });
+  await settle();
+  check('recover: once in effect the page says so and offers to use the recovered key', /IN EFFECT/.test(pg.text('rec-line')) && !pg.els['recover-finish'].hidden);
+  await pg.click('recover-finish');
+  const w = JSON.parse(storage.getItem(W.KEY_SEALED) || 'null');
+  check('recover: the recovered key becomes this browser\'s wallet for the same address',
+    !!w && w.address === PUB.address && w.recovered === 1 && w.keyRoot === rp.body.new_root && !storage.getItem(W.KEY_RECOVERY));
+  await pg.unlock('a new phrase for the new key');
+  await pg.send('the first note after recovering the address');
+  const p = node.posts[0];
+  check('recover: the recovered key signs for the address from index 0, generation 1',
+    !!p && p.valid && p.body.index === 0 && p.body.hot_root === rp.body.new_root && p.gen === 1 && p.body.identity === PUB.address);
+  // the old hot key (seed [7;32]) is retired: its signature is refused
+  const old = node.fetch('http://x/submit', { method: 'POST', body: JSON.stringify((() => {
+    const m = C.contributionDigest(C.hexDecode(PUB.address), 50, null, C.utf8('old key'));
+    const sg = C.mtSign(hot7, 50, m);
+    const pt = (t) => ({ ots_root: C.hexEncode(t.ots_root), auth: t.auth.map((a) => C.hexEncode(a)), ots_sig: C.hexEncode(t.ots_sig) });
+    return { identity: PUB.address, hot_root: PUB.hot_root, cold_commit: PUB.cold_commit, index: 50, bottom: pt(sg.bottom), top: pt(sg.top), data: 'old key' };
+  })()) });
+  check('recover: after it takes effect the old hot key signs nothing for the address', (await old).status === 400);
 }
 
 console.log(`\n${passed}/${total} checks pass`);

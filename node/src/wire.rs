@@ -48,7 +48,7 @@ struct WCommitted {
 
 #[derive(Serialize, Deserialize)]
 struct WTokenTx {
-    standard: u8, // TokenStandard tag: 0=Fungible, 1=Nft, 2=Multi, 3=Soulbound
+    standard: u8, // TokenStandard tag: 0=Fungible, 1=Nft, 2=Multi, 3=Soulbound, 4=IdentityKey
     code_hash: [u8; 32],
     args: Vec<u8>,
     inputs: Vec<WCell>,
@@ -132,6 +132,7 @@ fn w_standard(s: &TokenStandard) -> u8 {
         TokenStandard::Nft => 1,
         TokenStandard::Multi => 2,
         TokenStandard::Soulbound => 3,
+        TokenStandard::IdentityKey => 4,
     }
 }
 fn w_tokentx(t: &TokenTx) -> WTokenTx {
@@ -188,6 +189,7 @@ fn r_standard(tag: u8) -> Result<TokenStandard, WireError> {
         1 => Ok(TokenStandard::Nft),
         2 => Ok(TokenStandard::Multi),
         3 => Ok(TokenStandard::Soulbound),
+        4 => Ok(TokenStandard::IdentityKey),
         other => Err(WireError(format!("unknown TokenStandard tag {other}"))),
     }
 }
@@ -373,7 +375,30 @@ mod tests {
     #[test]
     fn an_unknown_standard_tag_is_still_rejected() {
         let mut v = token_tx_to_json(&soulbound_tx());
-        v["standard"] = serde_json::json!(4);
-        assert!(token_tx_from_json(v).is_err(), "tag 4 is unknown");
+        v["standard"] = serde_json::json!(5);
+        assert!(token_tx_from_json(v).is_err(), "tag 5 is unknown");
+    }
+
+    /// An identity-key tx (tag 4) survives the block codec byte for byte, so a block carrying a key
+    /// operation replays from the chain log and pages to a follower unchanged.
+    #[test]
+    fn an_identity_key_tx_round_trips_through_the_block_codec_with_tag_4() {
+        use crate::identity_key::{key_cell, Record, CODE_HASH};
+        let id = [7u8; 32];
+        let tx = TokenTx {
+            standard: TokenStandard::IdentityKey,
+            code_hash: CODE_HASH,
+            args: id.to_vec(),
+            inputs: vec![],
+            outputs: vec![key_cell(&id, &Record::birth([1u8; 32], [2u8; 32]))],
+            auths: vec![vec![0x4B; 100]],
+        };
+        assert_eq!(TokenStandard::IdentityKey as u8, 4);
+        let block = Block::assemble(1, &[]).with_token_txs(vec![tx.clone()]);
+        let bytes = encode_block(&block);
+        let back = decode_block(&bytes).expect("decodes");
+        assert!(same_tx(&back.token_txs[0], &tx));
+        assert_eq!(encode_block(&back), bytes, "byte-identical re-encode");
+        assert_eq!(back.token_txs[0].digest(), tx.digest());
     }
 }

@@ -32,12 +32,14 @@ select, input[type=text], input[type=password] { width:100%; }
 <legend>WALLET</legend>
 <pre id="origin-note" class="red" hidden></pre>
 <pre id="store-note" class="red" hidden></pre>
+<pre id="key-banner" class="red" hidden></pre>
 <pre id="v1-note" class="dim" hidden></pre>
 <div id="wallet-new">
   <pre>No wallet in this browser. A wallet is two post-quantum keys: a hot key that signs here
-(65,536 one-time keys) and a cold recovery key you keep offline. Your address is fixed by
-both when the wallet is made. The keys never leave this browser. The hot key is stored
-encrypted under a passphrase you choose here; nobody can reset it for you.</pre>
+(65,536 one-time keys, and a series of further keys from the same seed) and a cold recovery
+key you keep offline. Your address is fixed by both when the wallet is made. The keys never
+leave this browser. The hot key is stored encrypted under a passphrase you choose here;
+nobody can reset it for you. (Lost the hot key of an address? See RECOVER, below.)</pre>
   <label for="new-pass">Passphrase (12 characters or more; four or more random words is a good shape):</label>
   <input type="password" id="new-pass" autocomplete="new-password">
   <label for="new-pass2">Passphrase again:</label>
@@ -46,10 +48,12 @@ encrypted under a passphrase you choose here; nobody can reset it for you.</pre>
 </div>
 <div id="cold-backup" hidden>
   <pre class="red">RECOVERY KEY, SHOWN ONCE. Write it on paper and keep it offline, away from this
-computer. This page does not keep it: once you continue, it is gone from here. It is
-what can recover this address if the hot key is lost or stolen (recovery is designed,
-not built yet). Nobody, including Jarvis or a node operator, will ever ask you for it.</pre>
+computer. This page does not keep it: once you continue, it is gone from here. It can
+recover this address if the hot key is lost: a recovery takes effect after a delay of
+blocks, during which whoever holds the hot key can cancel it. Nobody, including Jarvis or
+a node operator, will ever ask you for it.</pre>
   <pre id="cold-key"></pre>
+  <pre id="cold-sheet" class="dim"></pre>
   <label for="cold-check">Type its last 8 characters to confirm you stored it:</label>
   <input type="text" id="cold-check" autocomplete="off" spellcheck="false">
   <button id="cold-done">I stored it offline. Continue</button> <span id="cold-status" class="red"></span>
@@ -79,9 +83,35 @@ Close any other tab of this page first: an old page still open could write the p
   <button id="add-passkey">Add a passkey</button>
   <button id="copy-addr">Copy address</button>
   <button id="backup-toggle">Show hot key</button>
+  <button id="rotate">Rotate to the next key</button>
+  <button id="cancel-recovery" hidden>Cancel the recovery request</button>
   <button id="forget">Switch wallet</button>
   <span id="w-status"></span>
   <pre id="seedbox" class="red" hidden></pre>
+</div>
+</fieldset>
+
+<fieldset>
+<legend>RECOVER</legend>
+<pre id="rec-line" hidden></pre>
+<button id="recover-finish" hidden>Use the recovered key</button> <button id="recover-drop" hidden>Remove this recovery</button>
+<button id="rec-open">Recover an address with its cold key</button>
+<div id="rec-form" hidden>
+  <pre class="red">Recovery replaces an address's hot key with a new one made here, signed by the cold key
+committed in the address. It takes effect only after a delay of blocks set by the chain, and
+until then whoever holds the current hot key can cancel it: it recovers a LOST hot key, not a
+stolen one. The cold key is used once, in this page's memory, and never stored.</pre>
+  <label for="rec-address">Address:</label>
+  <input type="text" id="rec-address" autocomplete="off" spellcheck="false">
+  <label for="rec-cold">Cold key (the 64 hex characters on paper; spaces are fine):</label>
+  <input type="password" id="rec-cold" autocomplete="off" spellcheck="false">
+  <label for="rec-hot">First hot key root (needed only while the chain holds no key record for the address; it is on the recovery sheet):</label>
+  <input type="text" id="rec-hot" autocomplete="off" spellcheck="false">
+  <label for="rec-pass">Passphrase for the new hot key (12 characters or more):</label>
+  <input type="password" id="rec-pass" autocomplete="new-password">
+  <label for="rec-pass2">Passphrase again:</label>
+  <input type="password" id="rec-pass2" autocomplete="new-password">
+  <button id="recover-go">Sign and send the recovery request</button> <span id="rec-status"></span>
 </div>
 </fieldset>
 
@@ -137,6 +167,8 @@ Close any other tab of this page first: an old page still open could write the p
   const pad = (s, n) => String(s).padEnd(n);
   const say = (el, cls, text) => { el.className = cls; el.textContent = text; };
   const paint = () => new Promise((r) => setTimeout(r, 30)); // let a status line show before slow work
+  const HEX64 = /^[0-9a-f]{64}$/;
+  const part = (t) => ({ ots_root: C.hexEncode(t.ots_root), auth: t.auth.map((a) => C.hexEncode(a)), ots_sig: C.hexEncode(t.ots_sig) });
 
   // ---- wallet, format v2: a hot key that signs here and a cold recovery key kept offline ----
   // /wallet.js is the only code that touches the stored wallet. The hot seed is stored encrypted under a
@@ -145,14 +177,37 @@ Close any other tab of this page first: an old page still open could write the p
   // stay in plain text so the page can show the wallet while locked. The cold key is shown once at
   // creation and never stored. The wallet works only at one origin (A5); elsewhere the chain is readable
   // but creating a wallet, signing and adding a passkey are off. A v1 wallet is left untouched, read-only.
+  //
+  // The key series (A1): the seed is the backup of every hot key in a series, and key i signs (key 0 is
+  // the seed itself). A rotation, signed by the current key, moves the address to the next key from the
+  // block that carries it. Recovery (A7): the cold key asks for a new hot key made in this browser; the
+  // chain puts it in effect after a delay in blocks, during which the current hot key can cancel it.
   const ORIGIN_OK = W.originOk(location.origin);
   const OFF_HERE = "Creating a wallet, signing and adding a passkey are off at this address. Open " + W.CANONICAL_ORIGIN + "/ instead.";
-  let wallet = null;     // the stored wallet's public part: address, roots, counter, whether a passkey is set
-  let session = null;    // { seed, dataKey }, only while unlocked
-  let cache = null;      // the hot key's top tree (public values), built and checked at unlock
+  let wallet = null;     // the stored wallet's public part: address, roots, key number, counter, passkey set
+  let session = null;    // { seed, dataKey, key }, only while unlocked: the seed and the signing key it derives
+  let cache = null;      // the signing key's top tree (public values), built and checked at unlock
   let plain = null;      // an old plain-text v2 record, waiting to be encrypted
+  let lastKeys = null;   // GET /keys for this wallet's address (null: not read, or an older node)
+  let keyError = null;   // a key operation this browser sent that the node refused
+  let recovery = null;   // a recovery in progress in this browser (its sealed record)
+  let recInfo = null;    // what the chain says about it
+  let recOpen = false;
+  let recRefused = null;  // { body, error }: a recovery request the node refused, not sent again
   let fresh = null, lastState = null, oldAddress = null, otherPlain = null, storeError = null;
-  const viewOf = (r) => ({ address: r.address, hotRoot: r.hot_root, coldCommit: r.cold_commit, nextIndex: r.nextIndex, hasPasskey: !!r.passkey });
+  const viewOf = (r) => {
+    const k = W.keyOf(r);
+    return { address: r.address, hotRoot: r.hot_root, coldCommit: r.cold_commit, nextIndex: r.nextIndex, hasPasskey: !!r.passkey,
+             keyIndex: k.keyIndex, keyRoot: k.keyRoot, recovered: !!r.recovered, pendingKeyOp: r.pendingKeyOp || null };
+  };
+  // The hot root the chain lets sign for this wallet's address in the next block (null when unknown).
+  function chainRoot() {
+    if (!lastKeys || !wallet) return null;
+    if (lastKeys.current) return lastKeys.current.hot_root;
+    return wallet.recovered ? null : wallet.hotRoot; // no key record: the address's first key
+  }
+  // Is this browser's key the one the chain lets sign? Unknown (an older node) counts as yes: the node checks.
+  const keyIsCurrent = () => !lastKeys || chainRoot() === wallet.keyRoot;
 
   function showWallet() {
     const people = (lastState && lastState.contributors) || {};
@@ -178,6 +233,7 @@ Close any other tab of this page first: an old page still open could write the p
     $("wallet-view").hidden = !wallet || !!plain;
     if (plain) $("m-info").textContent = "address   " + plain.address + "\n" +
       "keys used " + Math.max(plain.nextIndex, wallet ? wallet.nextIndex : 0) + " of " + C.MT_MAX_SIGS;
+    showBanner();
     if (!wallet) return;
     $("unlock-box").hidden = !!session;
     $("unlock-key").hidden = !wallet.hasPasskey;
@@ -185,16 +241,49 @@ Close any other tab of this page first: an old page still open could write the p
     $("add-passkey").hidden = !session || wallet.hasPasskey || !ORIGIN_OK;
     const names = Object.keys(people).sort((a, b) => people[b] - people[a]);
     const rank = names.indexOf(wallet.address);
+    const gen = lastKeys ? lastKeys.generation : null;
+    const firstKey = !wallet.recovered && !(lastKeys && lastKeys.on_chain)
+      ? "first key " + wallet.hotRoot + "\n          (keep it with the cold key: a recovery needs it until a key change is on chain)\n" : "";
     $("w-info").textContent =
       "address   " + wallet.address + "\n" +
       "standing  " + (people[wallet.address] || 0) + (rank >= 0 ? "  (#" + (rank + 1) + " of " + names.length + ")" : "  (unranked)") + "\n" +
-      "keys left " + (C.MT_MAX_SIGS - wallet.nextIndex) + " of " + C.MT_MAX_SIGS + "\n" +
+      "hot key   #" + wallet.keyIndex + " of this wallet's series" + (gen != null ? ", key generation " + gen + " on chain" : "") + "\n" +
+      "keys left " + (C.MT_MAX_SIGS - wallet.nextIndex) + " of " + C.MT_MAX_SIGS + " for this key (the last is kept for a rotation)\n" +
+      firstKey +
       "recovery  cold key offline, committed in the address\n" +
-      "hot key   encrypted here, " + (session ? "UNLOCKED (Lock when done)" : "locked") +
+      "hot seed  encrypted here, " + (session ? "UNLOCKED (Lock when done)" : "locked") +
       "; opens with the passphrase" + (wallet.hasPasskey ? " or the passkey" : "");
   }
+  // A recovery request against this address, a key this browser holds that the chain retired, or a key
+  // operation the node refused: said at the top of WALLET, in red.
+  function showBanner() {
+    const lines = [];
+    let canCancel = false;
+    const p = wallet && lastKeys && lastKeys.current && lastKeys.current.pending;
+    if (p) {
+      const mine = recovery && recovery.address === wallet.address && recovery.keyRoot === p.new_root;
+      if (mine) lines.push("Your recovery request for this address takes effect at block " + p.effective_at + ", " + p.cancel_blocks_left + " blocks from now.");
+      else {
+        lines.push("WARNING: a recovery request against this address is pending. It would replace this wallet's hot key\n" +
+          "with another key (" + short(p.new_root) + ") at block " + p.effective_at + ", " + p.cancel_blocks_left + " blocks from now. If you did not\n" +
+          "ask for it, someone holds your cold key: unlock and press \"Cancel the recovery request\" before then.");
+        canCancel = true;
+      }
+    }
+    if (wallet && lastKeys && !keyIsCurrent()) {
+      const op = wallet.pendingKeyOp;
+      if (op && op.op === "rotate" && op.keyRoot === wallet.keyRoot) lines.push("Your rotation to key #" + op.keyIndex + " is not on the chain yet; it is being sent again.");
+      else lines.push("This browser's hot key (#" + wallet.keyIndex + ") is not this address's current key: the chain is at key generation " +
+        lastKeys.generation + " (hot root " + short(chainRoot()) + "). A rotation or a recovery made elsewhere retired it, so this\n" +
+        "browser signs nothing for the address.");
+    }
+    if (keyError) lines.push(keyError);
+    $("key-banner").hidden = !lines.length;
+    $("key-banner").textContent = lines.join("\n\n");
+    $("cancel-recovery").hidden = !(canCancel && keyIsCurrent());
+  }
   function loadWallet() {
-    if (!S) { storeError = "This browser blocks storage for this page, so it cannot hold a wallet here. Reading the chain still works."; showWallet(); return; }
+    if (!S) { storeError = "This browser blocks storage for this page, so it cannot hold a wallet here. Reading the chain still works."; showWallet(); showRecovery(); return; }
     const s = W.read(S);
     storeError = s.error; oldAddress = s.v1Address;
     wallet = s.sealed ? viewOf(s.sealed) : null;
@@ -203,7 +292,10 @@ Close any other tab of this page first: an old page still open could write the p
       if (!s.sealed || s.sealed.address === s.plain.address) plain = s.plain; // encrypt it (or finish doing so)
       else otherPlain = s.plain.address;
     }
+    recovery = W.readRecovery(S);
+    if (wallet && !$("rec-address").value) $("rec-address").value = wallet.address;
     showWallet();
+    showRecovery();
   }
   async function createWallet() {
     const st = $("gen-status");
@@ -225,6 +317,8 @@ Close any other tab of this page first: an old page still open could write the p
       fresh = { pub: { address, hot_root: C.hexEncode(hotCache.root), cold_commit: C.hexEncode(coldCommit), nextIndex: 0 },
                 seed, cache: hotCache, cold, kek };
       $("cold-key").textContent = C.hexEncode(cold).match(/.{8}/g).join(" ");
+      $("cold-sheet").textContent = "Write these two lines down with it (they are public):\n" +
+        "address          " + address + "\nfirst hot root   " + fresh.pub.hot_root;
       $("cold-check").value = "";
       say(st, "", "");
       $("cold-backup").hidden = false;
@@ -244,13 +338,13 @@ Close any other tab of this page first: an old page still open could write the p
       const made = await W.seal(fresh.seed, fresh.pub, fresh.kek);
       W.storeNew(S, made.record);
       fresh.cold.fill(0); // best effort: JavaScript cannot promise the bytes are gone from memory
-      wallet = viewOf(made.record); session = { seed: fresh.seed, dataKey: made.dataKey }; cache = fresh.cache; fresh = null;
+      wallet = viewOf(made.record); session = { seed: fresh.seed, dataKey: made.dataKey, key: C.deriveKey(fresh.seed, 0) }; cache = fresh.cache; fresh = null;
     } catch (e) {
       return say($("cold-status"), "red", "The wallet was not saved: " + e.message);
     } finally {
       $("cold-done").disabled = false;
     }
-    $("cold-key").textContent = ""; $("cold-check").value = ""; say($("cold-status"), "red", "");
+    $("cold-key").textContent = ""; $("cold-sheet").textContent = ""; $("cold-check").value = ""; say($("cold-status"), "red", "");
     $("cold-backup").hidden = true;
     showWallet();
     refresh();
@@ -268,7 +362,7 @@ Close any other tab of this page first: an old page still open could write the p
     try {
       const out = await W.migrate(S, pass);
       $("m-pass").value = ""; $("m-pass2").value = "";
-      wallet = viewOf(out.record); session = { seed: out.seed, dataKey: out.dataKey }; cache = out.cache; plain = null;
+      wallet = viewOf(out.record); session = { seed: out.seed, dataKey: out.dataKey, key: C.deriveKey(out.seed, 0) }; cache = out.cache; plain = null;
       say(st, "", "");
       say($("toast"), "grn", "Wallet encrypted. Same address, same keys, counter " + wallet.nextIndex +
         ". The plain-text copy is gone. The wallet is unlocked now: Lock it when done.");
@@ -279,14 +373,19 @@ Close any other tab of this page first: an old page still open could write the p
     }
     showWallet();
   }
-  // The decrypted seed is used only if it rebuilds this wallet's hot root and address.
+  // The decrypted seed is used only if it rebuilds the key this wallet signs with (and, for the address's
+  // first key, the address itself).
   function openSession(seed, dataKey) {
-    const c = C.mtCache(seed);
-    if (C.hexEncode(c.root) !== wallet.hotRoot || C.hexEncode(C.identity(c.root, C.hexDecode(wallet.coldCommit))) !== wallet.address) {
-      seed.fill(0); dataKey.fill(0);
-      throw new Error("the decrypted key does not rebuild this address, so this page will not use it");
+    const key = C.deriveKey(seed, wallet.keyIndex);
+    const c = C.mtCache(key);
+    const root = C.hexEncode(c.root);
+    const ok = root === wallet.keyRoot && (wallet.keyIndex !== 0 || wallet.recovered ||
+      (root === wallet.hotRoot && C.hexEncode(C.identity(c.root, C.hexDecode(wallet.coldCommit))) === wallet.address));
+    if (!ok) {
+      seed.fill(0); dataKey.fill(0); key.fill(0);
+      throw new Error("the decrypted key does not rebuild this wallet's key, so this page will not use it");
     }
-    session = { seed, dataKey }; cache = c;
+    session = { seed, dataKey, key }; cache = c;
   }
   async function unlock(how) {
     const st = $("u-status");
@@ -312,7 +411,7 @@ Close any other tab of this page first: an old page still open could write the p
   }
   // Wipe the decrypted key (best effort: JavaScript cannot promise the bytes are gone from memory).
   function lock() {
-    if (session) { session.seed.fill(0); session.dataKey.fill(0); }
+    if (session) { session.seed.fill(0); session.key.fill(0); session.dataKey.fill(0); }
     session = null; cache = null;
     $("seedbox").hidden = true; $("seedbox").textContent = "";
     $("backup-toggle").textContent = "Show hot key";
@@ -343,10 +442,10 @@ Close any other tab of this page first: an old page still open could write the p
     showWallet();
   }
   function forgetWallet() {
-    if (!confirm("Switch wallets? This forgets the hot key in this browser. Without a copy of it this address can sign no more (recovery with the cold key is designed, not built).")) return;
+    if (!confirm("Switch wallets? This forgets the hot key in this browser. Without a copy of it this address can sign no more here (the cold key can still recover the address: RECOVER, below).")) return;
     lock();
     W.forget(S);
-    wallet = null;
+    wallet = null; lastKeys = null;
     showWallet();
   }
 
@@ -412,13 +511,29 @@ Close any other tab of this page first: an old page still open could write the p
     if (!r.ok) throw new Error("HTTP " + r.status);
     return r.json();
   }
+  // POST a JSON body as text; a replica answers 409 with the producer's URL, and the SAME bytes go there,
+  // once. Throws only when no node answered.
+  async function postJson(path, text) {
+    const post = (base) => fetch(base + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: text });
+    let r = await post(api());
+    let s = await r.json();
+    let at = "";
+    if (r.status === 409 && typeof s.producer === "string" && /^https?:\/\//.test(s.producer)) {
+      at = s.producer.replace(/\/+$/, "");
+      r = await post(at);
+      s = await r.json();
+    }
+    return { ok: r.ok && !s.error, status: r.status, body: s, error: s.error || "HTTP " + r.status, at };
+  }
   async function refresh() {
     try {
       const s = await getJson("/state");
       lastState = s;
       renderChain(s);
-      await syncIndex();
+      await syncKeys();
+      await syncRecovery();
       showWallet();
+      showRecovery();
       const rep = s.replica ? "  replica of " + s.replica.producer + (s.replica.following ? "" : "  FOLLOWING STOPPED: " + s.replica.stopped) : "";
       $("live").textContent = "NOESIS  live  height " + s.height + "  JUL " + s.jul_issued + "  " + api() + rep;
     } catch (e) {
@@ -432,19 +547,70 @@ Close any other tab of this page first: an old page still open could write the p
 
   // ---- one-time keys: never sign twice with one ----
   // XMSS keys are one-time: two different messages signed with one key leak it. So (1) the chain's
-  // high-water mark wins over the local counter (GET /index/<address>), and (2) a key is spent BEFORE it
-  // signs: the counter is saved first, synchronously, so it is on disk before the signature exists, let
-  // alone leaves this page, and it is never handed back, even if the node rejects it. The counter sits
-  // outside the ciphertext (see wallet.js), so saving it needs no key and works while locked.
-  async function syncIndex() {
-    if (!wallet || plain) return;
+  // high-water mark wins over the local counter, and (2) a key is spent BEFORE it signs: the counter is
+  // saved first, synchronously, so it is on disk before the signature exists, let alone leaves this page,
+  // and it is never handed back, even if the node rejects it. The counter sits outside the ciphertext
+  // (see wallet.js), so saving it needs no key and works while locked. Counters are per key in the series:
+  // the chain's mark (GET /keys) counts for this browser's key only while it is the address's current key.
+  async function syncIndex() { // an older node without GET /keys
     try {
       const j = await getJson("/index/" + wallet.address);
       if (j.highest_used != null && j.highest_used + 1 > wallet.nextIndex) {
         wallet.nextIndex = j.highest_used + 1; // in memory first, so a failed save still leaves the floor in force
-        wallet.nextIndex = W.saveCounter(S, wallet.address, j.highest_used + 1);
+        wallet.nextIndex = W.saveCounter(S, wallet.address, j.highest_used + 1, wallet.keyIndex);
       }
-    } catch (e) { /* an older node without /index, or a storage error: submit re-reads the stored counter */ }
+    } catch (e) { /* a storage error: submit re-reads the stored counter */ }
+  }
+  async function syncKeys() {
+    if (!wallet || plain) { lastKeys = null; return; }
+    let k;
+    try { k = await getJson("/keys/" + wallet.address); } catch (e) { lastKeys = null; return syncIndex(); }
+    lastKeys = k;
+    const op = wallet.pendingKeyOp;
+    if (op) {
+      const onChain = k.on_chain, queuedHere = k.queued && (op.op !== "rotate" || k.queued.new_root === op.keyRoot);
+      if (op.op === "rotate" && (queuedHere || (onChain && onChain.hot_root === op.keyRoot)) && op.keyIndex > wallet.keyIndex) {
+        adoptRotation(op); // the node took it (its answer was lost): sign with the new key now
+      }
+      const done = op.op === "rotate" ? !!(onChain && onChain.hot_root === op.keyRoot) : !!(onChain && !onChain.pending && !k.queued);
+      if (done) clearKeyOp();
+      else if (!k.queued) {
+        try { // the node lost it (a restart): the same signed bytes again, never a new signature
+          const res = await postJson("/key", op.body);
+          if (!res.ok) { clearKeyOp(); keyError = "Your " + op.op + " was refused by the node: " + res.error + "."; }
+          else lastKeys = await getJson("/keys/" + wallet.address);
+        } catch (e) { /* the node did not answer: kept, sent again next time */ }
+      }
+    }
+    if (keyIsCurrent() && lastKeys.highest_used != null && lastKeys.highest_used + 1 > wallet.nextIndex) {
+      try {
+        wallet.nextIndex = lastKeys.highest_used + 1;
+        wallet.nextIndex = W.saveCounter(S, wallet.address, lastKeys.highest_used + 1, wallet.keyIndex);
+      } catch (e) { /* submit re-reads the stored counter */ }
+    }
+  }
+  function clearKeyOp() {
+    try { W.saveKeyOp(S, wallet.address, null); } catch (e) { /* re-read on reload */ }
+    wallet.pendingKeyOp = null;
+  }
+  // Move this browser to the rotated key: stored first, then the session signs with it.
+  function adoptRotation(op) {
+    if (op.keyIndex <= W.storedKey(S, wallet.address).keyIndex) return; // already moved (another path got there first)
+    W.saveRotation(S, wallet.address, op.keyIndex, op.keyRoot);
+    wallet.keyIndex = op.keyIndex; wallet.keyRoot = op.keyRoot; wallet.nextIndex = 0;
+    if (session) { session.key.fill(0); session.key = C.deriveKey(session.seed, op.keyIndex); }
+    cache = null;
+  }
+  // The next one-time index of this browser's key: past the stored counter and the chain's mark.
+  function nextIndex() {
+    const sk = W.storedKey(S, wallet.address);
+    if (sk.keyIndex !== wallet.keyIndex) throw new Error("the wallet moved to another key in another tab; reload the page");
+    const chain = keyIsCurrent() && lastKeys && lastKeys.highest_used != null ? lastKeys.highest_used + 1 : 0;
+    return Math.max(wallet.nextIndex, sk.nextIndex, chain);
+  }
+  function signingCache() {
+    if (!cache) cache = C.mtCache(session.key);
+    return cache;
   }
 
   // ---- submit: the node runs the same signature check ----
@@ -457,27 +623,25 @@ Close any other tab of this page first: an old page still open could write the p
     const data = $("what").value.trim();
     if (!data) return say(toast, "red", "Write a contribution to submit.");
     const parent = $("parent").value ? Number($("parent").value) : null; // signed, so read once
-    if (wallet.nextIndex >= C.MT_MAX_SIGS) return say(toast, "red", "This wallet has used all " + C.MT_MAX_SIGS + " one-time keys. Its standing stays with this address.");
+    if (wallet.nextIndex >= C.MT_MAX_SIGS - 1) return say(toast, "red", "This key has used all its " + C.MT_MAX_SIGS + " one-time keys but the last, which is kept for a rotation. Rotate to the next key (WALLET, above); the address and its standing stay the same.");
     $("send").disabled = true;
     say(toast, "", "signing...");
     let spent = false;
     try {
-      await syncIndex();
+      await syncKeys();
       if (!session) throw new Error("the wallet was locked");
-      const seed = session.seed;
-      const index = Math.max(wallet.nextIndex, W.storedNext(S, wallet.address)); // another tab may have moved it
-      if (index >= C.MT_MAX_SIGS) throw new Error("this wallet has used all " + C.MT_MAX_SIGS + " one-time keys");
+      if (!keyIsCurrent()) throw new Error("this browser's hot key is not this address's current key (see WALLET)");
+      const index = nextIndex(); // another tab may have moved it
+      if (index >= C.MT_MAX_SIGS - 1) throw new Error("this key's last one-time key is kept for a rotation; rotate first");
       // spent from here on, whatever happens next: saved before the signature exists
-      wallet.nextIndex = W.saveCounter(S, wallet.address, index + 1);
+      wallet.nextIndex = W.saveCounter(S, wallet.address, index + 1, wallet.keyIndex);
       spent = true;
-      if (!cache) cache = C.mtCache(seed);
       // the digest covers the address, the one-time index, the parent link and the data
       const msg = C.contributionDigest(C.hexDecode(wallet.address), index, parent, C.utf8(data));
-      const sig = C.mtSign(seed, index, msg, cache);
-      if (!C.mtVerify(C.hexDecode(wallet.hotRoot), index, msg, sig)) throw new Error("local signature self-check failed");
+      const sig = C.mtSign(session.key, index, msg, signingCache());
+      if (!C.mtVerify(C.hexDecode(wallet.keyRoot), index, msg, sig)) throw new Error("local signature self-check failed");
       say(toast, "", "mining...");
-      const part = (t) => ({ ots_root: C.hexEncode(t.ots_root), auth: t.auth.map((a) => C.hexEncode(a)), ots_sig: C.hexEncode(t.ots_sig) });
-      const body = { identity: wallet.address, hot_root: wallet.hotRoot, cold_commit: wallet.coldCommit, index,
+      const body = { identity: wallet.address, hot_root: wallet.keyRoot, cold_commit: wallet.coldCommit, index,
                      bottom: part(sig.bottom), top: part(sig.top), data };
       if (parent != null) body.parent = parent;
       const post = (base) => fetch(base + "/submit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -506,6 +670,202 @@ Close any other tab of this page first: an old page still open could write the p
     }
   }
 
+  // ---- key operations: rotate (A1) and cancel a recovery request (A7) ----
+  // Both are signed by this browser's current key, at a one-time index spent before signing, and saved
+  // before they are sent, so a lost answer re-sends the same bytes.
+  async function keyOp(kind) {
+    const st = $("w-status");
+    if (!ORIGIN_OK) return say(st, "red", OFF_HERE);
+    if (!wallet || plain) return;
+    if (!session) return say(st, "red", kind === "rotate" ? "Unlock first to rotate." : "Unlock first to cancel the recovery request.");
+    const button = $(kind === "rotate" ? "rotate" : "cancel-recovery");
+    button.disabled = true;
+    let spent = false;
+    try {
+      await syncKeys();
+      const k = lastKeys;
+      if (!k) throw new Error("this node does not report key records (GET /keys)");
+      if (!k.key_rotation) throw new Error("this chain has identity keys off");
+      if (k.queued) throw new Error("a key operation for this address is waiting for the next block; try again after it lands");
+      if (!keyIsCurrent()) throw new Error("this browser's hot key is not this address's current key");
+      if (kind === "cancel" && !(k.current && k.current.pending)) throw new Error("no recovery request is pending");
+      let newRoot = new Uint8Array(32), nextKey = null, nextCache = null;
+      if (kind === "rotate") {
+        say(st, "", "building key #" + (wallet.keyIndex + 1) + " of the series (a few seconds)...");
+        await paint();
+        nextKey = C.deriveKey(session.seed, wallet.keyIndex + 1);
+        nextCache = C.mtCache(nextKey);
+        newRoot = nextCache.root;
+      }
+      const index = nextIndex();
+      if (index >= C.MT_MAX_SIGS) throw new Error("this key has no one-time key left");
+      wallet.nextIndex = W.saveCounter(S, wallet.address, index + 1, wallet.keyIndex);
+      spent = true;
+      const opByte = kind === "rotate" ? C.OP_ROTATE : C.OP_CANCEL;
+      const msg = C.keyOpDigest(C.hexDecode(wallet.address), opByte, k.chain_id, k.generation, newRoot, index);
+      const sig = C.mtSign(session.key, index, msg, signingCache());
+      if (!C.mtVerify(C.hexDecode(wallet.keyRoot), index, msg, sig)) throw new Error("local signature self-check failed");
+      const body = { op: kind, identity: wallet.address, index, bottom: part(sig.bottom), top: part(sig.top) };
+      if (kind === "rotate") body.new_root = C.hexEncode(newRoot);
+      if (!k.on_chain) body.birth = { hot_root: wallet.hotRoot, cold_commit: wallet.coldCommit }; // the address's first key change
+      const op = { op: kind, body: JSON.stringify(body), keyIndex: kind === "rotate" ? wallet.keyIndex + 1 : wallet.keyIndex,
+                   keyRoot: kind === "rotate" ? C.hexEncode(newRoot) : wallet.keyRoot };
+      W.saveKeyOp(S, wallet.address, op);
+      wallet.pendingKeyOp = op;
+      keyError = null;
+      say(st, "", "sending...");
+      let res;
+      try { res = await postJson("/key", op.body); }
+      catch (e) { throw new Error("the node did not answer; the same signed " + kind + " is kept and sent again"); }
+      if (!res.ok) { clearKeyOp(); throw new Error(res.error); }
+      if (kind === "rotate") {
+        adoptRotation(op);
+        if (nextCache) cache = nextCache;
+        if (nextKey) nextKey.fill(0);
+        say(st, "grn", "Rotated to key #" + op.keyIndex + ". It signs from the next block on (the block that carries the rotation); the old key signs nothing more for this address. The hot key backup covers every key in the series.");
+      } else {
+        say(st, "grn", "Cancel sent. It lands with the next block, and the recovery request never takes effect.");
+      }
+      lastKeys = await getJson("/keys/" + wallet.address).catch(() => lastKeys);
+    } catch (e) {
+      say(st, "red", "Not done: " + e.message + (spent ? " (one one-time key of this key is spent)" : ""));
+    } finally {
+      button.disabled = false;
+    }
+    showWallet();
+  }
+
+  // ---- recovery with the cold key (A7) ----
+  async function syncRecovery() {
+    recovery = S ? W.readRecovery(S) : null;
+    recInfo = null;
+    if (!recovery) return;
+    try {
+      const k = await getJson("/keys/" + recovery.address);
+      const p = k.current && k.current.pending;
+      if (k.on_chain && k.on_chain.hot_root === recovery.keyRoot && !k.on_chain.pending) recInfo = { state: "done", k };
+      else if (p && p.new_root === recovery.keyRoot) recInfo = { state: "pending", k, p };
+      else if (k.queued && k.queued.new_root === recovery.keyRoot) recInfo = { state: "queued", k };
+      else if (recRefused && recRefused.body === recovery.recovery.body) recInfo = { state: "refused", k, error: recRefused.error };
+      else { // not seen by the node (a restart lost it, or it was cancelled): the same signed bytes again
+        const res = await postJson("/key", recovery.recovery.body);
+        if (!res.ok) recRefused = { body: recovery.recovery.body, error: res.error };
+        recInfo = res.ok ? { state: "queued", k } : { state: "refused", k, error: res.error };
+      }
+    } catch (e) {
+      recInfo = { state: "unknown", error: e.message };
+    }
+  }
+  function showRecovery() {
+    $("rec-form").hidden = !recOpen || !!recovery;
+    $("rec-open").hidden = recOpen || !!recovery;
+    $("rec-line").hidden = !recovery;
+    $("recover-finish").hidden = !(recInfo && recInfo.state === "done");
+    $("recover-drop").hidden = !(recInfo && recInfo.state === "refused");
+    if (!recovery) { $("rec-line").textContent = ""; return; }
+    let t = "Recovery of " + recovery.address + " in this browser, new hot key " + short(recovery.keyRoot) + ":\n";
+    if (!recInfo) t += "checking the chain...";
+    else if (recInfo.state === "pending") t += "PENDING. It takes effect at block " + recInfo.p.effective_at + ", " + recInfo.p.cancel_blocks_left +
+      " blocks from now (the chain is at block " + recInfo.k.height + "). Until then whoever holds the address's current\nhot key can cancel it.";
+    else if (recInfo.state === "queued") t += "sent; waiting for the next block to carry it.";
+    else if (recInfo.state === "done") t += "IN EFFECT: the new key signs for the address. Press \"Use the recovered key\" to make it this browser's wallet.";
+    else if (recInfo.state === "refused") t += "NOT IN EFFECT: " + recInfo.error + ".\nThe hot key holder may have cancelled it, or the chain refused it. It can be removed.";
+    else t += "the node could not be read (" + recInfo.error + ")";
+    $("rec-line").textContent = t;
+  }
+  async function recover() {
+    const st = $("rec-status");
+    if (!ORIGIN_OK) return say(st, "red", OFF_HERE);
+    if (!S) return say(st, "red", "This browser blocks storage for this page, so it cannot hold the new key.");
+    if (W.readRecovery(S)) return say(st, "red", "A recovery is already in progress in this browser (above).");
+    const address = $("rec-address").value.trim().toLowerCase();
+    const coldHex = $("rec-cold").value.replace(/\s+/g, "").toLowerCase();
+    $("rec-cold").value = ""; // the cold key is never kept, not even in the field
+    const pass = $("rec-pass").value, bad = W.checkPass(pass, $("rec-pass2").value);
+    if (!HEX64.test(address)) return say(st, "red", "The address must be 64 hex characters.");
+    if (!HEX64.test(coldHex)) return say(st, "red", "The cold key must be 64 hex characters (spaces are fine). Paste it again.");
+    if (bad) return say(st, "red", bad);
+    if (wallet && wallet.address !== address) return say(st, "red", "This browser holds a wallet of another address; recover in another browser profile.");
+    $("recover-go").disabled = true;
+    const cold = C.hexDecode(coldHex);
+    let freshSeed = null, sent = false;
+    try {
+      say(st, "", "reading the address's key record...");
+      await paint();
+      const k = await getJson("/keys/" + address);
+      if (!k.key_rotation) throw new Error("this chain has identity keys off");
+      if (k.queued) throw new Error("a key operation for this address is waiting for the next block; try again after it lands");
+      say(st, "", "checking the cold key (a few seconds)...");
+      await paint();
+      const coldRoot = C.mtKeygenRoot(cold);
+      const coldCommit = C.hexEncode(C.coldCommit(coldRoot));
+      let birth = null;
+      if (k.current) {
+        if (coldCommit !== k.current.cold_commit) throw new Error("this cold key is not the one committed in this address");
+      } else {
+        const hot = $("rec-hot").value.trim().toLowerCase() || (wallet && wallet.address === address && !wallet.recovered ? wallet.hotRoot : "");
+        if (!HEX64.test(hot)) throw new Error("the chain holds no key record for this address yet, so the request must name the address's first hot key root: paste it (it is on the recovery sheet, and on the wallet page)");
+        if (C.hexEncode(C.identity(C.hexDecode(hot), C.hexDecode(coldCommit))) !== address) throw new Error("this cold key and this first hot key root do not make this address");
+        birth = { hot_root: hot, cold_commit: coldCommit };
+      }
+      const kek = await W.passKek(pass);
+      $("rec-pass").value = ""; $("rec-pass2").value = "";
+      say(st, "", "making the new hot key (a few seconds)...");
+      await paint();
+      freshSeed = C.randomSeed();
+      const newRoot = C.mtKeygenRoot(freshSeed);
+      // The cold key is not stored, so its counter is the chain's floor. The spread (0..255, from the new
+      // root) keeps two attempts from two browsers that cannot see each other off one one-time key.
+      const index = (k.current ? k.current.cold_floor : 0) + ((newRoot[0] | (newRoot[1] << 8)) % 256);
+      const msg = C.keyOpDigest(C.hexDecode(address), C.OP_RECOVER, k.chain_id, k.generation, newRoot, index);
+      const sig = C.mtSign(cold, index, msg);
+      if (!C.mtVerify(coldRoot, index, msg, sig)) throw new Error("local signature self-check failed");
+      cold.fill(0);
+      const body = { op: "recover", identity: address, index, new_root: C.hexEncode(newRoot), cold_root: C.hexEncode(coldRoot),
+                     bottom: part(sig.bottom), top: part(sig.top) };
+      if (birth) body.birth = birth;
+      const rootHex = C.hexEncode(newRoot);
+      const made = await W.seal(freshSeed, { address, hot_root: rootHex, cold_commit: coldCommit, nextIndex: 0, keyIndex: 0, keyRoot: rootHex, recovered: 1 }, kek);
+      made.dataKey.fill(0);
+      made.record.recovery = { body: JSON.stringify(body), requested_at: k.height };
+      W.storeRecovery(S, made.record); // saved before the request leaves this page
+      sent = true;
+      say(st, "", "sending the request...");
+      let res;
+      try { res = await postJson("/key", made.record.recovery.body); }
+      catch (e) { throw new Error("the node did not answer; the signed request is kept and sent again"); }
+      if (!res.ok) { W.dropRecovery(S); sent = false; throw new Error(res.error + " (the cold key's one-time key " + index + " is spent; another attempt uses another)"); }
+      say(st, "grn", "Recovery requested. It lands with the next block, then waits out the chain's delay; whoever holds the current hot key can cancel it until then.");
+      recOpen = false;
+    } catch (e) {
+      say(st, "red", (sent ? "" : "Not requested: ") + e.message);
+    } finally {
+      cold.fill(0);
+      if (freshSeed) freshSeed.fill(0);
+      $("recover-go").disabled = false;
+    }
+    await syncRecovery();
+    showRecovery();
+  }
+  async function finishRecovery() {
+    try {
+      lock();
+      W.promoteRecovery(S);
+      recovery = null; recInfo = null; lastKeys = null; keyError = null;
+      loadWallet();
+      say($("w-status"), "grn", "The recovered key is now this browser's wallet. Unlock it with the passphrase you chose for the recovery. Its seed is your new hot key backup (Show hot key); an older backup of this address no longer signs.");
+      refresh();
+    } catch (e) {
+      say($("rec-status"), "red", e.message);
+    }
+  }
+  function dropRecovery() {
+    if (!confirm("Remove this recovery attempt from this browser? Its key is not in effect on the chain.")) return;
+    W.dropRecovery(S);
+    recovery = null; recInfo = null;
+    showRecovery();
+  }
+
   // ---- wiring ----
   $("create-wallet").onclick = createWallet;
   $("create-wallet").disabled = !ORIGIN_OK;
@@ -518,13 +878,19 @@ Close any other tab of this page first: an old page still open could write the p
   $("lock").onclick = lock;
   $("add-passkey").onclick = addPasskey;
   $("forget").onclick = forgetWallet;
+  $("rotate").onclick = () => keyOp("rotate");
+  $("cancel-recovery").onclick = () => keyOp("cancel");
+  $("rec-open").onclick = () => { recOpen = true; showRecovery(); };
+  $("recover-go").onclick = recover;
+  $("recover-finish").onclick = finishRecovery;
+  $("recover-drop").onclick = dropRecovery;
   $("copy-addr").onclick = () => { if (navigator.clipboard) navigator.clipboard.writeText(wallet.address); };
   // The backup of the hot key needs the wallet unlocked: the key is not readable otherwise.
   $("backup-toggle").onclick = () => {
     const box = $("seedbox");
     if (box.hidden && !session) return say($("w-status"), "red", "Unlock first to show the hot key.");
     box.hidden = !box.hidden;
-    box.textContent = box.hidden ? "" : "HOT KEY (anyone with it can sign as this address; the recovery key is separate and not stored here).\n" +
+    box.textContent = box.hidden ? "" : "HOT KEY (anyone with it can sign as this address with every key of its series; the recovery key is separate and not stored here).\n" +
       "Nobody, including Jarvis or a node operator, will ever ask you for it.\n" + C.hexEncode(session.seed);
     $("backup-toggle").textContent = box.hidden ? "Show hot key" : "Hide hot key";
   };

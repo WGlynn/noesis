@@ -35,7 +35,7 @@ attacker-choosable-input audit and the per-mechanism critical-QA notes in `docs/
 The idea (contribution as a conserved, measured quantity) is not the thing critics
 attack — the execution is. The four classes anyone will probe are **gameability,
 DoS/spam, double-spend, and chain rollback**, and behind them the capture of the standing set
-(section 5). Each is mapped below to its mechanism,
+(section 5) and the loss or theft of an identity's key (section 6). Each is mapped below to its mechanism,
 its honest status (✅ built & tested · 🟡 designed, not built · 🔬 open problem), and
 where to verify it. Status is the truth line; we do not round designed up to built.
 
@@ -103,7 +103,7 @@ to genuinely contribute.
 - Single-use UTXO retirement: a consumed authority/value cell is retired on apply, so a later block's
   existence check fails for an already-spent cell. **Within-block** and **cross-block** double-spend
   both rejected. Verify: `runtime.rs::token_txs_conserve_and_single_use`, tests at
-  `runtime.rs:1151/1205/1273`, `intra_tx_double_mint_is_denied` (`ckb_vm_proven_e2e.rs`).
+  `runtime.rs:1190/1244/1312`, `intra_tx_double_mint_is_denied` (`ckb_vm_proven_e2e.rs`).
 - Mint authority is *derived* from control of a consumed authority cell, never a self-declared field.
 - **🟡 deploy-coupled:** the cryptographic nullifier set + on-VM UTXO-set retirement are the deploy
   layer; the reference model proves the rule, the on-chain enforcement ships at deploy.
@@ -174,13 +174,13 @@ finality (the never-halt design goal, `docs/DESIGN-committee-attested-clock.md` 
 
 **The capture premise is narrower than "60% wins".**
 - Standing alone can't finalize. Finality needs PoS+PoM weight of at least 2/3 and each of PoS and PoM
-  to supply at least half of its own dimension (`FINALITY_MIX`, `runtime.rs:1725`; `MIN_DIM_BPS = 5000`,
+  to supply at least half of its own dimension (`FINALITY_MIX`, `runtime.rs:1779`; `MIN_DIM_BPS = 5000`,
   `runtime.rs:1737`). A captured standing set also needs half the stake, so part of the price of capture
   is a market price, and honest capital holds a veto. The missed-vote decay below never weakens it.
 - Capital's share of the vote is fixed, not bought (2026-10-21). The 2/3 bar weighs each side as a
   share of its own total (`finality::side_shares`, `runtime.rs:1758`, mirrored on-VM), so capital holds
   exactly 1/3 of the finality vote once contribution weight exists and all of it at genesis
-  (`finality::capital_share`, `runtime.rs:1773`). Adding stake, or re-denominating it, moves no weight
+  (`finality::capital_share`, `runtime.rs:1827`). Adding stake, or re-denominating it, moves no weight
   between the sides. Before this the mix weighed raw stake against raw novelty counts, so the balance
   depended on units: with the test numbers capital's share of the bar ran toward 0 as data accumulated,
   and with stake in a smallest unit capital would have owned the bar. Two keys follow: capital's power
@@ -194,7 +194,7 @@ finality (the never-halt design goal, `docs/DESIGN-committee-attested-clock.md` 
   2/3 at once, so a captured early contribution side plus half the stake can finalize. The ramp that
   would phase it in is not designed (`ARCHITECTURE.md`, finality section).
 - Votes don't make invalid state valid. Finality chooses among blocks that already pass the rules
-  (`validate_block`, `runtime.rs:1370`; the on-VM type scripts), so a finality majority can censor or
+  (`validate_block`, `runtime.rs:1414`; the on-VM type scripts), so a finality majority can censor or
   reorder, not vote through a theft. Governance is a separate instrument (VIBE, `ARCHITECTURE.md:85`).
 - Farm-then-spend has a delay: fresh standing carries no finality weight until it survives the vesting
   window `W`, and a refutation that lands inside `W` removes it (built in the reference, inert by default).
@@ -209,11 +209,11 @@ finality (the never-halt design goal, `docs/DESIGN-committee-attested-clock.md` 
 
 **Missed-finality-vote decay (the inactivity-leak analog).** Built in the reference, inert by default
 (`Constitution.leak_horizon = 0`, `runtime.rs:177`), not in the on-VM finalization mirror. Code:
-`finality::VoteLeak` (`runtime.rs:1921`), `finality::finalizes_pos_pom_leaking` (`runtime.rs:1990`),
+`finality::VoteLeak` (`runtime.rs:1975`), `finality::finalizes_pos_pom_leaking` (`runtime.rs:2044`),
 `Node::checkpoint_round` (`runtime.rs:1153`); tests in `node/tests/vote_leak.rs`. The decay scales
 side shares taken against the unleaked totals, never shares recomputed after leaking (that would hand
 a leaked side its full weight back).
-- The gap. Heartbeat decay (`Constitution.horizon`, `consensus::effective_weight`, `node/src/lib.rs:4084`)
+- The gap. Heartbeat decay (`Constitution.horizon`, `consensus::effective_weight`, `node/src/lib.rs:4087`)
   keys to liveness, so a group holding more than a third of the combined finality weight that stays
   online and withholds its vote stalls finality on the 2/3 bar indefinitely.
 - Trigger: a finality stall. The decay runs only while rounds end without a finalized checkpoint, after
@@ -301,6 +301,39 @@ social layer made measurable, so the fourth weight is PoM's unmeasured remainder
 protocol can't prove yet, such as censorship or taste disputes. It shrinks as measurement improves (the
 narrow-then-widen scope rule), and the record keeps it honest when it is used, because the social layer
 decides on signed evidence instead of on who is loudest.
+
+### 6. Loss or theft of an identity's key: rotation and cold-key recovery — built (reference node)
+
+Standing is soulbound to an identity, so a lost or stolen key can't be insured or paid back; before
+2026-11-18 an identity's hot key was also fixed forever. Wallet decisions A1 and A7 (Will 2026-11-17),
+built in the reference node (`node/src/identity_key.rs`; full description in `ARCHITECTURE.md`, identity
+keys):
+
+- **Rotation (A1).** The current hot key signs a move to the next key of its series (derived from the one
+  hot seed). It is in effect from the block that carries it; from then on the old key signs nothing for the
+  identity, at the door for contributions and in the rulebook for key operations and contribution labels.
+  Standing does not move (test `key_operations_move_no_standing_and_no_finality_weight`).
+- **Recovery (A7).** The cold key committed inside the identity at birth signs a request naming a new hot
+  key. It takes effect only after `recovery_delay_blocks` blocks (testnet 100, `chainspec.rs:74`), during which the
+  current hot key can cancel it. A cold key that does not match the commitment, a replayed request (its
+  one-time index is spent), a cancel outside the window, or two key operations for one identity in one block
+  are refused by `validate_block`, so the producer, followers, store replay and joiners agree.
+- **One-time keys.** Counters are per key; a key operation's leaf can't be reused by a contribution, in the
+  same block or later, and the reverse.
+- **What it does not defend, said plainly.**
+  - A stolen hot key. The current hot key can rotate at once and can cancel any recovery, so a thief who
+    holds it wins the race. The cold key recovers a lost key, not a stolen one. A rotation delay that the
+    cold key could cancel would change this; it is a decision for Will, not built.
+  - A leaked hot seed: it is the backup of the whole series, so the next derived key leaks with it. The
+    remedy, a rotation to a key from a fresh seed, is allowed by the rule but not offered by the page (open).
+  - Speed. The delay counts blocks, which the testnet makes on demand; whoever makes blocks quickly shortens
+    it in wall-clock time. A wall-clock floor needs block timestamps under clock enforcement or a
+    producer-side block rate (open).
+  - Contribution authorship is still checked only at the producer's door (unchanged): a follower checks a
+    contribution's key label, not its signature, because the block does not carry the signature.
+  - On-VM: no script knows these rules yet.
+- Verify: `identity_key.rs` tests (rule level) and the `rpc.rs` tests from `an_identity_with_no_key_record_submits_exactly_as_before`
+  on (routes, a follower refusing a forged key operation, restart replay).
 
 > **Reviewer's shortcut:** the two legs to press hardest are **(1) the `v(S)` un-gameability proof**
 > (demonstrated for known vectors, isomorphism-invariance open) and **(2) the resource-DoS commit-deposit**

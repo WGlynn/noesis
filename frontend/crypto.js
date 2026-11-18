@@ -282,6 +282,28 @@
     return hash(P_WAL2, 0x03, [identityBytes, u32le(index), link, dh]);
   }
 
+  // ============ the key series and key operations (wallet decisions A1 and A7) ============
+  // Hot key i of a wallet whose hot seed is `seed` (Rust wallet::derive_key): key 0 is the seed itself, so
+  // an existing wallet's key is key 0 and its address does not change; key i >= 1 is
+  // H(0x06 | scheme | seed | i). One backup (the seed) covers every later key.
+  function deriveKey(seed, i) {
+    if (!Number.isInteger(i) || i < 0 || i > 0xffffffff) throw new Error('key number out of range');
+    return i === 0 ? Uint8Array.from(seed) : hash(P_WAL2, 0x06, [Uint8Array.of(SCHEME), seed, u32le(i)]);
+  }
+  function u64le(n) {
+    if (!Number.isSafeInteger(n) || n < 0) throw new Error('u64 out of range');
+    var out = new Uint8Array(8);
+    out.set(u32le(n % 0x100000000), 0);
+    out.set(u32le(Math.floor(n / 0x100000000)), 4);
+    return out;
+  }
+  var OP_ROTATE = 1, OP_RECOVER = 2, OP_CANCEL = 3;
+  // The message a key operation signs (Rust wallet::key_op_digest): identity, op, chain id, the key
+  // generation it acts on, the new hot root (zeros for a cancel), the signer's one-time index.
+  function keyOpDigest(identityBytes, op, chainId, generation, newRoot, index) {
+    return hash(P_WAL2, 0x05, [identityBytes, Uint8Array.of(op), u64le(chainId), u64le(generation), newRoot, u32le(index)]);
+  }
+
   // ============ helpers ============
   function hexEncode(bytes) {
     var s = '';
@@ -313,6 +335,7 @@
     xmssSign: xmssSign, xmssVerify: xmssVerify,
     MT_MAX_SIGS: MT_MAX_SIGS, mtCache: mtCache, mtKeygenRoot: mtKeygenRoot, mtSign: mtSign, mtVerify: mtVerify,
     SCHEME: SCHEME, coldCommit: coldCommit, identity: identity, contributionDigest: contributionDigest,
+    deriveKey: deriveKey, keyOpDigest: keyOpDigest, OP_ROTATE: OP_ROTATE, OP_RECOVER: OP_RECOVER, OP_CANCEL: OP_CANCEL,
     hexEncode: hexEncode, hexDecode: hexDecode, randomSeed: randomSeed, utf8: utf8,
     u32le: u32le, bytesEqual: bytesEqual
   };
