@@ -61,6 +61,11 @@ The address is your identity. The key never leaves this browser.</pre>
 </fieldset>
 
 <fieldset>
+<legend>BLOCKS</legend>
+<pre id="blocks" class="dim">...</pre>
+</fieldset>
+
+<fieldset>
 <legend>CONTRIBUTION GRAPH</legend>
 <pre id="dag" class="dim">...</pre>
 </fieldset>
@@ -186,6 +191,14 @@ The address is your identity. The key never leaves this browser.</pre>
     $("ids").textContent = lines.join("\n");
   }
 
+  // The newest finalized blocks (GET /blocks, newest first): height, header hash, what it carried.
+  function renderBlocks(blocks) {
+    if (!blocks.length) { $("blocks").textContent = "No blocks yet. The first contribution makes block 1."; return; }
+    $("blocks").textContent = "height  hash          cells  token-txs  reward-to\n" + blocks.slice(0, 10).map((b) =>
+      pad(b.height, 8) + pad(short(b.hash), 14) + pad((b.cells || []).length, 7) + pad(b.token_txs, 11) + short(b.coinbase || "none")
+    ).join("\n");
+  }
+
   async function getJson(path) {
     const r = await fetch(api() + path, { cache: "no-store" });
     if (!r.ok) throw new Error("HTTP " + r.status);
@@ -204,6 +217,7 @@ The address is your identity. The key never leaves this browser.</pre>
     }
     getJson("/contributions").then((j) => { renderDag(j.contributions || []); populateParents(j.contributions || []); }).catch(() => {});
     getJson("/tokens").then((j) => renderIds(j.cells || [])).catch(() => {});
+    getJson("/blocks").then((j) => renderBlocks(j.blocks || [])).catch(() => {});
   }
 
   // ---- submit: the same signing path as before; the node runs the same check ----

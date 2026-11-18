@@ -173,6 +173,24 @@ pub struct ServerState {
     pending_token_txs: Vec<TokenTx>,
     /// Recent inclusions `(tx digest, block height)`, newest last, bounded. Node-local.
     included_token_txs: Vec<([u8; 32], u64)>,
+    /// The explorer's view (`GET /blocks`, testnet step 4): one short summary per finalized block,
+    /// oldest first, bounded to the newest [`MAX_BLOCK_SUMMARIES`]. Rebuilt from the chain log at boot.
+    blocks: Vec<Value>,
+}
+
+/// How many block summaries the explorer keeps (the newest).
+const MAX_BLOCK_SUMMARIES: usize = 1000;
+
+/// A finalized block as the explorer shows it: height, header digest, the contribution cell ids it
+/// finalized, how many token txs it carried, and who its JUL reward was paid to (hex of the lock args).
+fn block_summary(b: &crate::runtime::Block) -> Value {
+    json!({
+        "height": b.height,
+        "hash": hex_encode(&crate::runtime::header_digest(b)),
+        "cells": b.cells.iter().map(|c| c.id).collect::<Vec<u64>>(),
+        "token_txs": b.token_txs.len(),
+        "coinbase": b.coinbase.as_ref().map(|s| hex_encode(&s.args)),
+    })
 }
 
 /// A finalized contribution cell binds its signer + one-time leaf into `lock.args = address(32)‖
@@ -207,6 +225,7 @@ impl ServerState {
             used_index: std::collections::HashMap::new(),
             pending_token_txs: Vec::new(),
             included_token_txs: Vec::new(),
+            blocks: Vec::new(),
         }
     }
 
@@ -222,7 +241,10 @@ impl ServerState {
     /// replayed so the caller can announce it.
     pub fn with_store(path: impl Into<std::path::PathBuf>, spec: ChainSpec) -> std::io::Result<(Self, usize)> {
         let path = path.into();
-        let (node, replayed) = crate::store::load_chain(&path, &spec)?;
+        let (node, loaded) = crate::store::load_blocks(&path, &spec)?;
+        let replayed = loaded.len();
+        let skip = replayed.saturating_sub(MAX_BLOCK_SUMMARIES);
+        let blocks: Vec<Value> = loaded[skip..].iter().map(block_summary).collect();
         // Resume id assignment past the highest persisted cell id (never collide with a replayed cell).
         let next_id = node.ledger.cells.iter().map(|c| c.id).max().unwrap_or(0) + 1;
         // Rebuild the ingress screen's seen-set AND the per-address anti-replay high-water mark from the
@@ -246,6 +268,7 @@ impl ServerState {
                 used_index,
                 pending_token_txs: Vec::new(),
                 included_token_txs: Vec::new(),
+                blocks,
             },
             replayed,
         ))
@@ -455,6 +478,9 @@ impl ServerState {
                 // and advance this address's one-time-leaf high-water mark.
                 self.screen.record(data.as_bytes());
                 self.used_index.insert(address, index as u64);
+                self.blocks.push(block_summary(&block));
+                let over = self.blocks.len().saturating_sub(MAX_BLOCK_SUMMARIES);
+                self.blocks.drain(..over);
                 // Durability: append the finalized block before returning. Best-effort — the block is
                 // already applied in memory, so a write failure degrades durability (a restart would
                 // lose this one block), not correctness; surface it loudly rather than crash the node.
@@ -496,6 +522,8 @@ pub fn handle_request(
         ("GET", "/state") => out(200, state.state_json()),
         ("GET", "/contributions") => out(200, state.contributions_json()),
         ("GET", "/tokens") => out(200, state.tokens_json()),
+        // the explorer: the newest 100 finalized blocks, newest first
+        ("GET", "/blocks") => out(200, json!({ "blocks": state.blocks.iter().rev().take(100).collect::<Vec<_>>() })),
         ("POST", "/token-tx") => {
             let tx = match serde_json::from_slice::<Value>(body)
                 .map_err(|e| format!("invalid JSON: {e}"))
@@ -753,6 +781,32 @@ mod tests {
         let v: serde_json::Value = serde_json::from_slice(&body).expect("questions.json is valid JSON");
         assert!(v["questions"].as_array().map(|a| !a.is_empty()).unwrap_or(false), "serves a non-empty question set");
         assert!(v["questions"][0]["q"].is_string(), "each question carries a `q` string");
+    }
+
+    #[test]
+    fn blocks_route_lists_finalized_blocks_newest_first_and_survives_a_restart() {
+        let path = std::env::temp_dir().join(format!("noesis-blocks-route-{}.log", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        let (mut st, _) = ServerState::with_store(&path, ChainSpec::dev()).unwrap();
+        let first = signed_body(&[0x11u8; 32], 0, "a genuinely new idea about winter light");
+        let second = signed_body(&[0x22u8; 32], 0, "an entirely separate subject, cold rivers");
+        assert_eq!(handle_request(&mut st, "POST", "/submit", &first).0, 200);
+        assert_eq!(handle_request(&mut st, "POST", "/submit", &second).0, 200);
+        let (status, _ctype, body) = handle_request(&mut st, "GET", "/blocks", b"");
+        assert_eq!(status, 200);
+        let v = state_of(&body);
+        let blocks = v["blocks"].as_array().expect("a blocks array");
+        assert_eq!(blocks.len(), 2);
+        assert_eq!(blocks[0]["height"], 2, "newest first");
+        assert_eq!(blocks[1]["height"], 1);
+        assert_eq!(blocks[0]["hash"].as_str().unwrap().len(), 64, "a 32-byte header digest in hex");
+        assert_eq!(blocks[0]["cells"].as_array().unwrap().len(), 1, "one contribution per block");
+        // a restart rebuilds the same view from the chain log
+        let (mut again, replayed) = ServerState::with_store(&path, ChainSpec::dev()).unwrap();
+        assert_eq!(replayed, 2);
+        let (_, _, body2) = handle_request(&mut again, "GET", "/blocks", b"");
+        assert_eq!(state_of(&body2)["blocks"], v["blocks"]);
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
