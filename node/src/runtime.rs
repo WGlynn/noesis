@@ -95,8 +95,8 @@ pub struct Constitution {
     /// and burned iff it scores zero, so a K-junk flood costs `K · submission_deposit`.
     /// ⚑ ACTIVATION IS A GOVERNANCE ACT ON A LIVE CHAIN, never a genesis default: a bond requires
     /// circulating JUL (a coinbase must have paid a submitter first), so a genesis with `> 0` and zero
-    /// seeded JUL cannot produce a non-empty block. It also requires `CONTROL_BINDING_ACTIVE` (the
-    /// lock-sig deploy) — a forfeiture burns the bonded cell, so spends must be owner-authorized first
+    /// seeded JUL cannot produce a non-empty block. It also requires `control_binding` (the
+    /// lock-sig layer) — a forfeiture burns the bonded cell, so spends must be owner-authorized first
     /// (`Node::new` asserts both). The value is Will/governance-gated, like `delta`.
     pub submission_deposit: u128,
     /// The N-way JUL issuance split (inc-M3-3, the L-INFRA carve-out). Each `(recipient, bps)` carves a
@@ -175,6 +175,16 @@ pub struct Constitution {
     /// A zero-for-every-root rule could be, since the scoring never reads `parent` and naming any
     /// parent is free. Default `false` means INERT (byte-identical); on in `ChainSpec::testnet()`.
     pub genesis_unscored: bool,
+    /// Control binding, the existence-to-control switch of the lock-sig layer (it replaced the
+    /// hard-coded `CONTROL_BINDING_ACTIVE = false`, 2026-11-17). When `false`, an EMPTY `auth` on a
+    /// spent input (a token-tx input or a Bound-B deposit) authorizes the spend: existence stands in
+    /// for control. When `true`, every spent input must present a valid Lamport signature by its
+    /// owner key (`lock.args`) over the tx digest, so only the key holder can move a cell. A PRESENTED
+    /// auth is verified for real either way ([`TokenTx::spend_is_authorized`]). Contribution cells and
+    /// the coinbase are not spends and never read this. Default `false` (dev, and every spec but the
+    /// testnet); on in `ChainSpec::testnet()`. This is the node's switch only: the four on-VM binding
+    /// switches in `onchain/*` (and the on-VM lock script's `CONTROL_ENFORCED`) stay off.
+    pub control_binding: bool,
 }
 
 impl Default for Constitution {
@@ -197,6 +207,7 @@ impl Default for Constitution {
             leak_grace: 0,         // read only when leak_horizon > 0
             leak_horizon: 0,       // inert: no missed-vote decay, so checkpoint_round == checkpoint_finalizes
             genesis_unscored: false, // inert: the first cell scores like any other ⇒ byte-identical
+            control_binding: false,  // inert: an empty auth authorizes a spend ⇒ byte-identical
         }
     }
 }
@@ -476,7 +487,10 @@ impl TokenTx {
     /// forces every consumed input to equal a real finalized cell byte-for-byte, so the amount can
     /// no longer be forged. (Spending ANOTHER owner's real cell is the separate, still-open lock-sig
     /// gap above — orthogonal to amount forgery.)
-    pub fn is_valid_in_ledger(&self, live: &[Cell]) -> bool {
+    ///
+    /// `control_binding` is the chain's [`Constitution::control_binding`]: whether an EMPTY auth still
+    /// authorizes a spend (off) or every input must carry its owner's signature (on).
+    pub fn is_valid_in_ledger(&self, live: &[Cell], control_binding: bool) -> bool {
         let input_is_live = |inp: &Cell| {
             live.iter().any(|c| {
                 c.id == inp.id
@@ -495,13 +509,13 @@ impl TokenTx {
             return false;
         }
         // EXISTENCE→CONTROL: each consumed input must be authorized by its owner, not merely exist.
-        // Empty `auth` is the pre-deploy inert path (authorized while CONTROL_BINDING_ACTIVE is off),
-        // so honest empty-auth flows are unchanged; a PRESENTED `auth` is verified for real against the
-        // input's `lock.args` (post-quantum Lamport). The message is the canonical [`Self::digest`].
+        // Empty `auth` authorizes only while `control_binding` is off (the inert path, honest empty-auth
+        // flows unchanged); a PRESENTED `auth` is verified for real against the input's `lock.args`
+        // (post-quantum Lamport). The message is the canonical [`Self::digest`].
         let tx_digest = self.digest();
         self.inputs.iter().enumerate().all(|(i, input)| {
             let auth = self.auths.get(i).map(Vec::as_slice).unwrap_or(&[]);
-            Self::spend_is_authorized(input, auth, &tx_digest)
+            Self::spend_is_authorized(input, auth, &tx_digest, control_binding)
         })
     }
 
@@ -557,9 +571,9 @@ impl TokenTx {
     /// [`lamport`] module; Will chose PQ 2026-06-22). A PRESENTED `auth` is verified FOR REAL against
     /// the finalized cell's `lock.args`, closing existence→control cryptographically: a real cell can
     /// be NAMED by anyone, but only the holder of the lock's one-time key can MOVE it.
-    ///   - an ABSENT (empty) `auth` is the honest pre-deploy case; `CONTROL_BINDING_ACTIVE` gates
-    ///     whether it is still tolerated (pre-deploy YES ⇒ existing empty-auth flows unchanged; at
-    ///     deploy the flag flips and every spend must present a signature), and
+    ///   - an ABSENT (empty) `auth` is tolerated iff `control_binding` is off (the chain's
+    ///     [`Constitution::control_binding`]: off ⇒ existing empty-auth flows unchanged; on, as on the
+    ///     testnet, every spend must present a signature), and
     ///   - a PRESENTED (non-empty) `auth` is verified: accepted iff it is a valid Lamport signature
     ///     over `tx_digest` under the input's `lock.args` public-key root, rejected otherwise (a
     ///     garbage blob or a wrong-key/wrong-message signature is not an authorization).
@@ -567,11 +581,11 @@ impl TokenTx {
     /// The owner public key is sourced from the FINALIZED cell's `lock.args`, never producer-asserted
     /// ([P·dont-let-attacker-choose-critical-input]). WIRED into [`Self::is_valid_in_ledger`]: called
     /// once per consumed input with that input's positional `auth`.
-    pub(crate) fn spend_is_authorized(input: &Cell, auth: &[u8], tx_digest: &[u8; 32]) -> bool {
-        // Explicit deploy flag — never an overloaded sentinel (the QA-port-2 lesson). Pre-deploy a
-        // cell may carry no control proof; at deploy an empty auth no longer authorizes.
+    pub(crate) fn spend_is_authorized(input: &Cell, auth: &[u8], tx_digest: &[u8; 32], control_binding: bool) -> bool {
+        // Explicit chain setting — never an overloaded sentinel (the QA-port-2 lesson). With binding off
+        // a cell may carry no control proof; with it on an empty auth no longer authorizes.
         if auth.is_empty() {
-            return !CONTROL_BINDING_ACTIVE;
+            return !control_binding;
         }
         Self::verify_sig(&input.lock.args, tx_digest, auth)
     }
@@ -605,14 +619,6 @@ pub struct PowSeal {
 /// A proposed block: cells paired with their consensus-sourced ordering coordinates,
 /// already in canonical commit order. Assembly is presentation-independent — no producer
 /// can bias which cell lands in which slot (the temporal-order strategyproofness guarantee).
-/// Deploy flag for the existence→control lock-signature layer: while `false` (pre-deploy) an empty
-/// `auth` authorizes a spend (existence stands in for control); at deploy it flips and every spend —
-/// token input OR Bound-B deposit — must present a verified Lamport signature. Module-scoped so the
-/// genesis-admission gate on `submission_deposit` can read it (a bond forfeiture BURNS a cell, so it
-/// must not activate before the auth that proves the burner owns it — the inc-CLK-1 lesson: never ship
-/// a destruction rule ahead of its guard).
-pub(crate) const CONTROL_BINDING_ACTIVE: bool = false;
-
 /// A Bound-B commit-deposit (`docs/RESOURCE-DOS-BOUNDING.md` §Bound B): the escrow that attaches a
 /// cost to the ACT of submission, refunded iff the bonded cell is a genuine contribution and burned
 /// iff it scores zero novelty — the SAME per-cell predicate the attribution gate already computes, so
@@ -627,7 +633,7 @@ pub struct Bond {
     /// A REAL consumed value cell, never a producer-asserted number ([P·dont-let-attacker-choose-critical-input]).
     pub deposit: Cell,
     /// owner spend proof over the bond (the lock-sig seam, positional like `TokenTx.auths`). Empty =
-    /// pre-deploy inert sentinel (`CONTROL_BINDING_ACTIVE == false`); a presented auth is verified for
+    /// inert sentinel (authorizes only while `control_binding` is off); a presented auth is verified for
     /// real. Without this, a hostile producer could bond a VICTIM's live JUL cell for junk and burn it.
     pub auth: Vec<u8>,
 }
@@ -1022,13 +1028,14 @@ impl Node {
             "submission_deposit > 0 under pow_enforced requires header-bound bonds (not yet shipped) — \
              gate the deposit until the header binds `bonds`",
         );
-        // Bound-B forfeiture BURNS the bonded cell. Until the lock-sig layer is live
-        // (`CONTROL_BINDING_ACTIVE`), an empty auth authorizes any spend, so an active deposit would let
-        // a producer bond — and burn — a VICTIM's cell. Gate activation behind control-binding so the
-        // destruction rule never ships ahead of the auth that proves ownership (the inc-CLK-1 lesson).
+        // Bound-B forfeiture BURNS the bonded cell. Without control binding
+        // (`Constitution::control_binding`), an empty auth authorizes any spend, so an active deposit
+        // would let a producer bond — and burn — a VICTIM's cell. Gate activation behind control binding
+        // so the destruction rule never ships ahead of the auth that proves ownership (the inc-CLK-1
+        // lesson).
         assert!(
-            !(constitution.submission_deposit > 0 && !CONTROL_BINDING_ACTIVE),
-            "submission_deposit > 0 requires CONTROL_BINDING_ACTIVE (the lock-sig deploy) — a bond \
+            !(constitution.submission_deposit > 0 && !constitution.control_binding),
+            "submission_deposit > 0 requires control_binding (the lock-sig layer) — a bond \
              forfeiture burns a cell, so it must not activate before spends are owner-authorized",
         );
         // Clock enforcement precondition (inc-CLK-2): the monotone-timestamp rule reads a field whose
@@ -1318,7 +1325,7 @@ pub fn validate_block(ledger: &Ledger, b: &Block, c: &Constitution) -> Result<()
     if !b.coords.iter().all(|c| c.height == b.height) {
         return Err(Violation::CoordHeightMismatch);
     }
-    if !token_txs_conserve_and_single_use(ledger, b) {
+    if !token_txs_conserve_and_single_use(ledger, b, c) {
         return Err(Violation::TokenTxInvalidOrDoubleSpend);
     }
     pow_check(b, c)?;
@@ -1329,7 +1336,7 @@ pub fn validate_block(ledger: &Ledger, b: &Block, c: &Constitution) -> Result<()
 
 /// Canonical message a bond's `auth` signs (L5) — binds the authorization to THIS (for_cell, deposit)
 /// so a signature cannot be replayed onto a different bond. Domain-separated; length-prefixed for
-/// injectivity. Deploy-independent (matters only once `CONTROL_BINDING_ACTIVE` flips).
+/// injectivity. Matters only on a chain with `control_binding` on (an empty auth authorizes otherwise).
 fn bond_message(for_cell: u64, deposit: &Cell) -> [u8; 32] {
     use noesis_core::pow::{hash, put};
     let mut buf: Vec<u8> = Vec::new();
@@ -1384,8 +1391,8 @@ fn check_bonds(ledger: &Ledger, b: &Block, c: &Constitution) -> Result<(), Viola
         if !live || crate::tokens::fungible::amount(d) < c.submission_deposit {
             return Err(Violation::BondInvalid);
         }
-        // control: a bond is a spend ⇒ owner-authorized (empty auth = pre-deploy inert sentinel).
-        if !TokenTx::spend_is_authorized(d, &bond.auth, &bond_message(bond.for_cell, d)) {
+        // control: a bond is a spend ⇒ owner-authorized (empty auth authorizes only with binding off).
+        if !TokenTx::spend_is_authorized(d, &bond.auth, &bond_message(bond.for_cell, d), c.control_binding) {
             return Err(Violation::BondInvalid);
         }
         // single-use: unique among bonds AND disjoint from token-tx inputs.
@@ -1418,8 +1425,8 @@ pub fn timestamp_admissible(b: &Block, local_now: u64, delta: u64) -> bool {
 /// `Node`. Identity is the consensus-derived tuple `(id, lock, type_script)`, not a producer-asserted
 /// nullifier — the crypto nullifier / on-VM UTXO-set retirement is the deploy-coupled layer; this
 /// reference set models both block scopes.
-fn token_txs_conserve_and_single_use(ledger: &Ledger, b: &Block) -> bool {
-    txs_conserve_and_single_use(&ledger.token_cells, &b.token_txs)
+fn token_txs_conserve_and_single_use(ledger: &Ledger, b: &Block, c: &Constitution) -> bool {
+    txs_conserve_and_single_use(&ledger.token_cells, &b.token_txs, c.control_binding)
 }
 
 /// Conserve + single-use for a batch of value txs against a live cell set — the SINGLE consensus rule
@@ -1430,11 +1437,12 @@ fn token_txs_conserve_and_single_use(ledger: &Ledger, b: &Block) -> bool {
 /// tier would soft-confirm a guaranteed revert. Each tx must: conserve its DECLARED token + spend only
 /// live inputs (`is_valid_in_ledger`); not inflate JUL (`jul_out ≤ jul_in`, measured by the cells' real
 /// `is_jul` identity, since the coinbase is the money layer's sole inflation channel); not squat a
-/// reserved coinbase id; and consume each input at most once.
-pub(crate) fn txs_conserve_and_single_use(live: &[Cell], txs: &[TokenTx]) -> bool {
+/// reserved coinbase id; and consume each input at most once. `control_binding` is the chain's
+/// [`Constitution::control_binding`] (whether an unsigned input still authorizes).
+pub(crate) fn txs_conserve_and_single_use(live: &[Cell], txs: &[TokenTx], control_binding: bool) -> bool {
     let mut consumed: HashSet<(u64, Script, Script)> = HashSet::new();
     for tx in txs {
-        if !tx.is_valid_in_ledger(live) {
+        if !tx.is_valid_in_ledger(live, control_binding) {
             return false;
         }
         // JUL SECURITY (increment 2): JUL is conserve-or-burn-ONLY through the token path ⇒ the block
@@ -2471,21 +2479,28 @@ mod tests {
     }
 
     #[test]
-    fn spend_authorization_inert_pre_deploy_but_rejects_presented_unverifiable_auth() {
-        // existence->control SHAPE (DESIGN-locksig-binding.md step 2), sentinel-gated inert.
+    fn spend_authorization_inert_with_binding_off_but_rejects_presented_unverifiable_auth() {
+        // existence->control SHAPE (DESIGN-locksig-binding.md step 2), gated by `control_binding`.
         let tx = sample_tx();
         let d = tx.digest();
         let input = &tx.inputs[0];
-        // absent (sentinel) auth = the honest pre-deploy case => authorized (inert; flows unchanged).
+        // binding off: an absent (sentinel) auth authorizes (inert; flows unchanged).
         assert!(
-            TokenTx::spend_is_authorized(input, &[], &d),
-            "an absent (sentinel) auth is inert-authorized pre-deploy"
+            TokenTx::spend_is_authorized(input, &[], &d, false),
+            "an absent (sentinel) auth is inert-authorized while control binding is off"
         );
-        // a PRESENTED garbage auth fails REAL verification (a 3-byte blob is not a valid Lamport sig).
+        // binding on: the same absent auth no longer authorizes. This is the whole switch.
         assert!(
-            !TokenTx::spend_is_authorized(input, &[1, 2, 3], &d),
-            "a malformed presented signature is not an authorization"
+            !TokenTx::spend_is_authorized(input, &[], &d, true),
+            "with control binding on, an absent auth is not an authorization"
         );
+        // a PRESENTED garbage auth fails REAL verification either way (a 3-byte blob is not a Lamport sig).
+        for binding in [false, true] {
+            assert!(
+                !TokenTx::spend_is_authorized(input, &[1, 2, 3], &d, binding),
+                "a malformed presented signature is not an authorization (binding {binding})"
+            );
+        }
     }
 
     #[test]
@@ -2762,7 +2777,7 @@ mod tests {
         );
         // ... and the LEDGER-AWARE gate rejects it: no such cell was ever finalized.
         assert!(
-            !mint.is_valid_in_ledger(&node.ledger.token_cells),
+            !mint.is_valid_in_ledger(&node.ledger.token_cells, false),
             "fabricated authority input passed the ledger-existence check"
         );
         assert!(
@@ -2797,8 +2812,8 @@ mod tests {
         let m1 = mint_to(b"alice");
         let m2 = mint_to(b"bob");
         // each tx ALONE is ledger-valid — the authority cell really exists ...
-        assert!(m1.is_valid_in_ledger(&node.ledger.token_cells));
-        assert!(m2.is_valid_in_ledger(&node.ledger.token_cells));
+        assert!(m1.is_valid_in_ledger(&node.ledger.token_cells, false));
+        assert!(m2.is_valid_in_ledger(&node.ledger.token_cells, false));
         // ... but spending that SAME authority identity twice in one block is a double-spend.
         assert!(
             !node.validate(&block.with_token_txs(vec![m1, m2])),
@@ -3698,7 +3713,7 @@ mod tests {
         let mut m1 = mint(authority.clone(), b"piece-1");
         let d1 = m1.digest();
         m1.auths = vec![lamport::sign(&seed, &d1)];
-        assert!(m1.is_valid_in_ledger(&live), "first mint, signed by the one-time key");
+        assert!(m1.is_valid_in_ledger(&live, true), "first mint, signed by the one-time key");
 
         // Way out 1, rotate the authority to a fresh key: the successor's lock.args no longer equals
         // the token args, so the next mint has no authority at all.
@@ -3713,7 +3728,7 @@ mod tests {
         let d2 = m2.digest();
         assert_ne!(d1, d2);
         m2.auths = vec![lamport::sign(&seed, &d2)];
-        assert!(m2.is_valid_in_ledger(&live), "the reused key is accepted");
+        assert!(m2.is_valid_in_ledger(&live, true), "the reused key is accepted");
         // ... and two signatures under one Lamport key let a third party sign a digest the key never
         // signed: per bit, take the 64-byte chunk (preimage + sibling hash) from whichever signature
         // signed that bit value.
@@ -3768,10 +3783,10 @@ mod tests {
             // an unsigned or wrong-key spend of this generation's authority is refused when presented
             if g > 0 {
                 tx.auths = vec![lamport::sign(&keys[g - 1], &d)];
-                assert!(!tx.is_valid_in_ledger(&node.ledger.token_cells), "the previous key cannot spend generation {g}");
+                assert!(!tx.is_valid_in_ledger(&node.ledger.token_cells, true), "the previous key cannot spend generation {g}");
             }
             tx.auths = vec![lamport::sign(&keys[g], &d)];
-            assert!(tx.is_valid_in_ledger(&node.ledger.token_cells), "mint {h} signed by key {g}");
+            assert!(tx.is_valid_in_ledger(&node.ledger.token_cells, true), "mint {h} signed by key {g}");
             let block = carrier_at(h, h, h as u8, format!("carrier payload for mint number {h}").as_bytes())
                 .with_token_txs(vec![tx]);
             assert!(node.validate(&block), "mint block {h}");
@@ -3800,7 +3815,7 @@ mod tests {
         node.ledger.token_cells.push(sb_ident(5, b"c", 7, 9)); // serial 7 is live
         let dup = sb_tx(vec![sb_auth(1, b"k0", 0)], vec![sb_auth(2, b"k1", 1), sb_ident(6, b"c2", 7, 8)]);
         assert!(dup.is_valid(), "the pure rule cannot see the ledger");
-        assert!(!dup.is_valid_in_ledger(&node.ledger.token_cells), "serial 7 minted twice");
+        assert!(!dup.is_valid_in_ledger(&node.ledger.token_cells, false), "serial 7 minted twice");
         assert!(!node.validate(&block.clone().with_token_txs(vec![dup])));
         let fresh = sb_tx(vec![sb_auth(1, b"k0", 0)], vec![sb_auth(2, b"k1", 1), sb_ident(6, b"c2", 8, 8)]);
         assert!(node.validate(&block.with_token_txs(vec![fresh])));

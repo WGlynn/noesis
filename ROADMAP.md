@@ -33,6 +33,16 @@
    `internal/DESIGN-joint-decay-damping-rate.md`. Code comments + patent line 233 relabeled to match.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-11-17 (testnet package C: control binding on, block reward to a faucet; testnet reset 2)**:
+  `CONTROL_BINDING_ACTIVE` is now `Constitution::control_binding` (runtime.rs:187), on only in
+  `ChainSpec::testnet()`: an empty auth no longer authorizes a spend there (test
+  `testnet_refuses_an_unsigned_spend_that_dev_accepts`, chainspec.rs:377, red before the fix). The other
+  four on-VM binding switches stay off. Block rewards on testnet go to faucet keys derived from a node-local
+  seed (one Lamport key per height, change to a purse keyed by generation, so no key signs twice on chain);
+  `POST /faucet` pays 10 test JUL, one per address per 24 h, 30 per hour. Pinned: rewards and payouts move
+  no standing and no finality weight (faucet.rs:489, broken on purpose and reverted). Honest floor: the
+  seed is plaintext on the host, limits reset on restart, and the web wallet has no JUL-spending key yet.
+  Reset 2 happened at height 0 (no blocks existed on reset 1's chain), so nothing carried over or was lost.
 - **2026-11-17 (testnet reset 1: wallet format v2)**: the local testnet node was reset to a new
   genesis (TESTNET.md reset policy, rule 1: no outside joiners yet). Why: format v2 (e3c9f34f) changes
   the identity hash, so v1 wallets cannot sign on the new node, and the old chain's one contribution

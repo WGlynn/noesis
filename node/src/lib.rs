@@ -111,6 +111,11 @@ pub mod rpc;
 /// what it builds. Used by the `identity-mint` binary.
 pub mod identity_mint;
 
+/// faucet — testnet step 3: a funded wallet that pays small amounts of test JUL to newcomers. The block
+/// reward funds it on the testnet spec; each faucet cell has its own one-time key derived from a seed
+/// kept outside the repository. Off-consensus; its payouts face the block gate like any token tx.
+pub mod faucet;
+
 /// store — the durable, append-only block log: the chain survives a node restart by replaying the log
 /// through the same validate+apply path a joiner uses. The difference between a demo and a node that
 /// stays on. Step "persistence" of the friends-ready node.

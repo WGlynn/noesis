@@ -43,6 +43,13 @@ pub struct ChainSpec {
     /// standing and no finality weight). Today: the soulbound identity issuer's authority cell for
     /// [`crate::identity_mint::COLLECTION`], the only way a soulbound collection gets an authority.
     pub genesis_token_cells: Vec<Cell>,
+    /// Who the block reward pays. Consensus constructs the reward AMOUNT (`apply_transition`) and never
+    /// checks the recipient (`Block::coinbase` is producer-named), so this is production policy written
+    /// into the spec. `false`: the first bonded validator's contributor key ([`Self::placeholder_reward`],
+    /// a placeholder nobody spends; dev). `true`: the testnet faucet, one one-time key per block derived
+    /// from the faucet seed ([`crate::faucet`]), so a node producing this chain must hold that seed
+    /// (`--serve-api` refuses to start without it). JUL only: standing and finality never read it.
+    pub reward_to_faucet: bool,
 }
 
 /// The testnet identity issuer's authority lock root at generation 0 (a public key, hex
@@ -92,6 +99,7 @@ impl ChainSpec {
                 crate::identity_mint::authority_root(&crate::identity_mint::DEV_ISSUER_SEED, 0),
                 0,
             )],
+            reward_to_faucet: false, // the dev reward goes to the placeholder, unchanged
         }
     }
 
@@ -107,8 +115,13 @@ impl ChainSpec {
     /// remains the standing ⚑ (`genesis_bits` measured-at-build on real hardware, loop-plan M2/⚑).
     /// Everything else is the honest launch default: `vesting_w = 0`, empty `coinbase_split`
     /// (ratified `infra_bps = NONE`), `submission_deposit = 0`, `clock_enforced = false` — the testnet
-    /// ships at the FLOOR, never claiming the moat. The 5 on-VM binding activations
-    /// (`CONTROL_BINDING_ACTIVE` etc.) stay `false` until the deploy-coupled go-live flip (Will-gated).
+    /// ships at the FLOOR, never claiming the moat.
+    ///
+    /// CONTROL BINDING ON, REWARD TO THE FAUCET (Will 2026-11-17, package C). The node's spend check
+    /// requires every spent input to carry its owner's Lamport signature (`control_binding: true`, see
+    /// `Constitution::control_binding`), and each block reward pays the faucet (`reward_to_faucet`), so a
+    /// newcomer can get test JUL that only its key holder can move. Only the node's switch is on: the
+    /// four on-VM binding switches in `onchain/*` stay `false` until the go-live milestone (Will-gated).
     ///
     /// JUL ON TESTNET (the resolved design — dial the PARAMETER, never the MECHANISM): PoW stays fully
     /// in consensus (`pow_enforced = true`) so the testnet tests the real PoW / issuance security model, and JUL mints
@@ -126,8 +139,9 @@ impl ChainSpec {
     /// still earns standing, and it is farmable at ~zero cost while `submission_deposit = 0` and the on-VM
     /// bindings are `false`. So testnet PoM standing is NOT yet a Sybil-resistant signal — the deployed path
     /// tests the FLOOR (identity + near-dup + PoW), never the value moat (learned v(S), 🔬 open). A public
-    /// PERMISSIONLESS testnet therefore wants the go-live knot (`CONTROL_BINDING_ACTIVE` flip →
-    /// `submission_deposit > 0`, + per-identity standing cap or an allowlist) first. Audit:
+    /// PERMISSIONLESS testnet therefore wants the rest of the go-live knot (`submission_deposit > 0`, which
+    /// control binding now permits but `pow_enforced` still blocks until the header binds bonds, + a
+    /// per-identity standing cap or an allowlist) first. Audit:
     /// `docs/SYBIL-SURFACE-deployed-franchise-2026-07-19.md`.
     pub fn testnet() -> Self {
         // genesis_unscored: the chain's first contribution earns no standing (Will 2026-11-17, "I just
@@ -136,6 +150,7 @@ impl ChainSpec {
             pow_enforced: true,
             work_clock_ceiling: 1 << 40,
             genesis_unscored: true,
+            control_binding: true, // every spend carries its owner's signature (package C, 2026-11-17)
             ..Default::default()
         };
 
@@ -165,6 +180,7 @@ impl ChainSpec {
                 TESTNET_IDENTITY_AUTHORITY_ROOT,
                 0,
             )],
+            reward_to_faucet: true, // the block reward funds the faucet (testnet step 3)
         }
     }
 
@@ -196,17 +212,26 @@ impl ChainSpec {
 
     /// [`produce_block`](Self::produce_block) carrying `token_txs` in the block (empty ⇒ exactly
     /// `produce_block`). A token movement never makes a block by itself: the block still needs a
-    /// contribution (`EmptyBlock`), and the txs face the same block gate as any other.
+    /// contribution (`EmptyBlock`), and the txs face the same block gate as any other. The reward pays
+    /// [`placeholder_reward`](Self::placeholder_reward); a node producing a `reward_to_faucet` chain for
+    /// real names the faucet through [`produce_block_paying`](Self::produce_block_paying) (`rpc.rs` does).
     pub fn produce_block_with(&self, node: &mut Node, token_txs: Vec<TokenTx>) -> Option<Block> {
+        self.produce_block_paying(node, token_txs, self.placeholder_reward())
+    }
+
+    /// The placeholder reward recipient: the first bonded validator's contributor key (`alice` on dev
+    /// and testnet). A label, not a key anyone holds, so with control binding on nobody can spend it.
+    pub fn placeholder_reward(&self) -> Script {
+        Script { code_hash: [0u8; 32], args: self.validators.first().map(|(k, _)| k.clone()).unwrap_or_default() }
+    }
+
+    /// [`produce_block_with`](Self::produce_block_with), paying the block reward to `reward_to`. Consensus
+    /// fixes the amount, never the recipient, so this changes who holds the new JUL and nothing else.
+    pub fn produce_block_paying(&self, node: &mut Node, token_txs: Vec<TokenTx>, reward_to: Script) -> Option<Block> {
         if node.mempool.is_empty() {
             return None; // no contributions ⇒ nothing to finalize (an empty block is invalid)
         }
-        // The producer (block reward recipient) is the first bonded validator's contributor key.
-        let producer = Script {
-            code_hash: [0u8; 32],
-            args: self.validators.first().map(|(k, _)| k.clone()).unwrap_or_default(),
-        };
-        let block = mine(node.propose().with_token_txs(token_txs).with_coinbase(producer), self.genesis_bits);
+        let block = mine(node.propose().with_token_txs(token_txs).with_coinbase(reward_to), self.genesis_bits);
         if !node.validate(&block) {
             node.clear_mempool();
             return None;
@@ -343,6 +368,62 @@ mod tests {
             authority_root(&DEV_ISSUER_SEED, 0),
             "the testnet authority is not the public dev key"
         );
+    }
+
+    /// What control binding ON changes, through the real block gate: a JUL cell locked by a one-time
+    /// key, moved by a block with NO signature. The dev spec (binding off) still accepts it, as before;
+    /// the testnet spec refuses it; the same move signed by the cell's key passes on both.
+    #[test]
+    fn testnet_refuses_an_unsigned_spend_that_dev_accepts() {
+        use crate::commit_order::Committed;
+        use crate::runtime::TokenStandard;
+        use noesis_core::lamport;
+
+        let owner_key = [0x5Au8; 32];
+        let jul = Script { code_hash: crate::jul::JUL_CODE_HASH, args: crate::jul::JUL_ISSUER.to_vec() };
+        let jul_cell = |id: u64, lock: Vec<u8>| Cell {
+            id,
+            lock: Script { code_hash: [0u8; 32], args: lock },
+            type_script: jul.clone(),
+            parent: None,
+            timestamp: 0,
+            data: crate::tokens::fungible::encode(7 * crate::jul::JUL_BASE_UNITS),
+        };
+        let owned = jul_cell(42, lamport::keygen_root(&owner_key).to_vec());
+        let unsigned = TokenTx {
+            standard: TokenStandard::Fungible,
+            code_hash: jul.code_hash,
+            args: jul.args.clone(),
+            inputs: vec![owned.clone()],
+            outputs: vec![jul_cell(43, vec![0xB0; 32])],
+            auths: vec![],
+        };
+        let signed = TokenTx { auths: vec![lamport::sign(&owner_key, &unsigned.digest())], ..unsigned.clone() };
+        // pow_check reads the seal's own bits, so mining at dev's easy bits keeps this test instant.
+        let fast_bits = ChainSpec::dev().genesis_bits;
+        for (spec, binding_on) in [(ChainSpec::dev(), false), (ChainSpec::testnet(), true)] {
+            let (mut node, _) = spec.genesis_node();
+            node.ledger.token_cells.push(owned.clone());
+            node.submit(
+                Cell {
+                    id: 1,
+                    lock: Script { code_hash: [0u8; 32], args: b"al".to_vec() },
+                    type_script: Script { code_hash: [1u8; 32], args: b"alice".to_vec() },
+                    parent: None,
+                    timestamp: 1,
+                    data: b"a carrier note about salt marsh tides".to_vec(),
+                },
+                Committed { height: 1, secret: [11u8; 32] },
+            );
+            let carrying = |tx: &TokenTx| mine(node.propose().with_token_txs(vec![tx.clone()]), fast_bits);
+            assert_eq!(
+                node.validate(&carrying(&unsigned)),
+                !binding_on,
+                "chain 0x{:x}: an unsigned spend is accepted iff control binding is off",
+                spec.chain_id
+            );
+            assert!(node.validate(&carrying(&signed)), "chain 0x{:x}: the owner's signature authorizes the spend", spec.chain_id);
+        }
     }
 
     #[test]

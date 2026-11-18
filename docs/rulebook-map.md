@@ -70,8 +70,9 @@ so producer(node) and decoder(on-VM type-script) share one definition by constru
 
 Token validity per input: match a live cell on `(id, lock, type_script, data)` — the `data` bind
 closes an amount-forgery hole (`node/src/runtime.rs:293-301`); conservation dispatches to
-`tokens::{fungible,nft,multi}` (`node/src/tokens.rs:54-177`); auth via Lamport is **inert pre-deploy**
-(`CONTROL_BINDING_ACTIVE=false`, `node/src/runtime.rs:381`).
+`tokens::{fungible,nft,multi}` (`node/src/tokens.rs:54-177`); auth via Lamport is **inert while control
+binding is off** (`Constitution::control_binding`, default off, on in `ChainSpec::testnet()`; it replaced
+the constant `CONTROL_BINDING_ACTIVE=false` on 2026-11-17).
 
 ### 3b. APPLY — the actual mutator (`node/src/runtime.rs:612-658`, re-verified this pass)
 Fixed order: (a) retire consumed token inputs by identity via `Vec::retain`; (b) append tx outputs;

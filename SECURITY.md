@@ -96,8 +96,8 @@ to genuinely contribute.
   refunded on genuine contribution / forfeited on junk, making a K-junk flood cost K·d — is now ✅ built &
   tested (L5: `runtime.rs` `check_bonds`/`apply_transition`, `tests/submission_deposit.rs`). Refund = the
   bonded cell stays live; burn = retire exactly one instance ⇒ conservation by construction. ⚑ activation
-  is a governance act on a live chain, gated behind `CONTROL_BINDING_ACTIVE` (a burn must not precede its
-  auth-guard). Still-deferred + honestly flagged: header-binding of `bonds` and the non-empty-auth path.
+  is a governance act on a live chain, gated behind control binding (`Constitution::control_binding`,
+  asserted in `Node::new`; a burn must not precede its auth-guard). Still-deferred + honestly flagged: header-binding of `bonds` and the non-empty-auth path.
 
 ### 3. Double-spend — ✅ built & tested (reference) / 🟡 deploy-coupled crypto
 - Single-use UTXO retirement: a consumed authority/value cell is retired on apply, so a later block's

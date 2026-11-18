@@ -19,9 +19,9 @@
 //!      decision, and do not read a nonzero test value as pinned economics.
 //!
 //! WHY NO CELL IN INCREMENT 3 (a load-bearing safety fact, not a shortcut). Representing the reserve as
-//! a real JUL cell requires a reserved nobody's-key lock — but `CONTROL_BINDING_ACTIVE == false`
-//! (runtime.rs:411) means an empty-auth spend currently AUTHORIZES, so a keyless reserve-lock cell would
-//! be anyone-spendable in the reference model today. A real reserve cell therefore needs a new
+//! a real JUL cell requires a reserved nobody's-key lock — but with `Constitution::control_binding` off
+//! (every spec except the testnet) an empty-auth spend AUTHORIZES, so a keyless reserve-lock cell would
+//! be anyone-spendable in the reference model there. A real reserve cell therefore needs a new
 //! protocol-spend-only validate clause (consensus-affecting) and is deferred to increment 3b. For now the
 //! reserve is a module-local `u128` balance + bookkeeping — the same "plain value now, `Constitution`
 //! field at wiring" posture as `jul.rs` increment 1 (jul.rs:63-66).

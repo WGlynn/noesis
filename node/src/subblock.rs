@@ -108,11 +108,15 @@ fn provisional_live(ledger: &Ledger, prior: &[SubBlock]) -> Vec<Cell> {
 /// `min_standing` is the CONTRIBUTION-WEIGHT gate (the Ergo-`T/64` → PoM-standing re-derivation): the
 /// producer must hold finalized PoM standing ≥ `min_standing`. It is a NODE/config param for now (the
 /// `wallclock`-δ precedent) — a `Constitution` field once sub-blocks wire into consensus.
+///
+/// `control_binding` is the chain's `Constitution::control_binding`, passed through so a soft-confirm
+/// never accepts an unsigned spend that settlement on the same chain would reject.
 pub fn validate_sub_block(
     ledger: &Ledger,
     prior: &[SubBlock],
     sub: &SubBlock,
     min_standing: u64,
+    control_binding: bool,
 ) -> Result<(), SubBlockViolation> {
     // (1) builds on the current ordering tip — the interval this sub-block belongs to.
     if sub.ordering_height != ledger.height {
@@ -132,7 +136,7 @@ pub fn validate_sub_block(
     //     double-spend of an input already consumed earlier in the interval is rejected). SINGLE-SOURCED
     //     onto the settlement gate `runtime::txs_conserve_and_single_use` so the fast tier runs the SAME
     //     rule as finalization (incl. JUL-conservation + coinbase-squat) — the two tiers cannot drift.
-    if !crate::runtime::txs_conserve_and_single_use(&provisional_live(ledger, prior), &sub.txs) {
+    if !crate::runtime::txs_conserve_and_single_use(&provisional_live(ledger, prior), &sub.txs, control_binding) {
         return Err(SubBlockViolation::TxInvalidOrDoubleSpend);
     }
     Ok(())

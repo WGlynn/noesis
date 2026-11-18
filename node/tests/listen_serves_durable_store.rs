@@ -78,6 +78,15 @@ fn tmp_store(tag: &str) -> PathBuf {
     p
 }
 
+/// A faucet seed file holding the PUBLIC test seed. A testnet `--serve-api` refuses to start without a
+/// faucet seed, and a test must never fall through to the real `~/.noesis` path.
+fn test_faucet_seed(tag: &str) -> PathBuf {
+    let p = tmp_store(&format!("{tag}-faucet-seed"));
+    let hex: String = noesis::faucet::DEV_FAUCET_SEED.iter().map(|b| format!("{b:02x}")).collect();
+    std::fs::write(&p, hex).expect("write the test faucet seed");
+    p
+}
+
 #[test]
 fn listen_serves_the_durable_store_and_joiner_converges() {
     let bin = env!("CARGO_BIN_EXE_noesisd");
@@ -168,8 +177,10 @@ fn serve_api_also_serves_joiners_from_one_process() {
     let bin = env!("CARGO_BIN_EXE_noesisd");
     let store = tmp_store("one-process");
     build_durable_store_on(ChainSpec::testnet(), &store, 2);
+    let seed = test_faucet_seed("one-process");
     let mut node = Command::new(bin)
         .env("NOESIS_NET", "testnet")
+        .env("NOESIS_FAUCET_SEED", &seed)
         .arg("--serve-api")
         .arg("127.0.0.1:0")
         .arg(&store)
@@ -196,7 +207,30 @@ fn serve_api_also_serves_joiners_from_one_process() {
     let _ = node.kill();
     let _ = node.wait();
     let _ = std::fs::remove_file(&store);
+    let _ = std::fs::remove_file(&seed);
     assert!(joiner.status.success(), "joiner exited non-zero: {:?}", joiner.status);
     let digest = extract_digest(&String::from_utf8_lossy(&joiner.stdout));
     assert!(digest.contains("height=2") && digest.contains("cells=[1, 2]"), "expected the 2-block durable chain; digest was: {digest}");
+}
+
+/// The testnet pays its block reward to the faucet, so `--serve-api` on it refuses to start without the
+/// faucet seed (fail loud, never a silent fallback to the placeholder key), and says why.
+#[test]
+fn testnet_serve_api_refuses_to_start_without_the_faucet_seed() {
+    let bin = env!("CARGO_BIN_EXE_noesisd");
+    let store = tmp_store("no-seed");
+    let missing = tmp_store("no-seed-faucet-seed"); // never written
+    let out = Command::new(bin)
+        .env("NOESIS_NET", "testnet")
+        .env("NOESIS_FAUCET_SEED", &missing)
+        .arg("--serve-api")
+        .arg("127.0.0.1:0")
+        .arg(&store)
+        .output()
+        .expect("run noesisd --serve-api");
+    let _ = std::fs::remove_file(&store);
+    assert!(!out.status.success(), "a testnet node without the faucet seed must not start");
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(err.contains("faucet seed"), "the error names the missing seed: {err}");
+    assert!(!String::from_utf8_lossy(&out.stdout).contains("LISTENING"), "it never opened the API");
 }

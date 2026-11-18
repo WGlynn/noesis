@@ -26,7 +26,7 @@
 //!
 //! Scope (honest): these are the *value* invariants over the reference token layer, above the
 //! commitment-level transition invariant (I6, host-tested in `utxo_commitment`). Auth/control
-//! (lock-sig) is the deploy-coupled layer (`CONTROL_BINDING_ACTIVE == false` here) — see the
+//! (lock-sig) is the deploy-coupled layer (`Constitution::control_binding` off here) — see the
 //! `is_valid_in_ledger` doc. The tx-digest canonicalisation (presentation-order invariance) is
 //! covered by the lib unit test `tx_digest_is_invariant_to_input_output_presentation`; `digest()` is
 //! `pub(crate)` so it is not re-exercised from this integration crate.

@@ -175,7 +175,8 @@ fn testnet_genesis_holds_the_issuer_authority_and_refuses_the_dev_seed() {
 fn testnet_seed_mints_against_the_testnet_genesis() {
     let path = std::env::var("NOESIS_TESTNET_ISSUER_SEED").expect("set NOESIS_TESTNET_ISSUER_SEED to the seed file");
     let master = im::parse_seed(&std::fs::read_to_string(path).unwrap()).unwrap();
-    let mut st = ServerState::with_spec(ChainSpec::testnet());
+    // the testnet pays its block reward to the faucet, so producing a block needs a faucet seed (public here)
+    let mut st = ServerState::with_spec(ChainSpec::testnet()).with_faucet(noesis::faucet::DEV_FAUCET_SEED).unwrap();
     let live = im::parse_live(&get(&mut st, "/tokens"), im::COLLECTION).unwrap();
     let recs = im::parse_batch(&batch(&[(1, 0xA1, "identity")]), im::COLLECTION).unwrap();
     let mut built = im::build(&recs, &live, &master, im::COLLECTION).expect("the testnet seed holds the authority");

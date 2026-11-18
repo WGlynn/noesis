@@ -4,6 +4,8 @@ node/target/
 onchain/*/target/
 
 # Generated / local
+# Key seeds (the faucet's, the identity issuer's) live outside the repo; never commit one by accident.
+*.seed
 WHITEPAPER.pdf
 NOESIS-HARVEST.md
 

@@ -37,7 +37,7 @@ fn jul_cell(id: u64, owner: &[u8], amount: u128) -> Cell {
     }
 }
 fn bond(for_cell: u64, deposit: Cell) -> Bond {
-    Bond { for_cell, deposit, auth: vec![] } // empty auth = pre-deploy inert (CONTROL_BINDING_ACTIVE off)
+    Bond { for_cell, deposit, auth: vec![] } // empty auth = inert (control_binding off)
 }
 fn com(height: u64, s: u8) -> Committed {
     Committed { height, secret: [s; 32] }

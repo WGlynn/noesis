@@ -15,6 +15,10 @@
 //!                      carried token txs.
 //!   * `POST /token-tx` — a signed soulbound identity tx (`identity_mint::envelope`), held until the next
 //!                      contribution block carries it. Soulbound only, every input signed.
+//!   * `GET  /faucet`   — the testnet faucet: whether this node runs one, its JUL, the drip and limits.
+//!   * `POST /faucet`   — `{address}`: queue a small test-JUL payout to that 32-byte lock, carried by the
+//!                      next contribution block ([`crate::faucet`]; 429 on a limit, 503 when it cannot pay).
+//!   * `GET  /balance/<address>` — the JUL held under that 32-byte lock.
 //!
 //! DELIBERATELY LEAN (the `net` precedent): std `TcpListener` + threads, NO async runtime and NO web
 //! framework. The request parser is bounded (a body cap + socket read timeout) — enough for a LOCAL
@@ -192,6 +196,11 @@ fn parse_signed(v: &Value) -> Result<SignedContribution, String> {
     Ok(SignedContribution { identity, hot_root, cold_commit, index, sig, parent, data })
 }
 
+/// The node's wall clock in seconds, for node-local policy only (the faucet's limits). Never consensus.
+fn node_clock() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+}
+
 /// The live node's mutable state behind the API: the chain spec (the genesis + per-block engine), the
 /// node replica, and a monotone cell-id counter for interactively-submitted contributions.
 pub struct ServerState {
@@ -217,6 +226,11 @@ pub struct ServerState {
     /// The explorer's view (`GET /blocks`, testnet step 4): one short summary per finalized block,
     /// oldest first, bounded to the newest [`MAX_BLOCK_SUMMARIES`]. Rebuilt from the chain log at boot.
     blocks: Vec<Value>,
+    /// The testnet faucet (step 3), present iff this node holds the faucet seed ([`Self::with_faucet`]).
+    /// On a `reward_to_faucet` chain it is also where every block reward goes.
+    faucet: Option<crate::faucet::Faucet>,
+    /// Seconds, for the faucet's limits. The wall clock; a test may pin it.
+    pub clock: fn() -> u64,
 }
 
 /// How many block summaries the explorer keeps (the newest).
@@ -267,6 +281,8 @@ impl ServerState {
             pending_token_txs: Vec::new(),
             included_token_txs: Vec::new(),
             blocks: Vec::new(),
+            faucet: None,
+            clock: node_clock,
         }
     }
 
@@ -310,9 +326,25 @@ impl ServerState {
                 pending_token_txs: Vec::new(),
                 included_token_txs: Vec::new(),
                 blocks,
+                faucet: None,
+                clock: node_clock,
             },
             replayed,
         ))
+    }
+
+    /// Run the faucet with `seed`. Refused on a chain without control binding: there an empty
+    /// signature spends any cell, so the faucet's JUL would be anyone's. The faucet keeps no state of its
+    /// own across restarts; it finds its cells in the live ledger by key derivation.
+    pub fn with_faucet(mut self, seed: [u8; 32]) -> Result<Self, String> {
+        if !self.node.constitution.control_binding {
+            return Err(format!(
+                "chain 0x{:x} has control binding off, so anyone could spend the faucet's cells; no faucet here",
+                self.spec.chain_id
+            ));
+        }
+        self.faucet = Some(crate::faucet::Faucet::new(seed));
+        Ok(self)
     }
 
     /// The chain view as JSON.
@@ -333,6 +365,7 @@ impl ServerState {
             "coinbase_cells": self.node.ledger.token_cells.iter().filter(|c| crate::jul::is_jul(c)).count(),
             "token_cells": tokens.len(),
             "pow_enforced": self.spec.constitution.pow_enforced,
+            "control_binding": self.node.constitution.control_binding,
             "contributors": contributors,
         })
     }
@@ -386,7 +419,7 @@ impl ServerState {
         }
         let mut batch = self.pending_token_txs.clone();
         batch.push(tx.clone());
-        if !txs_conserve_and_single_use(&self.node.ledger.token_cells, &batch) {
+        if !txs_conserve_and_single_use(&self.node.ledger.token_cells, &batch, self.node.constitution.control_binding) {
             return Err("token tx is not valid against the live chain (or conflicts with a pending one)".into());
         }
         self.pending_token_txs.push(tx);
@@ -394,18 +427,66 @@ impl ServerState {
     }
 
     /// The pending token txs a block built now can carry: drop any that can no longer land (an input
-    /// spent since), then keep the largest valid prefix-greedy set.
+    /// spent since), then keep the largest valid prefix-greedy set, the faucet's pending payout last.
     fn carry_pending(&mut self) -> Vec<TokenTx> {
         let live = &self.node.ledger.token_cells;
-        self.pending_token_txs.retain(|t| txs_conserve_and_single_use(live, std::slice::from_ref(t)));
+        let binding = self.node.constitution.control_binding;
+        self.pending_token_txs.retain(|t| txs_conserve_and_single_use(live, std::slice::from_ref(t), binding));
         let mut carried: Vec<TokenTx> = Vec::new();
-        for t in &self.pending_token_txs {
-            carried.push(t.clone());
-            if !txs_conserve_and_single_use(live, &carried) {
+        let faucet_tx = self.faucet.as_mut().and_then(|f| {
+            f.refresh(live, binding);
+            f.pending().cloned()
+        });
+        for t in self.pending_token_txs.iter().cloned().chain(faucet_tx) {
+            carried.push(t);
+            if !txs_conserve_and_single_use(live, &carried, binding) {
                 carried.pop();
             }
         }
         carried
+    }
+
+    /// `GET /faucet`: whether this node runs the faucet, what it holds, the drip and the limits.
+    fn faucet_json(&mut self) -> Value {
+        use crate::faucet;
+        let Some(f) = self.faucet.as_mut() else {
+            return json!({ "enabled": false, "chain_id": self.spec.chain_id });
+        };
+        let balance = f.balance(&self.node.ledger.token_cells);
+        json!({
+            "enabled": true,
+            "chain_id": self.spec.chain_id,
+            "balance_jul": (balance / crate::jul::JUL_BASE_UNITS) as u64,
+            "drip_jul": (faucet::DRIP / crate::jul::JUL_BASE_UNITS) as u64,
+            "waiting": f.waiting().len(),
+            "pending": f.pending().map(|t| hex_encode(&t.digest())),
+            "limits": {
+                "per_address_secs": faucet::ADDRESS_WINDOW_SECS,
+                "window_secs": faucet::WINDOW_SECS,
+                "window_max_payouts": faucet::WINDOW_MAX_PAYOUTS,
+                "max_waiting": faucet::MAX_PAYEES,
+            },
+            "note": "a payout lands with the next contribution block; only the holder of the one-time key \
+                     whose Lamport root is the address can spend it",
+        })
+    }
+
+    /// `GET /balance/<address>`: the JUL held under that 32-byte lock (`lock.args`).
+    fn balance_json(&self, address: &[u8; 32]) -> Value {
+        let cells: Vec<&Cell> = self
+            .node
+            .ledger
+            .token_cells
+            .iter()
+            .filter(|c| crate::jul::is_jul(c) && c.lock.args == address.to_vec())
+            .collect();
+        let total: u128 = cells.iter().map(|c| crate::tokens::fungible::amount(c)).sum();
+        json!({
+            "address": hex_encode(address),
+            "jul": (total / crate::jul::JUL_BASE_UNITS) as u64,
+            "base_units": total.to_string(),
+            "cells": cells.len(),
+        })
     }
 
     /// The per-contribution view — the CONNECTION made visible. Each finalized contribution with its
@@ -451,6 +532,16 @@ impl ServerState {
     /// Returns the finalized height on success, or an error string (rejected/not-finalized).
     fn submit_signed(&mut self, c: SignedContribution) -> Result<u64, String> {
         use noesis_core::wallet;
+        // Who this block's reward pays: the faucet's key for this height when the node runs one, else the
+        // placeholder. A chain that pays its reward to the faucet never falls back to the placeholder.
+        let height = self.node.ledger.height + 1;
+        let reward_to = match self.faucet.as_mut() {
+            Some(f) => f.reward_lock(height),
+            None if self.spec.reward_to_faucet => {
+                return Err("this chain pays its block reward to the faucet, and this node holds no faucet seed".into())
+            }
+            None => self.spec.placeholder_reward(),
+        };
         let SignedContribution { identity, hot_root, cold_commit, index, sig, parent, data } = c;
         let data = data.as_str();
         if data.is_empty() {
@@ -508,8 +599,11 @@ impl ServerState {
         self.node.submit(cell, Committed { height: self.node.ledger.height + 1, secret });
         // Pending token txs (POST /token-tx) ride this contribution's block; it gives them no standing.
         let carried = self.carry_pending();
-        match self.spec.produce_block_with(&mut self.node, carried) {
+        match self.spec.produce_block_paying(&mut self.node, carried, reward_to) {
             Some(block) => {
+                if let Some(f) = self.faucet.as_mut() {
+                    f.landed(&block);
+                }
                 for t in &block.token_txs {
                     let d = t.digest();
                     self.pending_token_txs.retain(|p| p.digest() != d);
@@ -609,6 +703,41 @@ pub fn handle_request(
                 Err(e) => out(400, json!({ "error": e })),
             }
         }
+        ("GET", "/faucet") => out(200, state.faucet_json()),
+        ("POST", "/faucet") => {
+            let address = serde_json::from_slice::<Value>(body)
+                .map_err(|e| format!("invalid JSON: {e}"))
+                .and_then(|v| hex32(&v, "address"));
+            let address = match address {
+                Ok(a) => a,
+                Err(e) => return out(400, json!({ "error": e })),
+            };
+            let now = (state.clock)();
+            let Some(f) = state.faucet.as_mut() else {
+                return out(503, json!({ "error": "this node runs no faucet" }));
+            };
+            match f.request(address, now, &state.node.ledger.token_cells) {
+                Ok(d) => out(
+                    200,
+                    json!({
+                        "queued": true,
+                        "digest": hex_encode(&d),
+                        "amount_jul": (crate::faucet::DRIP / crate::jul::JUL_BASE_UNITS) as u64,
+                        "waiting": f.waiting().len(),
+                        "note": "carried by the next contribution block",
+                    }),
+                ),
+                Err(crate::faucet::Refusal::Limited(e)) => out(429, json!({ "error": e })),
+                Err(crate::faucet::Refusal::Unavailable(e)) => out(503, json!({ "error": e })),
+            }
+        }
+        ("GET", p) if p.starts_with("/balance/") => match hex_decode(&p["/balance/".len()..]) {
+            Some(a) if a.len() == 32 => {
+                let addr = <[u8; 32]>::try_from(a.as_slice()).expect("checked length");
+                out(200, state.balance_json(&addr))
+            }
+            _ => out(400, json!({ "error": "the address must be 64 hex characters" })),
+        },
         // A wallet's one-time-key high-water mark (wallet design decision 6): the highest index this
         // node has accepted for the identity (the address), or null. A wallet resumes at max(local, this + 1),
         // so a lost or rolled-back local counter can never reuse a one-time key the chain already saw.
@@ -669,6 +798,8 @@ fn write_http_response(stream: &mut TcpStream, status: u16, content_type: &str, 
         400 => "Bad Request",
         404 => "Not Found",
         405 => "Method Not Allowed",
+        429 => "Too Many Requests",
+        503 => "Service Unavailable",
         _ => "OK",
     };
     let head = format!(
@@ -691,16 +822,48 @@ fn write_http_response(stream: &mut TcpStream, status: u16, content_type: &str, 
 /// block, so a restart resumes the chain instead of resetting to genesis. Every `POST /submit` builds
 /// the chain one finalized block at a time.
 pub fn serve_api(addr: &str, store_path: &str, spec: ChainSpec) {
+    let chain_id = spec.chain_id;
+    // A chain that pays its block reward to the faucet needs the faucet seed: read it before anything
+    // else, and refuse to start without it (never fall back to the placeholder). The seed is never printed.
+    let faucet_seed = if spec.reward_to_faucet {
+        let path = crate::faucet::seed_path().unwrap_or_else(|| {
+            eprintln!("noesisd: no home directory; set NOESIS_FAUCET_SEED to the faucet seed file");
+            std::process::exit(1);
+        });
+        match crate::faucet::load_seed(&path) {
+            Ok(seed) => {
+                println!("faucet: seed read from {}", path.display());
+                Some(seed)
+            }
+            Err(e) => {
+                eprintln!("noesisd: {e}");
+                eprintln!(
+                    "  chain 0x{chain_id:x} pays its block reward to the faucet, so this node needs the faucet seed: \
+                     a file of 64 hex characters, made from real randomness and kept out of the repository \
+                     (docs/TESTNET.md, step 3). NOESIS_FAUCET_SEED overrides the path."
+                );
+                std::process::exit(1);
+            }
+        }
+    } else {
+        None
+    };
     let listener = TcpListener::bind(addr).unwrap_or_else(|e| {
         eprintln!("noesisd: failed to bind {addr}: {e}");
         std::process::exit(1);
     });
     let bound = listener.local_addr().map(|a| a.to_string()).unwrap_or_else(|_| addr.to_string());
-    let chain_id = spec.chain_id;
     let (server_state, replayed) = ServerState::with_store(store_path, spec).unwrap_or_else(|e| {
         eprintln!("noesisd: failed to open chain store {store_path}: {e}");
         std::process::exit(1);
     });
+    let server_state = match faucet_seed {
+        Some(seed) => server_state.with_faucet(seed).unwrap_or_else(|e| {
+            eprintln!("noesisd: {e}");
+            std::process::exit(1);
+        }),
+        None => server_state,
+    };
     println!("noesisd --serve-api — Noesis live node API (chain_id=0x{chain_id:x})");
     if replayed > 0 {
         println!("resumed durable chain from {store_path}: replayed {replayed} blocks, height {}.", server_state.node.ledger.height);
@@ -714,6 +877,7 @@ pub fn serve_api(addr: &str, store_path: &str, spec: ChainSpec) {
     println!("  GET  /tokens             -> live non-JUL token cells (soulbound identities decoded)");
     println!("  POST /submit {{identity,hot_root,cold_commit,index,bottom,top,parent?,data}} -> signed contribution (wallet v2), mine+finalize");
     println!("  POST /token-tx {{tx,auths}} -> signed soulbound tx, carried by the next contribution block");
+    println!("  GET  /faucet  POST /faucet {{address}}  GET /balance/<address> -> test JUL (faucet chains only)");
 
     let state = Arc::new(Mutex::new(server_state));
     for conn in listener.incoming() {
@@ -928,6 +1092,107 @@ mod tests {
         let (_, _, body2) = handle_request(&mut again, "GET", "/blocks", b"");
         assert_eq!(state_of(&body2)["blocks"], v["blocks"]);
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// Package C, the question that had to be answered before turning binding on: a wallet-v2
+    /// contribution still lands through `POST /submit` on the real testnet spec (its difficulty, its
+    /// constitution) with control binding ON, because a contribution is not a spend (it is checked by
+    /// the wallet signature, and the coinbase is constructed, not spent). And the block reward pays the
+    /// faucet's key for that height, never the placeholder validator key.
+    #[test]
+    fn a_v2_submit_lands_on_the_testnet_with_control_binding_on_and_pays_the_faucet() {
+        use crate::faucet::{reward_key, DEV_FAUCET_SEED};
+        let mut st = ServerState::with_spec(ChainSpec::testnet()).with_faucet(DEV_FAUCET_SEED).expect("binding is on");
+        let before = state_of(&handle_request(&mut st, "GET", "/state", b"").2);
+        assert_eq!(before["chain_id"], 0x7e57);
+        assert_eq!(before["control_binding"], true, "the testnet spec turns control binding on");
+        let dave = [0x11u8; 32];
+        let (s, _, b) = handle_request(&mut st, "POST", "/submit", &signed_body(&dave, 0, "a first note on harbor fog"));
+        assert_eq!(s, 200, "{}", String::from_utf8_lossy(&b));
+        let v = state_of(&b);
+        assert_eq!(v["finalized"], true);
+        assert_eq!(v["block_height"], 1);
+        assert!(v["jul_issued"].as_u64().unwrap() > 0, "mined work issued JUL");
+        // genesis_unscored: the chain's first contribution lands and earns no standing
+        assert!(v["contributors"].get(id_hex(&dave)).is_none_or(|x| *x == json!(0)), "{}", v["contributors"]);
+        let blocks = state_of(&handle_request(&mut st, "GET", "/blocks", b"").2);
+        let paid = blocks["blocks"][0]["coinbase"].clone();
+        assert_ne!(paid, hex_encode(b"alice"), "the reward left the placeholder");
+        assert_eq!(paid, hex_encode(&noesis_core::lamport::keygen_root(&reward_key(&DEV_FAUCET_SEED, 1))), "the faucet's height-1 key");
+        // the second contributor's v2 submit lands too, and earns standing as usual
+        let erin = [0x22u8; 32];
+        assert_eq!(handle_request(&mut st, "POST", "/submit", &signed_body(&erin, 0, "an entirely separate subject, cold rivers")).0, 200);
+        let after = state_of(&handle_request(&mut st, "GET", "/state", b"").2);
+        assert_eq!(after["height"], 2);
+        assert!(after["contributors"][id_hex(&erin)].as_u64().unwrap() > 0, "erin's identity earned standing");
+    }
+
+    /// A chain that pays its reward to the faucet never falls back to the placeholder: without the
+    /// faucet seed the node produces nothing. And no faucet runs where binding is off.
+    #[test]
+    fn a_faucet_chain_without_the_seed_produces_nothing_and_dev_refuses_a_faucet() {
+        let mut st = ServerState::with_spec(ChainSpec::testnet());
+        let (s, _, b) = handle_request(&mut st, "POST", "/submit", &signed_body(&[0x11u8; 32], 0, "a first note on harbor fog"));
+        assert_eq!(s, 400);
+        assert!(state_of(&b)["error"].as_str().unwrap().contains("no faucet seed"));
+        assert_eq!(state_of(&handle_request(&mut st, "GET", "/state", b"").2)["height"], 0);
+        assert!(st.node.mempool.is_empty() && st.next_id == 1, "nothing was half-submitted");
+        let err = ServerState::new().with_faucet(crate::faucet::DEV_FAUCET_SEED).err().expect("dev has binding off");
+        assert!(err.contains("control binding off"));
+        let (s, _, _) = handle_request(&mut ServerState::new(), "POST", "/faucet", json!({ "address": "ab".repeat(32) }).to_string().as_bytes());
+        assert_eq!(s, 503, "the dev node runs no faucet");
+        assert_eq!(state_of(&handle_request(&mut ServerState::new(), "GET", "/faucet", b"").2)["enabled"], false);
+    }
+
+    /// The faucet route end to end on the testnet constitution (mined at dev's easy bits so the test is
+    /// quick; `pow_check` reads the seal's own bits): empty until a block pays it, a payout queued by
+    /// address and carried by the next contribution block, the per-address limit, and no change to
+    /// anyone's standing.
+    #[test]
+    fn the_faucet_route_pays_a_newcomer_with_the_next_block_and_moves_no_standing() {
+        let fast = ChainSpec { genesis_bits: ChainSpec::dev().genesis_bits, ..ChainSpec::testnet() };
+        let mut st = ServerState::with_spec(fast.clone()).with_faucet(crate::faucet::DEV_FAUCET_SEED).unwrap();
+        st.clock = || 1_000;
+        let newcomer = [0x7Au8; 32];
+        let ask = |st: &mut ServerState, a: &[u8; 32]| {
+            let (s, _, b) = handle_request(st, "POST", "/faucet", json!({ "address": hex_encode(a) }).to_string().as_bytes());
+            (s, state_of(&b))
+        };
+        let jul = |st: &mut ServerState, a: &[u8; 32]| state_of(&handle_request(st, "GET", &format!("/balance/{}", hex_encode(a)), b"").2)["jul"].clone();
+        let f = state_of(&handle_request(&mut st, "GET", "/faucet", b"").2);
+        assert_eq!((f["enabled"].clone(), f["balance_jul"].clone(), f["drip_jul"].clone()), (json!(true), json!(0), json!(10)));
+        assert_eq!(ask(&mut st, &newcomer).0, 503, "nothing to pay with before the first block");
+        // malformed requests
+        assert_eq!(handle_request(&mut st, "POST", "/faucet", b"{").0, 400);
+        assert_eq!(handle_request(&mut st, "POST", "/faucet", br#"{"address":"abc"}"#).0, 400);
+        assert_eq!(handle_request(&mut st, "GET", "/balance/xyz", b"").0, 400);
+
+        let dave = [0x11u8; 32];
+        assert_eq!(handle_request(&mut st, "POST", "/submit", &signed_body(&dave, 0, "a first note on harbor fog")).0, 200);
+        assert!(state_of(&handle_request(&mut st, "GET", "/faucet", b"").2)["balance_jul"].as_u64().unwrap() > 10);
+        let (s, q) = ask(&mut st, &newcomer);
+        assert_eq!(s, 200, "{q}");
+        assert_eq!(q["amount_jul"], 10);
+        let digest = q["digest"].as_str().unwrap().to_string();
+        assert_eq!(ask(&mut st, &newcomer).1["digest"], digest.as_str(), "asking again while it waits is a no-op");
+        assert_eq!(jul(&mut st, &newcomer), 0, "nothing lands until a contribution makes a block");
+
+        let erin = [0x22u8; 32];
+        assert_eq!(handle_request(&mut st, "POST", "/submit", &signed_body(&erin, 0, "an entirely separate subject, cold rivers")).0, 200);
+        assert_eq!(jul(&mut st, &newcomer), 10, "the payout landed with block 2");
+        let t = state_of(&handle_request(&mut st, "GET", "/tokens", b"").2);
+        assert!(t["included"].as_array().unwrap().iter().any(|i| i["digest"] == digest.as_str() && i["height"] == 2));
+        assert!(state_of(&handle_request(&mut st, "GET", "/faucet", b"").2)["pending"].is_null());
+        let (s, r) = ask(&mut st, &newcomer);
+        assert_eq!(s, 429, "one payout per address per day: {r}");
+
+        // standing: exactly as on a twin chain where nobody asked the faucet
+        let mut twin = ServerState::with_spec(fast).with_faucet(crate::faucet::DEV_FAUCET_SEED).unwrap();
+        handle_request(&mut twin, "POST", "/submit", &signed_body(&dave, 0, "a first note on harbor fog"));
+        handle_request(&mut twin, "POST", "/submit", &signed_body(&erin, 0, "an entirely separate subject, cold rivers"));
+        let (a, b) = (state_of(&handle_request(&mut st, "GET", "/state", b"").2), state_of(&handle_request(&mut twin, "GET", "/state", b"").2));
+        assert_eq!(a["contributors"], b["contributors"], "a faucet payout moved standing");
+        assert_eq!(a["jul_issued"], b["jul_issued"], "a payout mints nothing");
     }
 
     #[test]

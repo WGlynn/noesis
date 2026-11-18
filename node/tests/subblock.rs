@@ -77,12 +77,12 @@ fn binds_to_current_ordering_tip() {
     let ledger = ledger_with(5, &[(ALICE, 100)], vec![]);
     let stale = sub(4, 0, ALICE, vec![]);
     assert_eq!(
-        validate_sub_block(&ledger, &[], &stale, 0),
+        validate_sub_block(&ledger, &[], &stale, 0, false),
         Err(SubBlockViolation::WrongOrderingHeight { tip: 5, got: 4 }),
         "a sub-block on the wrong ordering height (wrong interval) is rejected"
     );
     let ontip = sub(5, 0, ALICE, vec![]);
-    assert!(validate_sub_block(&ledger, &[], &ontip, 0).is_ok(), "a sub-block on the current tip is accepted");
+    assert!(validate_sub_block(&ledger, &[], &ontip, 0, false).is_ok(), "a sub-block on the current tip is accepted");
     // ANTI-THEATER: drop the ordering_height check ⇒ the stale sub-block passes ⇒ RED.
 }
 
@@ -93,12 +93,12 @@ fn sub_blocks_must_be_sequential() {
     let prior = vec![sub(5, 0, ALICE, vec![])];
     let gap = sub(5, 2, ALICE, vec![]);
     assert_eq!(
-        validate_sub_block(&ledger, &prior, &gap, 0),
+        validate_sub_block(&ledger, &prior, &gap, 0, false),
         Err(SubBlockViolation::NonSequential { expected: 1, got: 2 }),
         "a seq gap in the soft-chain is rejected"
     );
     let next = sub(5, 1, ALICE, vec![]);
-    assert!(validate_sub_block(&ledger, &prior, &next, 0).is_ok(), "the next sequential sub-block is accepted");
+    assert!(validate_sub_block(&ledger, &prior, &next, 0, false).is_ok(), "the next sequential sub-block is accepted");
     // ANTI-THEATER: ignore `seq` ⇒ the gap passes ⇒ RED.
 }
 
@@ -108,16 +108,16 @@ fn sub_blocks_must_be_sequential() {
 fn contribution_weight_gate() {
     let ledger = ledger_with(5, &[(ALICE, 100), (BOB, 5)], vec![]);
     assert!(
-        validate_sub_block(&ledger, &[], &sub(5, 0, ALICE, vec![]), 50).is_ok(),
+        validate_sub_block(&ledger, &[], &sub(5, 0, ALICE, vec![]), 50, false).is_ok(),
         "a producer with standing ≥ threshold may propose"
     );
     assert_eq!(
-        validate_sub_block(&ledger, &[], &sub(5, 0, BOB, vec![]), 50),
+        validate_sub_block(&ledger, &[], &sub(5, 0, BOB, vec![]), 50, false),
         Err(SubBlockViolation::InsufficientStanding { have: 5, need: 50 }),
         "a producer below the standing threshold is rejected"
     );
     assert_eq!(
-        validate_sub_block(&ledger, &[], &sub(5, 0, b"ghost", vec![]), 1),
+        validate_sub_block(&ledger, &[], &sub(5, 0, b"ghost", vec![]), 1, false),
         Err(SubBlockViolation::InsufficientStanding { have: 0, need: 1 }),
         "an unknown producer has zero standing"
     );
@@ -135,12 +135,19 @@ fn conserves_across_provisional_overlay() {
 
     // sub0: ALICE → BOB (output id 2), valid against the base ledger.
     let sub0 = sub(5, 0, ALICE, vec![transfer(coin.clone(), BOB, 2)]);
-    assert!(validate_sub_block(&ledger, &[], &sub0, 0).is_ok(), "first spend of the live coin is valid");
+    assert!(validate_sub_block(&ledger, &[], &sub0, 0, false).is_ok(), "first spend of the live coin is valid");
+    // On a chain with control binding on (the testnet), the same UNSIGNED spend is refused by the fast
+    // tier too, exactly as settlement refuses it: the two tiers run one rule.
+    assert_eq!(
+        validate_sub_block(&ledger, &[], &sub0, 0, true),
+        Err(SubBlockViolation::TxInvalidOrDoubleSpend),
+        "control binding reaches the sub-block tier"
+    );
 
     // DOUBLE-SPEND: re-spend the SAME original coin in sub1 — sub0 retired it in the overlay.
     let ds = sub(5, 1, ALICE, vec![transfer(coin.clone(), CAROL, 3)]);
     assert_eq!(
-        validate_sub_block(&ledger, std::slice::from_ref(&sub0), &ds, 0),
+        validate_sub_block(&ledger, std::slice::from_ref(&sub0), &ds, 0, false),
         Err(SubBlockViolation::TxInvalidOrDoubleSpend),
         "re-spending a coin retired by a prior sub-block is a soft-chain double-spend ⇒ rejected"
     );
@@ -149,7 +156,7 @@ fn conserves_across_provisional_overlay() {
     let bob_coin = tok(2, 100, BOB, ISS); // == sub0's output
     let hop = sub(5, 1, ALICE, vec![transfer(bob_coin, CAROL, 3)]);
     assert!(
-        validate_sub_block(&ledger, &[sub0], &hop, 0).is_ok(),
+        validate_sub_block(&ledger, &[sub0], &hop, 0, false).is_ok(),
         "spending a prior sub-block's output is a valid multi-hop soft-chain"
     );
     // ANTI-THEATER: validate against the base ledger only (skip the provisional overlay) ⇒ the
@@ -173,7 +180,7 @@ fn fast_tier_matches_settlement_conservation() {
     let mut smuggle = transfer(coin.clone(), BOB, 3);
     smuggle.outputs.push(jul_cell(2, BOB, 50));
     assert_eq!(
-        validate_sub_block(&ledger, &[], &sub(5, 0, ALICE, vec![smuggle]), 0),
+        validate_sub_block(&ledger, &[], &sub(5, 0, ALICE, vec![smuggle]), 0, false),
         Err(SubBlockViolation::TxInvalidOrDoubleSpend),
         "the fast tier must reject a JUL-from-nothing smuggle, exactly as settlement does"
     );
@@ -182,7 +189,7 @@ fn fast_tier_matches_settlement_conservation() {
     let mut squat = transfer(coin, BOB, 3);
     squat.outputs[0].id = noesis::jul::COINBASE_ID_BIT | 3;
     assert_eq!(
-        validate_sub_block(&ledger, &[], &sub(5, 0, ALICE, vec![squat]), 0),
+        validate_sub_block(&ledger, &[], &sub(5, 0, ALICE, vec![squat]), 0, false),
         Err(SubBlockViolation::TxInvalidOrDoubleSpend),
         "the fast tier must reject a coinbase-id squat, exactly as settlement does"
     );
@@ -214,13 +221,13 @@ fn provisional_overlay_is_seq_ordered_not_input_ordered() {
 
     // Prior delivered IN ORDER ⇒ the double-spend of the retired intermediate is rejected.
     assert_eq!(
-        validate_sub_block(&ledger, &[s0.clone(), s1.clone()], &s2, 0),
+        validate_sub_block(&ledger, &[s0.clone(), s1.clone()], &s2, 0, false),
         Err(SubBlockViolation::TxInvalidOrDoubleSpend),
         "re-spending an intermediate output a later sub-block already retired is a double-spend"
     );
     // Prior delivered OUT OF ORDER (same chain, shuffled) ⇒ MUST get the SAME verdict (seq-ordered fold).
     assert_eq!(
-        validate_sub_block(&ledger, &[s1, s0], &s2, 0),
+        validate_sub_block(&ledger, &[s1, s0], &s2, 0, false),
         Err(SubBlockViolation::TxInvalidOrDoubleSpend),
         "receipt order of the prior soft-chain must not change validation — the overlay is seq-ordered"
     );
@@ -281,7 +288,7 @@ fn absorbed_sub_block_txs_become_final() {
 
     // sub0 soft-confirms ALICE → BOB (output id 2).
     let s0 = sub(5, 0, ALICE, vec![transfer(coin, BOB, 2)]);
-    assert!(validate_sub_block(&ledger, &[], &s0, 0).is_ok(), "the soft-confirm is valid");
+    assert!(validate_sub_block(&ledger, &[], &s0, 0, false).is_ok(), "the soft-confirm is valid");
     assert_eq!(
         tier_of_output(&ledger, std::slice::from_ref(&s0), 2),
         Some(ConfirmationTier::SoftConfirmed),

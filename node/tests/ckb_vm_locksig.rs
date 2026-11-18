@@ -151,7 +151,7 @@ fn a_tampered_signature_is_refused_on_vm() {
 #[test]
 fn empty_auth_is_inert_pre_deploy() {
     // No witness at all ⇒ empty auth ⇒ inert pass (CONTROL_ENFORCED = false): honest empty-auth
-    // flows are unchanged, exactly like the node's CONTROL_BINDING_ACTIVE gate.
+    // flows are unchanged, exactly like the node with `Constitution::control_binding` off.
     let (seed, root) = keypair(7);
     let _ = seed;
     let issuer = vec![9u8];

@@ -414,7 +414,8 @@ mod tests {
         built.sign();
         let tx = built.tx.as_ref().unwrap();
         assert_eq!(tx.auths.len(), 1 + MAX_RETIERS_PER_TX, "the authority plus each re-tiered cell signs");
-        assert!(tx.is_valid_in_ledger(&[live.authority.clone(), live.identities[&1].0.clone(), live.identities[&2].0.clone()]));
+        // signed for real: valid with control binding on (every input carries its signature)
+        assert!(tx.is_valid_in_ledger(&[live.authority.clone(), live.identities[&1].0.clone(), live.identities[&2].0.clone()], true));
         let size = envelope(tx).to_string().len();
         assert!(size < crate::rpc::MAX_BODY, "worst-case envelope {size} bytes must fit MAX_BODY");
         // the envelope round-trips to the same signed tx

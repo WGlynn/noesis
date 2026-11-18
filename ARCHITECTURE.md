@@ -118,7 +118,7 @@ Two different weightings. Quoting one for the other is the 2026-06-29 hallucinat
 |---|---|---|---|
 | Contribution / consensus franchise (soulbound standing) | PoM standing | PoM (60% overall, 2/3 of finality) | ✅ built (reference) |
 | Bonded capital / stake | CKB-native (state-rent) | PoS (30% / 1/3 of finality) | ✅ built (reference) |
-| Money / medium of exchange (energy-pegged, Ergon-style) | **JUL** | PoW (10%, excluded from finality) | issuance + coinbase built (reference; mints on the reference node, worthless at its test difficulty); stability reserve built but off and unwired; economics unset (`docs/DESIGN-jul-money-layer.md` section 4) |
+| Money / medium of exchange (energy-pegged, Ergon-style) | **JUL** | PoW (10%, excluded from finality) | issuance + coinbase built (reference; mints on the reference node, worthless at its test difficulty; on the testnet the block reward funds the faucet, see below); stability reserve built but off and unwired; economics unset (`docs/DESIGN-jul-money-layer.md` section 4) |
 | Governance (separate instrument, orthogonal to the capture cycle) | **VIBE** | — | per TOKENOMICS.md |
 
 PoM standing is **soulbound** (the `type_script.args` contributor identity, never reassigned
@@ -156,7 +156,7 @@ which consensus checks only once control binding is on (see the honest floor bel
   it; from two such signatures a third party assembles a valid signature over a digest the issuer
   never signed (`one_mint_limit_of_the_lock_args_rule_is_real`, `runtime.rs:3571`). Still true for
   Fungible/Nft (open). Soulbound authority works differently. Each collection has exactly one
-  authority cell. Genesis creates it (`chainspec.rs:45`, `:172`); no tx can create another. Every spend
+  authority cell. Genesis creates it (`chainspec.rs:45`, `:195`); no tx can create another. Every spend
   must re-create it with its generation number one higher, under any lock. So the tool locks
   generation `g` with a key derived from (issuer seed, g) (`identity_mint.rs:56`), and each key signs
   once. Identity cells get their own per-(g, serial) keys (`:61`).
@@ -164,19 +164,60 @@ which consensus checks only once control binding is on (see the honest floor bel
 - **Mint path.** A batch file (the bot's format) -> `identity-mint mint` reads `GET /tokens`
   (`rpc.rs:498`) -> one tx, signed -> `POST /token-tx` (`rpc.rs:499`; node-local policy: soulbound
   only, every input signed and verified, valid with all pending txs, queue of 16, `rpc.rs:72`) -> the
-  next contribution block carries it (`chainspec.rs:193`). A token tx never makes a block alone
+  next contribution block carries it (`chainspec.rs:218`). A token tx never makes a block alone
   (`EmptyBlock`, `runtime.rs:1294`, unchanged). Per tx at most 64 mints and 2 re-tiers
   (`identity_mint.rs:42-43`) so the signed body fits `MAX_BODY` = 160 KiB (`rpc.rs:40`). The dev spec's
   authority uses a public dev seed; the testnet's root is `TESTNET_IDENTITY_AUTHORITY_ROOT`
-  (`chainspec.rs:52`), its seed kept outside the repo. On-VM, the lock script maps the code hash to
+  (`chainspec.rs:59`), its seed kept outside the repo. On-VM, the lock script maps the code hash to
   tag 3 (`onchain/locksig-typescript/src/main.rs:60-72`; `node/tests/ckb_vm_locksig.rs`).
-- **Honest floor.** Spend signatures are off in consensus (`CONTROL_BINDING_ACTIVE = false`,
-  `runtime.rs:597`), so a block producer could spend the authority or re-tier identities with an empty
-  signature; the node's route refuses unsigned txs, and a single-producer node builds blocks only
-  from its own API, but the chain copy is a public mirror, not proof, until the flip. The off-chain
-  registry stays the authority. The holder address is pasted, not proven; the cell grants nothing on
+- **Honest floor.** Spend signatures are checked in the reference node's consensus on the testnet
+  only: control binding (`Constitution::control_binding`, `runtime.rs:187`) is on in
+  `ChainSpec::testnet()` (`chainspec.rs:153`) and off on dev. On the testnet a block that spends the
+  authority or re-tiers an identity without the owner's signature is invalid for the producer and for
+  every joiner that re-validates (`testnet_refuses_an_unsigned_spend_that_dev_accepts`,
+  `chainspec.rs:377`); on dev an empty signature still spends. The on-VM lock script's own switch
+  (`CONTROL_ENFORCED`) is off, so this is the reference node's check, not yet the on-VM scripts'.
+  The off-chain registry stays the authority. The holder address is pasted, not proven; the cell grants nothing on
   chain. Pending txs and inclusion records are node-local memory. On a quiet chain a mint waits for a
   contribution.
+
+## Testnet faucet and control binding (built 2026-11-17, reference node)
+
+Testnet step 3 (`docs/TESTNET.md`), built as designed there: app layer, a funded wallet.
+
+- **Control binding is a chain setting.** `Constitution::control_binding` (`runtime.rs:187`) replaced the
+  hard-coded `CONTROL_BINDING_ACTIVE = false`. It reaches `TokenTx::spend_is_authorized`
+  (`runtime.rs:584`) through `is_valid_in_ledger` (`:493`) for token-tx inputs and through `check_bonds`
+  (`:1360`) for Bound-B deposits, and the sub-block tier gets it too. With it on, an empty `auth` no
+  longer authorizes a spend; a presented one is verified the same either way. Contribution cells and the
+  coinbase are not spends, so `POST /submit` is unchanged
+  (`a_v2_submit_lands_on_the_testnet_with_control_binding_on_and_pays_the_faucet`, `rpc.rs:1103`, on the
+  real testnet spec). On in `ChainSpec::testnet()` only.
+- **The reward funds the faucet.** `ChainSpec::reward_to_faucet` (`chainspec.rs:52`, on for the testnet)
+  makes the producing node pay each block reward to the faucet (`produce_block_paying`,
+  `chainspec.rs:230`; `rpc.rs:533`). Consensus fixes the amount and never checks the recipient. A chain
+  that pays the faucet produces nothing without the faucet seed: `--serve-api` refuses to start
+  (`rpc.rs:828`) and an in-memory node refuses the block (`rpc.rs:540`).
+- **A key per cell.** A lock is a Lamport one-time key, so one fixed faucet address would sign every payout
+  with one key. Each reward is locked by its own key derived from (faucet seed, height)
+  (`faucet.rs:83`); the change goes to a purse whose key is derived from (seed, generation) (`:88`), and
+  each payout spends purse `g` and writes `g + 1`. A pending payout's signatures leave the node only in
+  the finalized block that spends its cells, so the faucet re-signs it freely until then.
+- **Route and limits.** `POST /faucet {address}` (`rpc.rs:707`), `GET /faucet`, `GET /balance/<address>`.
+  10 JUL per payout (`DRIP`, `faucet.rs:58`), one per address per 24 hours (`:60`), 30 per hour overall
+  (`:62-64`), 8 waiting per block (`:66`), node-local and reset by a restart. A payout lands with the
+  next contribution block.
+- **Zero standing, zero finality weight.** JUL cells sit in `token_cells`, which PoM and finality never
+  read. Test: `the_reward_recipient_and_faucet_payouts_move_no_standing_and_no_finality_weight`
+  (`faucet.rs:489`): two replicas, rewards to the placeholder vs to the faucet plus payouts (one to the
+  contributor's own key bytes), with vesting W = 0 and W > 0, give identical cells, index root, PoM,
+  work clock, finality weight and finality decision; folding JUL into `pom` breaks it (checked).
+- **Honest floor.** The seed is a plaintext file outside the repo (`~/.noesis/noesis-faucet-testnet.seed`
+  or `NOESIS_FAUCET_SEED`, `faucet.rs:116`), like the identity issuer's; encrypting it is open. Anyone can
+  name any 32 bytes as the address; only the holder of the one-time key whose Lamport root is those bytes
+  can spend the payout, and the web wallet has no such key yet, so wallet holders can hold and see test
+  JUL but not move it. The limits are per address and per window, so many addresses can still take the
+  window's 30 payouts. Testnet JUL is worthless by design.
 
 ## Value measure `v(S)` — the moat (re-stamped from code and the research record, 2026-10-21)
 

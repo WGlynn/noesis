@@ -18,6 +18,19 @@ The binary is `target/release/noesisd` (`noesisd.exe` on Windows).
 The node serves an HTTP API and its own page from one address. `NOESIS_NET` picks the genesis:
 `testnet` or `dev` (the default). Keep the chain log outside the repository.
 
+On the testnet every block reward goes to the node's faucet, so a testnet node needs a faucet seed and
+refuses to start without one: a file of 64 hex characters made from real randomness, kept outside the
+repository, at `~/.noesis/noesis-faucet-testnet.seed` (or the path in `NOESIS_FAUCET_SEED`). Make one per
+chain (a new one after a reset, since the faucet's one-time keys derive from it) and back it up offline;
+anyone who reads it can spend what the faucet holds. For example:
+
+```
+python3 -c "import secrets; print(secrets.token_hex(32))" > ~/.noesis/noesis-faucet-testnet.seed
+```
+
+(Windows: `python -c "import secrets; print(secrets.token_hex(32))" > %USERPROFILE%\.noesis\noesis-faucet-testnet.seed`.)
+The dev chain needs no seed and has no faucet.
+
 Linux or macOS:
 ```
 NOESIS_NET=testnet ./target/release/noesisd --serve-api 127.0.0.1:9955 ~/.noesis/testnet-chain.log
@@ -34,6 +47,9 @@ Open http://127.0.0.1:9955/ in a browser. From the page you can:
   cold recovery key shown once for you to store offline (recovery itself is designed, not built);
 - sign and submit a contribution, which the node mines into a block at once;
 - see the chain, the contribution graph, and the soulbound identities.
+
+On the testnet, `POST /faucet {"address": "<64 hex>"}` asks the node's faucet for 10 test JUL; see
+`docs/TESTNET.md` (the faucet) for the limits and what the address must be.
 
 The chain log survives a restart: start the node again with the same file and it resumes the same chain.
 
@@ -68,11 +84,13 @@ the sync fails. Before commit 23d1d4e3 (2026-11-17) the joiner booted the dev ge
 - **Live sync.** `--listen` serves the chain as it was when it started; `--serve-api` with a peers address
   serves it as it is when the joiner connects. Either way the joiner syncs once and exits: new blocks do
   not reach other nodes as they land. This is testnet step 7, the critical path.
-- **Mining rewards for you.** Each block's JUL reward goes to the first validator in the chain spec, a
-  placeholder key on the testnet, not to whoever runs the node. Test JUL is worthless by design, and a
-  faucet is step 3.
-- **On-chain enforcement.** The five on-VM binding switches are off, so the reference node checks the
-  rules and the on-VM scripts do not yet enforce them. Turning them on is the go-live milestone.
+- **Spending JUL from the wallet.** On the testnet each block's JUL reward goes to the faucet of the node
+  that made the block, and the faucet pays small amounts on request (built). The web wallet has no key
+  that can spend JUL yet, so a wallet address can hold test JUL but not move it. Test JUL is worthless by
+  design.
+- **On-chain enforcement.** The four on-VM binding switches are off, so the reference node checks the
+  rules (on the testnet that includes every spend's signature) and the on-VM scripts do not yet enforce
+  them. Turning them on is the go-live milestone.
 - **Wallet safety.** The wallet's secret key and its one-time-key counter live in browser storage. Do not
   clear that storage, and do not restore an old copy of a wallet that has signed since: reusing a
   one-time key weakens it. A safer wallet is being designed.

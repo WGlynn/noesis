@@ -200,7 +200,7 @@ fn out_cell(id: u64) -> Cell {
 /// header_digest must bind token-tx OUTPUT ORDER and AUTHS (Council 2026-07-13 binding fix): a solved
 /// PoW must NOT replay onto a block with reordered outputs (state-divergent under apply, since
 /// apply_transition appends in slice order) or swapped auths (differently-authorized once
-/// CONTROL_BINDING_ACTIVE flips). So changing either MUST change the digest.
+/// `Constitution::control_binding` is on, as on the testnet). So changing either MUST change the digest.
 #[test]
 fn header_digest_binds_token_tx_order_and_auths() {
     let tx = |outputs: Vec<Cell>, auths: Vec<Vec<u8>>| TokenTx {
