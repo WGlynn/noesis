@@ -4,6 +4,21 @@
 > over-the-top developing. Every increment = minimal mechanism that earns its place; prefer
 > delete/simplify; pay duplication debt (single-source from noesis-core). Rigor ≠ bloat.
 
+## 2026-11-18 (overnight): the wallet and testnet packages, all built, tested and live
+
+Built in order, each verified by the main session (full lib + all 43 integration suites), committed, pushed,
+and the live node rebuilt: wallet format v2 (e3c9f34f), testnet reset 1 (1bf499ed), package C control
+binding + faucet (d64dfa5b), A4/A5 encrypted wallet + one origin (36363e3b), step 7 live sync (eddca823),
+crash-safe chain log (23707539), blocks bound to the spec: exact PoW bits + chain id (c5bf89f6), A1/A7
+identity keys (b5cd0c4a, then conformed to the design in f4a942f2: delayed rotation, cold cancel, freeze),
+A8 issuer key limits (1514ff3b). Live testnet still at height 0: the genesis contribution is Will's to sign.
+
+Open, honest floor: the key-change delay counts blocks, not time (needs block timestamps); cancels sign no
+target (griefing, needs a noesis-core digest change); none of tonight's new rules run on-VM yet; the faucet
+seed is plaintext (proposal: a separate Windows account); https following uses the system curl; blocks carry
+no producer signature; passkeys and the page flows are tested against stubs only. Will's to do: sign
+genesis, run identity-mint encrypt-seed at a console, back up seeds, decide passkey, stable public address.
+
 ## 2026-11-17 (evening): first testnet node up (devnet stage), four fixes, the path to a testnet
 
 - **Running:** one node on the maintainer's PC, `NOESIS_NET=testnet`, local only (127.0.0.1:9955),
