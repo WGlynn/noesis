@@ -388,12 +388,18 @@ impl TokenTx {
         if declared_sb && self.code_hash != sb {
             return false;
         }
+        // TOKEN CONFINEMENT (every standard, 2026-11-17): the same hole for any third token. A cell of
+        // another token would be persisted without its own rule ever running (on chain, each type
+        // script validates its own group; this reference gate checks only the declared one), so a USD
+        // transfer could mint EUR from nothing. A non-soulbound tx may carry only the declared token's
+        // cells, plus JUL cells, which the JUL rule in `txs_conserve_and_single_use` keys on directly.
+        let declared = |c: &Cell| c.type_script.code_hash == self.code_hash && c.type_script.args == self.args;
         let confined = self.inputs.iter().chain(&self.outputs).all(|c| {
             let is_sb = c.type_script.code_hash == sb;
             if declared_sb {
                 is_sb && c.type_script.args == self.args
             } else {
-                !is_sb
+                !is_sb && (declared(c) || crate::jul::is_jul(c))
             }
         });
         if !confined {
@@ -3481,6 +3487,43 @@ mod tests {
         let mut other_col = mint;
         other_col.outputs[1].type_script.args = b"other-collection".to_vec();
         assert!(!other_col.is_valid());
+    }
+
+    /// Token confinement for every standard (found 2026-11-17 while building soulbound identities):
+    /// `is_valid` conserves only the DECLARED token and `apply_transition` persists every output, so a
+    /// third token's cells could ride a declared transfer unchecked and be minted from nothing. JUL was
+    /// already safe (its own rule keys on the real cells) and soulbound cells are confined above; the
+    /// same now holds for any token. JUL cells may still ride, under the JUL rule.
+    #[test]
+    fn a_token_tx_cannot_mint_another_token_from_nothing() {
+        let (mut node, block) = node_and_carrier_block();
+        node.ledger.token_cells.push(ft_cell(b"USD", b"alice", 10));
+        let honest = TokenTx {
+            standard: TokenStandard::Fungible,
+            auths: vec![],
+            code_hash: [20u8; 32],
+            args: b"USD".to_vec(),
+            inputs: vec![ft_cell(b"USD", b"alice", 10)],
+            outputs: vec![ft_cell(b"USD", b"bob", 10)],
+        };
+        assert!(honest.is_valid());
+        assert!(node.validate(&block.clone().with_token_txs(vec![honest.clone()])));
+        // the USD transfer carries an EUR output nobody issued: EUR from nothing
+        let mut smuggle = honest.clone();
+        smuggle.outputs.push(ft_cell(b"EUR", b"mallory", 1_000_000));
+        assert!(!smuggle.is_valid(), "an EUR mint rode a USD transfer");
+        assert!(!node.validate(&block.clone().with_token_txs(vec![smuggle])));
+        // the same token program under another issuer is another token
+        let mut same_code = honest.clone();
+        same_code.outputs.push(ft_cell(b"USD-fake", b"mallory", 5));
+        assert!(!same_code.is_valid(), "another issuer's cell rode the tx");
+        // an NFT tx cannot carry fungible cells either
+        let mut nft_vehicle = honest.clone();
+        nft_vehicle.standard = TokenStandard::Nft;
+        nft_vehicle.args = b"ART".to_vec();
+        nft_vehicle.inputs = vec![];
+        nft_vehicle.outputs = vec![ft_cell(b"USD", b"mallory", 7)];
+        assert!(!nft_vehicle.is_valid(), "a USD mint rode an NFT tx");
     }
 
     #[test]
