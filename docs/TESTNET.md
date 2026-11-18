@@ -5,15 +5,15 @@ Status words: built, designed, open. Never rounded up. Every protocol number bel
 ## Where it stands (2026-11-17)
 
 **Devnet stage, running the testnet genesis.** One node, run by the project on its own machine,
-using the testnet chain spec (`ChainSpec::testnet()`, `node/src/chainspec.rs:180`):
+using the testnet chain spec (`ChainSpec::testnet()`, `node/src/chainspec.rs:183`):
 
-- chain id `0x7e57` (`chainspec.rs:188`). The dev chain has a different id (`0xde0`, `chainspec.rs:104`). Every block carries its chain id and the rulebook refuses another network's block, so a block or a chain log of one network is refused by the other (since 2026-11-18; before, blocks named no chain and a dev log loaded on the testnet genesis);
-- proof of work enforced in consensus (`pow_enforced: true`, `chainspec.rs:168`), so the testnet tests the real issuance model;
-- difficulty `0x1f00_ffff` (`pow_bits`, `chainspec.rs:193`), which every block's seal must claim (no retarget, so every height uses it; since 2026-11-18, before which a seal was checked only against the bits it named). About 1 hash in 65,536 meets it: a placeholder that is harder than dev, not a measured mainnet difficulty;
+- chain id `0x7e57` (`chainspec.rs:191`). The dev chain has a different id (`0xde0`, `chainspec.rs:107`). Every block carries its chain id and the rulebook refuses another network's block, so a block or a chain log of one network is refused by the other (since 2026-11-18; before, blocks named no chain and a dev log loaded on the testnet genesis);
+- proof of work enforced in consensus (`pow_enforced: true`, `chainspec.rs:187`), so the testnet tests the real issuance model;
+- difficulty `0x1f00_ffff` (`pow_bits`, `chainspec.rs:196`), which every block's seal must claim (no retarget, so every height uses it; since 2026-11-18, before which a seal was checked only against the bits it named). About 1 hash in 65,536 meets it: a placeholder that is harder than dev, not a measured mainnet difficulty;
 - the identity issuer's authority cell, present from genesis (`chainspec.rs:59`). Identities minted under it get no PoM standing and no finality weight. A test checks this: `identity_mints_carry_zero_pom_and_zero_finality_weight`;
-- control binding on (`control_binding: true`, `chainspec.rs:187`): every spend of a cell must carry its owner's signature;
-- the block reward paid to the faucet, not to the placeholder validator key (`reward_to_faucet: true`, `chainspec.rs:221`). Each reward is locked by the faucet's own one-time key for that block. Who receives the reward changes no standing and no finality weight (test `the_reward_recipient_and_faucet_payouts_move_no_standing_and_no_finality_weight`);
-- identity keys on (`key_rotation: true`, `chainspec.rs:196`; since 2026-11-18): an identity can rotate to the next hot key of its series, and its cold key can request a new hot key that takes effect 100 blocks after the request lands unless the current hot key cancels it (`recovery_delay_blocks`, `TESTNET_RECOVERY_DELAY_BLOCKS`, `chainspec.rs:74`). Turning this on changes nothing for an identity that never uses it, and no earlier block. See the section below.
+- control binding on (`control_binding: true`, `chainspec.rs:190`): every spend of a cell must carry its owner's signature;
+- the block reward paid to the faucet, not to the placeholder validator key (`reward_to_faucet: true`, `chainspec.rs:225`). Each reward is locked by the faucet's own one-time key for that block. Who receives the reward changes no standing and no finality weight (test `the_reward_recipient_and_faucet_payouts_move_no_standing_and_no_finality_weight`);
+- identity keys on (`key_rotation: true`, `chainspec.rs:200`; since 2026-11-18): an identity can rotate to the next hot key of its series, which takes effect 100 blocks after the rotation lands unless the cold key cancels it; its cold key can freeze it at once and request a new hot key, which takes effect after the same 100 blocks (`key_change_delay_blocks`, `TESTNET_KEY_CHANGE_DELAY_BLOCKS`, `chainspec.rs:77`) and which the hot key can cancel only while the identity is not frozen. Turning this on changes nothing for an identity that never uses it, and no earlier block. See the section below.
 
 Test JUL is worthless by construction: it mints from trivial CPU work, on a chain of its own.
 
@@ -63,29 +63,48 @@ curl http://<node>/balance/<64 hex characters> # JUL held under that address
   forged. For the same reason a reset needs a new faucet seed: the keys derive from the seed and the
   block height, so the old seed on a new chain would sign a second message with each key.
 
-## Identity keys: rotation and cold-key recovery (wallet decisions A1 and A7)
+## Identity keys: rotation, freeze and cold-key recovery (wallet decisions A1 and A7)
 
-Built 2026-11-18 in the reference node (`node/src/identity_key.rs`); the page offers both.
+Built 2026-11-18 in the reference node (`node/src/identity_key.rs`) and conformed the same day to the
+approved design (a rotation the cold key can cancel, an immediate freeze); the page offers all of it. The
+cold key is the final authority over an address: whoever holds it can freeze it and replace its hot key.
+Keep it offline, on paper.
 
 - **Rotate.** Unlock the wallet and press "Rotate to the next key". The current hot key signs a move to the
   next key of the series derived from the same hot seed, so the existing backup covers the new key. It rides
-  the next contribution block; from that block on the new key signs (its one-time-key counter starts at 0)
-  and the old key signs nothing for the address. The address and its standing do not change.
-- **Recover.** In the RECOVER section, paste the address and the cold key from paper, choose a passphrase
+  the next contribution block and takes effect 100 blocks after that block. Until then the current key keeps
+  signing, the page shows the countdown, and the cold key can cancel the rotation. Once it takes effect the
+  page signs with the new key (its one-time-key counter starts at 0) and the old key signs nothing for the
+  address. The address and its standing do not change.
+- **If the hot key is stolen.** A rotation you did not start shows as a red warning with its countdown. In the
+  COLD KEY section, paste the address and the cold key and press "Freeze with cold key": from the next block
+  the address's hot key signs nothing (no contribution, no key change). Then cancel the pending rotation and
+  recover (both with the cold key, pasted again each time). On a frozen address the hot key cannot cancel the
+  recovery, so the new key is in effect 103 blocks after the freeze lands. "Unfreeze" (cold key) lifts a
+  freeze; it is refused while a rotation is pending, so cancel that first.
+- **Recover.** In the COLD KEY section, paste the address and the cold key from paper, choose a passphrase
   for a new hot key made in that browser, and send. The request takes effect 100 blocks after the block that
-  carries it. Until then anyone holding the address's current hot key can cancel it, so recovery helps when
-  the hot key is lost, not when it is stolen. While no key change for the address is on the chain yet, the
-  request must also name the address's first hot key root: write it down with the cold key (the wallet page
-  shows it, and a new wallet's recovery sheet includes it).
-- **Notice.** A wallet page whose address has a recovery request pending shows a red warning with the block
-  it takes effect at, and a button to cancel it.
-- `GET /keys/<address>` shows an address's key record, and `POST /key` takes a signed rotate, recover or
-  cancel. A follower answers `POST /key` with 409 and the producer's URL.
+  carries it, and unfreezes the address. On an address that is not frozen, anyone holding the current hot key
+  can cancel it until then, so if the hot key may be stolen rather than lost, freeze first. While no key change
+  for the address is on the chain yet, the first cold-key operation must also name the address's first hot
+  key root: write it down with the cold key (the wallet page shows it, and a new wallet's recovery sheet
+  includes it).
+- **Exhaustion.** Each hot key keeps its last one-time key for a rotation: the page and the node refuse a
+  contribution with it, so a key that has used all the others can still rotate.
+- **Notice.** The wallet page shows a frozen address, a pending rotation (its own, or one it did not start),
+  and a pending recovery request (with a cancel button while unlocked and not frozen), each with the block it
+  takes effect at.
+- `GET /keys/<address>` shows an address's key record (frozen or not, a pending rotation or recovery, the
+  blocks left), and `POST /key` takes a signed rotate or cancel-recovery (hot key) or recover,
+  cancel-rotation, freeze or unfreeze (cold key). A follower answers `POST /key` with 409 and the producer's
+  URL.
 
 Honest floor: the delay counts blocks, and testnet blocks are made on demand, so someone making many blocks
-shortens it in wall-clock time. Key operations waiting for a block live in the producer's memory; a page that
-sent one re-sends the same signed bytes after a restart. These rules are the reference node's, not the on-VM
-scripts'.
+shortens it in wall-clock time. That does not help someone holding a stolen hot key (the freeze is immediate),
+but it does shorten the hot key's window against someone holding the cold key, who can freeze first anyway.
+Key operations waiting for a block live in the producer's memory; a page that sent a hot-key operation
+re-sends the same signed bytes after a restart, and a cold-key operation is pasted again. These rules are the
+reference node's, not the on-VM scripts'.
 
 ## Live sync (step 7)
 
@@ -98,7 +117,7 @@ for this stage.
   (`node/src/follow.rs:48-52`), and says whether more are waiting. An up-to-date follower asks again every
   2 seconds (`follow.rs:55`), backing off to 30 seconds while the producer cannot be reached.
 - It runs every block through the producer's own acceptance path (`ChainSpec::accept_block`,
-  `node/src/chainspec.rs:302`): the block's chain id, the proof-of-work seal at the testnet's own difficulty,
+  `node/src/chainspec.rs:306`): the block's chain id, the proof-of-work seal at the testnet's own difficulty,
   token conservation, every spend's signature (control binding), the finality gate. Standing on a follower is whatever its own
   replay of the blocks gives; it is not taken on the producer's word.
 - It stops, keeps its chain, and says why (on its console and in `GET /state` under `replica.stopped`) when

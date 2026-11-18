@@ -204,17 +204,22 @@ pub struct Constitution {
     /// unit tests) are unchanged.
     pub chain_id: u64,
     /// Identity keys (wallet decisions A1 and A7, 2026-11-18; [`crate::identity_key`]). When `true` a
-    /// block may carry identity-key txs: a rotation to the identity's next hot key, a cold-key recovery
-    /// request behind a time lock, or a cancel of one; and a contribution by an identity with a key
-    /// record must carry its current key's label. Default `false`: every identity-key tx is refused and
-    /// nothing else changes (byte-identical). On in `ChainSpec::dev()` and `ChainSpec::testnet()`.
+    /// block may carry identity-key txs: a rotation to a new hot key (signed by the hot key), a recovery
+    /// request (signed by the cold key), a cancel of either (the cold key cancels a rotation, the hot key
+    /// a recovery while the identity is not frozen), and a freeze or unfreeze (the cold key); and a
+    /// contribution by an identity with a key record must carry its current key's label and is refused
+    /// while the identity is frozen. Default `false`: every identity-key tx is refused and nothing else
+    /// changes (byte-identical). On in `ChainSpec::dev()` and `ChainSpec::testnet()`.
     pub key_rotation: bool,
-    /// The recovery time lock, in blocks: a cold-key recovery request carried by block `h` takes effect
-    /// at block `h + recovery_delay_blocks + 1`, so the current hot key has exactly this many blocks to
-    /// cancel it. Read only when `key_rotation` is on; [`Node::new`] refuses `0` there (no cancel
-    /// window). Testnet 100 (`ChainSpec::testnet`, reasons there). Counted in blocks, which the testnet
-    /// makes on demand, so it bounds chain activity, not wall-clock time.
-    pub recovery_delay_blocks: u64,
+    /// The key-change time lock, in blocks, for both kinds of key change: a rotation or a recovery
+    /// request carried by block `h` takes effect at block `h + key_change_delay_blocks + 1`, so the other
+    /// key has exactly this many blocks to cancel it (the cold key a rotation; the hot key a recovery,
+    /// unless the identity is frozen). One delay for both because the window is the same thing in both
+    /// directions: the time the other key's holder has to notice and object. Read only when
+    /// `key_rotation` is on; [`Node::new`] refuses `0` there (no cancel window). Testnet 100
+    /// (`ChainSpec::testnet`, reasons there). Counted in blocks, which the testnet makes on demand, so it
+    /// bounds chain activity, not wall-clock time.
+    pub key_change_delay_blocks: u64,
 }
 
 impl Default for Constitution {
@@ -241,7 +246,7 @@ impl Default for Constitution {
             control_binding: false,  // inert: an empty auth authorizes a spend ⇒ byte-identical
             chain_id: 0,             // the id `Block::assemble` stamps, so default-rulebook blocks match
             key_rotation: false,     // inert: identity-key txs refused ⇒ byte-identical
-            recovery_delay_blocks: 0, // read only when key_rotation is on
+            key_change_delay_blocks: 0, // read only when key_rotation is on
         }
     }
 }
@@ -389,8 +394,8 @@ pub enum TokenStandard {
     /// ERC-5484 "IssuerOnly" — soulbound identities: holder fixed in the cell, only the issuer mints,
     /// re-tiers or burns ([`tokens::soulbound`]). Tag 3 (`standard as u8`, the wire tag, the on-VM map).
     Soulbound,
-    /// An identity's key record: a rotation, a cold-key recovery request or a cancel
-    /// ([`crate::identity_key`], wallet decisions A1 and A7). Tag 4 (`standard as u8` and the wire tag).
+    /// An identity's key record: a rotation, a recovery request, a cancel of either, a freeze or an
+    /// unfreeze ([`crate::identity_key`], wallet decisions A1 and A7). Tag 4 (`standard as u8` and the wire tag).
     /// Not a value movement: checked only by the block rule `identity_key::check_block`, which needs the
     /// block height, and refused by every other path ([`TokenTx::is_valid_in_ledger`]). No on-VM script
     /// knows it (the lock script's `standard_of` refuses its code hash): reference node only.
@@ -1131,12 +1136,13 @@ impl Node {
             "clock_enforced requires pow_enforced — the monotone-timestamp rule needs the seal to \
              header-bind the timestamp, else it is an ordering rule on a malleable field",
         );
-        // Identity keys (A7): a recovery delay of 0 blocks would put a cold-key request in effect in the
-        // block after it lands, with no window for the current hot key to cancel. Fail loud at genesis.
+        // Identity keys (A1/A7): a key-change delay of 0 blocks would put a rotation or a recovery request
+        // in effect in the block after it lands, with no window for the other key to cancel. Fail loud at
+        // genesis.
         assert!(
-            !(constitution.key_rotation && constitution.recovery_delay_blocks == 0),
-            "key_rotation requires recovery_delay_blocks > 0 — the current hot key needs blocks in which \
-             to cancel a cold-key recovery request",
+            !(constitution.key_rotation && constitution.key_change_delay_blocks == 0),
+            "key_rotation requires key_change_delay_blocks > 0 — the other key needs blocks in which to \
+             cancel a rotation or a recovery request",
         );
         Node {
             id,
@@ -1403,9 +1409,11 @@ pub enum Violation {
     /// ([`Constitution::pow_bits`]), whether or not its hash meets them (2026-11-18).
     PowBitsWrong { expected: u32, got: u32 },
     /// (13) an identity-key tx breaks its rule (a wrong or retired signer, a cold key that does not match
-    /// the identity's commitment, a spent one-time index, a forged output, two operations for one
-    /// identity, the lane off), or a contribution by an identity with a key record carries a retired
-    /// key's label ([`crate::identity_key::check_block`], 2026-11-18).
+    /// the identity's commitment, a hot key acting on a frozen identity, a second pending key change, a
+    /// spent one-time index, a forged output, two operations for one identity, the lane off), or a
+    /// contribution by an identity with a key record carries a retired key's label, uses the leaf kept
+    /// for a rotation, or is credited to a frozen identity ([`crate::identity_key::check_block`],
+    /// 2026-11-18).
     IdentityKey { reason: &'static str },
 }
 

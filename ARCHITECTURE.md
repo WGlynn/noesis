@@ -24,7 +24,8 @@
 - `node/src/tokens.rs` — ERC-analog conservation (Fungible/Nft/Multi) and the soulbound identity
   rule (`tokens::soulbound`, 2026-11-17).
 - `node/src/identity_key.rs` — identity keys (wallet decisions A1/A7, 2026-11-18): an identity's series of
-  hot keys and cold-key recovery behind a time lock, one key cell per identity, checked by the rulebook.
+  hot keys, and its cold key as the root of trust (a rotation it can cancel, an immediate freeze, a recovery
+  behind the same time lock), one key cell per identity, checked by the rulebook.
 - `node/src/identity_mint.rs` + `node/src/bin/identity_mint.rs` — the soulbound issuer's mint tool
   (off-consensus; it reads the issuer's seed file, which the node and the bot never need; the dev
   seed alone is public by design).
@@ -345,15 +346,19 @@ so the format change cost nothing).
   is still a placeholder (cheap blocks, low Sybil cost, expected for a testnet); the measured mainnet value
   and a retarget are open.
 
-## Identity keys: a series of hot keys, and recovery with the cold key (built 2026-11-18, reference node)
+## Identity keys: a series of hot keys, and a cold key that is the root of trust (built 2026-11-18, reference node)
 
-Wallet decisions A1 ("kinda like an HD wallet") and A7 (Will 2026-11-17). An identity
-(`wallet::identity` = H(hot root, cold commitment), `onchain/noesis-core/src/lib.rs:1434`) never moves, and
-PoM standing stays keyed on it (`type_script.args`). What changes is which hot key speaks for it, recorded in
-one identity-key cell per identity (`node/src/identity_key.rs`). Additive: existing v2 identities, blocks and
-`POST /submit` bodies are unchanged, no chain reset, and no block, wire or header-digest format changed (key
-operations ride `Block::token_txs` as a new token standard, tag 4, `TokenStandard::IdentityKey`,
-`runtime.rs:397`, `wire.rs:192`). An identity with no key cell works exactly as before: its key is the birth
+Wallet decisions A1 ("kinda like an HD wallet") and A7 (Will 2026-11-17), conformed on 2026-11-18 to the
+approved design's decision 7: a rotation by the hot key waits out a delay the cold key can cancel, a recovery
+by the cold key waits out the same delay, and the cold key can freeze the identity at once. (The first cut,
+`b5cd0c4a`, made rotation immediate and gave the cold key no cancel and no freeze, so a stolen hot key beat
+the cold key. It never ran on a live chain.) An identity (`wallet::identity` = H(hot root, cold commitment),
+`onchain/noesis-core/src/lib.rs:1434`) never moves, and PoM standing stays keyed on it (`type_script.args`).
+What changes is which hot key speaks for it, recorded in one identity-key cell per identity
+(`node/src/identity_key.rs`). Additive against the chain as deployed (`c5bf89f6`): existing v2 identities,
+blocks and `POST /submit` bodies are unchanged, no chain reset, and no block, wire or header-digest format
+changed (key operations ride `Block::token_txs` as a new token standard, tag 4, `TokenStandard::IdentityKey`,
+`runtime.rs:402`, `wire.rs:192`). An identity with no key cell works exactly as before: its key is the birth
 hot root inside the identity hash, and its contributions keep the 40-byte label `identity || index`.
 
 - **Key series (A1).** `wallet::derive_key(seed, i)` (`onchain/noesis-core/src/lib.rs:1472`): key 0 is the hot seed
@@ -361,83 +366,128 @@ hot root inside the identity hash, and its contributions keep the 40-byte label 
   public derivation exists for hash-based keys, so nothing like an xpub; the identity is the one address.
   An existing v2 wallet adopts this with no change at all: its hot seed is the derivation seed and key 0 is
   the key it already has, so `identity(key_root(seed), cold_commit)` is the same address. Parity vectors:
-  `key_series_parity_vectors_are_pinned` (`rpc.rs:1541`) and `frontend/parity-test.mjs`.
-- **The cell.** Type code hash `NOESIS-IDENTITY-KEY-CELL-TYPE-v1` (`identity_key.rs:69`), type args and lock
-  args the identity, id a hash of it (`cell_id`, `:338`). Data, 130 bytes (`Record`, `:90`): generation,
-  current hot root, cold commitment, hot floor, cold floor, and an optional pending recovery (new hot root,
-  the height it takes effect at). It sits in `Ledger.token_cells`, which PoM, the novelty index and
-  finality weight never read.
+  `key_series_parity_vectors_are_pinned` (`rpc.rs:1564`) and `frontend/parity-test.mjs`.
+- **The cell.** Type code hash `NOESIS-IDENTITY-KEY-CELL-TYPE-v1` (`identity_key.rs:92`), type args and lock
+  args the identity, id a hash of it (`cell_id`, `:434`). Data, 131 bytes (`Record`, `:149`): generation,
+  current hot root, cold commitment, hot floor, cold floor, a frozen flag, and an optional pending key change
+  (a rotation or a recovery, the new hot root, the height it takes effect at). It sits in
+  `Ledger.token_cells`, which PoM, the novelty index and finality weight never read.
 - **Operations.** Each signs `wallet::key_op_digest(identity, op, chain_id, generation, new_root, index)`
-  (`onchain/noesis-core/src/lib.rs:1490`; tag 0x05, apart from the contribution digest). The rule is `next_record`
-  (`identity_key.rs:422`):
-  - rotate (`:433`): signed by the current hot key; in effect from the block that carries it; the old key
-    signs nothing more for the identity; a pending recovery is voided.
-  - recover (`:463`): signed by the cold key whose commitment is the identity's (else refused); names a new
-    hot root that takes effect at `h + recovery_delay_blocks + 1` for a request in block `h`, so the current
-    hot key has exactly `recovery_delay_blocks` blocks to cancel; a newer request replaces a pending one and
-    restarts the delay.
-  - cancel (`:503`): signed by the current hot key while a request is pending; voids it.
-  A request takes effect without any further transaction: `Record::at` (`:162`) reads the record at a height.
-  The identity's first operation carries its two birth roots, checked against the identity hash.
-- **The delay.** `Constitution::recovery_delay_blocks` (`runtime.rs:217`), read only with
-  `Constitution::key_rotation` on (`:211`; `Node::new` refuses 0 there, `:1137`). Testnet 100
-  (`TESTNET_RECOVERY_DELAY_BLOCKS`, `chainspec.rs:74`, reasons there), dev 3 (`chainspec.rs:111`).
+  (`onchain/noesis-core/src/lib.rs:1490`; tag 0x05, apart from the contribution digest). Op bytes 1 to 3
+  (rotate, recover, cancel a recovery) are noesis-core's; 4 to 6 (freeze, unfreeze, cancel a rotation) are
+  the node's (`identity_key.rs:104-108`), because noesis-core's sources feed the on-VM fixtures and no on-VM
+  script reads key operations. The rule is `next_record` (`identity_key.rs:528`). With T =
+  `key_change_delay_blocks`, a change carried by block `h` takes effect at `h + T + 1` with no further
+  transaction (`Record::at`, `:236`), so the other key has exactly T blocks to cancel it. The identity's
+  first operation, of any kind, carries its two birth roots, checked against the identity hash.
+
+  Who can do what, by state (hot = the identity's current hot key):
+
+  | State | Hot key | Cold key |
+  |---|---|---|
+  | Normal | contribute; **rotate** (starts a rotation) | **recover** (starts a recovery); **freeze** |
+  | Rotation pending | contribute (the current key, above the rotation's leaf); no second rotation; nothing to cancel | **cancel-rotation**; **recover** (replaces the rotation, restarts the delay); **freeze** (the rotation is then held) |
+  | Recovery pending | contribute; **cancel-recovery**; no rotation until it has cancelled | **recover** again (replaces it, restarts the delay); **freeze** (the hot key then cannot cancel) |
+  | Frozen | nothing: no contribution (the door and the rulebook refuse it), no key operation | **recover**; **unfreeze** |
+  | Frozen, rotation held | nothing | **cancel-rotation**; **recover** (replaces it); unfreeze refused until the rotation is cancelled |
+  | Frozen, recovery pending | nothing; it cannot cancel | **recover** again; **unfreeze** (after which the hot key can cancel again) |
+
+  In every state: at most one pending change per identity (one key operation per identity per block); a
+  rotation never takes effect while frozen, and because unfreezing waits for its cancel, a rotation pending
+  when a freeze lands never takes effect; a recovery that takes effect installs its root, retires the old key
+  and unfreezes the identity; every operation raises its signer's floor past its own index (the hot floor for
+  rotate and cancel-recovery, the cold floor for the other four), so no operation replays.
+- **Who wins: the cold key.** Against a thief holding the hot key: freeze (immediate), cancel the rotation if
+  one is pending (or let the recovery replace it), recover. The hot key can neither cancel the recovery nor do
+  anything else, so the owner's key is in effect T + 3 blocks after the freeze lands (T + 2 when the recovery
+  replaces the rotation directly), at most 2T for any T >= 3, and neither key can stall the other forever: the
+  cold key ends any back and forth by freezing. Tests `the_cold_key_beats_a_thief_holding_the_hot_key`
+  (`identity_key.rs:1543`, every thief move refused at every block of the window, the thief's rotation never
+  in effect even past its own block) and, through the routes, `the_cold_key_beats_a_hot_key_thief_through_the_routes`
+  (`rpc.rs:2950`). The other side of the same fact: a thief holding the cold key wins the same way (freeze
+  first, then recover); the hot key's cancel protects only an identity that is not frozen. The cold key is
+  ultimately authoritative, which is why it lives offline, on paper.
+- **The delay.** `Constitution::key_change_delay_blocks` (`runtime.rs:222`). Renamed from the first cut's
+  `recovery_delay_blocks` because one delay now governs both kinds of change, and the window means the same
+  thing either way: the other key's time to notice and object. Read only with `Constitution::key_rotation` on
+  (`:213`; `Node::new` refuses 0 there, `:1143`). Testnet 100 (`TESTNET_KEY_CHANGE_DELAY_BLOCKS`,
+  `chainspec.rs:77`, reasons there), dev 3 (`chainspec.rs:114`).
 - **One-time keys.** Counters are per key. A contribution by a key generation `g >= 1` carries the 48-byte
-  label `identity || index || g` (`pack_label`, `identity_key.rs:385`), so the per-key mark rebuilds from the
+  label `identity || index || g` (`pack_label`, `identity_key.rs:481`), so the per-key mark rebuilds from the
   chain log. A hot-signed operation must use an index above every contribution of the current key and at or
-  above its hot floor; a cancel raises the floor past its own index, and a contribution in the same block
-  must sit above it. The cold key's floor rises past each request, so a replayed request (or cancel) is
-  refused. `GET /index/<identity>` and `GET /keys/<identity>` report the current key's mark.
+  above its hot floor, and raises the floor past its own index, so a contribution in the same block must sit
+  above it. Each hot key keeps its last index (`ROTATION_LEAF` = 65,535, `identity_key.rs:111`) for a
+  rotation: the door refuses a contribution there (`rpc.rs:987`), the rulebook refuses that label for an
+  identity with a key record, and a cancel may not use it, so a key that has spent every other leaf can still
+  rotate (test `the_last_leaf_of_a_hot_key_signs_only_a_rotation`, `identity_key.rs:1641`).
+  `GET /index/<identity>` and `GET /keys/<identity>` report the current key's mark.
 - **Where each rule lives.** The operations carry their signatures, so `identity_key::check_block`
-  (`identity_key.rs:639`, called from `validate_block`, `runtime.rs:1438`) checks all of them, at most one
+  (`identity_key.rs:769`, called from `validate_block`, `runtime.rs:1446`) checks all of them, at most one
   per identity per block, for the producer, a follower, a node booting from its chain log, a joining node
   and the reorg path alike. A contribution's own signature never enters a block, so "the retired key signs
-  nothing" is the door's check (`submit_signed`, `rpc.rs:982`) against the chain's record, or against a key
-  operation the node holds for that very block (`key_state`, `rpc.rs:788`); the rulebook checks what a
-  replica can see: a contribution by an identity with a key record must carry its current generation's
-  label. `POST /key` (`rpc.rs:1219`) builds the tx with the rule's own `build_tx` (`identity_key.rs:608`)
-  and holds it for the next contribution block (a block still needs a contribution, `EmptyBlock`).
+  nothing" and "a frozen identity signs nothing" are the door's checks (`submit_signed`, `rpc.rs:957`; the
+  frozen refusal at `:1007`) against the chain's record, or against a key operation the node holds for that
+  very block (`key_state`, `rpc.rs:796`). The rulebook checks what a replica can see from the block: a
+  contribution credited to an identity whose record (after this block's operation) is frozen is refused
+  (`identity_key.rs:802`), and otherwise it must carry the current generation's label, at or above the hot
+  floor and below the rotation leaf. `POST /key` (`rpc.rs:1242`) builds the tx with the rule's own `build_tx`
+  (`identity_key.rs:737`) and holds it for the next contribution block (a block still needs a contribution,
+  `EmptyBlock`).
 - **Zero standing and zero finality weight, from the code.** Test
-  `key_operations_move_no_standing_and_no_finality_weight` (`identity_key.rs:1144`): a chain with a rotation,
-  a recovery request and its maturity against a twin with the same contribution cells and no key operation
-  give the same cells, index root, PoM, work clock and finality weight, and all standing stays on the one
-  identity across three keys. A test over the reference node, not a proof.
-- **Tests.** Rulebook: `identity_key.rs:792-1144` (round trips, labels, rotation from its own block, birth
-  roots, the delay, cancel and replays, the rotate/recover race, standing). Routes and replicas:
-  `rpc.rs:2781-2962` (no key record behaves as before; rotation end to end; recovery end to end on dev;
-  a follower refusing a forged signature or forged output, and a restart rebuilding the per-key marks, on
-  the testnet constitution). Page: `frontend/wallet-test.mjs`. Break-on-purpose: dropping the label check,
-  the door's key check or the delay each turns a test red (run 2026-11-18).
-- **The page.** Shows the key number and the signatures left for it; Rotate (needs unlock) signs a rotation
-  to the next key at an index spent before signing, keeps the signed body until the chain shows it, and
-  re-sends the same bytes if the node lost it; a red banner and a Cancel button when a recovery request
-  against the identity is pending; RECOVER takes a pasted cold key (never stored), checks it against the
-  identity, makes a new hot seed under a new passphrase, and shows the countdown. The cold key is not
-  stored, so its counter is the chain's floor plus a spread of 0 to 255 from the new root, which keeps two
-  attempts from two browsers off one one-time key.
+  `key_operations_move_no_standing_and_no_finality_weight` (`identity_key.rs:1686`): a chain with a rotation
+  started, a freeze (the identity credited nothing while frozen), the rotation cancelled by the cold key, a
+  recovery on the frozen identity that takes effect, and a rotation of the recovered key that takes effect,
+  against a twin with the same contribution cells and no key operation, gives the same cells, index root, PoM,
+  work clock and finality weight, with the standing on the one identity across three keys. A test over the
+  reference node, not a proof.
+- **Tests.** Rulebook: `identity_key.rs:818` on (round trips, labels, a rotation waits out its delay, birth
+  roots, the recovery delay, a hot cancel and replays, the cold key cancelling a rotation, freeze, the
+  interaction rules of the table, the theft scenario, the rotation leaf, standing). Routes and replicas:
+  `rpc.rs:2743` on (no key record behaves as before; rotation and recovery end to end; the theft scenario; the
+  door's rotation leaf; a follower refusing a forged signature, a forged output and a freeze whose output was
+  thawed, and a restart rebuilding the per-key marks and the frozen state, on the testnet constitution;
+  malformed operations). Red first: these tests were run against the first cut's rule (rotation immediate, no
+  freeze, no cold-key cancel, no rotation leaf) before the fix, and the 11 that encode the conformed rules
+  failed (2026-11-18). Page: `frontend/wallet-test.mjs`, against a fake node that mirrors the rule.
+- **The page.** Shows the key number and the signatures left for it. A note under Rotate says the new key
+  takes effect T blocks after the block that carries the rotation, and that the cold key can cancel it.
+  Rotate (needs unlock) signs at an index spent before signing, keeps the signed body until the chain shows
+  the rotation in effect (re-sending the same bytes if the node lost it), and switches this browser to the new
+  key only then; if the cold key cancels it, the page drops it and says so. The red banner shows a frozen
+  address, this wallet's own pending rotation with its countdown, a rotation it did not start (with a pointer
+  to the cold key), and a recovery request (with a Cancel button while unlocked and not frozen). The COLD KEY
+  section takes the cold key pasted for each action (never stored; the field is cleared at once), checks it
+  against the address, and offers Freeze, Cancel the pending rotation, Unfreeze and Recover; it shows the
+  address's state and countdowns. The cold key's one-time index is the chain's floor (or this page's last
+  use, if higher) plus a spread of 0 to 255, which keeps two browsers that cannot see each other off one leaf
+  most of the time, not always.
 - **Honest floor.**
   - Reference node only. No on-VM script knows tag 4 (the lock script's `standard_of` refuses the code
-    hash). The `locksig` ELF fixture was rebuilt and re-stamped only because new code in `noesis-core`
-    shifted line numbers inside its panic-location records (16 bytes); no on-VM code path changed.
-  - The hot key dominates the cold key. Rotation is immediate and the current hot key can cancel any
-    recovery, so the cold key recovers a LOST hot key, not a stolen one: a thief who holds the hot key can
-    rotate at once, or cancel the owner's request. Changing that (a delay on rotation that the cold key can
-    cancel, as in the 2026-11-17 design draft) is Will's call.
+    hash). noesis-core is unchanged by the conformance, so the on-VM fixtures are untouched (the first cut
+    rebuilt the `locksig` fixture once, for shifted panic-location line numbers only).
+  - The cold key is the final authority. A thief who holds it can freeze and then recover, and the hot key
+    cannot cancel a recovery on a frozen identity. That is the price of a root of trust that beats a stolen hot
+    key, and the reason the cold key lives offline. Guardians (k signatures in place of the cold key) are
+    designed, not built.
+  - The delay counts blocks, and testnet blocks are made on demand, so anyone who makes blocks shortens it in
+    wall-clock time (about 100 cheap submissions on the testnet). That does not help a hot-key thief (the
+    freeze is immediate), but it does shorten the hot key's window against a cold-key thief who has not frozen.
+  - A cancel signs zeros in the new-root field (noesis-core's digest, left as it is), so it names no target:
+    a cancel that was signed but never carried can still cancel a later change of the same key generation
+    until its signer's floor passes its index. Griefing only; the cold key can always run its change again.
   - A leaked seed leaks the whole series, so rotating to the next derived key does not help after a seed
-    leak; that needs a rotation to a fresh seed. The rule accepts any new root; the page offers only the
-    next derived key (open).
-  - The delay counts blocks, and testnet blocks are made on demand, so anyone who makes blocks shortens it
-    in wall-clock time (about 100 cheap submissions on the testnet).
-  - Until an identity's first key change is on chain, a recovery must name the birth hot root, which is not
-    on chain (contribution cells carry only the identity). The page shows it, and the creation screen puts it
-    on the recovery sheet; a wallet lost before that root was written down, and before any key change, cannot
-    be recovered.
-  - Key operations waiting for a block are node-local (lost on a restart; the page re-sends them).
+    leak. The remedy is a freeze and a recovery, which puts in a key from a fresh seed (the page makes one).
+  - Until an identity's first key change is on chain, its first key operation (a freeze included) must name
+    the birth hot root, which is not on chain (contribution cells carry only the identity). The page shows it,
+    and the creation screen puts it on the recovery sheet; a wallet lost before that root was written down,
+    and before any key change, cannot be recovered.
+  - Key operations waiting for a block are node-local (lost on a restart; the page re-sends a hot-key
+    operation; a cold-key operation is pasted again). A node holds one per identity, so a second waits a block.
   - Counters are per key generation, and the rule does not detect a rotation or recovery back to a root the
     identity used before (it refuses only the current hot root and the cold key's root); such a reused key's
     counter would restart at 0. The page never reuses a key (each rotation derives the next one, each
     recovery makes a fresh seed).
-  - Guardians, freeze, and who pays state rent for a key cell are open.
+  - Who pays state rent for a key cell is open.
 
 ## Value measure `v(S)` — the moat (re-stamped from code and the research record, 2026-10-21)
 

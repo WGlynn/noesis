@@ -33,6 +33,18 @@
    `internal/DESIGN-joint-decay-damping-rate.md`. Code comments + patent line 233 relabeled to match.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-11-18 (wallet A1/A7 conformed to the approved design: rotation behind a delay, cold-key cancel and
+  freeze)**: still additive against the deployed chain (`c5bf89f6`), no reset; the first cut below never ran
+  on a live chain. A hot-key rotation is now pending for `Constitution::key_change_delay_blocks` (renamed from
+  `recovery_delay_blocks`: one delay for both kinds of change; 100 on testnet), cancelable by the cold key,
+  and the current key keeps signing until it takes effect. The cold key can freeze at once (the hot key then
+  does nothing: no contribution at the door or in the rulebook, no key operation), cancel a rotation,
+  unfreeze (not while a rotation is pending), and recover; a recovery replaces any pending change and, on a
+  frozen identity, cannot be cancelled by the hot key; a recovery in effect unfreezes. Each hot key keeps its
+  last one-time index for a rotation. Theft scenario test: the owner's key is in effect T + 3 blocks after the
+  freeze, every thief move refused. Red first: 11 tests failed against the first cut's rule, then passed.
+  The cold key is now plainly the final authority (a stolen cold key loses the identity). Open: wall-clock
+  delay, cancels that name no target, guardians, state rent.
 - **2026-11-18 (wallet A1/A7, first cut: identity-key cell, derived key series, cold-key recovery)**: additive,
   no reset. One identity-key cell per identity (token standard tag 4) records the current hot root; key i
   derives from the hot seed and i (key 0 = the seed, so existing v2 wallets adopt with no migration);

@@ -47,9 +47,9 @@ Open http://localhost:9955/ in a browser, that exact address. From the page you 
   under a passphrase you choose (a passkey can be added as a second way to unlock), and a cold recovery
   key shown once for you to store offline, with the address and its first hot key root (write all three
   down);
-- rotate the wallet to the next hot key of its series (the same backup covers it), and recover an address
-  with its cold key behind a delay in blocks that the current hot key can cancel (`docs/TESTNET.md`,
-  identity keys);
+- rotate the wallet to the next hot key of its series (the same backup covers it; it takes effect after a
+  delay in blocks that the cold key can cancel), and with the cold key freeze an address at once, cancel a
+  rotation, unfreeze, or recover the address behind the same delay (`docs/TESTNET.md`, identity keys);
 - sign and submit a contribution, which the node mines into a block at once;
 - see the chain, the contribution graph, and the soulbound identities.
 
@@ -156,9 +156,10 @@ target\release\noesisd.exe --follow https://<producer-url> 127.0.0.1:9956 %USERP
   saved before every signature. Still open: a malicious page or extension running while the wallet is
   unlocked can read the key, and clearing browser storage loses the wallet unless you kept the hot key
   (Show hot key, after unlock). Do not restore an old copy of a wallet that has signed since: reusing a
-  one-time key weakens it. Key rotation and recovery with the cold key are built (reference node; see
-  `docs/TESTNET.md`, identity keys); recovery helps when the hot key is lost, not when it is stolen, since
-  the current hot key can cancel a recovery. An encrypted backup file is designed, not built.
+  one-time key weakens it. Key rotation, the cold key's freeze and recovery with the cold key are built
+  (reference node; see `docs/TESTNET.md`, identity keys). The cold key is the final authority: it beats a
+  stolen hot key (freeze, then recover), and a stolen cold key beats you, so keep it offline. An encrypted
+  backup file is designed, not built.
 
 ## Contributions and standing
 

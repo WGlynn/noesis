@@ -39,7 +39,7 @@ select, input[type=text], input[type=password] { width:100%; }
 (65,536 one-time keys, and a series of further keys from the same seed) and a cold recovery
 key you keep offline. Your address is fixed by both when the wallet is made. The keys never
 leave this browser. The hot key is stored encrypted under a passphrase you choose here;
-nobody can reset it for you. (Lost the hot key of an address? See RECOVER, below.)</pre>
+nobody can reset it for you. (Lost the hot key of an address? See COLD KEY, below.)</pre>
   <label for="new-pass">Passphrase (12 characters or more; four or more random words is a good shape):</label>
   <input type="password" id="new-pass" autocomplete="new-password">
   <label for="new-pass2">Passphrase again:</label>
@@ -47,11 +47,12 @@ nobody can reset it for you. (Lost the hot key of an address? See RECOVER, below
   <button id="create-wallet">Generate wallet</button> <span id="gen-status"></span>
 </div>
 <div id="cold-backup" hidden>
-  <pre class="red">RECOVERY KEY, SHOWN ONCE. Write it on paper and keep it offline, away from this
-computer. This page does not keep it: once you continue, it is gone from here. It can
-recover this address if the hot key is lost: a recovery takes effect after a delay of
-blocks, during which whoever holds the hot key can cancel it. Nobody, including Jarvis or
-a node operator, will ever ask you for it.</pre>
+  <pre class="red">COLD KEY, SHOWN ONCE. Write it on paper and keep it offline, away from this computer.
+This page does not keep it: once you continue, it is gone from here. It is the final
+authority over this address: it can freeze the address at once, cancel a rotation of the
+hot key, and replace a lost or stolen hot key. Whoever holds it can do all of that, so
+keep it where no one else can reach it. Nobody, including Jarvis or a node operator, will
+ever ask you for it.</pre>
   <pre id="cold-key"></pre>
   <pre id="cold-sheet" class="dim"></pre>
   <label for="cold-check">Type its last 8 characters to confirm you stored it:</label>
@@ -87,26 +88,37 @@ Close any other tab of this page first: an old page still open could write the p
   <button id="cancel-recovery" hidden>Cancel the recovery request</button>
   <button id="forget">Switch wallet</button>
   <span id="w-status"></span>
+  <pre id="rotate-note" class="dim"></pre>
   <pre id="seedbox" class="red" hidden></pre>
 </div>
 </fieldset>
 
 <fieldset>
-<legend>RECOVER</legend>
+<legend>COLD KEY</legend>
+<pre id="cold-line" hidden></pre>
 <pre id="rec-line" hidden></pre>
 <button id="recover-finish" hidden>Use the recovered key</button> <button id="recover-drop" hidden>Remove this recovery</button>
-<button id="rec-open">Recover an address with its cold key</button>
+<button id="rec-open">Use the cold key: freeze, cancel a rotation, recover</button>
 <div id="rec-form" hidden>
-  <pre class="red">Recovery replaces an address's hot key with a new one made here, signed by the cold key
-committed in the address. It takes effect only after a delay of blocks set by the chain, and
-until then whoever holds the current hot key can cancel it: it recovers a LOST hot key, not a
-stolen one. The cold key is used once, in this page's memory, and never stored.</pre>
+  <pre class="red">The cold key is the final authority over an address. It can freeze the address at once (its
+hot key then signs nothing), cancel a rotation the hot key started, unfreeze, and replace the
+hot key with a new one made here. Whoever holds it can do all of that, which is why it lives
+offline, on paper. It is used once per action, in this page's memory, and never stored: paste
+it again for each action.</pre>
   <label for="rec-address">Address:</label>
   <input type="text" id="rec-address" autocomplete="off" spellcheck="false">
   <label for="rec-cold">Cold key (the 64 hex characters on paper; spaces are fine):</label>
   <input type="password" id="rec-cold" autocomplete="off" spellcheck="false">
   <label for="rec-hot">First hot key root (needed only while the chain holds no key record for the address; it is on the recovery sheet):</label>
   <input type="text" id="rec-hot" autocomplete="off" spellcheck="false">
+  <button id="freeze-go">Freeze with cold key</button>
+  <button id="cancel-rotation-go">Cancel the pending rotation</button>
+  <button id="unfreeze-go">Unfreeze</button>
+  <span id="coldop-status"></span>
+  <pre>RECOVER: replace the address's hot key with a new one made here. It takes effect a delay of
+blocks after the block that carries it. On an address that is not frozen, whoever holds the
+hot key can cancel it until then. If the hot key may be stolen and not just lost, freeze
+first: on a frozen address the hot key cannot cancel the recovery.</pre>
   <label for="rec-pass">Passphrase for the new hot key (12 characters or more):</label>
   <input type="password" id="rec-pass" autocomplete="new-password">
   <label for="rec-pass2">Passphrase again:</label>
@@ -179,9 +191,12 @@ stolen one. The cold key is used once, in this page's memory, and never stored.<
   // but creating a wallet, signing and adding a passkey are off. A v1 wallet is left untouched, read-only.
   //
   // The key series (A1): the seed is the backup of every hot key in a series, and key i signs (key 0 is
-  // the seed itself). A rotation, signed by the current key, moves the address to the next key from the
-  // block that carries it. Recovery (A7): the cold key asks for a new hot key made in this browser; the
-  // chain puts it in effect after a delay in blocks, during which the current hot key can cancel it.
+  // the seed itself). A rotation, signed by the current key, moves the address to the next key once the
+  // chain's delay (T blocks after the block that carries it) has run; until then the current key keeps
+  // signing and the cold key can cancel it. The cold key (A7) is the final authority: it freezes the
+  // address at once (the hot key then signs nothing), cancels a rotation, unfreezes, and asks for a new
+  // hot key made in this browser, which takes effect after the same delay. The hot key can cancel that
+  // request only while the address is not frozen. The cold key is pasted for each action, never stored.
   const ORIGIN_OK = W.originOk(location.origin);
   const OFF_HERE = "Creating a wallet, signing and adding a passkey are off at this address. Open " + W.CANONICAL_ORIGIN + "/ instead.";
   let wallet = null;     // the stored wallet's public part: address, roots, key number, counter, passkey set
@@ -194,7 +209,12 @@ stolen one. The cold key is used once, in this page's memory, and never stored.<
   let recInfo = null;    // what the chain says about it
   let recOpen = false;
   let recRefused = null;  // { body, error }: a recovery request the node refused, not sent again
+  let coldKeys = null;    // GET /keys for the address in the COLD KEY form (or this wallet's address)
+  const coldMark = {};    // address -> the cold key's next index signed in this page (memory only)
   let fresh = null, lastState = null, oldAddress = null, otherPlain = null, storeError = null;
+  const delay = (k) => (k && k.key_change_delay_blocks != null ? k.key_change_delay_blocks : null);
+  // The pending change on a key record, if it is of `change` ("rotation" or "recovery").
+  const pendingOf = (rec, change) => (rec && rec.pending && rec.pending.change === change ? rec.pending : null);
   const viewOf = (r) => {
     const k = W.keyOf(r);
     return { address: r.address, hotRoot: r.hot_root, coldCommit: r.cold_commit, nextIndex: r.nextIndex, hasPasskey: !!r.passkey,
@@ -250,19 +270,41 @@ stolen one. The cold key is used once, in this page's memory, and never stored.<
       "hot key   #" + wallet.keyIndex + " of this wallet's series" + (gen != null ? ", key generation " + gen + " on chain" : "") + "\n" +
       "keys left " + (C.MT_MAX_SIGS - wallet.nextIndex) + " of " + C.MT_MAX_SIGS + " for this key (the last is kept for a rotation)\n" +
       firstKey +
-      "recovery  cold key offline, committed in the address\n" +
+      "cold key  offline, committed in the address" + (lastKeys && lastKeys.current && lastKeys.current.frozen ? "; it has FROZEN the address" : "") + "\n" +
       "hot seed  encrypted here, " + (session ? "UNLOCKED (Lock when done)" : "locked") +
       "; opens with the passphrase" + (wallet.hasPasskey ? " or the passkey" : "");
+    const t = delay(lastKeys);
+    $("rotate-note").textContent = "Rotate: the next key takes effect " + (t != null ? t + " blocks" : "a delay of blocks set by the chain") +
+      " after the block that carries the rotation.\nUntil then this key keeps signing, and the cold key can cancel the rotation.";
   }
-  // A recovery request against this address, a key this browser holds that the chain retired, or a key
-  // operation the node refused: said at the top of WALLET, in red.
+  // The address's key state, said at the top of WALLET in red: frozen by the cold key; a pending rotation
+  // (this wallet's own, or someone else's: then the hot key is stolen, and the cold key is the answer); a
+  // pending recovery request; a key this browser holds that the chain retired; a key operation refused.
   function showBanner() {
     const lines = [];
     let canCancel = false;
-    const p = wallet && lastKeys && lastKeys.current && lastKeys.current.pending;
+    const cur = wallet && lastKeys && lastKeys.current;
+    const frozen = !!(cur && cur.frozen);
+    if (frozen) lines.push("FROZEN: the cold key has frozen this address. Its hot key signs nothing for it (no contribution,\n" +
+      "no key change) until the cold key unfreezes it or a recovery takes effect (COLD KEY, below).");
+    const rot = pendingOf(cur, "rotation");
+    if (rot) {
+      const op = wallet.pendingKeyOp;
+      if (rot.suspended) lines.push("A rotation to another key (" + short(rot.new_root) + ") is held while the address is frozen: it cannot take\n" +
+        "effect. The cold key cancels it (COLD KEY, below) before it can unfreeze the address.");
+      else if (op && op.op === "rotate" && op.keyRoot === rot.new_root) lines.push("Your rotation to key #" + op.keyIndex + " takes effect at block " + rot.effective_at + ", " +
+        rot.cancel_blocks_left + " blocks from now. Until then key #" + wallet.keyIndex + " keeps signing; the cold key can cancel it.");
+      else lines.push("WARNING: a rotation of this address's hot key is pending. It would move the address to another key\n" +
+        "(" + short(rot.new_root) + ") at block " + rot.effective_at + ", " + rot.cancel_blocks_left + " blocks from now. If you did not start it, someone holds\n" +
+        "your hot key: with the cold key (COLD KEY, below), freeze the address and cancel the rotation before then.");
+    }
+    const p = pendingOf(cur, "recovery");
     if (p) {
       const mine = recovery && recovery.address === wallet.address && recovery.keyRoot === p.new_root;
       if (mine) lines.push("Your recovery request for this address takes effect at block " + p.effective_at + ", " + p.cancel_blocks_left + " blocks from now.");
+      else if (frozen) lines.push("A recovery request signed by the cold key is pending. It replaces this wallet's hot key with\n" +
+        "another key (" + short(p.new_root) + ") at block " + p.effective_at + ", " + p.cancel_blocks_left + " blocks from now. The address is frozen, so the hot\n" +
+        "key cannot cancel it.");
       else {
         lines.push("WARNING: a recovery request against this address is pending. It would replace this wallet's hot key\n" +
           "with another key (" + short(p.new_root) + ") at block " + p.effective_at + ", " + p.cancel_blocks_left + " blocks from now. If you did not\n" +
@@ -270,13 +312,9 @@ stolen one. The cold key is used once, in this page's memory, and never stored.<
         canCancel = true;
       }
     }
-    if (wallet && lastKeys && !keyIsCurrent()) {
-      const op = wallet.pendingKeyOp;
-      if (op && op.op === "rotate" && op.keyRoot === wallet.keyRoot) lines.push("Your rotation to key #" + op.keyIndex + " is not on the chain yet; it is being sent again.");
-      else lines.push("This browser's hot key (#" + wallet.keyIndex + ") is not this address's current key: the chain is at key generation " +
-        lastKeys.generation + " (hot root " + short(chainRoot()) + "). A rotation or a recovery made elsewhere retired it, so this\n" +
-        "browser signs nothing for the address.");
-    }
+    if (wallet && lastKeys && !keyIsCurrent()) lines.push("This browser's hot key (#" + wallet.keyIndex + ") is not this address's current key: the chain is at key generation " +
+      lastKeys.generation + " (hot root " + short(chainRoot()) + "). A rotation or a recovery made elsewhere retired it, so this\n" +
+      "browser signs nothing for the address.");
     if (keyError) lines.push(keyError);
     $("key-banner").hidden = !lines.length;
     $("key-banner").textContent = lines.join("\n\n");
@@ -442,7 +480,7 @@ stolen one. The cold key is used once, in this page's memory, and never stored.<
     showWallet();
   }
   function forgetWallet() {
-    if (!confirm("Switch wallets? This forgets the hot key in this browser. Without a copy of it this address can sign no more here (the cold key can still recover the address: RECOVER, below).")) return;
+    if (!confirm("Switch wallets? This forgets the hot key in this browser. Without a copy of it this address can sign no more here (the cold key can still recover the address: COLD KEY, below).")) return;
     lock();
     W.forget(S);
     wallet = null; lastKeys = null;
@@ -532,8 +570,10 @@ stolen one. The cold key is used once, in this page's memory, and never stored.<
       renderChain(s);
       await syncKeys();
       await syncRecovery();
+      await syncCold();
       showWallet();
       showRecovery();
+      showCold();
       const rep = s.replica ? "  replica of " + s.replica.producer + (s.replica.following ? "" : "  FOLLOWING STOPPED: " + s.replica.stopped) : "";
       $("live").textContent = "NOESIS  live  height " + s.height + "  JUL " + s.jul_issued + "  " + api() + rep;
     } catch (e) {
@@ -568,13 +608,25 @@ stolen one. The cold key is used once, in this page's memory, and never stored.<
     lastKeys = k;
     const op = wallet.pendingKeyOp;
     if (op) {
-      const onChain = k.on_chain, queuedHere = k.queued && (op.op !== "rotate" || k.queued.new_root === op.keyRoot);
-      if (op.op === "rotate" && (queuedHere || (onChain && onChain.hot_root === op.keyRoot)) && op.keyIndex > wallet.keyIndex) {
-        adoptRotation(op); // the node took it (its answer was lost): sign with the new key now
-      }
-      const done = op.op === "rotate" ? !!(onChain && onChain.hot_root === op.keyRoot) : !!(onChain && !onChain.pending && !k.queued);
-      if (done) clearKeyOp();
-      else if (!k.queued) {
+      const cur = k.current;
+      // On chain once its key generation's hot floor has passed the op's one-time index.
+      const landed = !!(cur && op.generation != null && cur.generation === op.generation && cur.hot_floor > op.index);
+      const rot = pendingOf(cur, "rotation");
+      let resend = false;
+      if (op.op === "rotate") {
+        if (cur && cur.hot_root === op.keyRoot) { // in effect: sign with the new key from now on
+          if (op.keyIndex > wallet.keyIndex) adoptRotation(op);
+          clearKeyOp();
+        } else if ((rot && rot.new_root === op.keyRoot) || (k.queued && k.queued.new_root === op.keyRoot)) {
+          // waiting for its block, or out its delay; this key keeps signing meanwhile
+        } else if (landed) {
+          clearKeyOp();
+          keyError = "Your rotation to key #" + op.keyIndex + " did not take effect: the cold key cancelled it, or a recovery replaced it.\n" +
+            "Key #" + wallet.keyIndex + " keeps signing for this address.";
+        } else resend = true;
+      } else if (landed) clearKeyOp();
+      else if (!k.queued) resend = true;
+      if (resend) {
         try { // the node lost it (a restart): the same signed bytes again, never a new signature
           const res = await postJson("/key", op.body);
           if (!res.ok) { clearKeyOp(); keyError = "Your " + op.op + " was refused by the node: " + res.error + "."; }
@@ -630,6 +682,7 @@ stolen one. The cold key is used once, in this page's memory, and never stored.<
     try {
       await syncKeys();
       if (!session) throw new Error("the wallet was locked");
+      if (lastKeys && lastKeys.current && lastKeys.current.frozen) throw new Error("this address is frozen by its cold key, so its hot key signs nothing for it (see WALLET)");
       if (!keyIsCurrent()) throw new Error("this browser's hot key is not this address's current key (see WALLET)");
       const index = nextIndex(); // another tab may have moved it
       if (index >= C.MT_MAX_SIGS - 1) throw new Error("this key's last one-time key is kept for a rotation; rotate first");
@@ -670,9 +723,11 @@ stolen one. The cold key is used once, in this page's memory, and never stored.<
     }
   }
 
-  // ---- key operations: rotate (A1) and cancel a recovery request (A7) ----
+  // ---- hot-key operations: rotate (A1) and cancel a recovery request (A7) ----
   // Both are signed by this browser's current key, at a one-time index spent before signing, and saved
-  // before they are sent, so a lost answer re-sends the same bytes.
+  // before they are sent, so a lost answer re-sends the same bytes. Neither works while the address is
+  // frozen. A rotation waits out the chain's delay; this browser moves to the new key once the chain
+  // shows it in effect (syncKeys). The key's last one-time index is kept for a rotation.
   async function keyOp(kind) {
     const st = $("w-status");
     if (!ORIGIN_OK) return say(st, "red", OFF_HERE);
@@ -687,18 +742,23 @@ stolen one. The cold key is used once, in this page's memory, and never stored.<
       if (!k) throw new Error("this node does not report key records (GET /keys)");
       if (!k.key_rotation) throw new Error("this chain has identity keys off");
       if (k.queued) throw new Error("a key operation for this address is waiting for the next block; try again after it lands");
+      if (k.current && k.current.frozen) throw new Error("this address is frozen by its cold key, so its hot key can do nothing (see WALLET)");
       if (!keyIsCurrent()) throw new Error("this browser's hot key is not this address's current key");
-      if (kind === "cancel" && !(k.current && k.current.pending)) throw new Error("no recovery request is pending");
-      let newRoot = new Uint8Array(32), nextKey = null, nextCache = null;
+      const pending = k.current && k.current.pending;
+      if (kind === "rotate" && pending) throw new Error(pending.change === "rotation" ? "a rotation is already pending (see WALLET)" :
+        "a recovery request is pending; cancel it first if you did not ask for it");
+      if (kind === "cancel-recovery" && !pendingOf(k.current, "recovery")) throw new Error("no recovery request is pending");
+      let newRoot = new Uint8Array(32), nextKey = null;
       if (kind === "rotate") {
         say(st, "", "building key #" + (wallet.keyIndex + 1) + " of the series (a few seconds)...");
         await paint();
         nextKey = C.deriveKey(session.seed, wallet.keyIndex + 1);
-        nextCache = C.mtCache(nextKey);
-        newRoot = nextCache.root;
+        newRoot = C.mtKeygenRoot(nextKey);
+        nextKey.fill(0);
       }
       const index = nextIndex();
       if (index >= C.MT_MAX_SIGS) throw new Error("this key has no one-time key left");
+      if (kind !== "rotate" && index >= C.MT_MAX_SIGS - 1) throw new Error("this key's last one-time key is kept for a rotation");
       wallet.nextIndex = W.saveCounter(S, wallet.address, index + 1, wallet.keyIndex);
       spent = true;
       const opByte = kind === "rotate" ? C.OP_ROTATE : C.OP_CANCEL;
@@ -708,7 +768,8 @@ stolen one. The cold key is used once, in this page's memory, and never stored.<
       const body = { op: kind, identity: wallet.address, index, bottom: part(sig.bottom), top: part(sig.top) };
       if (kind === "rotate") body.new_root = C.hexEncode(newRoot);
       if (!k.on_chain) body.birth = { hot_root: wallet.hotRoot, cold_commit: wallet.coldCommit }; // the address's first key change
-      const op = { op: kind, body: JSON.stringify(body), keyIndex: kind === "rotate" ? wallet.keyIndex + 1 : wallet.keyIndex,
+      const op = { op: kind, body: JSON.stringify(body), index, generation: k.generation,
+                   keyIndex: kind === "rotate" ? wallet.keyIndex + 1 : wallet.keyIndex,
                    keyRoot: kind === "rotate" ? C.hexEncode(newRoot) : wallet.keyRoot };
       W.saveKeyOp(S, wallet.address, op);
       wallet.pendingKeyOp = op;
@@ -718,14 +779,11 @@ stolen one. The cold key is used once, in this page's memory, and never stored.<
       try { res = await postJson("/key", op.body); }
       catch (e) { throw new Error("the node did not answer; the same signed " + kind + " is kept and sent again"); }
       if (!res.ok) { clearKeyOp(); throw new Error(res.error); }
-      if (kind === "rotate") {
-        adoptRotation(op);
-        if (nextCache) cache = nextCache;
-        if (nextKey) nextKey.fill(0);
-        say(st, "grn", "Rotated to key #" + op.keyIndex + ". It signs from the next block on (the block that carries the rotation); the old key signs nothing more for this address. The hot key backup covers every key in the series.");
-      } else {
-        say(st, "grn", "Cancel sent. It lands with the next block, and the recovery request never takes effect.");
-      }
+      const t = delay(k);
+      if (kind === "rotate") say(st, "grn", "Rotation to key #" + op.keyIndex + " sent. It lands with the next block and takes effect " +
+        (t != null ? t + " blocks" : "the chain's delay") + " after it; until then key #" + wallet.keyIndex +
+        " keeps signing, and the cold key can cancel it. The hot key backup covers every key in the series.");
+      else say(st, "grn", "Cancel sent. It lands with the next block, and the recovery request never takes effect.");
       lastKeys = await getJson("/keys/" + wallet.address).catch(() => lastKeys);
     } catch (e) {
       say(st, "red", "Not done: " + e.message + (spent ? " (one one-time key of this key is spent)" : ""));
@@ -735,6 +793,108 @@ stolen one. The cold key is used once, in this page's memory, and never stored.<
     showWallet();
   }
 
+  // ---- cold-key operations: freeze, cancel a pending rotation, unfreeze (A7) ----
+  // The cold key is pasted for each action, used in memory, wiped, and never stored. It is checked against
+  // the address's commitment before anything is signed. Its one-time index is the chain's floor (or this
+  // page's last use, if higher) plus a spread, so two attempts from two browsers rarely share a key.
+  function coldPrep(address, cold, k) {
+    const coldRoot = C.mtKeygenRoot(cold);
+    const coldCommit = C.hexEncode(C.coldCommit(coldRoot));
+    let birth = null;
+    if (k.current) {
+      if (coldCommit !== k.current.cold_commit) throw new Error("this cold key is not the one committed in this address");
+    } else {
+      const hot = $("rec-hot").value.trim().toLowerCase() || (wallet && wallet.address === address && !wallet.recovered ? wallet.hotRoot : "");
+      if (!HEX64.test(hot)) throw new Error("the chain holds no key record for this address yet, so the request must name the address's first hot key root: paste it (it is on the recovery sheet, and on the wallet page)");
+      if (C.hexEncode(C.identity(C.hexDecode(hot), C.hexDecode(coldCommit))) !== address) throw new Error("this cold key and this first hot key root do not make this address");
+      birth = { hot_root: hot, cold_commit: coldCommit };
+    }
+    return { coldRoot, coldCommit, birth };
+  }
+  function coldIndex(address, k, spread) {
+    const floor = Math.max(k.current ? k.current.cold_floor : 0, coldMark[address] || 0);
+    const index = floor + (spread % 256);
+    coldMark[address] = index + 1;
+    return index;
+  }
+  // Sign a cold-key operation and return the POST /key body (and wipe nothing: the caller owns `cold`).
+  function coldBody(kind, opByte, address, cold, prep, k, newRoot, spread) {
+    const index = coldIndex(address, k, spread);
+    const msg = C.keyOpDigest(C.hexDecode(address), opByte, k.chain_id, k.generation, newRoot, index);
+    const sig = C.mtSign(cold, index, msg);
+    if (!C.mtVerify(prep.coldRoot, index, msg, sig)) throw new Error("local signature self-check failed");
+    const body = { op: kind, identity: address, index, cold_root: C.hexEncode(prep.coldRoot), bottom: part(sig.bottom), top: part(sig.top) };
+    if (kind === "recover") body.new_root = C.hexEncode(newRoot);
+    if (prep.birth) body.birth = prep.birth;
+    return body;
+  }
+  const COLD_OPS = {
+    "freeze": { byte: () => C.OP_FREEZE, done: "Freeze sent. From the next block this address's hot key signs nothing; only the cold key acts\n(cancel a rotation, recover, unfreeze)." },
+    "cancel-rotation": { byte: () => C.OP_CANCEL_ROTATION, done: "Cancel sent. It lands with the next block, and the rotation never takes effect." },
+    "unfreeze": { byte: () => C.OP_UNFREEZE, done: "Unfreeze sent. From the next block the hot key signs again." },
+  };
+  async function coldOp(kind) {
+    const st = $("coldop-status");
+    if (!ORIGIN_OK) return say(st, "red", OFF_HERE);
+    const address = $("rec-address").value.trim().toLowerCase();
+    const coldHex = $("rec-cold").value.replace(/\s+/g, "").toLowerCase();
+    $("rec-cold").value = ""; // the cold key is never kept, not even in the field
+    if (!HEX64.test(address)) return say(st, "red", "The address must be 64 hex characters.");
+    if (!HEX64.test(coldHex)) return say(st, "red", "The cold key must be 64 hex characters (spaces are fine). Paste it again.");
+    const cold = C.hexDecode(coldHex);
+    const buttons = ["freeze-go", "cancel-rotation-go", "unfreeze-go"];
+    buttons.forEach((b) => { $(b).disabled = true; });
+    try {
+      say(st, "", "reading the address's key record...");
+      await paint();
+      const k = await getJson("/keys/" + address);
+      if (!k.key_rotation) throw new Error("this chain has identity keys off");
+      if (k.queued) throw new Error("a key operation for this address is waiting for the next block; try again after it lands");
+      const cur = k.current;
+      if (kind === "freeze" && cur && cur.frozen) throw new Error("this address is already frozen");
+      if (kind === "unfreeze" && !(cur && cur.frozen)) throw new Error("this address is not frozen");
+      if (kind === "unfreeze" && pendingOf(cur, "rotation")) throw new Error("a rotation is pending: cancel it first, or unfreezing would let it take effect");
+      if (kind === "cancel-rotation" && !pendingOf(cur, "rotation")) throw new Error("no rotation is pending for this address");
+      say(st, "", "checking the cold key and signing (a few seconds)...");
+      await paint();
+      const prep = coldPrep(address, cold, k);
+      const body = coldBody(kind, COLD_OPS[kind].byte(), address, cold, prep, k, new Uint8Array(32), C.randomSeed()[0]);
+      cold.fill(0);
+      say(st, "", "sending...");
+      let res;
+      try { res = await postJson("/key", JSON.stringify(body)); }
+      catch (e) { throw new Error("the node did not answer; paste the cold key and try again"); }
+      if (!res.ok) throw new Error(res.error + " (the cold key's one-time key " + body.index + " is spent; another attempt uses another)");
+      say(st, "grn", COLD_OPS[kind].done);
+    } catch (e) {
+      say(st, "red", "Not done: " + e.message);
+    } finally {
+      cold.fill(0);
+      buttons.forEach((b) => { $(b).disabled = false; });
+    }
+    await refresh();
+  }
+  // The key state of the address in the COLD KEY form (this wallet's address when the form is empty).
+  async function syncCold() {
+    const typed = $("rec-address").value.trim().toLowerCase();
+    const address = HEX64.test(typed) ? typed : wallet ? wallet.address : null;
+    coldKeys = null;
+    if (!address) return;
+    try { coldKeys = Object.assign(await getJson("/keys/" + address), { address }); } catch (e) { /* an older node, or unreachable */ }
+  }
+  function showCold() {
+    const k = coldKeys, cur = k && k.current;
+    $("cold-line").hidden = !cur;
+    if (!cur) { $("cold-line").textContent = ""; return; }
+    const lines = ["Address " + short(k.address) + ": " + (cur.frozen ? "FROZEN by the cold key." : "not frozen.")];
+    const rot = pendingOf(cur, "rotation"), rec = pendingOf(cur, "recovery");
+    if (rot) lines.push("Rotation pending to " + short(rot.new_root) + (rot.suspended ? ": held while frozen; cancel it before unfreezing." :
+      ": takes effect at block " + rot.effective_at + ", " + rot.cancel_blocks_left + " blocks from now, unless the cold key cancels it."));
+    if (rec) lines.push("Recovery pending to " + short(rec.new_root) + ": takes effect at block " + rec.effective_at + ", " + rec.cancel_blocks_left +
+      " blocks from now" + (cur.frozen ? "; the hot key cannot cancel it." : "; the hot key can cancel it unless the cold key freezes the address."));
+    $("cold-line").textContent = lines.join("\n");
+  }
+
   // ---- recovery with the cold key (A7) ----
   async function syncRecovery() {
     recovery = S ? W.readRecovery(S) : null;
@@ -742,7 +902,7 @@ stolen one. The cold key is used once, in this page's memory, and never stored.<
     if (!recovery) return;
     try {
       const k = await getJson("/keys/" + recovery.address);
-      const p = k.current && k.current.pending;
+      const p = pendingOf(k.current, "recovery");
       if (k.on_chain && k.on_chain.hot_root === recovery.keyRoot && !k.on_chain.pending) recInfo = { state: "done", k };
       else if (p && p.new_root === recovery.keyRoot) recInfo = { state: "pending", k, p };
       else if (k.queued && k.queued.new_root === recovery.keyRoot) recInfo = { state: "queued", k };
@@ -757,8 +917,9 @@ stolen one. The cold key is used once, in this page's memory, and never stored.<
     }
   }
   function showRecovery() {
-    $("rec-form").hidden = !recOpen || !!recovery;
-    $("rec-open").hidden = recOpen || !!recovery;
+    $("rec-form").hidden = !recOpen; // open while a recovery waits too: the cold key may need to freeze
+    $("rec-open").hidden = recOpen;
+    $("recover-go").disabled = !!recovery;
     $("rec-line").hidden = !recovery;
     $("recover-finish").hidden = !(recInfo && recInfo.state === "done");
     $("recover-drop").hidden = !(recInfo && recInfo.state === "refused");
@@ -766,10 +927,12 @@ stolen one. The cold key is used once, in this page's memory, and never stored.<
     let t = "Recovery of " + recovery.address + " in this browser, new hot key " + short(recovery.keyRoot) + ":\n";
     if (!recInfo) t += "checking the chain...";
     else if (recInfo.state === "pending") t += "PENDING. It takes effect at block " + recInfo.p.effective_at + ", " + recInfo.p.cancel_blocks_left +
-      " blocks from now (the chain is at block " + recInfo.k.height + "). Until then whoever holds the address's current\nhot key can cancel it.";
+      " blocks from now (the chain is at block " + recInfo.k.height + "). " + (recInfo.k.current && recInfo.k.current.frozen
+        ? "The address is frozen, so its hot key\ncannot cancel it."
+        : "Until then whoever holds the address's current\nhot key can cancel it; freezing the address with the cold key stops that.");
     else if (recInfo.state === "queued") t += "sent; waiting for the next block to carry it.";
     else if (recInfo.state === "done") t += "IN EFFECT: the new key signs for the address. Press \"Use the recovered key\" to make it this browser's wallet.";
-    else if (recInfo.state === "refused") t += "NOT IN EFFECT: " + recInfo.error + ".\nThe hot key holder may have cancelled it, or the chain refused it. It can be removed.";
+    else if (recInfo.state === "refused") t += "NOT IN EFFECT: " + recInfo.error + ".\nThe hot key holder may have cancelled it, a newer request replaced it, or the chain refused it. It can be removed.";
     else t += "the node could not be read (" + recInfo.error + ")";
     $("rec-line").textContent = t;
   }
@@ -797,35 +960,19 @@ stolen one. The cold key is used once, in this page's memory, and never stored.<
       if (k.queued) throw new Error("a key operation for this address is waiting for the next block; try again after it lands");
       say(st, "", "checking the cold key (a few seconds)...");
       await paint();
-      const coldRoot = C.mtKeygenRoot(cold);
-      const coldCommit = C.hexEncode(C.coldCommit(coldRoot));
-      let birth = null;
-      if (k.current) {
-        if (coldCommit !== k.current.cold_commit) throw new Error("this cold key is not the one committed in this address");
-      } else {
-        const hot = $("rec-hot").value.trim().toLowerCase() || (wallet && wallet.address === address && !wallet.recovered ? wallet.hotRoot : "");
-        if (!HEX64.test(hot)) throw new Error("the chain holds no key record for this address yet, so the request must name the address's first hot key root: paste it (it is on the recovery sheet, and on the wallet page)");
-        if (C.hexEncode(C.identity(C.hexDecode(hot), C.hexDecode(coldCommit))) !== address) throw new Error("this cold key and this first hot key root do not make this address");
-        birth = { hot_root: hot, cold_commit: coldCommit };
-      }
+      const prep = coldPrep(address, cold, k);
       const kek = await W.passKek(pass);
       $("rec-pass").value = ""; $("rec-pass2").value = "";
       say(st, "", "making the new hot key (a few seconds)...");
       await paint();
       freshSeed = C.randomSeed();
       const newRoot = C.mtKeygenRoot(freshSeed);
-      // The cold key is not stored, so its counter is the chain's floor. The spread (0..255, from the new
-      // root) keeps two attempts from two browsers that cannot see each other off one one-time key.
-      const index = (k.current ? k.current.cold_floor : 0) + ((newRoot[0] | (newRoot[1] << 8)) % 256);
-      const msg = C.keyOpDigest(C.hexDecode(address), C.OP_RECOVER, k.chain_id, k.generation, newRoot, index);
-      const sig = C.mtSign(cold, index, msg);
-      if (!C.mtVerify(coldRoot, index, msg, sig)) throw new Error("local signature self-check failed");
+      // The spread (0..255, from the new root) keeps two attempts from two browsers that cannot see each
+      // other off one one-time key of the cold key.
+      const body = coldBody("recover", C.OP_RECOVER, address, cold, prep, k, newRoot, newRoot[0] | (newRoot[1] << 8));
       cold.fill(0);
-      const body = { op: "recover", identity: address, index, new_root: C.hexEncode(newRoot), cold_root: C.hexEncode(coldRoot),
-                     bottom: part(sig.bottom), top: part(sig.top) };
-      if (birth) body.birth = birth;
       const rootHex = C.hexEncode(newRoot);
-      const made = await W.seal(freshSeed, { address, hot_root: rootHex, cold_commit: coldCommit, nextIndex: 0, keyIndex: 0, keyRoot: rootHex, recovered: 1 }, kek);
+      const made = await W.seal(freshSeed, { address, hot_root: rootHex, cold_commit: prep.coldCommit, nextIndex: 0, keyIndex: 0, keyRoot: rootHex, recovered: 1 }, kek);
       made.dataKey.fill(0);
       made.record.recovery = { body: JSON.stringify(body), requested_at: k.height };
       W.storeRecovery(S, made.record); // saved before the request leaves this page
@@ -834,8 +981,9 @@ stolen one. The cold key is used once, in this page's memory, and never stored.<
       let res;
       try { res = await postJson("/key", made.record.recovery.body); }
       catch (e) { throw new Error("the node did not answer; the signed request is kept and sent again"); }
-      if (!res.ok) { W.dropRecovery(S); sent = false; throw new Error(res.error + " (the cold key's one-time key " + index + " is spent; another attempt uses another)"); }
-      say(st, "grn", "Recovery requested. It lands with the next block, then waits out the chain's delay; whoever holds the current hot key can cancel it until then.");
+      if (!res.ok) { W.dropRecovery(S); sent = false; throw new Error(res.error + " (the cold key's one-time key " + body.index + " is spent; another attempt uses another)"); }
+      say(st, "grn", "Recovery requested. It lands with the next block, then waits out the chain's delay" + (k.current && k.current.frozen
+        ? ". The address is frozen, so the hot key cannot cancel it." : "; until then whoever holds the hot key can cancel it, unless you freeze the address."));
       recOpen = false;
     } catch (e) {
       say(st, "red", (sent ? "" : "Not requested: ") + e.message);
@@ -879,7 +1027,10 @@ stolen one. The cold key is used once, in this page's memory, and never stored.<
   $("add-passkey").onclick = addPasskey;
   $("forget").onclick = forgetWallet;
   $("rotate").onclick = () => keyOp("rotate");
-  $("cancel-recovery").onclick = () => keyOp("cancel");
+  $("cancel-recovery").onclick = () => keyOp("cancel-recovery");
+  $("freeze-go").onclick = () => coldOp("freeze");
+  $("cancel-rotation-go").onclick = () => coldOp("cancel-rotation");
+  $("unfreeze-go").onclick = () => coldOp("unfreeze");
   $("rec-open").onclick = () => { recOpen = true; showRecovery(); };
   $("recover-go").onclick = recover;
   $("recover-finish").onclick = finishRecovery;

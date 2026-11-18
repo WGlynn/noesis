@@ -302,38 +302,60 @@ protocol can't prove yet, such as censorship or taste disputes. It shrinks as me
 narrow-then-widen scope rule), and the record keeps it honest when it is used, because the social layer
 decides on signed evidence instead of on who is loudest.
 
-### 6. Loss or theft of an identity's key: rotation and cold-key recovery — built (reference node)
+### 6. Loss or theft of an identity's key: rotation, freeze and cold-key recovery — built (reference node)
 
 Standing is soulbound to an identity, so a lost or stolen key can't be insured or paid back; before
-2026-11-18 an identity's hot key was also fixed forever. Wallet decisions A1 and A7 (Will 2026-11-17),
-built in the reference node (`node/src/identity_key.rs`; full description in `ARCHITECTURE.md`, identity
-keys):
+2026-11-18 an identity's hot key was also fixed forever. Wallet decisions A1 and A7 (Will 2026-11-17; the
+approved design's decision 7), built in the reference node (`node/src/identity_key.rs`; full description and
+the who-can-do-what table in `ARCHITECTURE.md`, identity keys):
 
-- **Rotation (A1).** The current hot key signs a move to the next key of its series (derived from the one
-  hot seed). It is in effect from the block that carries it; from then on the old key signs nothing for the
-  identity, at the door for contributions and in the rulebook for key operations and contribution labels.
-  Standing does not move (test `key_operations_move_no_standing_and_no_finality_weight`).
-- **Recovery (A7).** The cold key committed inside the identity at birth signs a request naming a new hot
-  key. It takes effect only after `recovery_delay_blocks` blocks (testnet 100, `chainspec.rs:74`), during which the
-  current hot key can cancel it. A cold key that does not match the commitment, a replayed request (its
-  one-time index is spent), a cancel outside the window, or two key operations for one identity in one block
-  are refused by `validate_block`, so the producer, followers, store replay and joiners agree.
+- **The cold key is the root of trust.** It is committed inside the identity at birth and kept offline. It can
+  freeze the identity at once, cancel a pending rotation, unfreeze, and request a new hot key.
+- **Rotation (A1).** The current hot key signs a move to a new key (the page offers the next key of its
+  series). It is pending for `key_change_delay_blocks` blocks (testnet 100, `chainspec.rs:77`), during which
+  the current key keeps signing and the cold key can cancel it; then it takes effect, and from then on the old
+  key signs nothing for the identity.
+- **Freeze.** The cold key, at once: from the block that carries it the identity is credited nothing (the door
+  refuses its contributions, and the rulebook refuses a block that credits it), its hot key signs no key
+  operation, and a pending rotation cannot take effect. Only the cold key unfreezes, and not while a rotation
+  is pending, so a rotation pending at the freeze never takes effect.
+- **Recovery (A7).** The cold key signs a request naming a new hot key. It takes effect after the same delay,
+  retires the old key and unfreezes the identity. The hot key can cancel it only while the identity is not
+  frozen.
+- **The theft case, end to end.** A thief holding the hot key starts a rotation to his own key; the owner
+  freezes, cancels the rotation and recovers. Every move the thief makes after the freeze is refused, his
+  rotation never takes effect, and the owner's key signs T + 3 blocks after the freeze landed (at most 2T for
+  T >= 3). Tests `the_cold_key_beats_a_thief_holding_the_hot_key` (rule level) and
+  `the_cold_key_beats_a_hot_key_thief_through_the_routes` (door and routes). Neither key can stall the other
+  forever: the cold key ends any back and forth by freezing.
+- **In the rulebook.** All of it is checked by `validate_block`, so the producer, followers, store replay and
+  joiners agree. A cold key that does not match the commitment, a replayed operation (its one-time index is
+  spent), a cancel with nothing of its kind pending, a hot-key operation on a frozen identity, a second pending
+  change started by the hot key, and two key operations for one identity in one block are refused.
 - **One-time keys.** Counters are per key; a key operation's leaf can't be reused by a contribution, in the
-  same block or later, and the reverse.
+  same block or later, and the reverse. Each hot key keeps its last leaf for a rotation, so a key that has
+  used every other leaf can still rotate.
+- **A leaked hot seed.** It is the backup of the whole series, so the next derived key leaks with it; the
+  remedy is a freeze and a recovery, which puts in a key from a fresh seed.
 - **What it does not defend, said plainly.**
-  - A stolen hot key. The current hot key can rotate at once and can cancel any recovery, so a thief who
-    holds it wins the race. The cold key recovers a lost key, not a stolen one. A rotation delay that the
-    cold key could cancel would change this; it is a decision for Will, not built.
-  - A leaked hot seed: it is the backup of the whole series, so the next derived key leaks with it. The
-    remedy, a rotation to a key from a fresh seed, is allowed by the rule but not offered by the page (open).
+  - A stolen cold key. The cold key is the final authority: a thief who holds it can freeze first and then
+    recover, and the hot key cannot cancel a recovery on a frozen identity. That is the price of a root of
+    trust that beats a stolen hot key, and the reason the cold key lives offline, on paper. Guardians (k
+    signatures in place of the cold key) are designed, not built.
   - Speed. The delay counts blocks, which the testnet makes on demand; whoever makes blocks quickly shortens
-    it in wall-clock time. A wall-clock floor needs block timestamps under clock enforcement or a
-    producer-side block rate (open).
+    it in wall-clock time. That does not help a hot-key thief (the freeze is immediate), but it shortens the
+    hot key's window against a cold-key thief who has not frozen. A wall-clock floor needs block timestamps
+    under clock enforcement or a producer-side block rate (open).
+  - A cancel names no target (it signs zeros where a rotation or recovery signs its new root), so a cancel
+    that was signed but never carried can still cancel a later change of the same key generation until its
+    signer's floor passes its index. Griefing only; the cold key can always run its change again.
   - Contribution authorship is still checked only at the producer's door (unchanged): a follower checks a
-    contribution's key label, not its signature, because the block does not carry the signature.
+    contribution's key label and the frozen flag, not its signature, because the block does not carry the
+    signature.
   - On-VM: no script knows these rules yet.
 - Verify: `identity_key.rs` tests (rule level) and the `rpc.rs` tests from `an_identity_with_no_key_record_submits_exactly_as_before`
-  on (routes, a follower refusing a forged key operation, restart replay).
+  on (routes, the theft scenario, the rotation leaf at the door, a follower refusing a forged key operation or
+  a thawed freeze, restart replay).
 
 > **Reviewer's shortcut:** the two legs to press hardest are **(1) the `v(S)` un-gameability proof**
 > (demonstrated for known vectors, isomorphism-invariance open) and **(2) the resource-DoS commit-deposit**

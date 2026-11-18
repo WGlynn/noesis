@@ -44,7 +44,8 @@ const cases = [
 ];
 
 // The key series and key operations (A1/A7): key 1 of the hot seed, its root, a rotate digest at index
-// 300 and a cancel digest at generation 5 and the last index, and the rotation signature's hash. The same
+// 300, a cancel digest at generation 5 and the last index, a freeze, an unfreeze and a cancel-rotation
+// digest (op bytes 4-6), and the rotation signature's hash. The same
 // bytes are pinned in `rpc::tests::key_series_parity_vectors_are_pinned`.
 const k1 = C.deriveKey(hot, 1);
 const root1 = C.mtKeygenRoot(k1);
@@ -60,6 +61,12 @@ cases.push(
     '4fdf5ffb1dc0f2b9becf130282a16e9e0b43af03ba3f4c225121f8f6d46ae597'],
   ['keyOpDigest(id, cancel, 0x7e57, gen 5, zeros, 65535)', C.hexEncode(C.keyOpDigest(id, C.OP_CANCEL, 0x7e57, 5, new Uint8Array(32), 65535)),
     '71c7833770367d9344de35ee4211b8c355f25246147d7477887e909abdb232ad'],
+  ['keyOpDigest(id, freeze (op 4), 0x7e57, gen 2, zeros, 7)', C.hexEncode(C.keyOpDigest(id, C.OP_FREEZE, 0x7e57, 2, new Uint8Array(32), 7)),
+    'e0e8f4edb2cc22539af0dc1a2409ebe412f0a970861b730d3e11eaea50642e1d'],
+  ['keyOpDigest(id, unfreeze (op 5), 0x7e57, gen 2, zeros, 8)', C.hexEncode(C.keyOpDigest(id, C.OP_UNFREEZE, 0x7e57, 2, new Uint8Array(32), 8)),
+    '1524d28f1d511e86d0d8124b01ace5972a00d5e3c838cd7c342db8592e7b4214'],
+  ['keyOpDigest(id, cancel-rotation (op 6), 0x7e57, gen 2, zeros, 9)', C.hexEncode(C.keyOpDigest(id, C.OP_CANCEL_ROTATION, 0x7e57, 2, new Uint8Array(32), 9)),
+    '520b9f976a8df85b16ff12d67fe19c224f1945d174951dd805fc7fd658812ece'],
   ['blake2b-512 of the rotation signature at 300', rotHash.digest('hex'),
     '6142885ad721bec2d17c0a43066851591a28d0c1fdb62b5162c1aadf11ec8144d08ec126e8372b32c0ff680df007e6bb5567c074f4f1071d15b6176db64960f9'],
 );

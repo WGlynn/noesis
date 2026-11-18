@@ -23,10 +23,11 @@
 //!   * `GET  /blocks?since=N[&limit=M]` — full finalized blocks after height N, paged, with the chain link
 //!                      at N: what a follower pulls (testnet step 7, [`crate::follow`]).
 //!   * `GET  /keys/<identity>` — the identity's key record (wallet decisions A1/A7): its current hot key
-//!                      generation and root, the one-time index that key last used, a pending
-//!                      recovery and how many blocks remain to cancel it, and a key operation waiting
-//!                      here for the next block.
-//!   * `POST /key`      — a signed key operation (`parse_key_op`: rotate, recover or cancel), checked by
+//!                      generation and root, the one-time index that key last used, whether the cold
+//!                      key has frozen it, a pending key change (a rotation or a recovery) and how many
+//!                      blocks remain to cancel it, and a key operation waiting here for the next block.
+//!   * `POST /key`      — a signed key operation (`parse_key_op`: rotate or cancel-recovery by the hot
+//!                      key; recover, cancel-rotation, freeze or unfreeze by the cold key), checked by
 //!                      the rulebook's own rule ([`crate::identity_key::build_tx`]) and held until the
 //!                      next contribution block carries it.
 //!
@@ -315,6 +316,9 @@ struct QueuedKeyOp {
 const MAX_PENDING_KEY_OPS: usize = 16;
 
 /// A key record as the API shows it. `next_block` is the height of the block a cancel would land in.
+/// A pending change is `"rotation"` (the cold key can cancel it) or `"recovery"` (the hot key can cancel
+/// it unless `frozen`); a rotation on a frozen identity is `suspended`: it cannot take effect, and the
+/// cold key cancels it before it unfreezes.
 fn record_json(r: &Record, next_block: u64) -> Value {
     json!({
         "generation": r.generation,
@@ -322,16 +326,20 @@ fn record_json(r: &Record, next_block: u64) -> Value {
         "cold_commit": hex_encode(&r.cold_commit),
         "hot_floor": r.hot_floor,
         "cold_floor": r.cold_floor,
+        "frozen": r.frozen,
         "pending": r.pending.map(|p| json!({
+            "change": p.change.name(),
             "new_root": hex_encode(&p.new_root),
             "effective_at": p.effective_at,
             "cancel_blocks_left": p.effective_at.saturating_sub(next_block),
+            "suspended": r.frozen && p.change == identity_key::Change::Rotation,
         })),
     })
 }
 
 /// Parse a `POST /key` body: `{op, identity, index, new_root?, birth?: {hot_root, cold_commit},
-/// cold_root?, bottom, top}`. `new_root` for a rotate or recover, `cold_root` for a recover, `birth` for an
+/// cold_root?, bottom, top}`. `op` is one of [`Kind::name`]; `new_root` for a rotate or recover,
+/// `cold_root` for every cold-key operation (recover, cancel-rotation, freeze, unfreeze), `birth` for an
 /// identity's first key operation. The signature is the signer's XMSS^MT signature over
 /// `wallet::key_op_digest(identity, op, chain_id, generation, new_root, index)`.
 fn parse_key_op(v: &Value) -> Result<([u8; 32], KeyOp), String> {
@@ -340,19 +348,19 @@ fn parse_key_op(v: &Value) -> Result<([u8; 32], KeyOp), String> {
         .get("op")
         .and_then(Value::as_str)
         .and_then(Kind::from_name)
-        .ok_or("'op' must be rotate, recover or cancel")?;
+        .ok_or("'op' must be rotate, cancel-recovery, recover, cancel-rotation, freeze or unfreeze")?;
     let identity = hex32(v, "identity")?;
     let index = v
         .get("index")
         .and_then(Value::as_u64)
         .filter(|&g| g < wallet::MAX_SIGS)
         .ok_or_else(|| format!("'index' must be a one-time key index below {}", wallet::MAX_SIGS))? as u32;
-    let new_root = if kind == Kind::Cancel { [0u8; 32] } else { hex32(v, "new_root")? };
+    let new_root = if kind.names_root() { hex32(v, "new_root")? } else { [0u8; 32] };
     let birth = match v.get("birth") {
         None | Some(Value::Null) => None,
         Some(b) => Some((hex32(b, "hot_root")?, hex32(b, "cold_commit")?)),
     };
-    let cold_root = if kind == Kind::Recover { Some(hex32(v, "cold_root")?) } else { None };
+    let cold_root = if kind.by_cold() { Some(hex32(v, "cold_root")?) } else { None };
     let bottom = parse_tree_sig(v, "bottom", index & (xmss::LEAVES as u32 - 1))?;
     let top = parse_tree_sig(v, "top", index >> xmss::H)?;
     if bottom.ots_sig.len() != 256 * 64 || top.ots_sig.len() != 256 * 64 {
@@ -853,7 +861,7 @@ impl ServerState {
             "height": self.node.ledger.height,
             "next_block": next,
             "key_rotation": c.key_rotation,
-            "recovery_delay_blocks": c.recovery_delay_blocks,
+            "key_change_delay_blocks": c.key_change_delay_blocks,
             "on_chain": on_chain.as_ref().map(|r| record_json(r, next)),
             "queued": queued.map(|q| json!({ "op": q.op.kind.name(), "index": q.op.index, "new_root": hex_encode(&q.op.new_root) })),
             "current": current.as_ref().map(|r| record_json(r, next)),
@@ -973,18 +981,33 @@ impl ServerState {
                 return Err(format!("parent {p} names no finalized contribution"));
             }
         }
+        // 0. Every hot key keeps its last one-time index for a rotation (wallet design D4), so a key that has
+        //    signed with every other leaf can still move the identity to a new key. The rulebook refuses the
+        //    label too, for an identity with a key record. Only on a chain with identity keys.
+        if self.node.constitution.key_rotation && index as u64 >= identity_key::ROTATION_LEAF {
+            return Err(format!(
+                "one-time index {index} is this key's last, kept for a rotation: rotate to a new key (the \
+                 address and its standing stay the same)"
+            ));
+        }
         // 1. Who may sign for this identity in this block (wallet decisions A1/A7). With no key record:
         //    its birth key, exactly as before: the identity must hash from this hot root and cold
         //    commitment. With a key record (on chain, or a key operation this node holds for this very
-        //    block): its current hot root and nothing else, so a retired key is refused from the block of
-        //    the operation that retired it on. The rulebook cannot re-check this (a contribution's
-        //    signature never enters the block); it checks the key label written below.
+        //    block): nothing while the cold key has it frozen, else its current hot root and nothing else,
+        //    so a retired key is refused from the block in which its replacement takes effect. The
+        //    rulebook cannot re-check the signature (it never enters the block); it checks the key label
+        //    written below, and refuses any contribution credited to a frozen identity.
         let generation = match self.key_state(&identity, height) {
             None => {
                 if wallet::identity(&hot_root, &cold_commit) != identity {
                     return Err("identity is not the hash of this hot_root and cold_commit".into());
                 }
                 0
+            }
+            Some(rec) if rec.frozen => {
+                return Err("this identity is frozen by its cold key: its hot key signs nothing for it until the \
+                            cold key unfreezes it or a recovery takes effect"
+                    .into())
             }
             Some(rec) => {
                 if hot_root != rec.hot_root || cold_commit != rec.cold_commit {
@@ -1389,7 +1412,7 @@ fn serve(addr: &str, store_path: &str, spec: ChainSpec, producer: Option<&str>) 
     println!("  POST /token-tx {{tx,auths}} -> signed soulbound tx, carried by the next contribution block");
     println!("  GET  /faucet  POST /faucet {{address}}  GET /balance/<address> -> test JUL (faucet chains only)");
     println!("  GET  /blocks?since=N     -> finalized blocks after height N, paged (what a follower pulls)");
-    println!("  GET  /keys/<identity>  POST /key {{op,identity,index,...}} -> identity keys: rotate, recover, cancel");
+    println!("  GET  /keys/<identity>  POST /key {{op,identity,index,...}} -> identity keys: rotate, cancel-recovery (hot key); recover, cancel-rotation, freeze, unfreeze (cold key)");
 
     let height = server_state.height();
     let state = Arc::new(Mutex::new(server_state));
@@ -1553,6 +1576,14 @@ mod tests {
             "71c7833770367d9344de35ee4211b8c355f25246147d7477887e909abdb232ad",
             "cancel digest, generation 5, the last index"
         );
+        // the cold key's operations beyond a recovery (op bytes 4, 5 and 6, defined in identity_key)
+        for (op, index, want) in [
+            (identity_key::OP_FREEZE, 7, "e0e8f4edb2cc22539af0dc1a2409ebe412f0a970861b730d3e11eaea50642e1d"),
+            (identity_key::OP_UNFREEZE, 8, "1524d28f1d511e86d0d8124b01ace5972a00d5e3c838cd7c342db8592e7b4214"),
+            (identity_key::OP_CANCEL_ROTATION, 9, "520b9f976a8df85b16ff12d67fe19c224f1945d174951dd805fc7fd658812ece"),
+        ] {
+            assert_eq!(hex_encode(&wallet::key_op_digest(&id, op, 0x7e57, 2, &[0u8; 32], index)), want, "op byte {op}");
+        }
         let sig = wallet::sign(&hot, 300, &rot);
         assert!(wallet::verify(&wallet::key_root(&hot), 300, &rot, &sig));
         let mut h = blake2b_ref::Blake2bBuilder::new(64).build();
@@ -2745,17 +2776,18 @@ mod tests {
         .into_bytes()
     }
 
-    /// A `POST /key` body, signed the way the page signs it.
+    /// A `POST /key` body, signed the way the page signs it. A cold-key operation names the signer's root
+    /// as the cold root, so a hot key signing one is refused for not matching the commitment.
     #[allow(clippy::too_many_arguments)]
     fn key_op_body(w: &KeyWallet, op: &str, signer: &[u8; 32], chain: u64, generation: u64, new_root: [u8; 32], index: u32, first: bool) -> Vec<u8> {
         use noesis_core::wallet;
         let kind = Kind::from_name(op).unwrap();
         let sig = wallet::sign(signer, index, &wallet::key_op_digest(&w.id, kind.byte(), chain, generation, &new_root, index));
         let mut v = json!({ "op": op, "identity": hex_encode(&w.id), "index": index, "bottom": tree_json(&sig.bottom), "top": tree_json(&sig.top) });
-        if kind != Kind::Cancel {
+        if kind.names_root() {
             v["new_root"] = json!(hex_encode(&new_root));
         }
-        if kind == Kind::Recover {
+        if kind.by_cold() {
             v["cold_root"] = json!(hex_encode(&wallet::key_root(signer)));
         }
         if first {
@@ -2775,6 +2807,12 @@ mod tests {
         (s, state_of(&b))
     }
 
+    fn refused_with(st: &mut ServerState, path: &str, body: &[u8], words: &str) {
+        let (s, v) = post(st, path, body);
+        assert_eq!(s, 400, "{path}: {v}");
+        assert!(v["error"].as_str().unwrap_or("").contains(words), "{path}: expected '{words}', got {v}");
+    }
+
     /// Before any key operation an identity works exactly as before: the same check, a 40-byte label (the
     /// pre-A1 cell bytes), no key record, generation 0.
     #[test]
@@ -2789,18 +2827,19 @@ mod tests {
         let id = id_hex(&dave);
         let k = state_of(&handle_request(&mut st, "GET", &format!("/keys/{id}"), b"").2);
         assert_eq!((k["current"].clone(), k["on_chain"].clone(), k["generation"].clone(), k["highest_used"].clone()), (Value::Null, Value::Null, json!(0), json!(0)));
-        assert_eq!((k["key_rotation"].clone(), k["recovery_delay_blocks"].clone()), (json!(true), json!(3)), "the dev spec");
+        assert_eq!((k["key_rotation"].clone(), k["key_change_delay_blocks"].clone()), (json!(true), json!(3)), "the dev spec");
         let i = state_of(&handle_request(&mut st, "GET", &format!("/index/{id}"), b"").2);
         assert_eq!((i["highest_used"].clone(), i["generation"].clone()), (json!(0), json!(0)));
-        assert_eq!(ChainSpec::testnet().constitution.recovery_delay_blocks, crate::chainspec::TESTNET_RECOVERY_DELAY_BLOCKS);
+        assert_eq!(ChainSpec::testnet().constitution.key_change_delay_blocks, crate::chainspec::TESTNET_KEY_CHANGE_DELAY_BLOCKS);
         assert!(ChainSpec::testnet().constitution.key_rotation);
     }
 
-    /// A1 end to end: the current key signs a rotation to the next key in its series; from the block that
-    /// carries it the old key is refused and the new key signs from index 0; the counters are per key;
-    /// standing stays on the identity.
+    /// A1 end to end, as approved: the current key signs a rotation to the next key in its series; it is
+    /// pending for the delay, during which the current key keeps signing (above the rotation's own leaf)
+    /// and the new key cannot; from the block it takes effect in, the old key is refused and the new key
+    /// signs from index 0; the counters are per key; standing stays on the identity.
     #[test]
-    fn a_rotation_through_the_route_moves_the_identity_to_its_next_key() {
+    fn a_rotation_through_the_route_waits_out_the_delay_then_moves_the_identity() {
         use noesis_core::wallet;
         let mut st = ServerState::new();
         let chain = st.chain_id();
@@ -2809,44 +2848,46 @@ mod tests {
         let root1 = wallet::key_root(&k1);
         assert_eq!(post(&mut st, "/submit", &contribution(&w, &w.hot, 0, TEXTS[0])).0, 200);
         // a rotation at the leaf the contribution used is refused (one leaf, one message)
-        let (s, v) = post(&mut st, "/key", &key_op_body(&w, "rotate", &w.hot, chain, 0, root1, 0, true));
-        assert_eq!(s, 400);
-        assert!(v["error"].as_str().unwrap().contains("already used"), "{v}");
+        refused_with(&mut st, "/key", &key_op_body(&w, "rotate", &w.hot, chain, 0, root1, 0, true), "already used");
         let body = key_op_body(&w, "rotate", &w.hot, chain, 0, root1, 1, true);
         let (s, v) = post(&mut st, "/key", &body);
         assert_eq!(s, 200, "{v}");
-        assert_eq!((v["lands_in_block"].clone(), v["after"]["generation"].clone()), (json!(2), json!(1)));
+        assert_eq!((v["lands_in_block"].clone(), v["after"]["generation"].clone()), (json!(2), json!(0)));
+        assert_eq!((v["after"]["pending"]["change"].clone(), v["after"]["pending"]["effective_at"].clone()), (json!("rotation"), json!(2 + 3 + 1)));
         assert_eq!(post(&mut st, "/key", &body).0, 200, "re-sending the same operation is a no-op");
         let k = keys(&mut st, &w);
-        assert_eq!((k["queued"]["op"].clone(), k["current"]["generation"].clone(), k["highest_used"].clone()), (json!("rotate"), json!(1), Value::Null));
+        assert_eq!((k["queued"]["op"].clone(), k["current"]["hot_root"].clone(), k["highest_used"].clone()), (json!("rotate"), json!(hex_encode(&w.hot_root)), json!(1)));
         assert_eq!(k["on_chain"], Value::Null, "nothing on chain until a block carries it");
-        // from the rotation's block on, the old key is refused...
-        let (s, v) = post(&mut st, "/submit", &contribution(&w, &w.hot, 2, TEXTS[1]));
-        assert_eq!(s, 400);
-        assert!(v["error"].as_str().unwrap().contains("not this identity's current hot key"), "{v}");
+        // in the rotation's own block the new key is refused and the current key signs above the rotation's leaf
+        refused_with(&mut st, "/submit", &contribution(&w, &k1, 0, TEXTS[1]), "not this identity's current hot key");
+        refused_with(&mut st, "/submit", &contribution(&w, &w.hot, 1, TEXTS[1]), "already used");
         assert_eq!(st.height(), 1, "nothing was made");
-        // ... and the new key signs from index 0, in the block that carries the rotation
-        let (s, v) = post(&mut st, "/submit", &contribution(&w, &k1, 0, TEXTS[1]));
-        assert_eq!(s, 200, "{v}");
-        assert_eq!(st.node.ledger.cells[1].lock.args, identity_key::pack_label(&w.id, 0, 1), "the generation-1 label");
+        assert_eq!(post(&mut st, "/submit", &contribution(&w, &w.hot, 2, TEXTS[1])).0, 200);
         let b = state_of(&handle_request(&mut st, "GET", "/blocks", b"").2);
         assert_eq!((b["blocks"][0]["height"].clone(), b["blocks"][0]["token_txs"].clone()), (json!(2), json!(1)));
         let k = keys(&mut st, &w);
-        assert_eq!((k["on_chain"]["generation"].clone(), k["on_chain"]["hot_root"].clone()), (json!(1), json!(hex_encode(&root1))));
-        assert_eq!((k["queued"].clone(), k["highest_used"].clone()), (Value::Null, json!(0)));
+        assert_eq!((k["on_chain"]["generation"].clone(), k["on_chain"]["pending"]["change"].clone()), (json!(0), json!("rotation")));
+        assert_eq!((k["on_chain"]["pending"]["cancel_blocks_left"].clone(), k["queued"].clone()), (json!(3), Value::Null));
+        for n in 3..6 {
+            submit(&mut st, n); // blocks 3, 4, 5 by other identities: the cold key's window
+        }
+        // block 6: in effect. The old key is refused; the new key signs from 0, with the generation-1 label
+        let k = keys(&mut st, &w);
+        assert_eq!((k["current"]["generation"].clone(), k["current"]["hot_root"].clone(), k["current"]["pending"].clone()), (json!(1), json!(hex_encode(&root1)), Value::Null));
+        refused_with(&mut st, "/submit", &contribution(&w, &w.hot, 3, TEXTS[2]), "not this identity's current hot key");
         let i = state_of(&handle_request(&mut st, "GET", &format!("/index/{}", hex_encode(&w.id)), b"").2);
-        assert_eq!((i["generation"].clone(), i["highest_used"].clone()), (json!(1), json!(0)), "the wallet resumes its new key");
-        // per-key counters: the new key cannot reuse 0, the old key cannot sign at all
-        assert!(post(&mut st, "/submit", &contribution(&w, &k1, 0, TEXTS[2])).1["error"].as_str().unwrap().contains("already used"));
-        assert_eq!(post(&mut st, "/submit", &contribution(&w, &w.hot, 9, TEXTS[2])).0, 400);
-        assert_eq!(post(&mut st, "/submit", &contribution(&w, &k1, 1, TEXTS[2])).0, 200);
-        // standing: one identity, credited for all three contributions across both keys
+        assert_eq!((i["generation"].clone(), i["highest_used"].clone()), (json!(1), Value::Null), "the wallet resumes its new key at 0");
+        assert_eq!(post(&mut st, "/submit", &contribution(&w, &k1, 0, TEXTS[2])).0, 200);
+        assert_eq!(st.node.ledger.cells.last().unwrap().lock.args, identity_key::pack_label(&w.id, 0, 1), "the generation-1 label");
+        // per-key counters: the new key cannot reuse 0
+        refused_with(&mut st, "/submit", &contribution(&w, &k1, 0, TEXTS[6]), "already used");
+        assert_eq!(post(&mut st, "/submit", &contribution(&w, &k1, 1, TEXTS[6])).0, 200);
+        // standing: one identity, credited across both keys
         let state = state_of(&handle_request(&mut st, "GET", "/state", b"").2);
-        assert_eq!(state["contributors"].as_object().unwrap().len(), 1);
         assert!(state["contributors"][hex_encode(&w.id)].as_u64().unwrap() > 0);
         let t = tokens(&mut st);
         let kc = t["cells"].as_array().unwrap().iter().find(|c| c["standard"] == "identity-key").expect("the key cell is listed");
-        assert_eq!(kc["record"]["generation"], 1);
+        assert_eq!((kc["record"]["generation"].clone(), kc["record"]["frozen"].clone()), (json!(0), json!(false)), "the stored record, before its pending change");
     }
 
     /// A7 end to end on dev (delay 3): a wrong cold key is refused; a request waits out its delay; the
@@ -2863,19 +2904,18 @@ mod tests {
         let fresh_root = wallet::key_root(&fresh);
         assert_eq!(post(&mut st, "/submit", &contribution(&w, &w.hot, 0, TEXTS[0])).0, 200);
         // a thief's cold key (the body names its root): its commitment is not the identity's
-        let (s, v) = post(&mut st, "/key", &key_op_body(&w, "recover", &[0x66; 32], chain, 0, fresh_root, 0, true));
-        assert_eq!(s, 400);
-        assert!(v["error"].as_str().unwrap().contains("does not match this identity's cold commitment"), "{v}");
+        refused_with(&mut st, "/key", &key_op_body(&w, "recover", &[0x66; 32], chain, 0, fresh_root, 0, true), "does not match this identity's cold commitment");
         // the real cold key: queued, lands with the next block
         let request = key_op_body(&w, "recover", &w.cold, chain, 0, fresh_root, 0, true);
         assert_eq!(post(&mut st, "/key", &request).0, 200);
         assert_eq!(post(&mut st, "/submit", &contribution(&w, &w.hot, 1, TEXTS[1])).0, 200, "the old key still signs");
         let k = keys(&mut st, &w);
+        assert_eq!(k["current"]["pending"]["change"], "recovery");
         assert_eq!(k["current"]["pending"]["effective_at"], 2 + 3 + 1);
         assert_eq!(k["current"]["pending"]["cancel_blocks_left"], 3);
         // the hot key cancels; its leaf (2) is then spent for a contribution too
-        assert_eq!(post(&mut st, "/key", &key_op_body(&w, "cancel", &w.hot, chain, 0, [0u8; 32], 2, false)).0, 200);
-        assert!(post(&mut st, "/submit", &contribution(&w, &w.hot, 2, TEXTS[2])).1["error"].as_str().unwrap().contains("already used"));
+        assert_eq!(post(&mut st, "/key", &key_op_body(&w, "cancel-recovery", &w.hot, chain, 0, [0u8; 32], 2, false)).0, 200);
+        refused_with(&mut st, "/submit", &contribution(&w, &w.hot, 2, TEXTS[2]), "already used");
         assert_eq!(post(&mut st, "/submit", &contribution(&w, &w.hot, 3, TEXTS[2])).0, 200);
         let k = keys(&mut st, &w);
         assert_eq!((k["current"]["pending"].clone(), k["current"]["hot_floor"].clone()), (Value::Null, json!(3)));
@@ -2900,10 +2940,106 @@ mod tests {
         assert!(state["contributors"][hex_encode(&w.id)].as_u64().unwrap() > 0, "standing stayed on the identity");
     }
 
+    /// THE THEFT SCENARIO through the routes (dev, delay T = 3; decision 7, test plan item 11). A thief
+    /// holds the hot key and starts a rotation to his own key. The owner freezes with the cold key: from
+    /// the block that carries the freeze the door refuses the identity's contributions, and every key
+    /// operation the thief can sign is refused. The owner cancels the rotation and recovers; the hot key
+    /// cannot cancel that recovery. The owner's new key signs T + 3 blocks after the freeze landed, and
+    /// neither the stolen key nor the thief's key signs anything after.
+    #[test]
+    fn the_cold_key_beats_a_hot_key_thief_through_the_routes() {
+        use noesis_core::wallet;
+        const NOTES: [&str; 4] = [
+            "the owner's first note: a survey of lichen on granite walls",
+            "posted with the stolen key before the freeze: a ledger of tide tables",
+            "an attempt by the stolen key after the freeze, about kelp forests",
+            "the owner again, under the recovered key: reed beds as water filters",
+        ];
+        let mut st = ServerState::new();
+        let chain = st.chain_id();
+        let w = key_wallet(0x1C, 0xCC);
+        let (thief, owner) = ([0x1Du8; 32], [0x1Eu8; 32]);
+        let (thief_root, owner_root) = (wallet::key_root(&thief), wallet::key_root(&owner));
+        let zero = [0u8; 32];
+        assert_eq!(post(&mut st, "/submit", &contribution(&w, &w.hot, 0, NOTES[0])).0, 200); // block 1
+        // the thief starts a rotation to his own key; block 2 carries it
+        assert_eq!(post(&mut st, "/key", &key_op_body(&w, "rotate", &w.hot, chain, 0, thief_root, 1, true)).0, 200);
+        submit(&mut st, 0);
+        let k = keys(&mut st, &w);
+        assert_eq!((k["current"]["pending"]["change"].clone(), k["current"]["pending"]["effective_at"].clone()), (json!("rotation"), json!(2 + 3 + 1)));
+        // before the freeze the stolen key still signs (block 3)
+        assert_eq!(post(&mut st, "/submit", &contribution(&w, &w.hot, 2, NOTES[1])).0, 200);
+        // the owner freezes with the cold key; at once, the door refuses the identity in the freeze's block
+        assert_eq!(post(&mut st, "/key", &key_op_body(&w, "freeze", &w.cold, chain, 0, zero, 0, false)).0, 200);
+        refused_with(&mut st, "/submit", &contribution(&w, &w.hot, 3, NOTES[2]), "frozen");
+        submit(&mut st, 1); // block 4 carries the freeze
+        let freeze_block = 4u64;
+        let k = keys(&mut st, &w);
+        assert_eq!((k["current"]["frozen"].clone(), k["current"]["pending"]["suspended"].clone()), (json!(true), json!(true)));
+        // the thief: every move refused
+        let thief_moves = [
+            ("rotate", key_op_body(&w, "rotate", &w.hot, chain, 0, wallet::key_root(&[0x1F; 32]), 4, false), "frozen"),
+            ("cancel-recovery", key_op_body(&w, "cancel-recovery", &w.hot, chain, 0, zero, 5, false), "frozen"),
+            ("unfreeze", key_op_body(&w, "unfreeze", &w.hot, chain, 0, zero, 6, false), "does not match"),
+            ("cancel-rotation", key_op_body(&w, "cancel-rotation", &w.hot, chain, 0, zero, 7, false), "does not match"),
+            ("freeze", key_op_body(&w, "freeze", &w.hot, chain, 0, zero, 8, false), "does not match"),
+        ];
+        for (what, body, words) in &thief_moves {
+            let (s, v) = post(&mut st, "/key", body);
+            assert_eq!(s, 400, "{what}: {v}");
+            assert!(v["error"].as_str().unwrap().contains(words), "{what}: {v}");
+        }
+        refused_with(&mut st, "/submit", &contribution(&w, &w.hot, 9, NOTES[2]), "frozen");
+        // the owner cancels the thief's rotation (block 5), then recovers (block 6)
+        assert_eq!(post(&mut st, "/key", &key_op_body(&w, "cancel-rotation", &w.cold, chain, 0, zero, 1, false)).0, 200);
+        submit(&mut st, 2);
+        assert_eq!(post(&mut st, "/key", &key_op_body(&w, "recover", &w.cold, chain, 0, owner_root, 2, false)).0, 200);
+        submit(&mut st, 3);
+        let k = keys(&mut st, &w);
+        assert_eq!((k["current"]["pending"]["change"].clone(), k["current"]["frozen"].clone()), (json!("recovery"), json!(true)));
+        let owner_at = k["current"]["pending"]["effective_at"].as_u64().unwrap();
+        assert_eq!(owner_at, 6 + 3 + 1);
+        refused_with(&mut st, "/key", &key_op_body(&w, "cancel-recovery", &w.hot, chain, 0, zero, 10, false), "frozen");
+        for n in 4..7 {
+            submit(&mut st, n); // blocks 7, 8, 9, past the block the thief's rotation named (6)
+        }
+        assert_eq!(st.height() + 1, owner_at);
+        // block 10: the owner's key, unfrozen, T + 3 blocks after the freeze
+        let k = keys(&mut st, &w);
+        assert_eq!((k["current"]["generation"].clone(), k["current"]["hot_root"].clone()), (json!(1), json!(hex_encode(&owner_root))));
+        assert_eq!((k["current"]["frozen"].clone(), k["current"]["pending"].clone()), (json!(false), Value::Null));
+        assert_eq!(owner_at - freeze_block, 3 + 3);
+        refused_with(&mut st, "/submit", &contribution(&w, &w.hot, 11, NOTES[3]), "not this identity's current hot key");
+        refused_with(&mut st, "/submit", &contribution(&w, &thief, 0, NOTES[3]), "not this identity's current hot key");
+        assert_eq!(post(&mut st, "/submit", &contribution(&w, &owner, 0, NOTES[3])).0, 200);
+        let state = state_of(&handle_request(&mut st, "GET", "/state", b"").2);
+        assert!(state["contributors"][hex_encode(&w.id)].as_u64().unwrap() > 0, "standing stayed on the identity");
+    }
+
+    /// Exhaustion at the door (design D4): a contribution may not use a key's last one-time index, which is
+    /// kept for a rotation; the leaf before it signs a contribution, and the last one then signs the
+    /// rotation.
+    #[test]
+    fn the_door_keeps_each_keys_last_leaf_for_a_rotation() {
+        use noesis_core::wallet;
+        let mut st = ServerState::new();
+        let chain = st.chain_id();
+        let w = key_wallet(0x1A, 0xCA);
+        let last = identity_key::ROTATION_LEAF as u32;
+        refused_with(&mut st, "/submit", &contribution(&w, &w.hot, last, TEXTS[0]), "kept for a rotation");
+        assert_eq!(st.height(), 0);
+        assert_eq!(post(&mut st, "/submit", &contribution(&w, &w.hot, last - 1, TEXTS[0])).0, 200);
+        let root1 = wallet::key_root(&wallet::derive_key(&w.hot, 1));
+        let (s, v) = post(&mut st, "/key", &key_op_body(&w, "rotate", &w.hot, chain, 0, root1, last, true));
+        assert_eq!(s, 200, "{v}");
+        assert_eq!(v["after"]["hot_floor"], wallet::MAX_SIGS);
+    }
+
     /// The key lane in the rulebook, where every replica runs it: a follower derives the same key record
-    /// from the blocks, refuses a block whose key operation was tampered with (a forged signature or a
-    /// forged output), and a restart rebuilds the per-key counters from the chain log. On the testnet
-    /// constitution (control binding, the faucet, its 100-block delay).
+    /// from the blocks, refuses a block whose key operation was tampered with (a forged signature, a forged
+    /// output, a freeze whose output was thawed), and a restart rebuilds the per-key counters and the
+    /// frozen state from the chain log. On the testnet constitution (control binding, the faucet, its
+    /// 100-block delay).
     #[test]
     fn the_key_lane_replays_from_the_store_and_a_follower_enforces_it() {
         use noesis_core::wallet;
@@ -2914,10 +3050,10 @@ mod tests {
         let k1 = wallet::derive_key(&w.hot, 1);
         assert_eq!(post(&mut p, "/submit", &contribution(&w, &w.hot, 0, TEXTS[0])).0, 200);
         assert_eq!(post(&mut p, "/key", &key_op_body(&w, "rotate", &w.hot, chain, 0, wallet::key_root(&k1), 1, true)).0, 200);
-        assert_eq!(post(&mut p, "/submit", &contribution(&w, &k1, 0, TEXTS[1])).0, 200); // block 2: the rotation
-        assert_eq!(post(&mut p, "/key", &key_op_body(&w, "recover", &w.cold, chain, 1, wallet::key_root(&[0x17; 32]), 0, false)).0, 200);
-        assert_eq!(post(&mut p, "/submit", &contribution(&w, &k1, 1, TEXTS[2])).0, 200); // block 3: the request
-        assert_eq!(keys(&mut p, &w)["current"]["pending"]["effective_at"], 3 + crate::chainspec::TESTNET_RECOVERY_DELAY_BLOCKS + 1);
+        assert_eq!(post(&mut p, "/submit", &contribution(&w, &w.hot, 2, TEXTS[1])).0, 200); // block 2: the rotation
+        assert_eq!(keys(&mut p, &w)["current"]["pending"]["effective_at"], 2 + crate::chainspec::TESTNET_KEY_CHANGE_DELAY_BLOCKS + 1);
+        assert_eq!(post(&mut p, "/key", &key_op_body(&w, "freeze", &w.cold, chain, 0, [0u8; 32], 0, false)).0, 200);
+        submit(&mut p, 2); // block 3: the freeze
         // a follower: the same record, derived from the blocks
         let (mut f, fp) = follower_on(spec.clone(), "keys-f");
         apply_page(&mut f, &handle_request(&mut p, "GET", "/blocks?since=0&limit=1", b"").2).unwrap();
@@ -2936,28 +3072,43 @@ mod tests {
             assert!(e.contains("IdentityKey"), "{e}");
             assert_eq!(f.height(), 1);
         }
-        assert_eq!(apply_page(&mut f, genuine.to_string().as_bytes()), Ok((2, false)));
+        // a freeze whose output the producer thawed: block 2 applies, block 3 is refused
+        let fz = &genuine["blocks"][1]["token_txs"][0];
+        assert_eq!(fz["standard"], 4, "block 3 carries the freeze");
+        let mut thawed = genuine.clone();
+        let mut data: Vec<u8> = serde_json::from_value(fz["outputs"][0]["data"].clone()).unwrap();
+        assert_eq!(data[89], 1, "the frozen flag");
+        data[89] = 0;
+        thawed["blocks"][1]["token_txs"][0]["outputs"][0]["data"] = json!(data);
+        let e = stopped(apply_page(&mut f, thawed.to_string().as_bytes()));
+        assert!(e.contains("IdentityKey"), "{e}");
+        assert_eq!(f.height(), 2);
+        assert_eq!(apply_page(&mut f, page(&mut p, 2).to_string().as_bytes()), Ok((1, false)));
         assert_eq!(f.state_digest(), p.state_digest());
         for (who, st) in [("follower", &mut f), ("producer", &mut p)] {
             let k = keys(st, &w);
-            assert_eq!(k["on_chain"]["generation"], 1, "{who}");
-            assert_eq!(k["highest_used"], 1, "{who}");
+            assert_eq!((k["on_chain"]["generation"].clone(), k["on_chain"]["frozen"].clone()), (json!(0), json!(true)), "{who}");
+            assert_eq!(k["on_chain"]["pending"]["suspended"], true, "{who}");
+            assert_eq!(k["highest_used"], 2, "{who}");
         }
         // a restart replays the chain log through the rulebook and rebuilds the per-key counters
         drop(p);
-        let (mut again, replayed) = ServerState::with_store(&pp, spec).unwrap();
+        let (again, replayed) = ServerState::with_store(&pp, spec).unwrap();
         assert_eq!(replayed, 3);
+        let mut again = again.with_faucet(crate::faucet::DEV_FAUCET_SEED).unwrap();
         let again = &mut again;
         let k = keys(again, &w);
-        assert_eq!((k["on_chain"]["generation"].clone(), k["highest_used"].clone()), (json!(1), json!(1)));
-        assert!(k["on_chain"]["pending"]["effective_at"].is_u64());
+        assert_eq!((k["on_chain"]["frozen"].clone(), k["highest_used"].clone()), (json!(true), json!(2)));
+        assert_eq!(k["on_chain"]["pending"]["change"], "rotation");
         let i = state_of(&handle_request(again, "GET", &format!("/index/{}", hex_encode(&w.id)), b"").2);
-        assert_eq!((i["generation"].clone(), i["highest_used"].clone()), (json!(1), json!(1)));
+        assert_eq!((i["generation"].clone(), i["highest_used"].clone()), (json!(0), json!(2)));
+        refused_with(again, "/submit", &contribution(&w, &w.hot, 3, TEXTS[3]), "frozen");
         let _ = (std::fs::remove_file(&pp), std::fs::remove_file(&fp));
     }
 
-    /// Malformed key operations are refused before anything is held: bad JSON, an unknown op, a short
-    /// signature, an out-of-range index.
+    /// Malformed key operations are refused before anything is held: bad JSON, an unknown op (the first
+    /// cut's "cancel" included), a short signature, an out-of-range index, a cold-key operation without the
+    /// cold root.
     #[test]
     fn malformed_key_operations_are_refused_and_nothing_is_held() {
         let mut st = ServerState::new();
@@ -2965,11 +3116,15 @@ mod tests {
         let good: Value = serde_json::from_slice(&key_op_body(&w, "rotate", &w.hot, st.chain_id(), 0, [9u8; 32], 0, true)).unwrap();
         let mut unknown = good.clone();
         unknown["op"] = json!("transfer");
+        let mut old_name = good.clone();
+        old_name["op"] = json!("cancel");
         let mut short = good.clone();
         short["bottom"]["ots_sig"] = json!("00");
         let mut far = good.clone();
         far["index"] = json!(noesis_core::wallet::MAX_SIGS);
-        for bad in [b"{".to_vec(), unknown.to_string().into_bytes(), short.to_string().into_bytes(), far.to_string().into_bytes()] {
+        let mut freeze_no_cold = good.clone();
+        freeze_no_cold["op"] = json!("freeze");
+        for bad in [b"{".to_vec(), unknown.to_string().into_bytes(), old_name.to_string().into_bytes(), short.to_string().into_bytes(), far.to_string().into_bytes(), freeze_no_cold.to_string().into_bytes()] {
             assert_eq!(handle_request(&mut st, "POST", "/key", &bad).0, 400);
         }
         assert!(st.pending_key_ops.is_empty());

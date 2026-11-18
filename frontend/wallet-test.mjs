@@ -4,9 +4,9 @@
 // Run: `node frontend/wallet-test.mjs`  (exit 0 = all pass). It takes a minute or two: every wallet here
 // builds real XMSS^MT trees, and every seal or unlock runs real PBKDF2 at 600,000 rounds.
 //
-// Also exercised here: the key series and recovery (A1/A7) on the page, against a fake node that keeps
-// the identity-key rule's states and checks every signature with the real verifier; the rule itself is
-// pinned in Rust (node/src/identity_key.rs and the rpc.rs tests).
+// Also exercised here: the key series, the cold key's freeze, cancel and unfreeze, and recovery (A1/A7) on
+// the page, against a fake node that keeps the identity-key rule's states and checks every signature with
+// the real verifier; the rule itself is pinned in Rust (node/src/identity_key.rs and the rpc.rs tests).
 //
 // Only stub-tested: WebAuthn. The "authenticator" below is HMAC-SHA256(credential secret, "WebAuthn PRF"
 // || 0x00 || salt), the shape of what a browser asks a CTAP2 hmac-secret authenticator for. No real
@@ -439,14 +439,17 @@ const v1Text = JSON.stringify({ v: 1, seed: 'aa'.repeat(32), address: 'bb'.repea
     after.keyIndex === 1 && after.nextIndex === 3 && after.keyRoot === root1);
 }
 
-// A fake node with the key lane: every signature checked with the real verifier, the rule's states
-// (no record, record, pending recovery, maturity after the delay) kept the way node/src/identity_key.rs
-// keeps them. The real rule is pinned in Rust; this checks what the page signs and sends.
+// A fake node with the key lane: every signature checked with the real verifier, the rule's states (no
+// record, record, frozen, a pending rotation or recovery, a rotation held while frozen, maturity after the
+// delay) kept the way node/src/identity_key.rs keeps them. The real rule is pinned in Rust; this checks
+// what the page signs and sends, and what it shows.
+const sigOf = (b) => ({ g: b.index, bottom: unpart(b.bottom, b.index & 255), top: unpart(b.top, b.index >>> 8) });
+const ZERO32 = new Uint8Array(32);
 function keyNode() {
   const node = { height: 7, chain: 0x7e57, delay: 3, recs: new Map(), queued: new Map(), used: new Map(), posts: [], keyPosts: [], lost: false,
                  state: { height: 7, jul_issued: 0, contributors: {}, chain_id: 0x7e57 } };
-  const at = (r, h) => r && r.pending && h >= r.pending.effective_at
-    ? { generation: r.generation + 1, hot_root: r.pending.new_root, cold_commit: r.cold_commit, hot_floor: 0, cold_floor: r.cold_floor, pending: null } : r;
+  const at = (r, h) => r && r.pending && h >= r.pending.effective_at && !(r.frozen && r.pending.change === 'rotation')
+    ? { generation: r.generation + 1, hot_root: r.pending.new_root, cold_commit: r.cold_commit, hot_floor: 0, cold_floor: r.cold_floor, frozen: false, pending: null } : r;
   const current = (id, h) => (node.queued.get(id) || {}).after || at(node.recs.get(id), h) || null;
   const usedKey = (id, g) => node.used.get(id + '|' + g);
   const highest = (id, g, h) => {
@@ -454,8 +457,14 @@ function keyNode() {
     const c = usedKey(id, g);
     return c == null ? ops : ops == null ? c : Math.max(c, ops);
   };
-  const json = (r, next) => r && { ...r, pending: r.pending && { ...r.pending, cancel_blocks_left: r.pending.effective_at - next } };
-  const sigOf = (b) => ({ g: b.index, bottom: unpart(b.bottom, b.index & 255), top: unpart(b.top, b.index >>> 8) });
+  const json = (r, next) => r && { ...r, pending: r.pending && { ...r.pending, cancel_blocks_left: r.pending.effective_at - next,
+    suspended: !!r.frozen && r.pending.change === 'rotation' } };
+  const OPS = { rotate: C.OP_ROTATE, 'cancel-recovery': C.OP_CANCEL, recover: C.OP_RECOVER, 'cancel-rotation': C.OP_CANCEL_ROTATION,
+                freeze: C.OP_FREEZE, unfreeze: C.OP_UNFREEZE };
+  const BY_COLD = ['recover', 'cancel-rotation', 'freeze', 'unfreeze'];
+  // The stored record as it stands at the next block (a matured change written in), so a test can inject
+  // a state on top of it the way a later key operation would.
+  node.mature = (id) => node.recs.set(id, at(node.recs.get(id), node.height + 1));
   node.block = () => { // one block: it carries every queued key operation
     node.height++; node.state.height = node.height;
     for (const [id, q] of node.queued) node.recs.set(id, q.after);
@@ -469,7 +478,7 @@ function keyNode() {
     if (path.startsWith('/keys/')) {
       const id = path.slice(6), cur = current(id, next), onChain = at(node.recs.get(id), next) || null, q = node.queued.get(id);
       const generation = cur ? cur.generation : 0;
-      return reply(200, { identity: id, chain_id: node.chain, height: node.height, next_block: next, key_rotation: true, recovery_delay_blocks: node.delay,
+      return reply(200, { identity: id, chain_id: node.chain, height: node.height, next_block: next, key_rotation: true, key_change_delay_blocks: node.delay,
         on_chain: json(onChain, next), queued: q ? { op: q.op, index: q.index, new_root: q.new_root } : null, current: json(cur, next),
         generation, highest_used: highest(id, generation, next) ?? null });
     }
@@ -482,37 +491,54 @@ function keyNode() {
       node.keyPosts.push({ body: b, raw: opts.body });
       const id = b.identity, prior = at(node.recs.get(id), next);
       if (node.queued.has(id)) return reply(400, { error: 'another key operation for this identity is waiting' });
+      const op = OPS[b.op];
+      if (op == null) return reply(400, { error: 'unknown op' });
       let eff = prior;
       if (!eff) {
         if (!b.birth || C.hexEncode(C.identity(C.hexDecode(b.birth.hot_root), C.hexDecode(b.birth.cold_commit))) !== id) return reply(400, { error: 'birth roots' });
-        eff = { generation: 0, hot_root: b.birth.hot_root, cold_commit: b.birth.cold_commit, hot_floor: 0, cold_floor: 0, pending: null };
+        eff = { generation: 0, hot_root: b.birth.hot_root, cold_commit: b.birth.cold_commit, hot_floor: 0, cold_floor: 0, frozen: false, pending: null };
       } else if (b.birth) return reply(400, { error: 'this identity already has a key record' });
-      const op = { rotate: C.OP_ROTATE, recover: C.OP_RECOVER, cancel: C.OP_CANCEL }[b.op];
-      const newRoot = b.op === 'cancel' ? new Uint8Array(32) : C.hexDecode(b.new_root);
+      const newRoot = b.op === 'rotate' || b.op === 'recover' ? C.hexDecode(b.new_root) : ZERO32;
       const msg = C.keyOpDigest(C.hexDecode(id), op, node.chain, eff.generation, newRoot, b.index);
+      const pend = eff.pending && eff.pending.change, effective_at = next + node.delay + 1;
       let after;
-      if (b.op === 'recover') {
-        if (C.hexEncode(C.coldCommit(C.hexDecode(b.cold_root))) !== eff.cold_commit) return reply(400, { error: 'the cold key does not match' });
+      if (BY_COLD.includes(b.op)) {
+        if (C.hexEncode(C.coldCommit(C.hexDecode(b.cold_root))) !== eff.cold_commit) return reply(400, { error: 'the cold key does not match this identity\'s cold commitment' });
         if (b.index < eff.cold_floor) return reply(400, { error: 'this one-time index of the cold key is already used' });
+        if (b.op === 'recover') after = { ...eff, pending: { change: 'recovery', new_root: b.new_root, effective_at } };
+        else if (b.op === 'cancel-rotation') { if (pend !== 'rotation') return reply(400, { error: 'no rotation is pending' }); after = { ...eff, pending: null }; }
+        else if (b.op === 'freeze') { if (eff.frozen) return reply(400, { error: 'already frozen' }); after = { ...eff, frozen: true }; }
+        else {
+          if (!eff.frozen) return reply(400, { error: 'not frozen' });
+          if (pend === 'rotation') return reply(400, { error: 'a rotation is pending' });
+          after = { ...eff, frozen: false };
+        }
         if (!C.mtVerify(C.hexDecode(b.cold_root), b.index, msg, sigOf(b))) return reply(400, { error: 'not signed by the cold key' });
-        after = { ...eff, cold_floor: b.index + 1, pending: { new_root: b.new_root, effective_at: next + node.delay + 1 } };
+        after = { ...after, cold_floor: b.index + 1 };
       } else {
+        if (eff.frozen) return reply(400, { error: 'this identity is frozen by its cold key' });
         const hi = highest(id, eff.generation, next);
         if (b.index < eff.hot_floor || (hi != null && b.index <= hi)) return reply(400, { error: 'already used' });
+        if (b.op === 'rotate') {
+          if (pend) return reply(400, { error: 'a key change is pending' });
+          after = { ...eff, pending: { change: 'rotation', new_root: b.new_root, effective_at } };
+        } else {
+          if (pend !== 'recovery' || b.index >= C.MT_MAX_SIGS - 1) return reply(400, { error: 'no recovery is pending' });
+          after = { ...eff, pending: null };
+        }
         if (!C.mtVerify(C.hexDecode(eff.hot_root), b.index, msg, sigOf(b))) return reply(400, { error: 'not signed by the current hot key' });
-        if (b.op === 'cancel' && !eff.pending) return reply(400, { error: 'no recovery is pending' });
-        after = b.op === 'rotate' ? { ...eff, generation: eff.generation + 1, hot_root: b.new_root, hot_floor: 0, pending: null }
-                                  : { ...eff, hot_floor: b.index + 1, pending: null };
+        after = { ...after, hot_floor: b.index + 1 };
       }
       if (!node.lost) node.queued.set(id, { op: b.op, index: b.index, new_root: b.new_root || null, after });
       return reply(200, { queued: true, after });
     }
     if (path === '/submit' && opts.method === 'POST') {
       const b = JSON.parse(opts.body), id = b.identity, cur = current(id, next);
+      if (cur && cur.frozen) { node.posts.push({ body: b, valid: false, frozen: true }); return reply(400, { error: 'this identity is frozen by its cold key' }); }
       const msg = C.contributionDigest(C.hexDecode(id), b.index, b.parent ?? null, C.utf8(b.data));
       const keyOk = cur ? b.hot_root === cur.hot_root : C.hexEncode(C.identity(C.hexDecode(b.hot_root), C.hexDecode(b.cold_commit))) === id;
       const gen = cur ? cur.generation : 0, hi = highest(id, gen, next);
-      const valid = keyOk && C.mtVerify(C.hexDecode(b.hot_root), b.index, msg, sigOf(b)) && (hi == null || b.index > hi);
+      const valid = keyOk && b.index < C.MT_MAX_SIGS - 1 && C.mtVerify(C.hexDecode(b.hot_root), b.index, msg, sigOf(b)) && (hi == null || b.index > hi);
       node.posts.push({ body: b, valid, gen });
       if (!valid) return reply(400, { error: keyOk ? 'already used or bad signature' : 'not this identity\'s current hot key' });
       node.used.set(id + '|' + gen, b.index);
@@ -525,48 +551,71 @@ function keyNode() {
   return node;
 }
 
-// ---- A1 on the page: rotate (needs unlock), then the next key signs from index 0 ----
+// ---- A1 on the page: rotate (needs unlock); the rotation waits out the delay, then the next key signs ----
 const COLD8 = new Uint8Array(32).fill(8);
+const COLD8_HEX = C.hexEncode(COLD8);
+const coldRoot8 = C.mtKeygenRoot(COLD8);
+const lastKeyPost = (node) => node.keyPosts[node.keyPosts.length - 1];
+const stored = (storage) => JSON.parse(storage.getItem(W.KEY_SEALED));
 {
   const storage = new FakeStorage({ [W.KEY_SEALED]: JSON.stringify(recA) }), node = keyNode();
+  const addr = C.hexDecode(PUB.address);
   let pg = openPage({ storage, node });
   await settle();
   check('page: the wallet shows its key number and the signatures left for that key',
     /hot key   #0 of this wallet's series, key generation 0 on chain/.test(pg.text('w-info')) && /keys left 65495 of 65536 for this key/.test(pg.text('w-info')));
   check('page: with no key record on chain, the first hot key root is shown for the recovery sheet', pg.text('w-info').includes('first key ' + PUB.hot_root));
+  check('rotate: the page explains the wait (3 blocks after the block that carries it) and that the cold key can cancel it',
+    /takes effect 3 blocks after the block that carries the rotation/.test(pg.text('rotate-note')) && /the cold key can cancel the rotation/.test(pg.text('rotate-note')));
   await pg.click('rotate');
   check('rotate: refused while locked', /Unlock first to rotate/.test(pg.text('w-status')) && node.keyPosts.length === 0);
   await pg.unlock(UPASS);
   await pg.click('rotate');
   const kp = node.keyPosts[0];
   const root1 = C.mtKeygenRoot(C.deriveKey(hot7, 1));
-  const rotMsg = kp && C.keyOpDigest(C.hexDecode(PUB.address), C.OP_ROTATE, 0x7e57, 0, root1, 41);
+  const rotMsg = kp && C.keyOpDigest(addr, C.OP_ROTATE, 0x7e57, 0, root1, 41);
   check('rotate: one signed rotation to key 1 of the series, by key 0 at the next one-time index (41), with the birth roots',
     !!kp && kp.body.op === 'rotate' && kp.body.new_root === C.hexEncode(root1) && kp.body.index === 41 &&
-    kp.body.birth && kp.body.birth.hot_root === PUB.hot_root &&
-    C.mtVerify(root7, 41, rotMsg, { g: 41, bottom: unpart(kp.body.bottom, 41), top: unpart(kp.body.top, 0) }));
+    kp.body.birth && kp.body.birth.hot_root === PUB.hot_root && C.mtVerify(root7, 41, rotMsg, sigOf(kp.body)));
   check('rotate: index 41 was spent (counter 42 stored) before the signature existed', pg.signs[0].g === 41 && pg.signs[0].storedNext === 42);
-  const rec1 = JSON.parse(storage.getItem(W.KEY_SEALED));
-  check('rotate: the wallet moves to key 1, counter 0, and keeps the signed rotation until the chain shows it',
-    rec1.keyIndex === 1 && rec1.keyRoot === C.hexEncode(root1) && rec1.nextIndex === 0 && !!rec1.pendingKeyOp && /Rotated to key #1/.test(pg.text('w-status')));
+  const rec1 = stored(storage);
+  check('rotate: the wallet stays on key 0 (counter 42) and keeps the signed rotation until the chain puts it in effect',
+    !rec1.keyIndex && rec1.nextIndex === 42 && !!rec1.pendingKeyOp && rec1.pendingKeyOp.keyIndex === 1 && rec1.pendingKeyOp.index === 41 &&
+    /takes effect 3 blocks after it; until then key #0 keeps signing/.test(pg.text('w-status')));
   check('rotate: the hot seed in storage is unchanged (one backup covers the series)', rec1.seed_ct.ct === recA.seed_ct.ct);
-  await pg.send('the first note signed by key one');
+  await pg.send('a note signed by key zero while the rotation waits');
   const p0 = node.posts[0];
-  check('after rotate: the next contribution is signed by key 1 at index 0, in the block that carries the rotation',
-    !!p0 && p0.valid && p0.body.index === 0 && p0.body.hot_root === C.hexEncode(root1) && p0.gen === 1 && pg.signs[1].seed.some((x, i) => x !== hot7[i]));
+  check('during the delay: the next contribution is signed by key 0 at index 42, in the block that carries the rotation',
+    !!p0 && p0.valid && p0.body.index === 42 && p0.body.hot_root === PUB.hot_root && p0.gen === 0);
   await settle();
-  check('after rotate: the chain shows key 1, the pending rotation is cleared',
-    !JSON.parse(storage.getItem(W.KEY_SEALED)).pendingKeyOp && /key generation 1 on chain/.test(pg.text('w-info')) && !pg.text('w-info').includes('first key'));
+  check('during the delay: the banner shows this wallet\'s rotation with the block it takes effect at and the countdown',
+    /Your rotation to key #1 takes effect at block 12, 3 blocks from now\. Until then key #0 keeps signing; the cold key can cancel it/.test(pg.text('key-banner')));
+  await pg.click('rotate');
+  check('during the delay: a second rotation is refused, and no one-time key is spent', /a rotation is already pending/.test(pg.text('w-status')) &&
+    node.keyPosts.length === 1 && stored(storage).nextIndex === 43);
+  node.block(); node.block(); node.block(); // the delay runs out: block 12 is the first under key 1
+  pg = openPage({ storage, node });
+  await settle();
+  const rec2 = stored(storage);
+  check('in effect: the wallet moves to key 1 with its counter at 0, and the signed rotation is cleared',
+    rec2.keyIndex === 1 && rec2.keyRoot === C.hexEncode(root1) && rec2.nextIndex === 0 && !rec2.pendingKeyOp &&
+    /key generation 1 on chain/.test(pg.text('w-info')) && !pg.text('w-info').includes('first key') && pg.els['key-banner'].hidden);
+  await pg.unlock(UPASS);
+  await pg.send('the first note signed by key one');
+  const p1 = node.posts[1];
+  check('in effect: the next contribution is signed by key 1 at index 0', !!p1 && p1.valid && p1.body.index === 0 && p1.body.hot_root === C.hexEncode(root1) &&
+    p1.gen === 1 && pg.signs[pg.signs.length - 1].seed.some((x, i) => x !== hot7[i]));
   // reload: unlock rebuilds key 1 from the seed and signs with it
   pg = openPage({ storage, node });
   await settle();
   await pg.unlock(UPASS);
   await pg.send('a second note from key one after a reload');
-  check('reload: the unlocked wallet signs with key 1 at index 1', node.posts[1].valid && node.posts[1].body.index === 1 && node.posts[1].gen === 1);
+  check('reload: the unlocked wallet signs with key 1 at index 1', node.posts[2].valid && node.posts[2].body.index === 1 && node.posts[2].gen === 1);
 
   // ---- A7 on the page: a recovery request against this address raises a banner; the hot key cancels it ----
   const thiefRoot = C.mtKeygenRoot(new Uint8Array(32).fill(0x99));
-  node.recs.get(PUB.address).pending = { new_root: C.hexEncode(thiefRoot), effective_at: node.height + 1 + 3 };
+  node.mature(PUB.address);
+  node.recs.get(PUB.address).pending = { change: 'recovery', new_root: C.hexEncode(thiefRoot), effective_at: node.height + 1 + 3 };
   pg = openPage({ storage, node });
   await settle();
   check('banner: a pending recovery against this address is shown in red, with its block and countdown, and a cancel button',
@@ -576,39 +625,109 @@ const COLD8 = new Uint8Array(32).fill(8);
   check('cancel: refused while locked', /Unlock first to cancel/.test(pg.text('w-status')));
   await pg.unlock(UPASS);
   await pg.click('cancel-recovery');
-  const cp = node.keyPosts[node.keyPosts.length - 1];
-  const k1 = C.deriveKey(hot7, 1);
-  const cMsg = cp && C.keyOpDigest(C.hexDecode(PUB.address), C.OP_CANCEL, 0x7e57, 1, new Uint8Array(32), 2);
+  const cp = lastKeyPost(node);
+  const cMsg = C.keyOpDigest(addr, C.OP_CANCEL, 0x7e57, 1, ZERO32, 2);
   check('cancel: signed by the current key (key 1) at its next index, for generation 1, and queued',
-    cp.body.op === 'cancel' && cp.body.index === 2 && !cp.body.birth &&
-    C.mtVerify(root1, 2, cMsg, { g: 2, bottom: unpart(cp.body.bottom, 2), top: unpart(cp.body.top, 0) }) && node.queued.has(PUB.address));
-  check('cancel: the counter of key 1 moved past the cancel before it was signed', JSON.parse(storage.getItem(W.KEY_SEALED)).nextIndex === 3);
+    cp.body.op === 'cancel-recovery' && cp.body.index === 2 && !cp.body.birth && C.mtVerify(root1, 2, cMsg, sigOf(cp.body)) && node.queued.has(PUB.address));
+  check('cancel: the counter of key 1 moved past the cancel before it was signed', stored(storage).nextIndex === 3);
   node.block(); // a block lands it
   pg = openPage({ storage, node });
   await settle();
   check('cancel: once it lands the banner is gone', pg.els['key-banner'].hidden && pg.els['cancel-recovery'].hidden);
 
+  // ---- a stolen hot key on the page: a rotation this wallet did not start; freeze, cancel it, unfreeze ----
+  const thiefKey = C.hexEncode(C.mtKeygenRoot(new Uint8Array(32).fill(0x98)));
+  node.mature(PUB.address);
+  Object.assign(node.recs.get(PUB.address), { pending: { change: 'rotation', new_root: thiefKey, effective_at: node.height + 1 + 3 }, hot_floor: 4 });
+  pg = openPage({ storage, node });
+  await settle();
+  const banner = pg.text('key-banner');
+  check('stolen hot key: a rotation this wallet did not start raises a warning with its block and countdown that points to the cold key',
+    /WARNING: a rotation of this address's hot key is pending/.test(banner) && banner.includes('at block ' + (node.height + 4)) &&
+    /3 blocks from now/.test(banner) && /freeze the address and cancel the rotation/.test(banner));
+  check('stolen hot key: the COLD KEY section shows the pending rotation and its countdown',
+    !pg.els['cold-line'].hidden && /not frozen/.test(pg.text('cold-line')) &&
+    /Rotation pending to .+: takes effect at block \d+, 3 blocks from now, unless the cold key cancels it/.test(pg.text('cold-line')));
+  await pg.click('rec-open');
+  pg.set({ 'rec-address': PUB.address, 'rec-cold': COLD8_HEX.match(/.{8}/g).join(' ') });
+  await pg.click('freeze-go');
+  const fz = lastKeyPost(node);
+  check('freeze: one operation signed by the cold key (op 4) for generation 1, naming the cold root and no birth roots, at a spread index under 256',
+    fz.body.op === 'freeze' && fz.body.cold_root === C.hexEncode(coldRoot8) && !fz.body.birth && fz.body.index < 256 &&
+    C.mtVerify(coldRoot8, fz.body.index, C.keyOpDigest(addr, C.OP_FREEZE, 0x7e57, 1, ZERO32, fz.body.index), sigOf(fz.body)) && node.queued.has(PUB.address));
+  check('freeze: the cold key field is cleared, and the cold key is nowhere in storage', pg.els['rec-cold'].value === '' && !storage.dump().includes(COLD8_HEX));
+  check('freeze: the status says what follows', /Freeze sent/.test(pg.text('coldop-status')));
+  node.block();
+  pg = openPage({ storage, node });
+  await settle();
+  await pg.unlock(UPASS);
+  check('frozen: the banner says so, and that the thief\'s rotation is held and must be cancelled before unfreezing',
+    /FROZEN: the cold key has frozen this address/.test(pg.text('key-banner')) && /held while the address is frozen/.test(pg.text('key-banner')) &&
+    /FROZEN by the cold key/.test(pg.text('cold-line')) && /it has FROZEN the address/.test(pg.text('w-info')));
+  const before = { posts: node.posts.length, next: stored(storage).nextIndex, signs: pg.signs.length };
+  await pg.send('a note the frozen address must not sign');
+  check('frozen: the page refuses to sign a contribution; nothing is sent and no one-time key is spent',
+    /frozen by its cold key/.test(pg.text('toast')) && node.posts.length === before.posts && stored(storage).nextIndex === before.next && pg.signs.length === before.signs);
+  await pg.click('rotate');
+  check('frozen: rotate is refused before anything is signed', /frozen by its cold key/.test(pg.text('w-status')) && pg.signs.length === before.signs);
+  pg.set({ 'rec-address': PUB.address, 'rec-cold': COLD8_HEX });
+  await pg.click('unfreeze-go');
+  check('unfreeze with a rotation held: refused before the cold key signs', /a rotation is pending: cancel it first/.test(pg.text('coldop-status')) &&
+    lastKeyPost(node) === fz && pg.els['rec-cold'].value === '');
+  pg.set({ 'rec-cold': COLD8_HEX });
+  await pg.click('cancel-rotation-go');
+  const cr = lastKeyPost(node);
+  check('cancel the rotation: signed by the cold key (op 6) for generation 1, above the freeze\'s cold index',
+    cr.body.op === 'cancel-rotation' && cr.body.index > fz.body.index &&
+    C.mtVerify(coldRoot8, cr.body.index, C.keyOpDigest(addr, C.OP_CANCEL_ROTATION, 0x7e57, 1, ZERO32, cr.body.index), sigOf(cr.body)));
+  node.block();
+  pg.set({ 'rec-cold': COLD8_HEX });
+  await pg.click('unfreeze-go');
+  const uf = lastKeyPost(node);
+  check('unfreeze: signed by the cold key (op 5), above the cancel\'s cold index',
+    uf.body.op === 'unfreeze' && uf.body.index > cr.body.index &&
+    C.mtVerify(coldRoot8, uf.body.index, C.keyOpDigest(addr, C.OP_UNFREEZE, 0x7e57, 1, ZERO32, uf.body.index), sigOf(uf.body)));
+  node.block();
+  pg = openPage({ storage, node });
+  await settle();
+  await pg.unlock(UPASS);
+  check('unfrozen: the banner is gone and the thief\'s key never took effect', pg.els['key-banner'].hidden && /key generation 1 on chain/.test(pg.text('w-info')));
+  await pg.send('a note after the cold key unfroze the address');
+  const pu = node.posts[node.posts.length - 1];
+  check('unfrozen: key 1 signs again, above the index the thief\'s rotation spent', pu.valid && pu.gen === 1 && pu.body.index === 4);
+
+  // ---- this wallet's own rotation, cancelled with the cold key ----
+  await pg.click('rotate');
+  const own = lastKeyPost(node);
+  node.block(); // it lands, pending
+  node.recs.get(PUB.address).pending = null; // the cold key cancels it (its hot floor stays past the rotation's index)
+  pg = openPage({ storage, node });
+  await settle();
+  const rec3 = stored(storage);
+  check('own rotation cancelled by the cold key: the wallet stays on key 1, drops the signed rotation, and says why',
+    own.body.op === 'rotate' && rec3.keyIndex === 1 && !rec3.pendingKeyOp && /did not take effect: the cold key cancelled it/.test(pg.text('key-banner')));
+
   // ---- a key operation the node lost (a restart) is sent again, byte for byte ----
   await pg.unlock(UPASS);
   node.lost = true;
   await pg.click('rotate');
-  const lost = node.keyPosts[node.keyPosts.length - 1];
+  const lost = lastKeyPost(node);
   node.lost = false;
-  const before = node.keyPosts.length;
+  const count = node.keyPosts.length;
   pg = openPage({ storage, node });
   await settle();
-  const again = node.keyPosts[before];
+  const again = node.keyPosts[count];
   check('re-send: a rotation the node lost is sent again with the identical body, and no second signature',
-    !!again && again.raw === lost.raw && JSON.parse(storage.getItem(W.KEY_SEALED)).keyIndex === 2 && node.queued.has(PUB.address));
+    !!again && again.raw === lost.raw && stored(storage).keyIndex === 1 && stored(storage).pendingKeyOp.keyIndex === 2 && node.queued.has(PUB.address));
 }
 
-// ---- A7 on the page: recover in a fresh browser with the cold key, wait, then use the recovered key ----
+// ---- A7 on the page: recover in a fresh browser with the cold key, freeze, wait, then use the recovered key ----
 {
   const node = keyNode();
   const storage = new FakeStorage();
   let pg = openPage({ storage, node });
   await settle();
-  check('recover: the RECOVER section is offered in a browser with no wallet', !pg.els['rec-open'].hidden);
+  check('recover: the COLD KEY section is offered in a browser with no wallet', !pg.els['rec-open'].hidden);
   await pg.click('rec-open');
   const coldHex = C.hexEncode(COLD8);
   pg.set({ 'rec-address': PUB.address, 'rec-cold': coldHex.match(/.{8}/g).join(' '), 'rec-hot': '', 'rec-pass': 'a new phrase for the new key', 'rec-pass2': 'a new phrase for the new key' });
@@ -626,15 +745,28 @@ const COLD8 = new Uint8Array(32).fill(8);
   const rMsg = rp && C.keyOpDigest(C.hexDecode(PUB.address), C.OP_RECOVER, 0x7e57, 0, C.hexDecode(rp.body.new_root), rp.body.index);
   check('recover: one request signed by the cold key, naming its root and the birth roots, at a spread index under 256',
     !!rp && rp.body.op === 'recover' && rp.body.cold_root === C.hexEncode(coldRoot) && rp.body.birth.hot_root === PUB.hot_root &&
-    rp.body.index < 256 && C.mtVerify(coldRoot, rp.body.index, rMsg, { g: rp.body.index, bottom: unpart(rp.body.bottom, rp.body.index & 255), top: unpart(rp.body.top, 0) }));
+    rp.body.index < 256 && C.mtVerify(coldRoot, rp.body.index, rMsg, sigOf(rp.body)));
   check('recover: the cold key is nowhere in storage, and the new hot seed is stored encrypted only',
     !storage.dump().includes(coldHex) && !!storage.getItem(W.KEY_RECOVERY) && !storage.getItem(W.KEY_SEALED));
   node.block(); // the request lands: pending, in effect 3 blocks later
   pg = openPage({ storage, node });
   await settle();
-  check('recover: the status shows PENDING with the block it takes effect at and the countdown, and warns the hot key can cancel',
-    /PENDING\. It takes effect at block 12, 3 blocks from now/.test(pg.text('rec-line')) && /can cancel it/.test(pg.text('rec-line')) && pg.els['recover-finish'].hidden);
-  node.block(); node.block(); node.block(); // the delay runs out
+  check('recover: the status shows PENDING with the block it takes effect at and the countdown, and warns the hot key can cancel it unless frozen',
+    /PENDING\. It takes effect at block 12, 3 blocks from now/.test(pg.text('rec-line')) && /hot key can cancel it; freezing the address/.test(pg.text('rec-line')) &&
+    pg.els['recover-finish'].hidden);
+  // the owner freezes too, so a thief holding the hot key cannot cancel the request
+  await pg.click('rec-open');
+  pg.set({ 'rec-address': PUB.address, 'rec-cold': coldHex });
+  await pg.click('freeze-go');
+  const fz = node.keyPosts[node.keyPosts.length - 1];
+  check('recover then freeze: the freeze needs no birth roots now (a key record exists) and sits above the request\'s cold index',
+    fz.body.op === 'freeze' && !fz.body.birth && fz.body.index > rp.body.index && node.queued.has(PUB.address));
+  node.block();
+  pg = openPage({ storage, node });
+  await settle();
+  check('recover then freeze: the status says the frozen address\'s hot key cannot cancel the request',
+    /PENDING\. It takes effect at block 12, 2 blocks from now/.test(pg.text('rec-line')) && /frozen, so its hot key\ncannot cancel it/.test(pg.text('rec-line')));
+  node.block(); node.block(); // the delay runs out; the recovery also unfreezes the address
   pg = openPage({ storage, node });
   await settle();
   check('recover: once in effect the page says so and offers to use the recovered key', /IN EFFECT/.test(pg.text('rec-line')) && !pg.els['recover-finish'].hidden);
@@ -645,7 +777,7 @@ const COLD8 = new Uint8Array(32).fill(8);
   await pg.unlock('a new phrase for the new key');
   await pg.send('the first note after recovering the address');
   const p = node.posts[0];
-  check('recover: the recovered key signs for the address from index 0, generation 1',
+  check('recover: the recovered key signs for the address from index 0, generation 1, unfrozen',
     !!p && p.valid && p.body.index === 0 && p.body.hot_root === rp.body.new_root && p.gen === 1 && p.body.identity === PUB.address);
   // the old hot key (seed [7;32]) is retired: its signature is refused
   const old = node.fetch('http://x/submit', { method: 'POST', body: JSON.stringify((() => {

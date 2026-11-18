@@ -7,8 +7,9 @@
 //                  wallet and its keys left while locked), and since the key series (wallet decision A1,
 //                  2026-11-18): keyIndex and keyRoot, the number and public root of the hot key in the
 //                  series that signs now (absent = key 0, the seed itself, whose root is hot_root), and
-//                  pendingKeyOp, a signed key operation kept until the chain shows it, so it is re-sent
-//                  byte for byte and never signed twice. nextIndex is the counter of key keyIndex: the pair
+//                  pendingKeyOp, a signed key operation kept until the chain shows it (a rotation: until it
+//                  takes effect after the chain's delay, or is cancelled), so it is re-sent byte for byte and
+//                  never signed twice. nextIndex is the counter of key keyIndex: the pair
 //                  (keyIndex, nextIndex) only ever goes up. A record made by a cold-key recovery carries
 //                  recovered: 1; its hot_root is the root of its own seed, not the address's first key.
 //   seed_ct:       the 32-byte hot seed, AES-256-GCM under a random 32-byte data key. The associated data
