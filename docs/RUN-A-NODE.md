@@ -64,8 +64,9 @@ the sync fails. Before commit 23d1d4e3 (2026-11-17) the joiner booted the dev ge
 
 ## What does not work yet (open)
 
-- **Live sync.** The seed serves the chain as it was when the seed started, and the joiner syncs once and
-  exits. New blocks do not reach other nodes as they land. This is testnet step 7, the critical path.
+- **Live sync.** `--listen` serves the chain as it was when it started; `--serve-api` with a peers address
+  serves it as it is when the joiner connects. Either way the joiner syncs once and exits: new blocks do
+  not reach other nodes as they land. This is testnet step 7, the critical path.
 - **Mining rewards for you.** Each block's JUL reward goes to the first validator in the chain spec, a
   placeholder key on the testnet, not to whoever runs the node. Test JUL is worthless by design, and a
   faucet is step 3.
