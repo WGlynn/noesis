@@ -27,11 +27,35 @@ const MAX_RECORD: usize = 16 * 1024 * 1024;
 /// Append one finalized block to the log (create-if-absent, append, flush). Length-framed so the
 /// reader can re-delimit records from the byte stream.
 pub fn append_block(path: &Path, block: &Block) -> io::Result<()> {
+    append_block_at(path, block).map(|_| ())
+}
+
+/// [`append_block`], returning the byte offset where the new frame starts (the file's length before
+/// the write), so a node that serves its log (`GET /blocks?since=N`) can find each block again.
+pub fn append_block_at(path: &Path, block: &Block) -> io::Result<u64> {
     let bytes = encode_block(block);
     let mut f = OpenOptions::new().create(true).append(true).open(path)?;
+    let offset = f.metadata()?.len();
     f.write_all(&(bytes.len() as u32).to_be_bytes())?;
     f.write_all(&bytes)?;
-    f.flush()
+    f.flush()?;
+    Ok(offset)
+}
+
+/// Read the one framed record that starts at `offset` (as returned by [`append_block_at`] or
+/// [`load_blocks_indexed`]): the exact `encode_block` bytes that were appended.
+pub fn read_frame_at(f: &mut File, offset: u64) -> io::Result<Vec<u8>> {
+    use std::io::{Seek, SeekFrom};
+    f.seek(SeekFrom::Start(offset))?;
+    let mut len_buf = [0u8; 4];
+    f.read_exact(&mut len_buf)?;
+    let len = u32::from_be_bytes(len_buf) as usize;
+    if len == 0 || len > MAX_RECORD {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "corrupt frame length"));
+    }
+    let mut buf = vec![0u8; len];
+    f.read_exact(&mut buf)?;
+    Ok(buf)
 }
 
 /// Replay a persisted log into a fresh genesis node (from `spec`), returning the node AND the ordered
@@ -44,12 +68,20 @@ pub fn append_block(path: &Path, block: &Block) -> io::Result<()> {
 /// instead of two drifting drivers (slice-5b unify). `load_chain` is a thin wrapper for callers that
 /// only need the reconstructed node.
 pub fn load_blocks(path: &Path, spec: &ChainSpec) -> io::Result<(Node, Vec<Block>)> {
+    load_blocks_indexed(path, spec).map(|(node, blocks, _offsets)| (node, blocks))
+}
+
+/// [`load_blocks`], also returning the byte offset of each applied block's frame (`offsets[i]` is the
+/// frame of `blocks[i]`), so a serving node can re-read any block without keeping it in memory.
+pub fn load_blocks_indexed(path: &Path, spec: &ChainSpec) -> io::Result<(Node, Vec<Block>, Vec<u64>)> {
     let (mut node, _keys) = spec.genesis_node();
     let mut blocks = Vec::new();
+    let mut offsets = Vec::new();
     if !path.exists() {
-        return Ok((node, blocks));
+        return Ok((node, blocks, offsets));
     }
     let mut r = BufReader::new(File::open(path)?);
+    let mut at: u64 = 0;
     loop {
         // Length prefix. EOF here = clean end of log.
         let mut len_buf = [0u8; 4];
@@ -80,8 +112,10 @@ pub fn load_blocks(path: &Path, spec: &ChainSpec) -> io::Result<(Node, Vec<Block
         }
         node.apply(&block);
         blocks.push(block);
+        offsets.push(at);
+        at += 4 + len as u64;
     }
-    Ok((node, blocks))
+    Ok((node, blocks, offsets))
 }
 
 /// Replay a persisted log into a fresh genesis node and return the node + the number of blocks
@@ -158,6 +192,39 @@ mod tests {
             joiner.apply(b);
         }
         assert_eq!(joiner.ledger.state_digest(), live.ledger.state_digest(), "joiner converges via the served log");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn frame_offsets_from_append_and_from_replay_agree_and_read_back_the_block() {
+        let spec = ChainSpec::dev();
+        let path = tmp("offsets");
+        let (mut node, _keys) = spec.genesis_node();
+        let mut appended = Vec::new();
+        for i in 1..=3u64 {
+            node.submit(
+                Cell {
+                    id: i,
+                    lock: Script { code_hash: [0u8; 32], args: b"al".to_vec() },
+                    type_script: Script { code_hash: [1u8; 32], args: b"alice".to_vec() },
+                    parent: None,
+                    timestamp: i,
+                    data: format!("offset test contribution {i}, about tide pools").into_bytes(),
+                },
+                crate::commit_order::Committed { height: i, secret: [i as u8; 32] },
+            );
+            let block = spec.produce_block(&mut node).expect("block finalizes");
+            appended.push((append_block_at(&path, &block).expect("append"), block));
+        }
+        let (_node, blocks, offsets) = load_blocks_indexed(&path, &spec).expect("load");
+        assert_eq!(offsets, appended.iter().map(|(o, _)| *o).collect::<Vec<_>>(), "one offset per frame, in order");
+        assert_eq!(offsets[0], 0);
+        let mut f = File::open(&path).unwrap();
+        for ((off, block), loaded) in appended.iter().zip(&blocks) {
+            let bytes = read_frame_at(&mut f, *off).expect("read the frame");
+            assert_eq!(bytes, encode_block(block), "the frame holds the exact appended bytes");
+            assert_eq!(decode_block(&bytes).unwrap().height, loaded.height);
+        }
         let _ = std::fs::remove_file(&path);
     }
 

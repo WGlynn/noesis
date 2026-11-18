@@ -19,6 +19,12 @@
 //!   * `POST /faucet`   — `{address}`: queue a small test-JUL payout to that 32-byte lock, carried by the
 //!                      next contribution block ([`crate::faucet`]; 429 on a limit, 503 when it cannot pay).
 //!   * `GET  /balance/<address>` — the JUL held under that 32-byte lock.
+//!   * `GET  /blocks`   — the explorer: summaries of the newest finalized blocks.
+//!   * `GET  /blocks?since=N[&limit=M]` — full finalized blocks after height N, paged, with the chain link
+//!                      at N: what a follower pulls (testnet step 7, [`crate::follow`]).
+//!
+//! A REPLICA (`noesisd --follow`, [`serve_follower`]) serves the same reads over its own store and answers
+//! `POST /submit`, `/faucet` and `/token-tx` with 409 and the producer's URL: one producer, for now.
 //!
 //! DELIBERATELY LEAN (the `net` precedent): std `TcpListener` + threads, NO async runtime and NO web
 //! framework. The request parser is bounded (a body cap + socket read timeout) — enough for a LOCAL
@@ -77,6 +83,11 @@ pub(crate) fn hex_decode(s: &str) -> Option<Vec<u8>> {
         return None;
     }
     (0..s.len()).step_by(2).map(|i| u8::from_str_radix(&s[i..i + 2], 16).ok()).collect()
+}
+
+/// The value of `key` in a URL query string (`a=1&b=2`), undecoded (the node's queries are numbers).
+fn query_param<'a>(query: &'a str, key: &str) -> Option<&'a str> {
+    query.split('&').find_map(|kv| kv.split_once('=').filter(|(k, _)| *k == key).map(|(_, v)| v))
 }
 
 /// Most `POST /token-tx` txs a node holds while they wait for a contribution block to carry them.
@@ -236,6 +247,21 @@ pub struct ServerState {
     faucet: Option<crate::faucet::Faucet>,
     /// Seconds, for the faucet's limits. The wall clock; a test may pin it.
     pub clock: fn() -> u64,
+    /// The cumulative chain link through each height ([`crate::follow::chain_link`]): `links[0]` is
+    /// genesis (zeros), `links[h]` commits to every block up to h. Node-local, never consensus; served as
+    /// the `anchor` of `GET /blocks?since=N` so a follower can tell its history is still the producer's.
+    links: Vec<[u8; 32]>,
+    /// Byte offset of each finalized block's frame in the store (`offsets[h - 1]` is block h). Served
+    /// blocks are read back from disk, never held in memory. It grows only while appends succeed in
+    /// order, so `GET /blocks?since=N` serves a contiguous durable prefix and nothing else.
+    offsets: Vec<u64>,
+    /// `Some(url)`: this node is a replica of the producer at `url` (testnet step 7, [`crate::follow`]).
+    /// It produces nothing: `POST /submit`, `/faucet` and `/token-tx` answer 409 with this URL.
+    producer: Option<String>,
+    /// A replica's follow status for `GET /state`: the last transport error (cleared on success) and,
+    /// once following has stopped, why.
+    follow_error: Option<String>,
+    follow_stopped: Option<String>,
 }
 
 /// How many block summaries the explorer keeps (the newest).
@@ -288,6 +314,11 @@ impl ServerState {
             blocks: Vec::new(),
             faucet: None,
             clock: node_clock,
+            links: vec![[0u8; 32]],
+            offsets: Vec::new(),
+            producer: None,
+            follow_error: None,
+            follow_stopped: None,
         }
     }
 
@@ -303,10 +334,14 @@ impl ServerState {
     /// replayed so the caller can announce it.
     pub fn with_store(path: impl Into<std::path::PathBuf>, spec: ChainSpec) -> std::io::Result<(Self, usize)> {
         let path = path.into();
-        let (node, loaded) = crate::store::load_blocks(&path, &spec)?;
+        let (node, loaded, offsets) = crate::store::load_blocks_indexed(&path, &spec)?;
         let replayed = loaded.len();
         let skip = replayed.saturating_sub(MAX_BLOCK_SUMMARIES);
         let blocks: Vec<Value> = loaded[skip..].iter().map(block_summary).collect();
+        let mut links = vec![[0u8; 32]];
+        for b in &loaded {
+            links.push(crate::follow::chain_link(links.last().expect("starts with genesis"), b));
+        }
         // Resume id assignment past the highest persisted cell id (never collide with a replayed cell).
         let next_id = node.ledger.cells.iter().map(|c| c.id).max().unwrap_or(0) + 1;
         // Rebuild the ingress screen's seen-set AND the per-address anti-replay high-water mark from the
@@ -333,9 +368,167 @@ impl ServerState {
                 blocks,
                 faucet: None,
                 clock: node_clock,
+                links,
+                offsets,
+                producer: None,
+                follow_error: None,
+                follow_stopped: None,
             },
             replayed,
         ))
+    }
+
+    /// Make this node a replica of the producer at `producer` (a normalized `http(s)://` URL): it
+    /// produces nothing and runs no faucet, so it needs no faucet seed even on a `reward_to_faucet`
+    /// chain (consensus fixes the reward amount and never checks the recipient, so a follower validates
+    /// a reward paid to the faucet without knowing the faucet's key). Submit, faucet and token-tx
+    /// answer 409 with the producer's URL.
+    pub fn as_replica(mut self, producer: String) -> Self {
+        self.producer = Some(producer);
+        self.faucet = None;
+        self
+    }
+
+    /// This node's chain height.
+    pub fn height(&self) -> u64 {
+        self.node.ledger.height
+    }
+
+    /// This node's chain id.
+    pub fn chain_id(&self) -> u64 {
+        self.spec.chain_id
+    }
+
+    /// The cumulative chain link through height `h` (zeros for genesis or a height this node lacks).
+    pub fn link(&self, h: u64) -> [u8; 32] {
+        self.links.get(h as usize).copied().unwrap_or([0u8; 32])
+    }
+
+    /// The full chain state digest (cells, index root, PoM, token cells, work clock) rendered as text:
+    /// two nodes print the same string iff they hold the same state.
+    pub fn state_digest(&self) -> String {
+        format!("{:?}", self.node.ledger.state_digest())
+    }
+
+    /// The replica's last transport error, if the last attempt failed.
+    pub fn follow_error(&self) -> Option<&str> {
+        self.follow_error.as_deref()
+    }
+
+    pub(crate) fn set_follow_error(&mut self, e: Option<String>) {
+        self.follow_error = e;
+    }
+
+    /// Following stopped for good (a rewrite, a refused block, another network): record why.
+    pub(crate) fn stop_following(&mut self, why: String) {
+        self.follow_stopped = Some(why);
+    }
+
+    /// FOLLOWER: accept a block pulled from the producer through the producer's own acceptance path
+    /// ([`ChainSpec::accept_block`]: the rulebook, with PoW and control binding, then the finality
+    /// gate), then record it exactly as a produced block is recorded (screen, one-time-key marks,
+    /// explorer, chain link, durable store). Standing is what this node's `apply` derives. On a refusal
+    /// nothing changes, in memory or on disk.
+    pub fn follow_block(&mut self, block: &crate::runtime::Block) -> Result<(), String> {
+        self.spec.accept_block(&mut self.node, block)?;
+        self.record_block(block);
+        Ok(())
+    }
+
+    /// Fold a block that has just been accepted into the node-local views, the same for a produced
+    /// block and a followed one: the ingress screen, the per-identity one-time-key high-water mark, the
+    /// id counter, token-tx inclusions, the explorer summaries, the chain link, and the durable store.
+    fn record_block(&mut self, block: &crate::runtime::Block) {
+        for c in &block.cells {
+            self.screen.record(&c.data);
+            if let Some((addr, index)) = unpack_lock_args(&c.lock.args) {
+                let e = self.used_index.entry(addr).or_insert(0);
+                *e = (*e).max(index);
+            }
+            self.next_id = self.next_id.max(c.id + 1);
+        }
+        for t in &block.token_txs {
+            let d = t.digest();
+            self.pending_token_txs.retain(|p| p.digest() != d);
+            self.included_token_txs.push((d, block.height));
+        }
+        let excess = self.included_token_txs.len().saturating_sub(MAX_INCLUDED_RECORD);
+        self.included_token_txs.drain(..excess);
+        self.blocks.push(block_summary(block));
+        let over = self.blocks.len().saturating_sub(MAX_BLOCK_SUMMARIES);
+        self.blocks.drain(..over);
+        let link = crate::follow::chain_link(self.links.last().expect("starts with genesis"), block);
+        self.links.push(link);
+        // Durability: append the finalized block. Best-effort: the block is already applied in memory, so
+        // a write failure degrades durability (a restart would lose this block), not correctness; it is
+        // surfaced loudly. The served log (`offsets`) stops at the first gap, so a follower is never
+        // handed a block that is not on disk in order.
+        if let Some(path) = &self.store {
+            match crate::store::append_block_at(path, block) {
+                Ok(offset) if self.offsets.len() as u64 + 1 == block.height => self.offsets.push(offset),
+                Ok(_) => {}
+                Err(e) => eprintln!("noesisd: WARN failed to persist block {}: {e}", block.height),
+            }
+        }
+    }
+
+    /// `GET /blocks?since=N`: the finalized blocks after height `since`, oldest first, in full (the
+    /// exact bytes in the store), at most `limit` blocks and about `max_bytes` (always at least one
+    /// when one is due), with the chain link at `since` as the `anchor`. Only blocks in the durable log
+    /// are served, and a block reaches it only after it finalized, so a pending faucet payout's
+    /// signatures never leave the node here before the block that spends its cells is final.
+    fn blocks_page(&self, since: u64, limit: usize, max_bytes: usize) -> (u16, Vec<u8>) {
+        let Some(path) = &self.store else {
+            return (503, json!({ "error": "this node keeps no block log to serve" }).to_string().into_bytes());
+        };
+        let tip = self.offsets.len() as u64;
+        let mut frames: Vec<Vec<u8>> = Vec::new();
+        if since < tip {
+            let mut f = match std::fs::File::open(path) {
+                Ok(f) => f,
+                Err(e) => return (503, json!({ "error": format!("cannot read the block log: {e}") }).to_string().into_bytes()),
+            };
+            let mut bytes = 0usize;
+            for h in since + 1..=tip.min(since + limit.max(1) as u64) {
+                if !frames.is_empty() && bytes >= max_bytes {
+                    break;
+                }
+                match crate::store::read_frame_at(&mut f, self.offsets[(h - 1) as usize]) {
+                    Ok(frame) => {
+                        bytes += frame.len();
+                        frames.push(frame);
+                    }
+                    Err(e) => {
+                        return (503, json!({ "error": format!("cannot read block {h}: {e}") }).to_string().into_bytes())
+                    }
+                }
+                if bytes >= max_bytes {
+                    break;
+                }
+            }
+        }
+        let next = since + frames.len() as u64;
+        let head = json!({
+            "chain_id": self.spec.chain_id,
+            "since": since,
+            "tip": tip,
+            "anchor": if since <= tip { Value::String(hex_encode(&self.link(since))) } else { Value::Null },
+            "next": next,
+            "more": next < tip,
+        })
+        .to_string();
+        // Splice the stored block bytes in as they are (each is one JSON object from `encode_block`).
+        let mut body = head.into_bytes();
+        body.pop(); // the closing brace
+        body.extend_from_slice(b",\"blocks\":[");
+        for (i, frame) in frames.iter().enumerate() {
+            if i > 0 {
+                body.push(b',');
+            }
+            body.extend_from_slice(frame);
+        }
+        body.extend_from_slice(b"]}");
+        (200, body)
     }
 
     /// Run the faucet with `seed`. Refused on a chain without control binding: there an empty
@@ -372,6 +565,23 @@ impl ServerState {
             "pow_enforced": self.spec.constitution.pow_enforced,
             "control_binding": self.node.constitution.control_binding,
             "contributors": contributors,
+            "role": if self.producer.is_some() { "replica" } else { "producer" },
+            "replica": self.producer.as_ref().map(|p| json!({
+                "producer": p,
+                "following": self.follow_stopped.is_none(),
+                "stopped": self.follow_stopped,
+                "last_error": self.follow_error,
+            })),
+        })
+    }
+
+    /// The 409 a replica answers to anything that would need it to produce a block.
+    fn replica_refusal(&self) -> Option<Value> {
+        self.producer.as_ref().map(|p| {
+            json!({
+                "error": format!("this node is a replica of {p} and produces no blocks; send this request to the producer"),
+                "producer": p,
+            })
         })
     }
 
@@ -455,7 +665,7 @@ impl ServerState {
     fn faucet_json(&mut self) -> Value {
         use crate::faucet;
         let Some(f) = self.faucet.as_mut() else {
-            return json!({ "enabled": false, "chain_id": self.spec.chain_id });
+            return json!({ "enabled": false, "chain_id": self.spec.chain_id, "producer": self.producer });
         };
         let balance = f.balance(&self.node.ledger.token_cells);
         json!({
@@ -609,28 +819,11 @@ impl ServerState {
                 if let Some(f) = self.faucet.as_mut() {
                     f.landed(&block);
                 }
-                for t in &block.token_txs {
-                    let d = t.digest();
-                    self.pending_token_txs.retain(|p| p.digest() != d);
-                    self.included_token_txs.push((d, block.height));
-                }
-                let excess = self.included_token_txs.len().saturating_sub(MAX_INCLUDED_RECORD);
-                self.included_token_txs.drain(..excess);
                 // Accepted + finalized ⇒ fold its shingles into the screen so later copies are caught,
-                // and advance this identity's one-time-leaf high-water mark.
-                self.screen.record(data.as_bytes());
-                self.used_index.insert(identity, index as u64);
-                self.blocks.push(block_summary(&block));
-                let over = self.blocks.len().saturating_sub(MAX_BLOCK_SUMMARIES);
-                self.blocks.drain(..over);
-                // Durability: append the finalized block before returning. Best-effort — the block is
-                // already applied in memory, so a write failure degrades durability (a restart would
-                // lose this one block), not correctness; surface it loudly rather than crash the node.
-                if let Some(path) = &self.store {
-                    if let Err(e) = crate::store::append_block(path, &block) {
-                        eprintln!("noesisd: WARN failed to persist block {}: {e}", block.height);
-                    }
-                }
+                // advance this identity's one-time-leaf high-water mark, and append it to the durable
+                // log (before returning), the same bookkeeping a follower does for a pulled block.
+                self.record_block(&block);
+                debug_assert_eq!(self.used_index.get(&identity), Some(&(index as u64)));
                 Ok(block.height)
             }
             None => Err("contribution did not finalize a block".into()),
@@ -654,6 +847,13 @@ pub fn handle_request(
     body: &[u8],
 ) -> (u16, &'static str, Vec<u8>) {
     let out = |status: u16, v: Value| (status, "application/json", v.to_string().into_bytes());
+    let (path, query) = path.split_once('?').unwrap_or((path, ""));
+    // A replica produces nothing: whatever would need a block goes to the producer (409 + its URL).
+    if method == "POST" && matches!(path, "/submit" | "/faucet" | "/token-tx") {
+        if let Some(refusal) = state.replica_refusal() {
+            return out(409, refusal);
+        }
+    }
     match (method, path) {
         ("OPTIONS", _) => (204, "application/json", Vec::new()), // CORS preflight
         // The embedded frontend: one URL serves the whole app (same-origin ⇒ its /state + /submit
@@ -665,8 +865,24 @@ pub fn handle_request(
         ("GET", "/state") => out(200, state.state_json()),
         ("GET", "/contributions") => out(200, state.contributions_json()),
         ("GET", "/tokens") => out(200, state.tokens_json()),
-        // the explorer: the newest 100 finalized blocks, newest first
-        ("GET", "/blocks") => out(200, json!({ "blocks": state.blocks.iter().rev().take(100).collect::<Vec<_>>() })),
+        // `?since=N[&limit=M]`: full finalized blocks after height N, oldest first, paged (live sync,
+        // testnet step 7). Without `since`: the explorer, the newest 100 summaries, newest first.
+        ("GET", "/blocks") => match query_param(query, "since") {
+            None => out(200, json!({ "blocks": state.blocks.iter().rev().take(100).collect::<Vec<_>>() })),
+            Some(since) => {
+                let limit = match query_param(query, "limit") {
+                    None => Some(crate::follow::PAGE_MAX_BLOCKS),
+                    Some(l) => l.parse::<usize>().ok().map(|l| l.clamp(1, crate::follow::PAGE_MAX_BLOCKS)),
+                };
+                match (since.parse::<u64>(), limit) {
+                    (Ok(since), Some(limit)) => {
+                        let (status, body) = state.blocks_page(since, limit, crate::follow::PAGE_MAX_BYTES);
+                        (status, "application/json", body)
+                    }
+                    _ => out(400, json!({ "error": "since and limit must be whole numbers" })),
+                }
+            }
+        },
         ("POST", "/token-tx") => {
             let tx = match serde_json::from_slice::<Value>(body)
                 .map_err(|e| format!("invalid JSON: {e}"))
@@ -804,14 +1020,17 @@ fn write_http_response(stream: &mut TcpStream, status: u16, content_type: &str, 
         400 => "Bad Request",
         404 => "Not Found",
         405 => "Method Not Allowed",
+        409 => "Conflict",
         429 => "Too Many Requests",
         503 => "Service Unavailable",
         _ => "OK",
     };
+    // no-store: the chain moves, so no tunnel or proxy may answer a follower or the page from a cache.
     let head = format!(
         "HTTP/1.1 {status} {reason}\r\n\
          Content-Type: {content_type}\r\n\
          Content-Length: {}\r\n\
+         Cache-Control: no-store\r\n\
          Access-Control-Allow-Origin: *\r\n\
          Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n\
          Access-Control-Allow-Headers: Content-Type\r\n\
@@ -828,10 +1047,28 @@ fn write_http_response(stream: &mut TcpStream, status: u16, content_type: &str, 
 /// block, so a restart resumes the chain instead of resetting to genesis. Every `POST /submit` builds
 /// the chain one finalized block at a time.
 pub fn serve_api(addr: &str, store_path: &str, spec: ChainSpec) {
+    serve(addr, store_path, spec, None)
+}
+
+/// [`serve_api`] as a REPLICA of the producer at `producer` (testnet step 7, [`crate::follow`]): the
+/// same page and read API over its own durable store, plus a background follower that pulls, validates
+/// and appends the producer's finalized blocks. It produces nothing and reads no faucet seed.
+pub fn serve_follower(addr: &str, store_path: &str, spec: ChainSpec, producer: &str) {
+    serve(addr, store_path, spec, Some(producer))
+}
+
+fn serve(addr: &str, store_path: &str, spec: ChainSpec, producer: Option<&str>) {
     let chain_id = spec.chain_id;
+    let producer = producer.map(|p| {
+        crate::follow::normalize_producer_url(p).unwrap_or_else(|e| {
+            eprintln!("noesisd: {e}");
+            std::process::exit(2);
+        })
+    });
     // A chain that pays its block reward to the faucet needs the faucet seed: read it before anything
     // else, and refuse to start without it (never fall back to the placeholder). The seed is never printed.
-    let faucet_seed = if spec.reward_to_faucet {
+    // A replica produces nothing, so it needs no seed.
+    let faucet_seed = if spec.reward_to_faucet && producer.is_none() {
         let path = crate::faucet::seed_path().unwrap_or_else(|| {
             eprintln!("noesisd: no home directory; set NOESIS_FAUCET_SEED to the faucet seed file");
             std::process::exit(1);
@@ -870,7 +1107,15 @@ pub fn serve_api(addr: &str, store_path: &str, spec: ChainSpec) {
         }),
         None => server_state,
     };
-    println!("noesisd --serve-api — Noesis live node API (chain_id=0x{chain_id:x})");
+    let server_state = match &producer {
+        Some(p) => server_state.as_replica(p.clone()),
+        None => server_state,
+    };
+    if producer.is_some() {
+        println!("noesisd --follow — Noesis replica (chain_id=0x{chain_id:x}): produces nothing, validates every block it pulls");
+    } else {
+        println!("noesisd --serve-api — Noesis live node API (chain_id=0x{chain_id:x})");
+    }
     if replayed > 0 {
         println!("resumed durable chain from {store_path}: replayed {replayed} blocks, height {}.", server_state.node.ledger.height);
     } else {
@@ -884,8 +1129,16 @@ pub fn serve_api(addr: &str, store_path: &str, spec: ChainSpec) {
     println!("  POST /submit {{identity,hot_root,cold_commit,index,bottom,top,parent?,data}} -> signed contribution (wallet v2), mine+finalize");
     println!("  POST /token-tx {{tx,auths}} -> signed soulbound tx, carried by the next contribution block");
     println!("  GET  /faucet  POST /faucet {{address}}  GET /balance/<address> -> test JUL (faucet chains only)");
+    println!("  GET  /blocks?since=N     -> finalized blocks after height N, paged (what a follower pulls)");
 
+    let height = server_state.height();
     let state = Arc::new(Mutex::new(server_state));
+    if let Some(p) = producer {
+        println!("  POST /submit, /faucet, /token-tx -> 409 {{producer}} (this node is a replica)");
+        println!("FOLLOWING {p} from height {height}");
+        let follower = Arc::clone(&state);
+        std::thread::spawn(move || crate::follow::run(follower, p));
+    }
     for conn in listener.incoming() {
         let mut stream = match conn {
             Ok(s) => s,
@@ -1551,5 +1804,352 @@ mod tests {
         assert_eq!(tokens(&mut st)["pending"].as_array().unwrap().len(), 0, "nothing was queued");
         // the genuine one still queues
         assert_eq!(handle_request(&mut st, "POST", "/token-tx", env.to_string().as_bytes()).0, 200);
+    }
+
+    // ---- testnet step 7: live sync, one producer and its replicas ----
+
+    use crate::follow::{apply_page, next_request, FollowError};
+
+    /// Distinct texts, so the ingress screen takes each as a new contribution.
+    const TEXTS: [&str; 8] = [
+        "a first note on harbor fog",
+        "an entirely separate subject, cold rivers",
+        "a sketch of a tide-driven water clock",
+        "notes on kiln glazes and wood ash",
+        "the migration of eels through the sargasso sea",
+        "bell founding and the ratio of copper to tin",
+        "salt marsh carbon, measured by season",
+        "dune grass anchoring sand through winter storms",
+    ];
+
+    /// The testnet constitution mined at dev's easy bits (`pow_check` reads the seal's own bits).
+    fn fast_testnet() -> ChainSpec {
+        ChainSpec { genesis_bits: ChainSpec::dev().genesis_bits, ..ChainSpec::testnet() }
+    }
+
+    fn tmp_log(tag: &str) -> std::path::PathBuf {
+        let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+        std::env::temp_dir().join(format!("noesis-follow-{tag}-{}-{nanos}.log", std::process::id()))
+    }
+
+    /// A durable producer on `spec` (with the public test faucet seed when the chain pays a faucet).
+    fn producer_on(spec: ChainSpec, tag: &str) -> (ServerState, std::path::PathBuf) {
+        let path = tmp_log(tag);
+        let pays_faucet = spec.reward_to_faucet;
+        let (st, _) = ServerState::with_store(&path, spec).unwrap();
+        let st = if pays_faucet { st.with_faucet(crate::faucet::DEV_FAUCET_SEED).unwrap() } else { st };
+        (st, path)
+    }
+
+    /// A durable replica on `spec`. It never holds a faucet seed.
+    fn follower_on(spec: ChainSpec, tag: &str) -> (ServerState, std::path::PathBuf) {
+        let path = tmp_log(tag);
+        let (st, _) = ServerState::with_store(&path, spec).unwrap();
+        (st.as_replica("http://producer.test".into()), path)
+    }
+
+    fn submit(st: &mut ServerState, n: usize) {
+        let (s, _, b) = handle_request(st, "POST", "/submit", &signed_body(&[0x40 + n as u8; 32], 0, TEXTS[n]));
+        assert_eq!(s, 200, "{}", String::from_utf8_lossy(&b));
+    }
+
+    /// Pull pages from `producer` until the follower is level, `limit` blocks a page. Returns pages read.
+    fn sync(f: &mut ServerState, producer: &mut ServerState, limit: usize) -> Result<usize, FollowError> {
+        let mut pages = 0;
+        loop {
+            let (s, _, body) = handle_request(producer, "GET", &format!("{}&limit={limit}", next_request(f.height())), b"");
+            assert_eq!(s, 200);
+            let (_, more) = apply_page(f, &body)?;
+            pages += 1;
+            if !more {
+                return Ok(pages);
+            }
+        }
+    }
+
+    fn stopped(r: Result<(usize, bool), FollowError>) -> String {
+        match r {
+            Err(FollowError::Stop(e)) => e,
+            other => panic!("expected following to stop, got {other:?}"),
+        }
+    }
+
+    fn page(st: &mut ServerState, since: u64) -> Value {
+        state_of(&handle_request(st, "GET", &next_request(since), b"").2)
+    }
+
+    #[test]
+    fn blocks_since_pages_full_blocks_and_a_follower_catches_up_across_pages() {
+        let (mut p, pp) = producer_on(ChainSpec::dev(), "page-p");
+        for n in 0..5 {
+            submit(&mut p, n);
+        }
+        let v = state_of(&handle_request(&mut p, "GET", "/blocks?since=0&limit=2", b"").2);
+        assert_eq!((v["chain_id"].clone(), v["tip"].clone(), v["since"].clone()), (json!(0xde0), json!(5), json!(0)));
+        assert_eq!((v["next"].clone(), v["more"].clone()), (json!(2), json!(true)));
+        assert_eq!(v["anchor"], hex_encode(&[0u8; 32]), "the genesis link");
+        let blocks = v["blocks"].as_array().unwrap();
+        assert_eq!(blocks.iter().map(|b| b["height"].clone()).collect::<Vec<_>>(), vec![json!(1), json!(2)], "full blocks, oldest first");
+        assert!(blocks[0]["pow"]["nonce"].is_u64() && blocks[0]["cells"][0]["data"].is_array(), "the whole block, not a summary");
+        // the byte budget cuts a page too, but never below one block
+        let (s, body) = p.blocks_page(0, 32, 1);
+        assert_eq!(s, 200);
+        let one = state_of(&body);
+        assert_eq!((one["blocks"].as_array().unwrap().len(), one["more"].clone()), (1, json!(true)));
+        // a follower that is 5 behind catches up 2 blocks a page
+        let (mut f, fp) = follower_on(ChainSpec::dev(), "page-f");
+        assert_eq!(sync(&mut f, &mut p, 2), Ok(3));
+        assert_eq!(f.height(), 5);
+        assert_eq!(f.state_digest(), p.state_digest(), "the replica derives the producer's state from the blocks");
+        assert_eq!(f.link(5), p.link(5));
+        let (a, b) = (state_of(&handle_request(&mut p, "GET", "/state", b"").2), state_of(&handle_request(&mut f, "GET", "/state", b"").2));
+        for k in ["height", "work", "jul_issued", "cells", "contributors"] {
+            assert_eq!(a[k], b[k], "{k}");
+        }
+        assert_eq!(state_of(&handle_request(&mut f, "GET", "/blocks", b"").2), state_of(&handle_request(&mut p, "GET", "/blocks", b"").2));
+        let addr = id_hex(&[0x40u8; 32]);
+        assert_eq!(state_of(&handle_request(&mut f, "GET", &format!("/index/{addr}"), b"").2)["highest_used"], 0);
+        // level: an empty page, the same anchor, nothing to do
+        assert_eq!(apply_page(&mut f, &handle_request(&mut p, "GET", &next_request(5), b"").2), Ok((0, false)));
+        // a replica serves its own log the same way, so a follower can follow it
+        assert_eq!(page(&mut f, 3)["blocks"], page(&mut p, 3)["blocks"]);
+        assert_eq!(handle_request(&mut p, "GET", "/blocks?since=x", b"").0, 400);
+        assert_eq!(handle_request(&mut ServerState::new(), "GET", "/blocks?since=0", b"").0, 503, "no store, no log to serve");
+        let _ = (std::fs::remove_file(&pp), std::fs::remove_file(&fp));
+    }
+
+    /// The follower re-validates every block with the producer's own path: a tampered block is refused,
+    /// following stops, and the follower keeps its chain (memory and disk).
+    #[test]
+    fn a_follower_refuses_a_tampered_block_and_keeps_its_chain() {
+        let spec = ChainSpec::dev();
+        let (mut p, pp) = producer_on(spec.clone(), "tamper-p");
+        for n in 0..3 {
+            submit(&mut p, n);
+        }
+        let (mut f, fp) = follower_on(spec.clone(), "tamper-f");
+        apply_page(&mut f, &handle_request(&mut p, "GET", "/blocks?since=0&limit=1", b"").2).unwrap();
+        assert_eq!(f.height(), 1);
+        let before = f.state_digest();
+        let genuine = page(&mut p, 1);
+        let mut hard = genuine.clone(); // a seal claiming a target its hash does not meet
+        hard["blocks"][0]["pow"]["bits"] = json!(0x0300_ffffu32);
+        let mut bare = genuine.clone(); // no seal at all
+        bare["blocks"][0]["pow"] = Value::Null;
+        let mut skip = genuine.clone(); // block 3 offered as the next block
+        skip["blocks"] = json!([genuine["blocks"][1].clone()]);
+        for (tampered, why) in [(hard, "PowUnmet"), (bare, "PowMissing"), (skip, "HeightMismatch")] {
+            let e = stopped(apply_page(&mut f, tampered.to_string().as_bytes()));
+            assert!(e.contains(why) && e.contains("keeps its chain at height 1"), "{e}");
+            assert_eq!((f.height(), f.state_digest()), (1, before.clone()), "nothing applied");
+        }
+        let (again, replayed) = ServerState::with_store(&fp, spec).unwrap();
+        assert_eq!((replayed, again.height()), (1, 1), "nothing reached the follower's store either");
+        assert_eq!(apply_page(&mut f, genuine.to_string().as_bytes()), Ok((2, false)), "the genuine page applies");
+        assert_eq!(f.state_digest(), p.state_digest());
+        let _ = (std::fs::remove_file(&pp), std::fs::remove_file(&fp));
+    }
+
+    /// On the testnet constitution an unsigned or forged spend is invalid, for the follower as for the
+    /// producer: tampering with the faucet payout's signature is refused (control binding).
+    #[test]
+    fn a_follower_refuses_a_payout_whose_signature_was_tampered() {
+        let spec = fast_testnet();
+        let (mut p, pp) = producer_on(spec.clone(), "bind-p");
+        p.clock = || 1_000;
+        submit(&mut p, 0);
+        let ask = json!({ "address": hex_encode(&[0x7Au8; 32]) }).to_string();
+        assert_eq!(handle_request(&mut p, "POST", "/faucet", ask.as_bytes()).0, 200);
+        submit(&mut p, 1);
+        let (mut f, fp) = follower_on(spec, "bind-f");
+        apply_page(&mut f, &handle_request(&mut p, "GET", "/blocks?since=0&limit=1", b"").2).unwrap();
+        let genuine = page(&mut p, 1);
+        assert_eq!(genuine["blocks"][0]["token_txs"].as_array().unwrap().len(), 1, "block 2 carries the payout");
+        let mut forged = genuine.clone();
+        let byte = genuine["blocks"][0]["token_txs"][0]["auths"][0][0].as_u64().unwrap();
+        forged["blocks"][0]["token_txs"][0]["auths"][0][0] = json!(byte ^ 1);
+        let mut unsigned = genuine.clone();
+        unsigned["blocks"][0]["token_txs"][0]["auths"][0] = json!([]);
+        for tampered in [forged, unsigned] {
+            let e = stopped(apply_page(&mut f, tampered.to_string().as_bytes()));
+            assert!(e.contains("TokenTxInvalidOrDoubleSpend"), "{e}");
+            assert_eq!(f.height(), 1);
+        }
+        assert_eq!(apply_page(&mut f, genuine.to_string().as_bytes()), Ok((1, false)));
+        assert_eq!(f.state_digest(), p.state_digest());
+        let _ = (std::fs::remove_file(&pp), std::fs::remove_file(&fp));
+    }
+
+    #[test]
+    fn a_follower_resumes_from_its_own_store_after_a_restart() {
+        let spec = ChainSpec::dev();
+        let (mut p, pp) = producer_on(spec.clone(), "resume-p");
+        submit(&mut p, 0);
+        submit(&mut p, 1);
+        let (mut f, fp) = follower_on(spec.clone(), "resume-f");
+        sync(&mut f, &mut p, 32).unwrap();
+        assert_eq!(f.height(), 2);
+        drop(f); // the follower process ends
+        submit(&mut p, 2);
+        submit(&mut p, 3);
+        let (f, replayed) = ServerState::with_store(&fp, spec).unwrap();
+        let mut f = f.as_replica("http://producer.test".into());
+        assert_eq!((replayed, f.height()), (2, 2), "it replays its own store, not the producer's");
+        assert_eq!(f.link(2), p.link(2), "the chain link is rebuilt from its own store");
+        assert_eq!(next_request(f.height()), "/blocks?since=2", "it asks only for what it lacks");
+        assert_eq!(apply_page(&mut f, &handle_request(&mut p, "GET", &next_request(2), b"").2), Ok((2, false)));
+        assert_eq!(f.state_digest(), p.state_digest());
+        let _ = (std::fs::remove_file(&pp), std::fs::remove_file(&fp));
+    }
+
+    /// A producer that rewrites history is not followed, even when the rewrite leaves the later blocks
+    /// byte-identical (blocks do not name their parent's hash, so the tip's header digest alone would
+    /// match): the chain link commits to every block from genesis.
+    #[test]
+    fn a_follower_stops_on_a_rewritten_history_even_one_that_keeps_the_later_blocks() {
+        let spec = ChainSpec::dev();
+        let (mut p, pp) = producer_on(spec.clone(), "rw-p");
+        for n in 0..3 {
+            submit(&mut p, n);
+        }
+        let (mut f, fp) = follower_on(spec.clone(), "rw-f");
+        sync(&mut f, &mut p, 32).unwrap();
+        let before = f.state_digest();
+        // the rewrite: block 1's contribution text changed and re-mined; blocks 2 and 3 kept as they are
+        let (_, blocks) = crate::store::load_blocks(&pp, &spec).unwrap();
+        let mut b1 = blocks[0].clone();
+        b1.cells[0].data = b"a different first contribution, about pine resin".to_vec();
+        let b1 = crate::chainspec::mine(b1, spec.genesis_bits);
+        let rw = tmp_log("rw-q");
+        for b in [&b1, &blocks[1], &blocks[2]] {
+            crate::store::append_block(&rw, b).unwrap();
+        }
+        let (mut q, replayed) = ServerState::with_store(&rw, spec.clone()).unwrap();
+        assert_eq!(replayed, 3, "the rewritten chain is itself valid");
+        assert_eq!(q.blocks.last().unwrap()["hash"], p.blocks.last().unwrap()["hash"], "same tip header digest");
+        assert_ne!(q.link(3), p.link(3));
+        let e = stopped(apply_page(&mut f, &handle_request(&mut q, "GET", &next_request(3), b"").2));
+        assert!(e.contains("history differs") && e.contains("keeps its chain"), "{e}");
+        assert_eq!(f.state_digest(), before);
+        // the true producer still serves a continuation the follower takes
+        submit(&mut p, 3);
+        assert_eq!(apply_page(&mut f, &handle_request(&mut p, "GET", &next_request(3), b"").2), Ok((1, false)));
+        let _ = (std::fs::remove_file(&pp), std::fs::remove_file(&fp), std::fs::remove_file(&rw));
+    }
+
+    #[test]
+    fn a_follower_stops_on_a_producer_behind_it_and_on_another_network() {
+        let (mut p, pp) = producer_on(ChainSpec::dev(), "behind-p");
+        submit(&mut p, 0);
+        submit(&mut p, 1);
+        let (mut f, fp) = follower_on(ChainSpec::dev(), "behind-f");
+        sync(&mut f, &mut p, 32).unwrap();
+        // a producer that lost its log and started over (same chain id, height 1)
+        let (mut reset, rp) = producer_on(ChainSpec::dev(), "behind-reset");
+        submit(&mut reset, 5);
+        let v = page(&mut reset, 2);
+        assert_eq!((v["tip"].clone(), v["anchor"].clone(), v["blocks"].clone()), (json!(1), Value::Null, json!([])));
+        let e = stopped(apply_page(&mut f, v.to_string().as_bytes()));
+        assert!(e.contains("below this node's 2"), "{e}");
+        // the same chain id but an empty reset log: still below
+        let (mut empty, ep) = producer_on(ChainSpec::dev(), "behind-empty");
+        assert!(stopped(apply_page(&mut f, page(&mut empty, 2).to_string().as_bytes())).contains("below"));
+        // another network
+        let (mut t, tp) = producer_on(fast_testnet(), "behind-net");
+        let e = stopped(apply_page(&mut f, page(&mut t, 2).to_string().as_bytes()));
+        assert!(e.contains("another network"), "{e}");
+        assert_eq!(f.height(), 2);
+        // transport trouble is retried, never a stop
+        assert!(matches!(apply_page(&mut f, b"<html>502 bad gateway</html>"), Err(FollowError::Retry(_))));
+        for path in [pp, fp, rp, ep, tp] {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+
+    /// A faucet payout is signed while it waits, and the faucet re-signs it freely until the block that
+    /// spends its cells is final, so those signatures must not leave the producer before that. The
+    /// block log a follower pulls holds finalized blocks only.
+    #[test]
+    fn blocks_since_serves_only_finalized_blocks_and_never_a_pending_payout() {
+        let (mut p, pp) = producer_on(fast_testnet(), "final-p");
+        p.clock = || 1_000;
+        submit(&mut p, 0);
+        let ask = json!({ "address": hex_encode(&[0x7Au8; 32]) }).to_string();
+        let q = state_of(&handle_request(&mut p, "POST", "/faucet", ask.as_bytes()).2);
+        let pending = p.faucet.as_ref().unwrap().pending().cloned().expect("a signed payout waits");
+        assert_eq!(q["digest"], hex_encode(&pending.digest()));
+        assert!(pending.auths.iter().all(|a| !a.is_empty()), "the waiting payout is already signed");
+        let sig = serde_json::to_string(&pending.auths[0]).unwrap();
+        let sig = &sig[..sig.len().min(400)]; // the opening of its first signature, as a page would carry it
+        for path in ["/blocks?since=0", "/blocks", "/faucet", "/tokens", "/state"] {
+            let body = String::from_utf8(handle_request(&mut p, "GET", path, b"").2).unwrap();
+            assert!(!body.contains(sig), "{path} leaked the pending payout's signature");
+        }
+        let v = page(&mut p, 0);
+        assert_eq!((v["tip"].clone(), v["blocks"].as_array().unwrap().len()), (json!(1), 1), "only block 1, which is final");
+        // a submit that is refused makes no block and serves nothing new
+        assert_eq!(handle_request(&mut p, "POST", "/submit", &signed_body(&[0x55u8; 32], 0, TEXTS[0])).0, 400);
+        assert_eq!(page(&mut p, 0)["tip"], 1);
+        // the block that carries the payout is final, and only now does the signature leave
+        submit(&mut p, 1);
+        let body = String::from_utf8(handle_request(&mut p, "GET", &next_request(1), b"").2).unwrap();
+        assert!(body.contains(sig), "the finalized block carries the payout");
+        let block = crate::wire::decode_block(&serde_json::to_vec(&state_of(body.as_bytes())["blocks"][0]).unwrap()).unwrap();
+        assert_eq!(block.token_txs.iter().map(|t| t.digest()).collect::<Vec<_>>(), vec![pending.digest()]);
+        let _ = std::fs::remove_file(&pp);
+    }
+
+    #[test]
+    fn a_replica_sends_submit_faucet_and_token_tx_to_the_producer() {
+        let mut r = ServerState::with_spec(fast_testnet()).as_replica("https://producer.example".into());
+        let ask = json!({ "address": hex_encode(&[0x7Au8; 32]) }).to_string().into_bytes();
+        for (path, body) in [("/submit", signed_body(&[0x11u8; 32], 0, TEXTS[0])), ("/faucet", ask), ("/token-tx", b"{}".to_vec())] {
+            let (s, _, b) = handle_request(&mut r, "POST", path, &body);
+            assert_eq!(s, 409, "{path}");
+            let v = state_of(&b);
+            assert_eq!(v["producer"], "https://producer.example", "{path}");
+            assert!(v["error"].as_str().unwrap().contains("replica"));
+        }
+        assert!(r.height() == 0 && r.node.mempool.is_empty() && r.next_id == 1, "nothing was taken in");
+        let f = state_of(&handle_request(&mut r, "GET", "/faucet", b"").2);
+        assert_eq!((f["enabled"].clone(), f["producer"].clone()), (json!(false), json!("https://producer.example")));
+        let s = state_of(&handle_request(&mut r, "GET", "/state", b"").2);
+        assert_eq!((s["role"].clone(), s["replica"]["following"].clone()), (json!("replica"), json!(true)));
+        r.stop_following("the producer's history differs".into());
+        let s = state_of(&handle_request(&mut r, "GET", "/state", b"").2);
+        assert_eq!((s["replica"]["following"].clone(), s["replica"]["stopped"].clone()), (json!(false), json!("the producer's history differs")));
+        let s = state_of(&handle_request(&mut ServerState::new(), "GET", "/state", b"").2);
+        assert_eq!((s["role"].clone(), s["replica"].clone()), (json!("producer"), Value::Null));
+    }
+
+    /// The testnet pays every block reward to the faucet, and a producer needs the faucet seed. A
+    /// follower does not: consensus fixes the reward amount and never checks the recipient, so it
+    /// validates a reward to the faucet without the faucet's key. On the real testnet spec (its
+    /// difficulty), where a tampered contribution also misses the PoW target.
+    #[test]
+    fn a_follower_runs_a_reward_to_faucet_chain_without_the_faucet_seed() {
+        let spec = ChainSpec::testnet();
+        assert!(spec.reward_to_faucet);
+        let (mut p, pp) = producer_on(spec.clone(), "seedless-p");
+        p.clock = || 1_000;
+        submit(&mut p, 0);
+        let newcomer = [0x7Au8; 32];
+        let ask = json!({ "address": hex_encode(&newcomer) }).to_string();
+        assert_eq!(handle_request(&mut p, "POST", "/faucet", ask.as_bytes()).0, 200);
+        submit(&mut p, 1);
+        let (mut f, fp) = follower_on(spec, "seedless-f");
+        assert!(f.faucet.is_none(), "the follower holds no faucet seed");
+        let genuine = page(&mut p, 0);
+        let mut tampered = genuine.clone();
+        tampered["blocks"][1]["cells"][0]["data"] = json!(b"a contribution the producer never took".to_vec());
+        let e = stopped(apply_page(&mut f, tampered.to_string().as_bytes()));
+        assert!(e.contains("block 2") && e.contains("PowUnmet"), "{e}");
+        assert_eq!(f.height(), 1, "block 1 was valid and stays; the tampered block 2 is refused");
+        assert_eq!(apply_page(&mut f, &handle_request(&mut p, "GET", &next_request(1), b"").2), Ok((1, false)));
+        assert_eq!(f.state_digest(), p.state_digest());
+        let bal = format!("/balance/{}", hex_encode(&newcomer));
+        assert_eq!(state_of(&handle_request(&mut f, "GET", &bal, b"").2)["jul"], 10, "the replica shows the payout");
+        assert_eq!(state_of(&handle_request(&mut f, "GET", "/faucet", b"").2)["enabled"], false);
+        let _ = (std::fs::remove_file(&pp), std::fs::remove_file(&fp));
     }
 }

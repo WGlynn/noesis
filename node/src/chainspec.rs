@@ -232,13 +232,16 @@ impl ChainSpec {
             return None; // no contributions ⇒ nothing to finalize (an empty block is invalid)
         }
         let block = mine(node.propose().with_token_txs(token_txs).with_coinbase(reward_to), self.genesis_bits);
-        if !node.validate(&block) {
-            node.clear_mempool();
-            return None;
-        }
-        // THE FINALITY GATE: rebuild the bonded validator set, sourcing each one's live PoM weight from
-        // the cleared-score bridge (empty at genesis ⇒ pom 0 ⇒ bonded PoS carries finality). Single
-        // proposer ⇒ every honest validator votes for the one valid proposal.
+        let accepted = self.accept_block(node, &block);
+        node.clear_mempool();
+        accepted.ok().map(|()| block)
+    }
+
+    /// THE FINALITY GATE: rebuild the bonded validator set, sourcing each one's live PoM weight from
+    /// the cleared-score bridge (empty at genesis ⇒ pom 0 ⇒ bonded PoS carries finality). Single
+    /// proposer ⇒ every honest validator votes for the one valid proposal. Read on the state BEFORE the
+    /// block applies, by the producer and by a follower alike.
+    fn finality_gate(&self, node: &Node) -> bool {
         let fpw = node.finality_pom_weight();
         let validators: Vec<Validator> = self
             .validators
@@ -249,13 +252,23 @@ impl ChainSpec {
                 v
             })
             .collect();
-        if !node.checkpoint_finalizes(&validators, &validators) {
-            node.clear_mempool();
-            return None;
+        node.checkpoint_finalizes(&validators, &validators)
+    }
+
+    /// Accept one block onto `node`: the rulebook ([`validate_block`](crate::runtime::validate_block):
+    /// height, order, token conservation and spend signatures under control binding, the PoW seal,
+    /// clock, bonds), then the finality gate, then apply. The producer runs this on the block it just
+    /// mined ([`produce_block_paying`](Self::produce_block_paying)); a follower runs it on every block it
+    /// pulls (`rpc::ServerState::follow_block`), so a follower applies nothing on the producer's word.
+    /// On any refusal `node` is unchanged and the reason is returned.
+    pub fn accept_block(&self, node: &mut Node, block: &Block) -> Result<(), String> {
+        crate::runtime::validate_block(&node.ledger, block, &node.constitution)
+            .map_err(|v| format!("block {} fails the rulebook: {v:?}", block.height))?;
+        if !self.finality_gate(node) {
+            return Err(format!("block {} does not finalize", block.height));
         }
-        node.apply(&block);
-        node.clear_mempool();
-        Some(block)
+        node.apply(block);
+        Ok(())
     }
 }
 

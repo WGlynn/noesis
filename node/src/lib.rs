@@ -106,6 +106,11 @@ pub mod chainspec;
 /// with a pure, unit-tested dispatch core. Step 2 of the friends-ready node.
 pub mod rpc;
 
+/// follow — testnet step 7, live sync with one producer: a replica pulls finalized blocks over HTTP
+/// (`GET /blocks?since=N`), re-validates each through the producer's own acceptance path, appends it to
+/// its own store, and stops (keeping its chain) on a rewrite, a refused block or another network.
+pub mod follow;
+
 /// identity_mint — the issuer's tooling for the soulbound identity standard (`tokens::soulbound`):
 /// batch parsing, the one-time key chain, tx building and signing. Off-consensus; the block gate checks
 /// what it builds. Used by the `identity-mint` binary.

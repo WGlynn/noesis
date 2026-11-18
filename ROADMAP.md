@@ -33,10 +33,20 @@
    `internal/DESIGN-joint-decay-damping-rate.md`. Code comments + patent line 233 relabeled to match.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-11-17 (testnet step 7: live sync, one producer)**: `noesisd --follow <producer> <http> <store>`
+  pulls `GET /blocks?since=N` (32 blocks or about 1 MiB a page, every 2 s once level) and runs every block
+  through the same `ChainSpec::accept_block` the producer uses (chainspec.rs:264). A follower refuses a
+  tampered block and keeps its chain, resumes from its own store, and stops, never adopting, when the
+  producer's running chain hash (follow.rs:63) disagrees at its height, the producer is behind it, or the
+  chain id differs. Replicas answer submits with 409 and the producer URL; the page re-sends the same
+  signed body once. Honest floor: blocks carry no producer signature (a follower trusts the URL and TLS),
+  nor the contribution's wallet signature; the PoW check does not compare the seal's difficulty with the
+  spec's genesis_bits; https goes through the system curl, untested against a live tunnel; and a producer
+  crash mid-write can later truncate its chain log at boot (store hazard, next fix).
 - **2026-11-17 (testnet package C: control binding on, block reward to a faucet; testnet reset 2)**:
   `CONTROL_BINDING_ACTIVE` is now `Constitution::control_binding` (runtime.rs:187), on only in
   `ChainSpec::testnet()`: an empty auth no longer authorizes a spend there (test
-  `testnet_refuses_an_unsigned_spend_that_dev_accepts`, chainspec.rs:377, red before the fix). The other
+  `testnet_refuses_an_unsigned_spend_that_dev_accepts`, chainspec.rs:390, red before the fix). The other
   four on-VM binding switches stay off. Block rewards on testnet go to faucet keys derived from a node-local
   seed (one Lamport key per height, change to a purse keyed by generation, so no key signs twice on chain);
   `POST /faucet` pays 10 test JUL, one per address per 24 h, 30 per hour. Pinned: rewards and payouts move

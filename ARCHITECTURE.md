@@ -162,11 +162,11 @@ which consensus checks only once control binding is on (see the honest floor bel
   once. Identity cells get their own per-(g, serial) keys (`:61`).
   Test: `soulbound_key_chain_mints_two_and_three_times_without_reusing_a_key` (`runtime.rs:3654`).
 - **Mint path.** A batch file (the bot's format) -> `identity-mint mint` reads `GET /tokens`
-  (`rpc.rs:498`) -> one tx, signed -> `POST /token-tx` (`rpc.rs:499`; node-local policy: soulbound
-  only, every input signed and verified, valid with all pending txs, queue of 16, `rpc.rs:72`) -> the
+  (`rpc.rs:867`) -> one tx, signed -> `POST /token-tx` (`rpc.rs:886`; node-local policy: soulbound
+  only, every input signed and verified, valid with all pending txs, queue of 16, `rpc.rs:94`) -> the
   next contribution block carries it (`chainspec.rs:218`). A token tx never makes a block alone
   (`EmptyBlock`, `runtime.rs:1294`, unchanged). Per tx at most 64 mints and 2 re-tiers
-  (`identity_mint.rs:42-43`) so the signed body fits `MAX_BODY` = 160 KiB (`rpc.rs:40`). The dev spec's
+  (`identity_mint.rs:42-43`) so the signed body fits `MAX_BODY` = 160 KiB (`rpc.rs:52`). The dev spec's
   authority uses a public dev seed; the testnet's root is `TESTNET_IDENTITY_AUTHORITY_ROOT`
   (`chainspec.rs:59`), its seed kept outside the repo. On-VM, the lock script maps the code hash to
   tag 3 (`onchain/locksig-typescript/src/main.rs:60-72`; `node/tests/ckb_vm_locksig.rs`).
@@ -174,8 +174,8 @@ which consensus checks only once control binding is on (see the honest floor bel
   only: control binding (`Constitution::control_binding`, `runtime.rs:187`) is on in
   `ChainSpec::testnet()` (`chainspec.rs:153`) and off on dev. On the testnet a block that spends the
   authority or re-tiers an identity without the owner's signature is invalid for the producer and for
-  every joiner that re-validates (`testnet_refuses_an_unsigned_spend_that_dev_accepts`,
-  `chainspec.rs:377`); on dev an empty signature still spends. The on-VM lock script's own switch
+  every joiner or follower that re-validates (`testnet_refuses_an_unsigned_spend_that_dev_accepts`,
+  `chainspec.rs:390`); on dev an empty signature still spends. The on-VM lock script's own switch
   (`CONTROL_ENFORCED`) is off, so this is the reference node's check, not yet the on-VM scripts'.
   The off-chain registry stays the authority. The holder address is pasted, not proven; the cell grants nothing on
   chain. Pending txs and inclusion records are node-local memory. On a quiet chain a mint waits for a
@@ -191,19 +191,20 @@ Testnet step 3 (`docs/TESTNET.md`), built as designed there: app layer, a funded
   (`:1360`) for Bound-B deposits, and the sub-block tier gets it too. With it on, an empty `auth` no
   longer authorizes a spend; a presented one is verified the same either way. Contribution cells and the
   coinbase are not spends, so `POST /submit` is unchanged
-  (`a_v2_submit_lands_on_the_testnet_with_control_binding_on_and_pays_the_faucet`, `rpc.rs:1103`, on the
+  (`a_v2_submit_lands_on_the_testnet_with_control_binding_on_and_pays_the_faucet`, `rpc.rs:1377`, on the
   real testnet spec). On in `ChainSpec::testnet()` only.
 - **The reward funds the faucet.** `ChainSpec::reward_to_faucet` (`chainspec.rs:52`, on for the testnet)
   makes the producing node pay each block reward to the faucet (`produce_block_paying`,
-  `chainspec.rs:230`; `rpc.rs:533`). Consensus fixes the amount and never checks the recipient. A chain
+  `chainspec.rs:230`; `rpc.rs:817`). Consensus fixes the amount and never checks the recipient. A chain
   that pays the faucet produces nothing without the faucet seed: `--serve-api` refuses to start
-  (`rpc.rs:828`) and an in-memory node refuses the block (`rpc.rs:540`).
+  (`rpc.rs:1071`) and an in-memory node refuses the block (`rpc.rs:755`). A replica (`--follow`, below)
+  produces nothing and needs no seed: it validates a reward paid to the faucet without the faucet's key.
 - **A key per cell.** A lock is a Lamport one-time key, so one fixed faucet address would sign every payout
   with one key. Each reward is locked by its own key derived from (faucet seed, height)
   (`faucet.rs:83`); the change goes to a purse whose key is derived from (seed, generation) (`:88`), and
   each payout spends purse `g` and writes `g + 1`. A pending payout's signatures leave the node only in
   the finalized block that spends its cells, so the faucet re-signs it freely until then.
-- **Route and limits.** `POST /faucet {address}` (`rpc.rs:707`), `GET /faucet`, `GET /balance/<address>`.
+- **Route and limits.** `POST /faucet {address}` (`rpc.rs:929`), `GET /faucet`, `GET /balance/<address>`.
   10 JUL per payout (`DRIP`, `faucet.rs:58`), one per address per 24 hours (`:60`), 30 per hour overall
   (`:62-64`), 8 waiting per block (`:66`), node-local and reset by a restart. A payout lands with the
   next contribution block.
@@ -218,6 +219,45 @@ Testnet step 3 (`docs/TESTNET.md`), built as designed there: app layer, a funded
   can spend the payout, and the web wallet has no such key yet, so wallet holders can hold and see test
   JUL but not move it. The limits are per address and per window, so many addresses can still take the
   window's 30 payouts. Testnet JUL is worthless by design.
+
+## Live sync: one producer, followers (built 2026-11-17, reference node)
+
+Testnet step 7, topology A of `docs/DESIGN-live-gossip.md` (Will 2026-11-17: "one producer, for now").
+
+- **Roles.** The producer is `noesisd --serve-api`. A follower is `noesisd --follow <producer-url> <http>
+  <store>` (`rpc.rs:1056`, loop `follow.rs:217`): its own page and read API over its own durable store. It
+  produces nothing: `POST /submit`, `/faucet` and `/token-tx` answer 409 with the producer's URL
+  (`rpc.rs:579`), and the page re-sends the same signed body there once.
+- **Route.** `GET /blocks?since=N[&limit=M]` (`rpc.rs:870`, `blocks_page` `:480`): the full finalized blocks
+  after height N, oldest first, at most 32 a page (`PAGE_MAX_BLOCKS`, `follow.rs:45`) and about 1 MiB of
+  block bytes (`PAGE_MAX_BYTES`, `:49`; at least one block), with `tip`, `more`, and the chain link at N as
+  `anchor`. Blocks are read back from the store by frame offset (`store.rs:35`, `:76`). Only blocks in the
+  durable log are served, and a block is appended only after it finalized, so a pending faucet payout's
+  signatures do not leave the producer early (`blocks_since_serves_only_finalized_blocks_and_never_a_pending_payout`,
+  `rpc.rs:2073`). A follower polls every 2 s (`POLL`, `follow.rs:52`), backing off to 30 s on errors; no long-poll.
+- **Validation.** Every pulled block goes through `ChainSpec::accept_block` (`chainspec.rs:264`), the
+  producer's own path: `validate_block` (PoW seal, token conservation, spend signatures under control
+  binding), the finality gate, then apply. A refused block stops following and the follower keeps its
+  chain (`a_follower_refuses_a_tampered_block_and_keeps_its_chain`, `rpc.rs:1924`;
+  `a_follower_refuses_a_payout_whose_signature_was_tampered`, `:1956`). Standing on a follower is what its
+  own apply derives from the blocks.
+- **Rewrite detection.** `chain_link` (`follow.rs:63`) chains every block's header digest from genesis
+  (`header_digest` binds the cells, coords, token txs with their signatures, coinbase, seal and timestamp;
+  not the Bound-B bonds, which must be empty while `submission_deposit` is 0, as on the testnet). Before
+  applying a page (`apply_page`, `:99`) the follower compares the producer's link at its own height, and
+  stops if they differ, if the producer's height is below its own, or if the chain id differs; `GET /state`
+  then says why (`replica.stopped`). Tests: `a_follower_stops_on_a_rewritten_history_even_one_that_keeps_the_later_blocks`
+  (`rpc.rs:2009`; blocks name no parent hash, so the tip's digest alone would miss that rewrite) and
+  `a_follower_stops_on_a_producer_behind_it_and_on_another_network` (`:2041`). The link is node-local, not consensus.
+- **Restart.** A follower replays its own store and asks only for what it lacks
+  (`a_follower_resumes_from_its_own_store_after_a_restart`, `rpc.rs:1984`; two real processes in
+  `node/tests/follow_live.rs`).
+- **Honest floor.** One producer: if it stops, the chain stops (no failover, no leader election). A follower
+  checks every rule the rulebook covers, but trusts the producer URL (and TLS, for https) for who made the
+  chain: a block carries no producer signature, and a contribution cell does not carry its wallet signature
+  (the producer checks it at `POST /submit`), so a follower cannot re-check who wrote a contribution. The PoW
+  check verifies a seal against the bits the seal claims; nothing compares those bits with `genesis_bits`.
+  An https producer is fetched through the system's `curl`, since the node links no TLS library.
 
 ## Value measure `v(S)` — the moat (re-stamped from code and the research record, 2026-10-21)
 

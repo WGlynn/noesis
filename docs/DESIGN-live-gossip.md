@@ -1,6 +1,11 @@
-# DESIGN — live gossip (slice-5b, part 2) — ⚑ WILL SANITY-CHECK BEFORE BUILD
+# DESIGN — live gossip (slice-5b, part 2)
 
-> Status: **ready-for-critique, NOT built.** slice-5b part 1 (the unify — `--listen` serves the
+> Status (2026-11-17): **topology A built** in the reference node, as testnet step 7. Will decided "one
+> producer, for now" and took the section 3 recommendations, with one change from section 5: the transport
+> is HTTP `GET /blocks?since=N` on the one public port (tunnel-friendly), not the framed TCP port. What was
+> built is in section 6. Topology B (several producers) stays a research track, not started.
+>
+> Original status: ready-for-critique, not built. slice-5b part 1 (the unify — `--listen` serves the
 > durable log) shipped `cc81fe5`. This is the second half: new blocks propagating to
 > already-joined peers so multiple nodes stay converged **live**. It touches multi-node consensus
 > flow, so per the 2026-07-19 CONTINUE ("don't run blind on flow/standing semantics") it is
@@ -96,3 +101,28 @@ Ship the deploy first (one node, turnkey). When a second node is wanted, build *
 submit-routing** and the **framed-TCP gossip** transport — the leanest path that keeps mirrors live
 without pretending to be a leaderless network. Treat **(B)** as a named Phase-2 research track
 (reorg + fork-choice + finality relaxation), not a slice.
+
+## 6. What was built (2026-11-17)
+
+Will's decisions: (1) topology A, one producer for now; (2) a submit to a replica returns `409 { producer }`;
+(3) HTTP `GET /blocks?since=N` on the one public port, polled; (4) standing is derived from the blocks a
+follower applies. Code: `node/src/follow.rs` (the follower), `node/src/rpc.rs` (the route, the replica
+role, `follow_block`), `ChainSpec::accept_block` (`node/src/chainspec.rs:264`). Canonical summary with
+pointers: `ARCHITECTURE.md`, "Live sync".
+
+- **Pull, not push.** A follower asks `GET /blocks?since=<its height>`: at once while pages say `more`,
+  every 2 s once level, backing off to 30 s while the producer is unreachable. A page carries at most 32
+  full blocks and about 1 MiB. The producer serves only
+  blocks in its durable log, read back by frame offset. There is no broadcast-on-finalize, no `--peers` flag
+  and no peer manager; the framed-TCP `net`/`sync`/`gossip` stack is unchanged and still serves one-time
+  `--connect` joins. A follower serves the same route from its own log, so a follower can follow a follower.
+- **Same acceptance path.** The producer's `produce_block_paying` and a follower's `follow_block` both call
+  `ChainSpec::accept_block` (rulebook, finality gate, apply), so there is one definition of "accept a block".
+- **Rewrite detection** (not in the original sketch): a node-local running hash over the header digests from
+  genesis, sent as the page's `anchor` and compared before anything is applied. Blocks do not set
+  `parent_hash`, so without it a producer could swap an old block and keep the later ones byte-identical.
+  On a mismatch, a shorter producer chain, another chain id, or a refused block, the follower stops, keeps
+  its chain and reports why. It does not adopt the other history by itself; an operator who wants the
+  new chain starts the follower on a new chain log.
+- **Not built:** forwarding a submit (the page re-sends the signed body to the producer instead), long-poll,
+  failover, a producer signature on blocks, any change to consensus rules.

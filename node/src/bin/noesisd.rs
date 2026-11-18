@@ -9,6 +9,11 @@
 //!     scripted honest chain in-memory (the zero-config demo). "A network you can join."
 //!   * `noesisd --connect <addr>` — T1 JOINER: boot a fresh genesis, dial the seed, pull + re-validate +
 //!     replay its block log, and converge to a byte-identical digest.
+//!   * `noesisd --serve-api [addr] [store] [peers]` — the live node: HTTP API + page over a durable store;
+//!     the one PRODUCER of its chain.
+//!   * `noesisd --follow <producer-url> <addr> <store>` — a REPLICA (testnet step 7): the same page and
+//!     reads over its own store, kept live by pulling the producer's `GET /blocks?since=N` and
+//!     re-validating every block (`noesis::follow`). Produces nothing.
 //!
 //! The devnet (no-arg) path is UNCHANGED from the T0 driver: it wraps the proven
 //! submit->propose->validate->finalize->apply sequence (node/tests/two_node.rs) in a real `fn main`
@@ -30,9 +35,9 @@
 //!
 //! HONEST SCOPE (what slice-5 is NOT): the joiner does a full replay-from-genesis sync (no
 //! headers-first, no range requests, no fork choice — there is one canonical log). And it is
-//! HISTORICAL sync only: a block produced AFTER a peer has joined is not yet gossiped to it live —
-//! wiring `gossip`'s reader loop into a running node (so new blocks propagate to already-joined peers)
-//! is slice-5b. What IS proven here: two OS processes converge to identical state via the join.
+//! HISTORICAL sync only: a block produced AFTER a `--connect` joiner has synced does not reach it. Live
+//! sync is `--follow` (HTTP pull, `noesis::follow`), not this framed-TCP join. What IS proven here: two OS
+//! processes converge to identical state via the join.
 
 use std::io::{self, Write};
 use std::sync::Arc;
@@ -354,12 +359,23 @@ fn main() {
             }
             noesis::rpc::serve_api(args.get(2).map(String::as_str).unwrap_or("127.0.0.1:9955"), store, spec);
         }
+        Some("--follow") => {
+            // A replica of one producer (testnet step 7): its own page + API over its own store, kept in
+            // sync by pulling and re-validating the producer's finalized blocks. All three arguments are
+            // required, so a follower never shares a default chain log with a producer by accident.
+            let (Some(producer), Some(http), Some(store)) = (args.get(2), args.get(3), args.get(4)) else {
+                eprintln!("noesisd --follow needs <producer-url> <http-addr> <store> (e.g. --follow https://node.example 127.0.0.1:9956 follower-chain.log)");
+                std::process::exit(2);
+            };
+            noesis::rpc::serve_follower(http, store, spec_from_env(), producer);
+        }
         Some(other) => {
             eprintln!("noesisd: unknown mode {other:?}");
             eprintln!("usage: noesisd                    # T0 devnet (produce a chain locally)");
             eprintln!("       noesisd --listen [addr] [store]  # T1 seed (default 127.0.0.1:0; store ⇒ serve the durable log)");
             eprintln!("       noesisd --connect <addr>   # T1 joiner (sync from a seed)");
             eprintln!("       noesisd --serve-api [addr] [store] [peers]  # live HTTP API + embedded UI (NOESIS_NET=dev|testnet, default dev); peers ⇒ also serve joiners");
+            eprintln!("       noesisd --follow <producer-url> <addr> <store>  # a replica: pulls + re-validates the producer's blocks live");
             std::process::exit(2);
         }
     }

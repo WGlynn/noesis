@@ -117,7 +117,10 @@ function fakeNode(storage) {
       const msg = C.contributionDigest(C.hexDecode(body.identity), body.index, body.parent ?? null, C.utf8(body.data));
       const valid = C.mtVerify(C.hexDecode(body.hot_root), body.index, msg, sig) &&
         C.hexEncode(C.identity(C.hexDecode(body.hot_root), C.hexDecode(body.cold_commit))) === body.identity;
-      node.posts.push({ body, valid, storedNextAtSend: sealed && sealed.nextIndex });
+      const at = (String(url).match(/^[a-z]+:\/\/[^/]+/) || [''])[0];
+      node.posts.push({ body, valid, storedNextAtSend: sealed && sealed.nextIndex, at });
+      // a replica (testnet step 7) makes no blocks: 409 with the producer's URL, as rpc.rs answers
+      if (node.replicaOf && at !== node.replicaOf) return reply(409, { error: 'this node is a replica', producer: node.replicaOf + '/' });
       if (node.reject) return reply(400, { error: node.reject });
       node.highest = body.index;
       node.state.height++;
@@ -384,6 +387,23 @@ const v1Text = JSON.stringify({ v: 1, seed: 'aa'.repeat(32), address: 'bb'.repea
   check('wrong origin: a stored wallet can be unlocked here but signing is refused', /UNLOCKED/.test(pg.text('w-info')) && /Signing is off here/.test(pg.text('toast')) && n2.posts.length === 0);
   await pg.click('add-passkey');
   check('wrong origin: adding a passkey is refused', pg.els['add-passkey'].hidden && /off at this address/.test(pg.text('w-status')) && JSON.parse(s2.getItem(W.KEY_SEALED)).passkey === null);
+}
+
+{ // a replica answers a submit with 409 and the producer's URL: the page sends the SAME signed body there, once
+  const storage = new FakeStorage({ [W.KEY_SEALED]: JSON.stringify(recA) }), node = fakeNode(storage);
+  node.replicaOf = 'https://producer.example';
+  node.state.replica = { producer: node.replicaOf, following: true, stopped: null };
+  const pg = openPage({ storage, node });
+  await settle();
+  check('replica: the status line says whose replica this node is', /replica of https:\/\/producer\.example/.test(pg.text('live')));
+  await pg.unlock(UPASS);
+  const before = JSON.parse(storage.getItem(W.KEY_SEALED)).nextIndex;
+  await pg.send('a note on eelgrass beds, sent through a replica');
+  const [a, b] = node.posts;
+  check('replica: the 409 is followed once, to the producer, with the identical signed body',
+    node.posts.length === 2 && a.at !== node.replicaOf && b.at === node.replicaOf && JSON.stringify(a.body) === JSON.stringify(b.body) && b.valid);
+  check('replica: one message, one one-time key spent', JSON.parse(storage.getItem(W.KEY_SEALED)).nextIndex === before + 1 && pg.signs.length === 1);
+  check('replica: the toast names the producer', /finalized by the producer at https:\/\/producer\.example\./.test(pg.text('toast')));
 }
 
 { // a browser that blocks storage: the page says so, still reads the chain, and offers no wallet

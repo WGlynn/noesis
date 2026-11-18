@@ -26,7 +26,7 @@ A testnet is a network other people join. This is not one yet. What is missing, 
 | 4 | An explorer for blocks, cells and identities | built, basic: `GET /blocks` and the page show the newest blocks, the contribution graph and identities |
 | 5 | A stable public address, TLS and connection caps | open (a temporary tunnel URL works today) |
 | 6 | One process serving the wallet and peers | built: `--serve-api <http> <store> <peers>`, a one-time sync per joiner, read fresh for each |
-| 7 | Live gossip, so a follower tracks new blocks as they land | open (a joiner replays history once; new blocks do not propagate yet) |
+| 7 | Live sync, so a follower tracks new blocks as they land | built, one producer: `noesisd --follow <producer-url> <http> <store>` pulls `GET /blocks?since=N` over HTTP, re-validates every block, and stops on a rewrite (see below). Tested on local processes; not yet run against the public tunnel |
 | 8 | Contributors as finality voters | open |
 
 Control binding is on for the testnet, in the reference node: a block that spends a cell without its
@@ -62,10 +62,44 @@ curl http://<node>/balance/<64 hex characters> # JUL held under that address
   forged. For the same reason a reset needs a new faucet seed: the keys derive from the seed and the
   block height, so the old seed on a new chain would sign a second message with each key.
 
+## Live sync (step 7)
+
+One producer, for now (decided 2026-11-17): the project's node makes every block of this chain, and a node
+that joins it is a follower (a replica). Leader election and several producers are not built and not planned
+for this stage.
+
+- A follower asks the producer for `GET /blocks?since=<its height>` on the producer's one public port, so it
+  works through the tunnel. A page holds at most 32 full blocks and about 1 MiB of block data
+  (`node/src/follow.rs:45-49`), and says whether more are waiting. An up-to-date follower asks again every
+  2 seconds (`follow.rs:52`), backing off to 30 seconds while the producer cannot be reached.
+- It runs every block through the producer's own acceptance path (`ChainSpec::accept_block`,
+  `node/src/chainspec.rs:264`): the proof-of-work seal against the target it names, token conservation,
+  every spend's signature (control binding), the finality gate. Standing on a follower is whatever its own
+  replay of the blocks gives; it is not taken on the producer's word.
+- It stops, keeps its chain, and says why (on its console and in `GET /state` under `replica.stopped`) when
+  the producer serves a block it refuses, when the producer's chain is shorter than its own, when the chain
+  id differs, or when the producer's history differs from its own (a running hash over every block from
+  genesis, compared before each page). It never switches to the other history by itself.
+- A follower that restarts replays its own chain log and asks only for the blocks after it.
+- Submitting a contribution or asking the faucet at a follower returns HTTP 409 with the producer's URL. The
+  page sends the same signed contribution to the producer once.
+- A follower needs no faucet seed: the chain fixes the reward amount and never checks who receives it, so a
+  follower checks a block that pays the faucet without the faucet's key.
+- Only finalized blocks are served, so a faucet payout's signatures do not leave the producer before the
+  block that spends its cells is final.
+
+What a follower cannot check: who made the chain (blocks carry no producer signature, so it trusts the URL,
+and TLS when the URL is https); who signed each contribution (the producer checks the wallet signature when
+the contribution arrives, and the block does not carry it); and whether a block was mined at the testnet's
+difficulty (the seal is checked against the target it names, and nothing compares that with the chain
+spec's). If the producer stops, the chain stops.
+
 ## Joining today
 
 You can open the node's page (the URL is shared by the maintainer; a temporary tunnel URL changes when it
-restarts) and read the chain state. Running your own follower that stays in sync is step 7: not yet.
+restarts) and read the chain state. You can also run a follower that stays in sync (`docs/RUN-A-NODE.md`,
+section 4). When the producer's tunnel URL changes, restart the follower with the new URL and the same chain
+log; it carries on from where it was.
 
 ## Reset policy
 

@@ -87,11 +87,47 @@ the sync fails. Before commit 23d1d4e3 (2026-11-17) the joiner booted the dev ge
 `NOESIS_NET` said, so a testnet join failed this way; the test
 `testnet_joiner_boots_the_testnet_genesis_and_converges` covers it now.
 
+## 4. Follow the producer live (a replica)
+
+A follower keeps its own copy of the chain in step with the producer as blocks land (testnet step 7, built;
+see `docs/TESTNET.md`, live sync). It serves its own page and API, and produces no blocks. All three
+arguments are required: the producer's URL, the follower's own HTTP address, and the follower's own chain
+log (never the producer's).
+
+```
+NOESIS_NET=testnet ./target/release/noesisd --follow https://<producer-url> 127.0.0.1:9956 ~/.noesis/follower-chain.log
+```
+
+Windows (cmd):
+```
+set NOESIS_NET=testnet
+target\release\noesisd.exe --follow https://<producer-url> 127.0.0.1:9956 %USERPROFILE%\.noesis\follower-chain.log
+```
+
+- It prints `FOLLOWING <url> from height <h>`, then a line for each batch of blocks it takes.
+- The wallet works at one origin only, http://localhost:9955 (section 2). Port 9956 above lets a follower run
+  beside a producer on one machine; its page then shows the chain but will not sign. On a machine that runs
+  only a follower, give it `127.0.0.1:9955` to use the wallet there.
+- A follower needs no faucet seed, even on the testnet. Submitting or asking the faucet at a follower returns
+  HTTP 409 with the producer's URL; the page sends your signed contribution there for you.
+- An `https://` producer URL (a tunnel) is fetched with the system's `curl` program (shipped with Windows 10
+  and later, macOS and most Linux systems); an `http://` URL needs nothing extra.
+- Restart it with the same chain log and it carries on from its own height. If the producer's tunnel URL
+  changed, give the new URL.
+- If it prints `FOLLOWING STOPPED`, it has refused something: a block that breaks the rules, a producer whose
+  chain is shorter than its own or whose history differs, or another network. It keeps serving the chain it
+  has and does not try again by itself. If the chain was reset on purpose (`docs/TESTNET.md`, reset policy),
+  start the follower on a new chain log; keep the old one if you want the old chain.
+- `GET /state` on a follower says `"role": "replica"` and, under `replica`, the producer, whether it is still
+  following, and why it stopped.
+
 ## What does not work yet (open)
 
-- **Live sync.** `--listen` serves the chain as it was when it started; `--serve-api` with a peers address
-  serves it as it is when the joiner connects. Either way the joiner syncs once and exits: new blocks do
-  not reach other nodes as they land. This is testnet step 7, the critical path.
+- **More than one producer.** One node makes every block of a chain, for now. If it stops, the chain stops;
+  a follower keeps serving what it has but cannot make blocks. A follower checks every block against the
+  rulebook (the proof of work against the target the block names), but it trusts the producer's URL (and
+  TLS, for https) for who made the chain, and it cannot re-check who signed a contribution, because the
+  block does not carry the wallet signature. `--connect` (section 3) still syncs once and exits.
 - **Spending JUL from the wallet.** On the testnet each block's JUL reward goes to the faucet of the node
   that made the block, and the faucet pays small amounts on request (built). The web wallet has no key
   that can spend JUL yet, so a wallet address can hold test JUL but not move it. Test JUL is worthless by

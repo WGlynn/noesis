@@ -419,7 +419,8 @@ Close any other tab of this page first: an old page still open could write the p
       renderChain(s);
       await syncIndex();
       showWallet();
-      $("live").textContent = "NOESIS  live  height " + s.height + "  JUL " + s.jul_issued + "  " + api();
+      const rep = s.replica ? "  replica of " + s.replica.producer + (s.replica.following ? "" : "  FOLLOWING STOPPED: " + s.replica.stopped) : "";
+      $("live").textContent = "NOESIS  live  height " + s.height + "  JUL " + s.jul_issued + "  " + api() + rep;
     } catch (e) {
       $("live").textContent = "NOESIS  node unreachable at " + api() + "  (is noesisd --serve-api running?)";
       return;
@@ -479,11 +480,22 @@ Close any other tab of this page first: an old page still open could write the p
       const body = { identity: wallet.address, hot_root: wallet.hotRoot, cold_commit: wallet.coldCommit, index,
                      bottom: part(sig.bottom), top: part(sig.top), data };
       if (parent != null) body.parent = parent;
-      const r = await fetch(api() + "/submit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      const s = await r.json();
+      const post = (base) => fetch(base + "/submit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      let r = await post(api());
+      let s = await r.json();
+      // A replica makes no blocks: it answers 409 with the producer's URL. The SAME signed body goes there,
+      // once (one message, so no one-time key signs twice).
+      let at = "";
+      if (r.status === 409 && typeof s.producer === "string" && /^https?:\/\//.test(s.producer)) {
+        at = s.producer.replace(/\/+$/, "");
+        say(toast, "", "this node is a replica; sending to the producer at " + at + " ...");
+        r = await post(at);
+        s = await r.json();
+      }
       if (!r.ok || s.error) throw new Error(s.error || "HTTP " + r.status);
       $("what").value = "";
-      say(toast, "grn", "Block " + s.block_height + " finalized. You hold " + ((s.contributors || {})[wallet.address] || 0) + " standing.");
+      say(toast, "grn", "Block " + s.block_height + " finalized" + (at ? " by the producer at " + at : "") + ". You hold " +
+        ((s.contributors || {})[wallet.address] || 0) + " standing.");
       refresh();
     } catch (e) {
       say(toast, "red", spent ? "Rejected: " + e.message + " (that one-time key is spent; the next try uses a new one)"
