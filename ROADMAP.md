@@ -33,6 +33,13 @@
    `internal/DESIGN-joint-decay-damping-rate.md`. Code comments + patent line 233 relabeled to match.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-11-17 (testnet reset 1: wallet format v2)**: the local testnet node was reset to a new
+  genesis (TESTNET.md reset policy, rule 1: no outside joiners yet). Why: format v2 (e3c9f34f) changes
+  the identity hash, so v1 wallets cannot sign on the new node, and the old chain's one contribution
+  (an operator test post, height 1) would otherwise take the unscored first-cell slot. The old chain log
+  is archived on the node host; it is not published, because its one post is the operator's private
+  test. Nothing carried over: no identities had been minted, only the genesis issuer authority, which the
+  new genesis seeds again.
 - **2026-11-17 (soulbound identities in the token-cell lane, Phase B of the Vibeswap chat identity)**:
   built in the reference node, additive, no consensus constant touched. `TokenStandard::Soulbound`
   (tag 3) + `tokens::soulbound`: one cell per serial, holder fixed in the cell, issuer-only mint /
