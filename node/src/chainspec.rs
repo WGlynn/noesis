@@ -27,14 +27,14 @@ use crate::{Cell, Script};
 /// produce comparable state digests; disagreeing on any field forks block zero.
 #[derive(Clone, Debug)]
 pub struct ChainSpec {
-    /// Network identifier — distinguishes a devnet from a testnet from mainnet so their blocks can
-    /// never be replayed across networks.
-    pub chain_id: u64,
-    /// The block-zero constitution: consensus mix, thresholds, and the ratified money economics.
+    /// The block-zero constitution: consensus mix, thresholds, the ratified money economics, and (since
+    /// 2026-11-18) the two values that used to sit beside it here: the network id
+    /// ([`Constitution::chain_id`], read through [`Self::chain_id`]) and the compact PoW target every
+    /// block must claim ([`Constitution::pow_bits`], read through [`Self::genesis_bits`]). They moved
+    /// into the rulebook because `validate_block` sees only the constitution: as spec fields, nothing
+    /// in block validation read either, so a block named no network and its seal named its own
+    /// difficulty. One copy each, so the bits a node mines at and the bits it requires cannot differ.
     pub constitution: Constitution,
-    /// The compact PoW target every block is mined against (Phase-1 fixed difficulty, no retarget).
-    /// LOW for a devnet ⇒ near-instant CPU mining; a measured value is the mainnet ⚑.
-    pub genesis_bits: u32,
     /// The bonded genesis validators, each paired with its soulbound contributor key. `pos`/
     /// `staked_balance` give bonded finality weight at genesis; `pom` starts 0 and is sourced live
     /// from the cleared-score bridge as each contributor's finalized work ages in.
@@ -62,6 +62,19 @@ pub const TESTNET_IDENTITY_AUTHORITY_ROOT: [u8; 32] = [
 ];
 
 impl ChainSpec {
+    /// The network id ([`Constitution::chain_id`]): every block carries it and the rulebook refuses one
+    /// whose id differs, so a devnet, a testnet and mainnet never accept each other's blocks.
+    pub fn chain_id(&self) -> u64 {
+        self.constitution.chain_id
+    }
+
+    /// The compact PoW target every block on this chain must claim and meet ([`Constitution::pow_bits`]).
+    /// Fixed for every height: no retarget is wired. LOW for a devnet ⇒ near-instant CPU mining; a
+    /// measured value is the mainnet ⚑.
+    pub fn genesis_bits(&self) -> u32 {
+        self.constitution.pow_bits
+    }
+
     /// The local devnet spec: the ratified M3 economics turned ON (PoW enforced ⇒ real mined
     /// difficulty ⇒ JUL issues from block zero), an easy fixed difficulty for instant local mining,
     /// and a small bonded PoS set (alice / bob / carol). Everything else is the honest default:
@@ -73,7 +86,15 @@ impl ChainSpec {
         // FINITE `work_clock_ceiling` is a genesis-admission precondition of `pow_enforced` (`Node::new`
         // asserts it — an infinite ceiling under real difficulty ships the vesting-collapse attack);
         // generous here so it never clamps a LOW-difficulty devnet block. Everything else stays default.
-        let constitution = Constitution { pow_enforced: true, work_clock_ceiling: 1 << 40, ..Default::default() };
+        let constitution = Constitution {
+            pow_enforced: true,
+            work_clock_ceiling: 1 << 40,
+            chain_id: 0xde0, // "dev"
+            // 0x2000ffff ⇒ target 0x00ffff·2^232 ≈ 2^248 ⇒ about 1 hash in 256 meets it ⇒ instant
+            // local mining. A valid compact the decoder accepts (see pow_arithmetic tests).
+            pow_bits: 0x2000_ffff,
+            ..Default::default()
+        };
 
         let keys: Vec<Vec<u8>> = vec![b"alice".to_vec(), b"bob".to_vec(), b"carol".to_vec()];
         let validators = keys
@@ -88,11 +109,7 @@ impl ChainSpec {
             .collect();
 
         ChainSpec {
-            chain_id: 0xde0, // "dev"
             constitution,
-            // 0x2000ffff ⇒ target ≈ 2^248 (near the maximum) ⇒ almost every hash meets it ⇒ instant
-            // local mining. A valid compact the decoder accepts (see pow_arithmetic tests).
-            genesis_bits: 0x2000_ffff,
             validators,
             genesis_token_cells: vec![crate::identity_mint::authority_cell(
                 crate::identity_mint::COLLECTION,
@@ -105,13 +122,14 @@ impl ChainSpec {
 
     /// The PUBLIC TESTNET spec: the first genesis a stranger boots. Identical honest structure to
     /// [`dev`](Self::dev) — money layer ON, empty ledger, PoM earned not pre-minted, a small bonded PoS
-    /// set carrying finality from block zero — but with a DISTINCT `chain_id` (so testnet blocks can
-    /// never replay onto a devnet or mainnet) and a HARDER-than-dev `genesis_bits` so a public node is
-    /// not a free-for-all where every hash trivially seals a block.
+    /// set carrying finality from block zero — but with a DISTINCT `chain_id` (every block carries it and
+    /// the rulebook refuses another network's, so testnet blocks never replay onto a devnet or mainnet) and
+    /// a HARDER-than-dev `genesis_bits` (every seal must claim it) so a public node is not a free-for-all
+    /// where a few hundred hashes seal a block.
     ///
-    /// HONEST SCOPE (loud, do NOT round up): `genesis_bits` here is a TESTNET PLACEHOLDER — harder than
-    /// dev's near-maximum target so a modest always-on VM must actually grind for a block, but still
-    /// CPU-mineable within a handful of iterations. It is NOT the measured mainnet difficulty; that
+    /// HONEST SCOPE (loud, do NOT round up): `genesis_bits` here is a TESTNET PLACEHOLDER — 2^8 harder
+    /// than dev's so a modest always-on VM must actually grind for a block (about 65,536 hashes on
+    /// average), but still CPU-mineable. It is NOT the measured mainnet difficulty; that
     /// remains the standing ⚑ (`genesis_bits` measured-at-build on real hardware, loop-plan M2/⚑).
     /// Everything else is the honest launch default: `vesting_w = 0`, empty `coinbase_split`
     /// (ratified `infra_bps = NONE`), `submission_deposit = 0`, `clock_enforced = false` — the testnet
@@ -126,8 +144,8 @@ impl ChainSpec {
     /// JUL ON TESTNET (the resolved design — dial the PARAMETER, never the MECHANISM): PoW stays fully
     /// in consensus (`pow_enforced = true`) so the testnet tests the real PoW / issuance security model, and JUL mints
     /// from work through the exact same path as mainnet (`block_work → reward_for_work`). The money layer
-    /// is genuinely exercised. But because difficulty is LOW, the energy behind a block is a few thousand
-    /// CPU hashes (microseconds, no GPU, no meaningful electricity) — so testnet JUL is a
+    /// is genuinely exercised. But because difficulty is LOW, the energy behind a block is about 65,536
+    /// CPU hashes on average (no GPU, no meaningful electricity) — so testnet JUL is a
     /// functional-but-WORTHLESS test token by construction (distinct `chain_id` + trivial energy + it is
     /// a testnet). The energy-peg is an EMERGENT property of HIGH (mainnet) difficulty, not a coded flag;
     /// lowering difficulty makes JUL a test token with ZERO consensus change. NEVER set
@@ -151,6 +169,12 @@ impl ChainSpec {
             work_clock_ceiling: 1 << 40,
             genesis_unscored: true,
             control_binding: true, // every spend carries its owner's signature (package C, 2026-11-17)
+            chain_id: 0x_7e57,     // "teST" — distinct from dev (0xde0); blocks carry it, so they never cross
+            // Exponent 0x1f (one below dev's 0x20) ⇒ target 0x00ffff·2^224 ≈ 2^240, 2^8 harder than dev's
+            // ≈ 2^248: about 1 hash in 65,536 meets it, against 1 in 256 on dev. Same mantissa shape as dev
+            // (0x00ffff) ⇒ a compact the decoder accepts. TESTNET PLACEHOLDER — the measured mainnet value
+            // is the standing ⚑.
+            pow_bits: 0x1f00_ffff,
             ..Default::default()
         };
 
@@ -167,13 +191,7 @@ impl ChainSpec {
             .collect();
 
         ChainSpec {
-            chain_id: 0x_7e57, // "teST" — distinct from dev (0xde0) so blocks never cross networks
             constitution,
-            // Exponent 0x1f (one below dev's 0x20) ⇒ target ≈ 2^240, ~2^8 harder than dev's ≈ 2^248:
-            // a public node grinds a few thousand hashes per block instead of ~1, still instant on a
-            // modest VM. Same mantissa shape as dev (0x00ffff) ⇒ a compact the decoder accepts.
-            // TESTNET PLACEHOLDER — the measured mainnet value is the standing ⚑.
-            genesis_bits: 0x1f00_ffff,
             validators,
             genesis_token_cells: vec![crate::identity_mint::authority_cell(
                 crate::identity_mint::COLLECTION,
@@ -231,7 +249,7 @@ impl ChainSpec {
         if node.mempool.is_empty() {
             return None; // no contributions ⇒ nothing to finalize (an empty block is invalid)
         }
-        let block = mine(node.propose().with_token_txs(token_txs).with_coinbase(reward_to), self.genesis_bits);
+        let block = mine(node.propose().with_token_txs(token_txs).with_coinbase(reward_to), self.genesis_bits());
         let accepted = self.accept_block(node, &block);
         node.clear_mempool();
         accepted.ok().map(|()| block)
@@ -262,8 +280,19 @@ impl ChainSpec {
     /// pulls (`rpc::ServerState::follow_block`), so a follower applies nothing on the producer's word.
     /// On any refusal `node` is unchanged and the reason is returned.
     pub fn accept_block(&self, node: &mut Node, block: &Block) -> Result<(), String> {
-        crate::runtime::validate_block(&node.ledger, block, &node.constitution)
-            .map_err(|v| format!("block {} fails the rulebook: {v:?}", block.height))?;
+        use crate::runtime::Violation;
+        crate::runtime::validate_block(&node.ledger, block, &node.constitution).map_err(|v| {
+            let h = block.height;
+            match v {
+                Violation::WrongChain { expected, got } => {
+                    format!("block {h} fails the rulebook: WrongChain (it was made for chain 0x{got:x}; this chain is 0x{expected:x})")
+                }
+                Violation::PowBitsWrong { expected, got } => format!(
+                    "block {h} fails the rulebook: PowBitsWrong (its seal claims bits {got:#010x}; this chain requires {expected:#010x})"
+                ),
+                v => format!("block {h} fails the rulebook: {v:?}"),
+            }
+        })?;
         if !self.finality_gate(node) {
             return Err(format!("block {} does not finalize", block.height));
         }
@@ -277,7 +306,7 @@ impl ChainSpec {
 /// `pow_enforced`. Deterministic: the same block content yields the same lowest valid nonce on every
 /// node, so a seed and a joiner agree on the sealed block byte-for-byte. Because the digest folds in
 /// the nonce, each grind step changes it (real proof-of-work, not a stamp). At the devnet's easy
-/// difficulty this returns within a handful of iterations.
+/// difficulty this returns within a few hundred iterations on average.
 ///
 /// Panics only on a malformed `bits` (a caller bug — a `ChainSpec` always carries a valid compact).
 pub fn mine(block: Block, bits: u32) -> Block {
@@ -321,10 +350,10 @@ mod tests {
         let net = ChainSpec::testnet();
 
         // Distinct network identity ⇒ blocks can never replay across networks.
-        assert_ne!(net.chain_id, dev.chain_id, "testnet must not share the devnet chain_id");
+        assert_ne!(net.chain_id(), dev.chain_id(), "testnet must not share the devnet chain_id");
         // Harder than dev's near-maximum target (smaller target = more work), still a valid compact.
-        let dev_target = noesis_core::pow::compact_to_target(dev.genesis_bits).unwrap();
-        let net_target = noesis_core::pow::compact_to_target(net.genesis_bits).unwrap();
+        let dev_target = noesis_core::pow::compact_to_target(dev.genesis_bits()).unwrap();
+        let net_target = noesis_core::pow::compact_to_target(net.genesis_bits()).unwrap();
         assert!(net_target < dev_target, "testnet difficulty must be harder than dev's free-for-all");
 
         // Same honest-genesis invariants as dev: money on, finite ceiling, empty ledger, no pre-mint.
@@ -368,10 +397,10 @@ mod tests {
                 .iter()
                 .filter(|c| c.type_script.code_hash == soulbound::CODE_HASH)
                 .collect();
-            assert_eq!(sb.len(), 1, "chain 0x{:x}: exactly one soulbound cell at genesis", spec.chain_id);
+            assert_eq!(sb.len(), 1, "chain 0x{:x}: exactly one soulbound cell at genesis", spec.chain_id());
             assert_eq!(sb[0].type_script.args, COLLECTION.to_vec());
             assert_eq!(soulbound::decode(&sb[0].data), Some(Record::Authority { generation: 0 }));
-            assert_eq!(sb[0].lock.args, root.to_vec(), "chain 0x{:x}: the issuer's generation-0 key", spec.chain_id);
+            assert_eq!(sb[0].lock.args, root.to_vec(), "chain 0x{:x}: the issuer's generation-0 key", spec.chain_id());
             // the seeded cell is token state only: no contribution, no standing, no finality weight
             assert!(node.ledger.cells.is_empty() && node.ledger.pom.is_empty());
             assert!(node.finality_pom_weight().is_empty());
@@ -412,9 +441,13 @@ mod tests {
             auths: vec![],
         };
         let signed = TokenTx { auths: vec![lamport::sign(&owner_key, &unsigned.digest())], ..unsigned.clone() };
-        // pow_check reads the seal's own bits, so mining at dev's easy bits keeps this test instant.
-        let fast_bits = ChainSpec::dev().genesis_bits;
-        for (spec, binding_on) in [(ChainSpec::dev(), false), (ChainSpec::testnet(), true)] {
+        // The testnet's rules at dev's easy bits keep this test instant (a block's seal must claim its
+        // chain's bits, so the bits are set on the spec, not only passed to `mine`). Control binding is
+        // the subject here, and it does not depend on difficulty.
+        let mut fast_testnet = ChainSpec::testnet();
+        fast_testnet.constitution.pow_bits = ChainSpec::dev().genesis_bits();
+        for (spec, binding_on) in [(ChainSpec::dev(), false), (fast_testnet, true)] {
+            let fast_bits = spec.genesis_bits();
             let (mut node, _) = spec.genesis_node();
             node.ledger.token_cells.push(owned.clone());
             node.submit(
@@ -433,10 +466,87 @@ mod tests {
                 node.validate(&carrying(&unsigned)),
                 !binding_on,
                 "chain 0x{:x}: an unsigned spend is accepted iff control binding is off",
-                spec.chain_id
+                spec.chain_id()
             );
-            assert!(node.validate(&carrying(&signed)), "chain 0x{:x}: the owner's signature authorizes the spend", spec.chain_id);
+            assert!(node.validate(&carrying(&signed)), "chain 0x{:x}: the owner's signature authorizes the spend", spec.chain_id());
         }
+    }
+
+    /// One contribution waiting in `node`'s mempool at height 1 (the carrier every gap test mines).
+    fn one_contribution(node: &mut Node) {
+        node.submit(
+            Cell {
+                id: 1,
+                lock: Script { code_hash: [0u8; 32], args: b"al".to_vec() },
+                type_script: Script { code_hash: [1u8; 32], args: b"alice".to_vec() },
+                parent: None,
+                timestamp: 1,
+                data: b"a note on how fog banks form over cold water".to_vec(),
+            },
+            crate::commit_order::Committed { height: 1, secret: [11u8; 32] },
+        );
+    }
+
+    /// Gap 1 (2026-11-18): a seal that claims EASIER bits than the chain spec, valid for those bits, is
+    /// refused on the shared acceptance path (`accept_block`, which the producer runs on the block it mined
+    /// and a follower on every block it pulls), and the node is unchanged. Dev: one exponent easier than
+    /// its own bits. Testnet: dev's bits, the shortcut the test helpers used to take. The same dev block
+    /// mined at the spec's own bits is accepted.
+    #[test]
+    fn a_seal_claiming_easier_bits_than_the_spec_is_refused_even_when_valid_for_them() {
+        for (spec, easier) in [(ChainSpec::dev(), 0x2100_ffffu32), (ChainSpec::testnet(), ChainSpec::dev().genesis_bits())] {
+            let spec_target = noesis_core::pow::compact_to_target(spec.genesis_bits()).unwrap();
+            let easy_target = noesis_core::pow::compact_to_target(easier).unwrap();
+            assert!(easy_target > spec_target, "test premise: the claimed bits are easier than the spec's");
+            let (mut node, _) = spec.genesis_node();
+            one_contribution(&mut node);
+            let cheap = mine(node.propose().with_coinbase(spec.placeholder_reward()), easier);
+            assert!(header_digest(&cheap) <= easy_target, "the seal is valid for the bits it claims");
+            let before = node.ledger.state_digest();
+            let refused = spec.accept_block(&mut node, &cheap).expect_err("a seal at easier bits than the spec is refused");
+            assert!(
+                refused.contains("PowBitsWrong") && refused.contains(&format!("{easier:#010x}")),
+                "chain 0x{:x}: {refused}",
+                spec.chain_id()
+            );
+            assert_eq!(
+                crate::runtime::validate_block(&node.ledger, &cheap, &node.constitution),
+                Err(crate::runtime::Violation::PowBitsWrong { expected: spec.genesis_bits(), got: easier }),
+                "the rulebook itself refuses it, so every path that validates (replay, sync, follow) does"
+            );
+            assert_eq!((node.ledger.height, node.ledger.state_digest()), (0, before), "nothing applied");
+        }
+        let spec = ChainSpec::dev();
+        let (mut node, _) = spec.genesis_node();
+        one_contribution(&mut node);
+        let honest = mine(node.propose().with_coinbase(spec.placeholder_reward()), spec.genesis_bits());
+        assert_eq!(spec.accept_block(&mut node, &honest), Ok(()), "the spec's own bits are accepted");
+    }
+
+    /// Gap 2 (2026-11-18): a block mined for one chain is refused on another chain with the SAME rules,
+    /// genesis and difficulty. Only the chain id tells them apart, so the block itself must carry it.
+    #[test]
+    fn a_block_mined_for_one_chain_is_refused_on_another_with_the_same_rules() {
+        use crate::runtime::{validate_block, Violation};
+        let a = ChainSpec::dev();
+        let mut b = ChainSpec::dev();
+        b.constitution.chain_id = 0xb0b;
+        let (mut on_a, _) = a.genesis_node();
+        one_contribution(&mut on_a);
+        let block = mine(on_a.propose().with_coinbase(a.placeholder_reward()), a.genesis_bits());
+        assert_eq!(block.chain_id, 0xde0, "the producer stamps its own chain id");
+        let (mut on_b, _) = b.genesis_node();
+        let before = on_b.ledger.state_digest();
+        let refused = b.accept_block(&mut on_b, &block).expect_err("a block mined for chain A is refused on chain B");
+        assert!(refused.contains("WrongChain") && refused.contains("0xde0") && refused.contains("0xb0b"), "{refused}");
+        assert_eq!((on_b.ledger.height, on_b.ledger.state_digest()), (0, before), "nothing applied");
+        // Relabel it for chain B without re-mining: the id is in the header digest, so the seal no longer
+        // proves this block. At dev's bits 1 hash in 256 meets the target, so whether the relabeled digest
+        // misses it is a property of these exact bytes; it is asserted here, not left to chance.
+        let relabeled = block.clone().with_chain_id(b.chain_id());
+        assert_ne!(header_digest(&relabeled), header_digest(&block), "the chain id is bound into the header digest");
+        assert_eq!(validate_block(&on_b.ledger, &relabeled, &on_b.constitution), Err(Violation::PowUnmet));
+        assert_eq!(a.accept_block(&mut on_a, &block), Ok(()), "its own chain accepts it");
     }
 
     #[test]
@@ -459,8 +569,8 @@ mod tests {
         let raw = node.propose();
         // Under pow_enforced, an UN-mined block carries no seal ⇒ validation rejects it (PowMissing).
         assert!(!node.validate(&raw), "an un-mined block must fail pow_check under pow_enforced");
-        let mined = mine(raw, spec.genesis_bits);
-        let target = noesis_core::pow::compact_to_target(spec.genesis_bits).unwrap();
+        let mined = mine(raw, spec.genesis_bits());
+        let target = noesis_core::pow::compact_to_target(spec.genesis_bits()).unwrap();
         assert!(header_digest(&mined) <= target, "the mined header must meet the target");
         assert!(node.validate(&mined), "the mined block must validate under the dev constitution");
     }

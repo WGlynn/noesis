@@ -44,17 +44,17 @@ Two different weightings. Quoting one for the other is the 2026-06-29 hallucinat
   → `consensus::NCI` at `node/src/lib.rs:4052`. Supermajority `TWO_THIRDS_BPS = 6667`
   (`lib.rs:4054`). This is the *whole-system* weight (production + ordering + finality inputs).
 - **Finality mix — PoW EXCLUDED:** `pow 0.0 / pos 1/3 / pom 2/3`, renormalized so PoS+PoM
-  sum to 1. → `finality::FINALITY_MIX` at `node/src/runtime.rs:1664`.
+  sum to 1. → `finality::FINALITY_MIX` at `node/src/runtime.rs:1725`.
   - **Why PoW is out of finality:** PoW is probabilistic and reorgeable, so putting it on
     the *safety* path would itself be the hazard. PoW secures block production, ordering, and
     Sybil-cost (and is the money layer, JUL) — not safety. Finality routes through
-    `finality::finalizes_pos_pom` (`runtime.rs:1730`).
+    `finality::finalizes_pos_pom` (`runtime.rs:1791`).
   - **2/3 bar is over the PoS+PoM fast-final set**, not a global total.
   - **Each side is measured as a share of its own total before mixing** (2026-10-21,
-    `finality::side_shares`, `runtime.rs:1697`; on-VM mirror `finalizes_pos_pom_fixed` in
+    `finality::side_shares`, `runtime.rs:1758`; on-VM mirror `finalizes_pos_pom_fixed` in
     `onchain/noesis-core`). So capital holds exactly 1/3 of the finality vote once any contribution
     weight exists, and all of it at genesis when the contribution side is empty
-    (`finality::capital_share`, `runtime.rs:1712`), at any denomination of stake or standing. With
+    (`finality::capital_share`, `runtime.rs:1773`), at any denomination of stake or standing. With
     both sides present and no decay, a checkpoint finalizes when `a + 2b` clears `3 x 0.6667` and
     `a, b >= 1/2`, where `a` and `b` are the voting fractions of stake and of standing.
     Note (2026-10-21): before this, the mix weighed raw stake against raw novelty counts, so the
@@ -72,8 +72,8 @@ Two different weightings. Quoting one for the other is the 2026-06-29 hallucinat
     keyed to something costly to fake (lineage diversity, not a date that can be front-run or a head
     count that extra accounts can pad). It is not designed yet.
 - **Anti-concentration floor:** each dimension (PoS and PoM) must *independently* supply
-  ≥ **50%** of its own dimension's total to finalize. → `MIN_DIM_BPS = 5000` (`runtime.rs:1676`),
-  `dim_ok` (`runtime.rs:1678`). This is what makes neither axis sufficient alone:
+  ≥ **50%** of its own dimension's total to finalize. → `MIN_DIM_BPS = 5000` (`runtime.rs:1737`),
+  `dim_ok` (`runtime.rs:1739`). This is what makes neither axis sufficient alone:
   - a gamed PoM (the 2/3 share) cannot finalize without the PoS dimension also clearing 50%;
   - capital holding *all* stake controls only the PoS dimension, and the unbuyable PoM
     dimension must independently clear 50% — **capital cannot finalize without contribution's
@@ -91,13 +91,13 @@ Two different weightings. Quoting one for the other is the 2026-06-29 hallucinat
   default, not on-VM; pointers re-stamped 2026-10-21). A group holding more than a third of the combined
   weight that stays online and withholds stalls finality on the 2/3 bar; block production continues
   through any finality stall. The decay (`finality::VoteLeak`, `finalizes_pos_pom_leaking`,
-  `runtime.rs:1860/1929`; `Node::checkpoint_round`, `runtime.rs:1101`; shares are taken against the
+  `runtime.rs:1921/1990`; `Node::checkpoint_round`, `runtime.rs:1153`; shares are taken against the
   unleaked totals, then leaked) runs only during a finality
   stall, decays the 2/3-bar weight of whoever does not vote for this chain's checkpoint (never stake or
   credit), and keeps the quorum floor on the registered base. Ruling (Will 2026-10-20, provisional
   pending peer feedback): it NEVER reaches the per-dimension floor, so a refusal by more than half of
   either dimension keeps its veto (the protocol can't tell an honest veto from a captor's stall); that
-  case is answered by the social fork. Off while `Constitution.leak_horizon == 0` (`runtime.rs:167`).
+  case is answered by the social fork. Off while `Constitution.leak_horizon == 0` (`runtime.rs:177`).
   Design, partition risk, and the fork-as-exit remedy ladder: `SECURITY.md` section 5.
 - **DECISION — PoM stays coupled to finality (ruled by Will, 2026-06-29; security-expert call).** The
   built design stands: PoM is load-bearing in finality, bounded by the anti-concentration floor.
@@ -129,7 +129,7 @@ the soulbound side, never the transferable byte.
 
 Not PoM standing, and not a fourth token in the table above: an application credential (first
 collection `vibeswap-identity-v1`, `node/src/identity_mint.rs:33`, the Vibeswap chat's opt-in
-identity with a member tier). Standard `TokenStandard::Soulbound` (`node/src/runtime.rs:335`; wire,
+identity with a member tier). Standard `TokenStandard::Soulbound` (`node/src/runtime.rs:355`; wire,
 digest and on-VM tag 3), rule `tokens::soulbound` (`node/src/tokens.rs:202`, `valid` at `:330`). One
 cell per serial in `Ledger.token_cells`; `data` = version, serial, tier (identity / member /
 revoked), the holder's 32-byte address. The issuer holds every cell. The type rule lets a tx mint,
@@ -140,42 +140,42 @@ action. Who can spend that authority cell is a signature question,
 which consensus checks only once control binding is on (see the honest floor below).
 
 - **Zero PoM standing and zero finality weight, from the code.** Token outputs are appended to
-  `token_cells` only (`runtime.rs:1490`); PoM is recomputed over `state.cells` only (`runtime.rs:1568`,
+  `token_cells` only (`runtime.rs:1551`); PoM is recomputed over `state.cells` only (`runtime.rs:1629`,
   keyed on `type_script.args`, `lib.rs:329`); `finality_pom_weight` filters `ledger.cells`
-  (`runtime.rs:1180-1187`); PoS weight comes from the chain spec's bonded validators, not from cells.
+  (`runtime.rs:1232-1239`); PoS weight comes from the chain spec's bonded validators, not from cells.
   The only outside path into `cells` is `POST /submit`; identities enter through `POST /token-tx`,
-  which takes soulbound txs only. Confinement (`runtime.rs:381`): a soulbound cell moves only in a
+  which takes soulbound txs only. Confinement (`runtime.rs:401`): a soulbound cell moves only in a
   soulbound tx of its own collection, and a soulbound tx carries nothing else. The test is
-  `identity_mints_carry_zero_pom_and_zero_finality_weight` (`runtime.rs:3487`): six blocks with and
+  `identity_mints_carry_zero_pom_and_zero_finality_weight` (`runtime.rs:3548`): six blocks with and
   without mints (holders equal to the contributor's own key, vesting W = 2) give identical cells, index
   root, PoM, work clock, `finality_pom_weight()` and finality decision; folding soulbound outputs into
   `cells` breaks it. That is a test over the reference node, not a proof.
 - **Issuer authority is a linear cell, so minting is not one-shot.** Fungible/Nft take mint authority
-  from an input whose `lock.args` equals the token args (`runtime.rs:402`). Only a 32-byte one-time
+  from an input whose `lock.args` equals the token args (`runtime.rs:422`). Only a 32-byte one-time
   Lamport root can sign, so the authority must come back under the same key and a second mint reuses
   it; from two such signatures a third party assembles a valid signature over a digest the issuer
-  never signed (`one_mint_limit_of_the_lock_args_rule_is_real`, `runtime.rs:3571`). Still true for
+  never signed (`one_mint_limit_of_the_lock_args_rule_is_real`, `runtime.rs:3632`). Still true for
   Fungible/Nft (open). Soulbound authority works differently. Each collection has exactly one
-  authority cell. Genesis creates it (`chainspec.rs:45`, `:195`); no tx can create another. Every spend
+  authority cell. Genesis creates it (`chainspec.rs:45`, `:213`); no tx can create another. Every spend
   must re-create it with its generation number one higher, under any lock. So the tool locks
   generation `g` with a key derived from (issuer seed, g) (`identity_mint.rs:56`), and each key signs
   once. Identity cells get their own per-(g, serial) keys (`:61`).
-  Test: `soulbound_key_chain_mints_two_and_three_times_without_reusing_a_key` (`runtime.rs:3654`).
+  Test: `soulbound_key_chain_mints_two_and_three_times_without_reusing_a_key` (`runtime.rs:3715`).
 - **Mint path.** A batch file (the bot's format) -> `identity-mint mint` reads `GET /tokens`
   (`rpc.rs:912`) -> one tx, signed -> `POST /token-tx` (`rpc.rs:931`; node-local policy: soulbound
   only, every input signed and verified, valid with all pending txs, queue of 16, `rpc.rs:94`) -> the
-  next contribution block carries it (`chainspec.rs:218`). A token tx never makes a block alone
-  (`EmptyBlock`, `runtime.rs:1294`, unchanged). Per tx at most 64 mints and 2 re-tiers
+  next contribution block carries it (`chainspec.rs:236`). A token tx never makes a block alone
+  (`EmptyBlock`, `runtime.rs:1381`, unchanged). Per tx at most 64 mints and 2 re-tiers
   (`identity_mint.rs:42-43`) so the signed body fits `MAX_BODY` = 160 KiB (`rpc.rs:52`). The dev spec's
   authority uses a public dev seed; the testnet's root is `TESTNET_IDENTITY_AUTHORITY_ROOT`
   (`chainspec.rs:59`), its seed kept outside the repo. On-VM, the lock script maps the code hash to
   tag 3 (`onchain/locksig-typescript/src/main.rs:60-72`; `node/tests/ckb_vm_locksig.rs`).
 - **Honest floor.** Spend signatures are checked in the reference node's consensus on the testnet
-  only: control binding (`Constitution::control_binding`, `runtime.rs:187`) is on in
-  `ChainSpec::testnet()` (`chainspec.rs:153`) and off on dev. On the testnet a block that spends the
+  only: control binding (`Constitution::control_binding`, `runtime.rs:197`) is on in
+  `ChainSpec::testnet()` (`chainspec.rs:171`) and off on dev. On the testnet a block that spends the
   authority or re-tiers an identity without the owner's signature is invalid for the producer and for
   every joiner or follower that re-validates (`testnet_refuses_an_unsigned_spend_that_dev_accepts`,
-  `chainspec.rs:390`); on dev an empty signature still spends. The on-VM lock script's own switch
+  `chainspec.rs:419`); on dev an empty signature still spends. The on-VM lock script's own switch
   (`CONTROL_ENFORCED`) is off, so this is the reference node's check, not yet the on-VM scripts'.
   The off-chain registry stays the authority. The holder address is pasted, not proven; the cell grants nothing on
   chain. Pending txs and inclusion records are node-local memory. On a quiet chain a mint waits for a
@@ -185,17 +185,17 @@ which consensus checks only once control binding is on (see the honest floor bel
 
 Testnet step 3 (`docs/TESTNET.md`), built as designed there: app layer, a funded wallet.
 
-- **Control binding is a chain setting.** `Constitution::control_binding` (`runtime.rs:187`) replaced the
+- **Control binding is a chain setting.** `Constitution::control_binding` (`runtime.rs:197`) replaced the
   hard-coded `CONTROL_BINDING_ACTIVE = false`. It reaches `TokenTx::spend_is_authorized`
-  (`runtime.rs:584`) through `is_valid_in_ledger` (`:493`) for token-tx inputs and through `check_bonds`
-  (`:1360`) for Bound-B deposits, and the sub-block tier gets it too. With it on, an empty `auth` no
+  (`runtime.rs:604`) through `is_valid_in_ledger` (`:513`) for token-tx inputs and through `check_bonds`
+  (`:1421`) for Bound-B deposits, and the sub-block tier gets it too. With it on, an empty `auth` no
   longer authorizes a spend; a presented one is verified the same either way. Contribution cells and the
   coinbase are not spends, so `POST /submit` is unchanged
   (`a_v2_submit_lands_on_the_testnet_with_control_binding_on_and_pays_the_faucet`, `rpc.rs:1424`, on the
   real testnet spec). On in `ChainSpec::testnet()` only.
 - **The reward funds the faucet.** `ChainSpec::reward_to_faucet` (`chainspec.rs:52`, on for the testnet)
   makes the producing node pay each block reward to the faucet (`produce_block_paying`,
-  `chainspec.rs:230`; `rpc.rs:855`). Consensus fixes the amount and never checks the recipient. A chain
+  `chainspec.rs:248`; `rpc.rs:855`). Consensus fixes the amount and never checks the recipient. A chain
   that pays the faucet produces nothing without the faucet seed: `--serve-api` refuses to start
   (`rpc.rs:1118`) and an in-memory node refuses the block (`rpc.rs:793`). A replica (`--follow`, below)
   produces nothing and needs no seed: it validates a reward paid to the faucet without the faucet's key.
@@ -210,7 +210,7 @@ Testnet step 3 (`docs/TESTNET.md`), built as designed there: app layer, a funded
   next contribution block.
 - **Zero standing, zero finality weight.** JUL cells sit in `token_cells`, which PoM and finality never
   read. Test: `the_reward_recipient_and_faucet_payouts_move_no_standing_and_no_finality_weight`
-  (`faucet.rs:489`): two replicas, rewards to the placeholder vs to the faucet plus payouts (one to the
+  (`faucet.rs:492`): two replicas, rewards to the placeholder vs to the faucet plus payouts (one to the
   contributor's own key bytes), with vesting W = 0 and W > 0, give identical cells, index root, PoM,
   work clock, finality weight and finality decision; folding JUL into `pom` breaks it (checked).
 - **Honest floor.** The seed is a plaintext file outside the repo (`~/.noesis/noesis-faucet-testnet.seed`
@@ -225,53 +225,56 @@ Testnet step 3 (`docs/TESTNET.md`), built as designed there: app layer, a funded
 Testnet step 7, topology A of `docs/DESIGN-live-gossip.md` (Will 2026-11-17: "one producer, for now").
 
 - **Roles.** The producer is `noesisd --serve-api`. A follower is `noesisd --follow <producer-url> <http>
-  <store>` (`rpc.rs:1103`, loop `follow.rs:218`): its own page and read API over its own durable store. It
+  <store>` (`rpc.rs:1103`, loop `follow.rs:221`): its own page and read API over its own durable store. It
   produces nothing: `POST /submit`, `/faucet` and `/token-tx` answer 409 with the producer's URL
   (`rpc.rs:617`), and the page re-sends the same signed body there once.
 - **Route.** `GET /blocks?since=N[&limit=M]` (`rpc.rs:915`, `blocks_page` `:518`): the full finalized blocks
-  after height N, oldest first, at most 32 a page (`PAGE_MAX_BLOCKS`, `follow.rs:45`) and about 1 MiB of
-  block bytes (`PAGE_MAX_BYTES`, `:49`; at least one block), with `tip`, `more`, and the chain link at N as
-  `anchor`. Blocks are read back from the store by frame offset (`store.rs:56`, `:128`). Only blocks in the
+  after height N, oldest first, at most 32 a page (`PAGE_MAX_BLOCKS`, `follow.rs:48`) and about 1 MiB of
+  block bytes (`PAGE_MAX_BYTES`, `:52`; at least one block), with `tip`, `more`, and the chain link at N as
+  `anchor`. Blocks are read back from the store by frame offset (`store.rs:59`, `:131`). Only blocks in the
   durable log are served (written and flushed to disk first, see the chain log bullet below), and a
   block is appended only after it finalized, so a pending faucet payout's
   signatures do not leave the producer early (`blocks_since_serves_only_finalized_blocks_and_never_a_pending_payout`,
-  `rpc.rs:2120`). A follower polls every 2 s (`POLL`, `follow.rs:52`), backing off to 30 s on errors; no long-poll.
-- **Validation.** Every pulled block goes through `ChainSpec::accept_block` (`chainspec.rs:264`), the
-  producer's own path: `validate_block` (PoW seal, token conservation, spend signatures under control
-  binding), the finality gate, then apply. A refused block stops following and the follower keeps its
-  chain (`a_follower_refuses_a_tampered_block_and_keeps_its_chain`, `rpc.rs:1971`;
-  `a_follower_refuses_a_payout_whose_signature_was_tampered`, `:2003`). Standing on a follower is what its
+  `rpc.rs:2175`). A follower polls every 2 s (`POLL`, `follow.rs:55`), backing off to 30 s on errors; no long-poll.
+- **Validation.** Every pulled block goes through `ChainSpec::accept_block` (`chainspec.rs:282`), the
+  producer's own path: `validate_block` (the block's chain id, the PoW seal at the chain's own bits, token
+  conservation, spend signatures under control binding; see the next section), the finality gate, then
+  apply. A refused block stops following and the follower keeps its
+  chain (`a_follower_refuses_a_tampered_block_and_keeps_its_chain`, `rpc.rs:1974`;
+  `a_follower_refuses_a_payout_whose_signature_was_tampered`, `:2016`). Standing on a follower is what its
   own apply derives from the blocks.
-- **Rewrite detection.** `chain_link` (`follow.rs:63`) chains every block's header digest from genesis
-  (`header_digest` binds the cells, coords, token txs with their signatures, coinbase, seal and timestamp;
-  not the Bound-B bonds, which must be empty while `submission_deposit` is 0, as on the testnet). Before
-  applying a page (`apply_page`, `:99`) the follower compares the producer's link at its own height, and
-  stops if they differ, if the producer's height is below its own, or if the chain id differs; `GET /state`
-  then says why (`replica.stopped`). Tests: `a_follower_stops_on_a_rewritten_history_even_one_that_keeps_the_later_blocks`
-  (`rpc.rs:2056`; blocks name no parent hash, so the tip's digest alone would miss that rewrite) and
-  `a_follower_stops_on_a_producer_behind_it_and_on_another_network` (`:2088`). The link is node-local, not consensus.
+- **Rewrite detection.** `chain_link` (`follow.rs:66`) chains every block's header digest from genesis
+  (`header_digest` binds the chain id, cells, coords, token txs with their signatures, coinbase, seal and
+  timestamp; not the Bound-B bonds, which must be empty while `submission_deposit` is 0, as on the testnet).
+  Before applying a page (`apply_page`, `:102`) the follower compares the producer's link at its own height,
+  and stops if they differ, if the producer's height is below its own, or if the page's chain id differs
+  (the producer's word, an early stop; each block's own chain id is the rulebook's check, next section);
+  `GET /state` then says why (`replica.stopped`). Tests: `a_follower_stops_on_a_rewritten_history_even_one_that_keeps_the_later_blocks`
+  (`rpc.rs:2069`; blocks name no parent hash, so the tip's digest alone would miss that rewrite) and
+  `a_follower_stops_on_a_producer_behind_it_and_on_another_network` (`:2101`). The link is node-local, not consensus.
 - **Restart.** A follower replays its own store and asks only for what it lacks
-  (`a_follower_resumes_from_its_own_store_after_a_restart`, `rpc.rs:2031`; two real processes in
+  (`a_follower_resumes_from_its_own_store_after_a_restart`, `rpc.rs:2044`; two real processes in
   `node/tests/follow_live.rs`).
 - **The chain log across a crash (built 2026-11-18, producer and follower alike).** A block's record goes
   out in one write call and is flushed to disk (`sync_all`) before the append returns
-  (`append_block_at`, `store.rs:56`); only then is it served by `GET /blocks` or reported final by
+  (`append_block_at`, `store.rs:59`); only then is it served by `GET /blocks` or reported final by
   `POST /submit` (`persist`, `rpc.rs:484`). If a write fails, the log is cut back to its last whole record,
   the block is neither served nor reported final (503), and the node takes no more blocks until it is
   restarted, since a later block written without it would leave a gap no boot can replay
-  (`a_block_the_log_cannot_take_is_not_reported_final_or_served_and_production_stops`, `rpc.rs:2380`).
-  At boot (`load_for_append`, `store.rs:139`, called by `with_store`, `rpc.rs:341`): if the bytes after
+  (`a_block_the_log_cannot_take_is_not_reported_final_or_served_and_production_stops`, `rpc.rs:2435`).
+  At boot (`load_for_append`, `store.rs:142`, called by `with_store`, `rpc.rs:341`): if the bytes after
   the last good record are what a crash mid-write leaves (part of one record with no whole block record
-  among them, or all zeros, `torn_tail`, `store.rs:251`), they are copied to
+  among them, or all zeros, `torn_tail`, `store.rs:281`), they are copied to
   `<log name>.torn-at-<byte offset>-<unix seconds>` next to the log (never deleted), the log is cut back
   to the last good record, both are flushed, one line on stderr says so, and only then does the node
   append. Before this fix the torn bytes stayed, new blocks went after them, and the next boot stopped at
   the torn record and dropped every later block, so the producer fell below its followers and finalized
-  blocks were lost (`a_torn_tail_is_set_aside_at_boot_and_every_later_block_survives`, `rpc.rs:2235`;
-  follower, `:2266`; real process, `node/tests/listen_serves_durable_store.rs`). Anything else (good
+  blocks were lost (`a_torn_tail_is_set_aside_at_boot_and_every_later_block_survives`, `rpc.rs:2290`;
+  follower, `:2321`; real process, `node/tests/listen_serves_durable_store.rs`). Anything else (good
   records after a bad one, a whole record that is not a block, a block the rules refuse) is damage, not a
-  crash: the node refuses to start, says where, and leaves the file as it is (`:2303`). A read-only load
-  (`--listen <store>`, the peers seed) never changes the file, and judges only the bytes it saw when its
+  crash: the node refuses to start, says where, and leaves the file as it is (`rpc.rs:2358`). A log of
+  another network is neither: the boot stops at its first block with both chain ids named (next section).
+  A read-only load (`--listen <store>`, the peers seed) never changes the file, and judges only the bytes it saw when its
   replay began, so a record the writer finishes meanwhile is not mistaken for damage. Honest floor: no power-cut test was run;
   on Windows the directory entry of a newly created log is not flushed (std cannot open a directory
   there); a log an older node already damaged this way (whole blocks after a torn record) now stops the
@@ -279,9 +282,65 @@ Testnet step 7, topology A of `docs/DESIGN-live-gossip.md` (Will 2026-11-17: "on
 - **Honest floor.** One producer: if it stops, the chain stops (no failover, no leader election). A follower
   checks every rule the rulebook covers, but trusts the producer URL (and TLS, for https) for who made the
   chain: a block carries no producer signature, and a contribution cell does not carry its wallet signature
-  (the producer checks it at `POST /submit`), so a follower cannot re-check who wrote a contribution. The PoW
-  check verifies a seal against the bits the seal claims; nothing compares those bits with `genesis_bits`.
+  (the producer checks it at `POST /submit`), so a follower cannot re-check who wrote a contribution.
   An https producer is fetched through the system's `curl`, since the node links no TLS library.
+
+## Every block names its chain and claims its chain's difficulty (built 2026-11-18, reference node)
+
+Two block-acceptance gaps, closed before the testnet's first block (it was at height 0 with no chain log,
+so the format change cost nothing).
+
+- **Difficulty.** Before, `pow_check` checked a seal only against the bits the seal itself named, and
+  nothing compared those bits with the spec's. A producer (or anyone a follower trusted) could serve blocks
+  mined at a trivial target, and `block_work`, which pays JUL and advances the work clock, was computed from
+  the bits the producer chose. Now the bits are a rulebook value, `Constitution::pow_bits`
+  (`runtime.rs:100`), and under `pow_enforced` a seal must claim exactly them before its hash is checked
+  against them (`pow_check`, `runtime.rs:978`, the bits check at `:984`; refusal `Violation::PowBitsWrong`). No retarget is wired:
+  `noesis_core::pow::next_target` (ASERT) and `liveness::liveness_bits` are pure and called from no
+  consensus path. So every height uses one value, dev `0x2000_ffff` (`chainspec.rs:95`, about 1 hash in 256
+  meets it) and testnet `0x1f00_ffff` (`chainspec.rs:177`, about 1 in 65,536). Harder bits are refused too:
+  the rule is equality, as in Bitcoin, where a block's bits must equal what the schedule requires and a hash
+  lower than required is always fine. `Node::new` refuses a PoW-enforced chain whose bits decode to no
+  target (`runtime.rs:1063`).
+- **Chain id.** Before, `ChainSpec::chain_id` was read only by the follower's page check (`apply_page`, the
+  producer's own word) and by messages: blocks did not carry it and validation never read it, so a dev chain
+  log replayed onto the testnet genesis, and a block mined for one network was valid on any other with the
+  same rules. Now every block carries `chain_id` (`Block::chain_id`, `runtime.rs:667`, stamped by
+  `Node::propose`, `runtime.rs:1129`),
+  `validate_block` refuses a block whose id is not `Constitution::chain_id` before any other check (`runtime.rs:1371`; `Violation::WrongChain`), with or without
+  PoW, and `header_digest` binds the id first (`runtime.rs:882`, domain tag `noesis-pow-hdr-v2`), so a
+  block relabeled for another chain no longer matches the digest its seal was mined over. Dev is `0xde0`
+  (`chainspec.rs:92`), testnet `0x7e57` (`chainspec.rs:172`).
+- **Why in the rulebook, not only the node.** Block validity is the one pure function every replica runs
+  (`validate_block`). The producer and a follower reach it through `ChainSpec::accept_block`, but a node
+  booting from its chain log, a joiner syncing from a seed (`sync.rs`), the reorg path and `apply_block` call
+  `validate_block` directly. A rule kept only in `accept_block` would let a replica that boots from a log
+  accept a block that a follower refuses. The bits also set consensus state (`block_work` feeds the coinbase
+  amount and `Ledger::work`, which is in the state digest). Both values moved from `ChainSpec` fields into
+  the `Constitution`, which the spec builds, so the bits a node mines at (`ChainSpec::genesis_bits()`) and
+  the bits it requires are one value.
+- **Boot and join.** A chain log of another network stops the boot at its first block with both chain ids
+  named, and the file is left as it is (`store.rs:228`); a joiner that meets another network's seed says the
+  same (`sync.rs`). A log written before this change names no chain id and its seals were mined over the v1
+  digest: it does not decode, and the node refuses to start on it, as for damage. `chain_id` is a required
+  wire field (`wire.rs:70`).
+- **Tests.** Producer path:
+  `a_seal_claiming_easier_bits_than_the_spec_is_refused_even_when_valid_for_them` (`chainspec.rs:496`) and
+  `a_block_mined_for_one_chain_is_refused_on_another_with_the_same_rules` (`chainspec.rs:529`). Follower path:
+  `a_follower_refuses_a_block_mined_at_easier_bits_than_the_spec` (`rpc.rs:2132`) and
+  `a_follower_refuses_blocks_of_another_network_even_when_the_page_claims_its_chain_id` (`rpc.rs:2157`). Boot:
+  `a_dev_log_refuses_to_load_as_testnet_naming_both_chain_ids` (`store.rs:455`). Join:
+  `a_joiner_on_another_network_refuses_the_seeds_blocks_naming_both_chains` (`node/tests/sync_join.rs`).
+  Rulebook: `a_seal_must_claim_the_chains_own_bits`, `a_block_names_its_chain_and_the_header_binds_it`
+  (`node/tests/pow_enforcement.rs`). The producer, follower and boot tests were run on the code before the
+  fix first and failed there (the easier-bits block and the other network's block were accepted, the dev
+  log loaded as testnet); the rulebook and join tests use the new fields and were written with the fix.
+- **Honest floor.** Both rules are the reference node's: no on-VM script reads a block header or its seal
+  (the header digest is built only in the node; `noesis-core` holds the hash and the compact arithmetic),
+  so nothing on-VM changed and nothing on-VM checks either rule. A chain id separates networks only if their
+  ids differ: anyone can start a chain from the same spec, and its blocks are valid on ours. The difficulty
+  is still a placeholder (cheap blocks, low Sybil cost, expected for a testnet); the measured mainnet value
+  and a retarget are open.
 
 ## Value measure `v(S)` — the moat (re-stamped from code and the research record, 2026-10-21)
 
@@ -302,9 +361,9 @@ decides when it retrains). Interior anti-gaming: within-identity, cross-identity
 `collusion_slash` (`:5010`); one invariant behind them in `docs/ISOMORPHISM-INVARIANCE-VS.md`.
 
 **2. The fence: finality reads structural novelty only (built, 2026-10-05).** `Node::finality_pom_weight`
-(`node/src/runtime.rs:1146`) reads novelty past the vesting window, not the value stack, and `value_v5..v8`
+(`node/src/runtime.rs:1198`) reads novelty past the vesting window, not the value stack, and `value_v5..v8`
 have no caller in the runtime or the RPC. The test
-`standing_and_finality_are_structural_novelty_only_no_value_layer_leak` (`runtime.rs:3209`) fails if the
+`standing_and_finality_are_structural_novelty_only_no_value_layer_leak` (`runtime.rs:3270`) fails if the
 value layer reaches standing. So nothing that judges worth, including a learned or brain-based judge,
 touches what gets finalized. Why split them: if finality and reward read one gameable signal, one wash
 attack is a value, governance and consensus exploit at once (`docs/DESIGN-novelty-split-structural-vs-value.md`).

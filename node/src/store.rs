@@ -23,6 +23,9 @@
 //! * Anything else is DAMAGE, not a crash: a whole record that is not a block, a block the chain's
 //!   rules refuse, a length no block record has, or a whole block record after the broken one. The load
 //!   fails, says where, and leaves the file as it is. Cutting it back would throw away good blocks.
+//! * A log of ANOTHER NETWORK is neither (2026-11-18): every block names its chain, so the first block
+//!   whose chain id is not this node's stops the boot with an error naming both chain ids, and the file
+//!   is left as it is. A log written before blocks named their chain does not decode (damage, above).
 //!
 //! Lean by design (the `net`/`sync` precedent): std file I/O only, no database, no serialization
 //! framework beyond the chain's own `wire`. Single-node durability for the invite-a-few-friends tier;
@@ -33,7 +36,7 @@ use std::io::{self, BufReader, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
 use crate::chainspec::ChainSpec;
-use crate::runtime::{Block, Node};
+use crate::runtime::{Block, Node, Violation};
 use crate::wire::{decode_block, encode_block};
 
 /// Upper bound on a single framed record (a block is small). A corrupt/hostile length prefix cannot
@@ -207,16 +210,44 @@ fn replay(path: &Path, spec: &ChainSpec) -> io::Result<Replay> {
         }
         let block = match decode_block(&buf) {
             Ok(b) => b,
-            Err(e) => break Some(format!("a whole {len}-byte record does not decode as a block ({e})")),
+            Err(e) => {
+                let old = if e.0.contains("missing field `chain_id`") {
+                    "; it names no chain id, so it was written before 2026-11-18, when blocks began to name their \
+                     chain, and this node cannot replay it"
+                } else {
+                    ""
+                };
+                break Some(format!("a whole {len}-byte record does not decode as a block ({e}){old}"));
+            }
         };
         // Trust the rulebook, not the disk (the sync_from discipline): never apply a block our own
         // validate rejects.
-        if !node.validate(&block) {
-            break Some(format!(
-                "this chain's rules (chain 0x{:x}) refuse the block it holds, at height {} (is this the right \
-                 network's log? check NOESIS_NET)",
-                spec.chain_id, block.height
-            ));
+        match crate::runtime::validate_block(&node.ledger, &block, &node.constitution) {
+            Ok(()) => {}
+            // Another network's log (every block names its chain, 2026-11-18). Neither a crash nor damage:
+            // the file is fine, the node was started on the wrong genesis. Say so and touch nothing.
+            Err(Violation::WrongChain { expected, got }) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!(
+                        "the block log {} holds blocks of chain 0x{got:x}, and this node runs chain 0x{expected:x}: \
+                         its block at height {} (after {} blocks of this chain) was made for the other network. \
+                         Check NOESIS_NET (dev is 0xde0, testnet 0x7e57), or start this chain on its own log. The \
+                         file is unchanged.",
+                        path.display(),
+                        block.height,
+                        blocks.len()
+                    ),
+                ));
+            }
+            Err(v) => {
+                break Some(format!(
+                    "this chain's rules (chain 0x{:x}) refuse the block it holds, at height {}: {v:?} (is this the \
+                     right network's log? check NOESIS_NET)",
+                    spec.chain_id(),
+                    block.height
+                ));
+            }
         }
         node.apply(&block);
         blocks.push(block);
@@ -415,6 +446,42 @@ mod tests {
             assert_eq!(bytes, encode_block(block), "the frame holds the exact appended bytes");
             assert_eq!(decode_block(&bytes).unwrap().height, loaded.height);
         }
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// Gap 2 (2026-11-18): a dev chain log refuses to load on the testnet genesis, for a node that will
+    /// append and for a read-only load alike, with an error naming both chain ids, and the file is left
+    /// as it is. The dev genesis still loads it.
+    #[test]
+    fn a_dev_log_refuses_to_load_as_testnet_naming_both_chain_ids() {
+        let path = tmp("foreign");
+        build_and_persist(&path, &ChainSpec::dev(), 2);
+        let bytes = std::fs::read(&path).unwrap();
+        for err in [
+            load_for_append(&path, &ChainSpec::testnet()).err().expect("an appending boot refuses it"),
+            load_blocks(&path, &ChainSpec::testnet()).err().expect("a read-only load refuses it"),
+        ] {
+            let msg = err.to_string();
+            assert!(msg.contains("0xde0") && msg.contains("0x7e57"), "the error names both chains: {msg}");
+            assert_eq!(err.kind(), io::ErrorKind::InvalidData, "{msg}");
+        }
+        assert_eq!(std::fs::read(&path).unwrap(), bytes, "the file is unchanged");
+        assert!(aside_of(&path).is_empty(), "nothing set aside: a foreign log is not a torn tail");
+        assert_eq!(load_chain(&path, &ChainSpec::dev()).expect("its own genesis loads it").1, 2);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A log written before blocks named their chain (2026-11-18) does not decode: the boot refuses it,
+    /// says why, and leaves the file as it is.
+    #[test]
+    fn a_log_from_before_blocks_named_their_chain_is_refused_and_says_why() {
+        let path = tmp("pre-chain-id");
+        let body = br#"{"height":1,"cells":[],"coords":[],"token_txs":[]}"#;
+        let frame = [&(body.len() as u32).to_be_bytes()[..], &body[..]].concat();
+        std::fs::write(&path, &frame).unwrap();
+        let msg = load_for_append(&path, &ChainSpec::dev()).err().expect("refused").to_string();
+        assert!(msg.contains("names no chain id") && msg.contains("file is unchanged"), "{msg}");
+        assert_eq!(std::fs::read(&path).unwrap(), frame, "the file is unchanged");
         let _ = std::fs::remove_file(&path);
     }
 

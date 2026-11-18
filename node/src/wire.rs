@@ -64,6 +64,10 @@ struct WPowSeal {
 
 #[derive(Serialize, Deserialize)]
 struct WBlock {
+    /// The network the block was made for (2026-11-18). REQUIRED, unlike the additive fields below: a
+    /// record written before blocks named their chain has no id to check, and its seal was mined over the
+    /// v1 header digest, so it does not decode (a log from before this change cannot be replayed).
+    chain_id: u64,
     height: u64,
     cells: Vec<WCell>,
     coords: Vec<WCommitted>,
@@ -142,6 +146,7 @@ fn w_tokentx(t: &TokenTx) -> WTokenTx {
 }
 fn w_block(b: &Block) -> WBlock {
     WBlock {
+        chain_id: b.chain_id,
         height: b.height,
         cells: b.cells.iter().map(w_cell).collect(),
         coords: b.coords.iter().map(w_committed).collect(),
@@ -198,6 +203,7 @@ fn r_tokentx(t: WTokenTx) -> Result<TokenTx, WireError> {
 }
 fn r_block(b: WBlock) -> Result<Block, WireError> {
     Ok(Block {
+        chain_id: b.chain_id,
         height: b.height,
         cells: b.cells.into_iter().map(r_cell).collect(),
         coords: b.coords.into_iter().map(r_committed).collect(),

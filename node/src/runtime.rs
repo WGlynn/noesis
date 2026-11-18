@@ -88,6 +88,16 @@ pub struct Constitution {
     /// default to their inert value). The difficulty RETARGET rule + genesis bits + the work-clock
     /// ceiling are ⚑ M3 (Will-gated), deliberately absent here.
     pub pow_enforced: bool,
+    /// The compact PoW target ("nBits") every block's seal must claim under `pow_enforced` (2026-11-18).
+    /// Before this, `pow_check` accepted whatever bits the seal named, so a block mined at a trivial
+    /// target was valid and `block_work` (JUL issuance, the work clock) was paid on the bits the producer
+    /// chose. Now `pow_check` refuses a seal whose bits differ ([`Violation::PowBitsWrong`]). No retarget
+    /// is wired (`noesis_core::pow::next_target` and `liveness::liveness_bits` are pure and called from
+    /// no consensus path), so every height uses this one value; a retarget would replace the equality in
+    /// `pow_check` with a schedule read from the ledger. Set by the chain spec (`ChainSpec::dev`,
+    /// `ChainSpec::testnet`). Default `0`, which no seal can meet (`compact_to_target(0)` is `None`): a
+    /// chain that enforces PoW must name its bits, and `Node::new` refuses one that does not.
+    pub pow_bits: u32,
     /// Bound-B commit-deposit (L5; `docs/RESOURCE-DOS-BOUNDING.md` §Bound B): the minimum JUL escrow (in
     /// base units) a submission must post as a live bonded cell. `0` ⇒ INERT (no bond required, blocks
     /// carry no `bonds`, byte-identical to pre-L5 — the `pow_enforced`/`vesting_w`/`work_clock_ceiling`
@@ -185,6 +195,14 @@ pub struct Constitution {
     /// testnet); on in `ChainSpec::testnet()`. This is the node's switch only: the four on-VM binding
     /// switches in `onchain/*` (and the on-VM lock script's `CONTROL_ENFORCED`) stay off.
     pub control_binding: bool,
+    /// The network this rulebook belongs to (2026-11-18). Every block carries a chain id
+    /// ([`Block::chain_id`]), [`header_digest`] binds it, and [`validate_block`] refuses a block whose
+    /// id differs ([`Violation::WrongChain`]), so a block made for one network is invalid on every
+    /// other, and editing its id changes the digest the PoW seal was mined over. Checked whether or not
+    /// PoW is enforced. Set by the chain spec (dev `0xde0`, testnet `0x7e57`). Default `0`, which
+    /// [`Block::assemble`] also uses, so blocks built and checked against the default rulebook (most
+    /// unit tests) are unchanged.
+    pub chain_id: u64,
 }
 
 impl Default for Constitution {
@@ -200,6 +218,7 @@ impl Default for Constitution {
             max_mempool: 10_000,  // resource-DoS bound A: per-replica mempool admission cap
             jul: crate::jul::JulParams::default(), // 1 JUL per unit of work (v0 unit-definition)
             pow_enforced: false,  // inert: block_work == WORK_PER_BLOCK ⇒ byte-identical to pre-M2
+            pow_bits: 0,          // read only under pow_enforced; 0 meets no seal (Node::new refuses it there)
             coinbase_split: Vec::new(), // inert: producer takes 100% ⇒ byte-identical to pre-M3
             work_clock_ceiling: u64::MAX, // inert: min(block_work, MAX) == block_work ⇒ byte-identical
             submission_deposit: 0, // inert: no bond required ⇒ blocks carry no bonds ⇒ byte-identical (Bound B)
@@ -208,6 +227,7 @@ impl Default for Constitution {
             leak_horizon: 0,       // inert: no missed-vote decay, so checkpoint_round == checkpoint_finalizes
             genesis_unscored: false, // inert: the first cell scores like any other ⇒ byte-identical
             control_binding: false,  // inert: an empty auth authorizes a spend ⇒ byte-identical
+            chain_id: 0,             // the id `Block::assemble` stamps, so default-rulebook blocks match
         }
     }
 }
@@ -640,6 +660,11 @@ pub struct Bond {
 
 #[derive(Clone)]
 pub struct Block {
+    /// The network this block was made for (2026-11-18): must equal [`Constitution::chain_id`]
+    /// ([`Violation::WrongChain`] otherwise), and it is the first field [`header_digest`] binds, so a
+    /// seal mined for one chain does not carry over to another by editing this field. [`Node::propose`]
+    /// stamps the node's own chain id; [`Block::assemble`] leaves `0`, the default rulebook's.
+    pub chain_id: u64,
     pub height: u64,
     pub cells: Vec<Cell>,
     pub coords: Vec<Committed>,
@@ -708,6 +733,7 @@ impl Block {
         let cells = order.iter().map(|&i| proposals[i].0.clone()).collect();
         let coords = order.iter().map(|&i| raw[i].clone()).collect();
         Block {
+            chain_id: 0,
             height,
             cells,
             coords,
@@ -719,6 +745,13 @@ impl Block {
             subblock_root: None,
             parent_hash: None,
         }
+    }
+
+    /// Name the network this block is for (builder; `0` by default). [`Node::propose`] calls it with the
+    /// node's own [`Constitution::chain_id`].
+    pub fn with_chain_id(mut self, chain_id: u64) -> Block {
+        self.chain_id = chain_id;
+        self
     }
 
     /// Attach token movements to a proposed block (builder; empty by default). Each tx is
@@ -793,8 +826,9 @@ pub const WORK_PER_BLOCK: u64 = 1;
 /// The work a block adds to the cumulative-work clock. When `pow_enforced` and the block carries a
 /// seal with a valid compact target, this is the seal's DERIVED chainwork
 /// ([`noesis_core::pow::work_from_target`]) — a verified work PROOF, since [`validate_block`] has
-/// already rejected any block whose header does not meet its claimed target, so by the time this
-/// runs the `bits` are proven, never a producer-asserted number. Otherwise (flag off / pre-M2 / no
+/// already rejected any block whose header does not meet its claimed target or whose bits differ from
+/// [`Constitution::pow_bits`], so by the time this runs the `bits` are proven and are the chain's own,
+/// never a producer-chosen number. Otherwise (flag off / pre-M2 / no
 /// seal) it returns the constant `WORK_PER_BLOCK`, so the cumulative clock degrades to a height-clock
 /// and issuance + parity are byte-identical to pre-M2. Single source of per-block work; both call
 /// sites (coinbase reward + work-clock advance) already hold `params`.
@@ -810,7 +844,9 @@ pub fn block_work(b: &Block, c: &Constitution) -> u64 {
 }
 
 /// The canonical 32-byte PoW header commitment (M2a-2). Binds the seal to THIS block's consensus
-/// content so a solved hash cannot be replayed onto a different body: it commits to `height`, the
+/// content so a solved hash cannot be replayed onto a different body: it commits to `chain_id`
+/// (first, since 2026-11-18, domain tag `noesis-pow-hdr-v2`: a seal mined for one network does not
+/// carry over to another by editing the id), `height`, the
 /// canonically-ordered `cells` (full identity + data), the `coords`, the `token_txs` (their
 /// consensus-consumed bytes in PRESENTED order — standard/code_hash/args/inputs/outputs/auths — NOT
 /// the canonicalized auth-free `TokenTx::digest`), the `coinbase` recipient, and the seal's `bits` +
@@ -846,7 +882,10 @@ fn commit_cell_identity(buf: &mut Vec<u8>, cell: &Cell) {
 pub fn header_digest(b: &Block) -> [u8; 32] {
     use noesis_core::pow::put;
     let mut buf: Vec<u8> = Vec::new();
-    buf.extend_from_slice(b"noesis-pow-hdr-v1");
+    // v2 (2026-11-18): the chain id leads the preimage. v1 had no chain id, so a block's seal was valid
+    // on every network with the same rules.
+    buf.extend_from_slice(b"noesis-pow-hdr-v2");
+    buf.extend_from_slice(&b.chain_id.to_le_bytes());
     buf.extend_from_slice(&b.height.to_le_bytes());
     buf.extend_from_slice(&(b.cells.len() as u64).to_le_bytes());
     for cell in &b.cells {
@@ -930,15 +969,21 @@ pub fn header_digest(b: &Block) -> [u8; 32] {
 }
 
 /// PoW seal validity under enforcement. When `Constitution.pow_enforced`, the block MUST carry a
-/// seal whose [`header_digest`] meets its claimed compact target — a verified work PROOF: you cannot
-/// claim target `T` without a nonce whose `header_digest <= target(T)` (~`T` expected hashes), so
-/// difficulty is not attacker-choosable-for-free ([P.dont-let-attacker-choose-critical-input]). When
-/// not enforced, the seal is inert data and this is a no-op (byte-identical to pre-M2).
+/// seal that claims the chain's own bits ([`Constitution::pow_bits`]) and whose [`header_digest`]
+/// meets that target — a verified work PROOF at the chain's difficulty. A seal is cheap to make at an
+/// easy target, so checking the seal only against the bits it names (as before 2026-11-18) let the
+/// producer choose the difficulty, and with it the work `block_work` pays JUL and advances the clock
+/// on ([P.dont-let-attacker-choose-critical-input]). When not enforced, the seal is inert data and this
+/// is a no-op (byte-identical to pre-M2).
 fn pow_check(b: &Block, c: &Constitution) -> Result<(), Violation> {
     if !c.pow_enforced {
         return Ok(());
     }
     let seal = b.pow.as_ref().ok_or(Violation::PowMissing)?;
+    // No retarget is wired, so every height must claim the one value the chain spec set.
+    if seal.bits != c.pow_bits {
+        return Err(Violation::PowBitsWrong { expected: c.pow_bits, got: seal.bits });
+    }
     let target = noesis_core::pow::compact_to_target(seal.bits).ok_or(Violation::PowUnmet)?;
     if header_digest(b) <= target {
         Ok(())
@@ -1013,6 +1058,13 @@ impl Node {
             "pow_enforced requires a FINITE work_clock_ceiling (got u64::MAX) — an infinite clock \
              ceiling lets one hard block collapse the vesting window",
         );
+        // Difficulty precondition (2026-11-18): under `pow_enforced` every seal must claim `pow_bits`, so a
+        // chain that enforces PoW with bits no seal can meet would refuse every block. Fail loud at genesis.
+        assert!(
+            !constitution.pow_enforced || noesis_core::pow::compact_to_target(constitution.pow_bits).is_some(),
+            "pow_enforced requires valid pow_bits (got {:#010x}, which decodes to no target)",
+            constitution.pow_bits,
+        );
         assert!(
             !(constitution.vesting_w > 0 && constitution.work_clock_ceiling == u64::MAX),
             "vesting_w > 0 requires a FINITE work_clock_ceiling (got u64::MAX) — an infinite clock \
@@ -1073,9 +1125,9 @@ impl Node {
         true
     }
 
-    /// Leader move: assemble the next block from the local mempool.
+    /// Leader move: assemble the next block from the local mempool, for this node's chain.
     pub fn propose(&self) -> Block {
-        Block::assemble(self.ledger.height + 1, &self.mempool)
+        Block::assemble(self.ledger.height + 1, &self.mempool).with_chain_id(self.constitution.chain_id)
     }
 
     /// Honest-verifier at the block level: a node votes YES iff the block passes every
@@ -1305,11 +1357,20 @@ pub enum Violation {
     /// block's ([`Ledger::last_timestamp`]). Equality is allowed (same-tick blocks, per the kernel).
     /// The forward bound ("too far ahead") is node-local ([`Node::admits`]), never this replay path.
     TimestampNotMonotone { prev: u64, got: u64 },
+    /// (0) the block names another network: its `chain_id` is not [`Constitution::chain_id`]
+    /// (2026-11-18). Checked first, so a foreign block is refused for being foreign.
+    WrongChain { expected: u64, got: u64 },
+    /// (7b) PoW is enforced and the seal claims bits other than the chain's
+    /// ([`Constitution::pow_bits`]), whether or not its hash meets them (2026-11-18).
+    PowBitsWrong { expected: u32, got: u32 },
 }
 
 /// The acceptance gate: the six conjoined checks of the old `Node::validate`, returning the typed
 /// [`Violation`] instead of a `bool`. Pure over `(&state, &block)` — no `Node`, no I/O, no clock.
 pub fn validate_block(ledger: &Ledger, b: &Block, c: &Constitution) -> Result<(), Violation> {
+    if b.chain_id != c.chain_id {
+        return Err(Violation::WrongChain { expected: c.chain_id, got: b.chain_id });
+    }
     if b.height != ledger.height + 1 {
         return Err(Violation::HeightMismatch { expected: ledger.height + 1, got: b.height });
     }

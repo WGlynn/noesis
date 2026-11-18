@@ -103,7 +103,7 @@ to genuinely contribute.
 - Single-use UTXO retirement: a consumed authority/value cell is retired on apply, so a later block's
   existence check fails for an already-spent cell. **Within-block** and **cross-block** double-spend
   both rejected. Verify: `runtime.rs::token_txs_conserve_and_single_use`, tests at
-  `runtime.rs:1099/1153/1221`, `intra_tx_double_mint_is_denied` (`ckb_vm_proven_e2e.rs`).
+  `runtime.rs:1151/1205/1273`, `intra_tx_double_mint_is_denied` (`ckb_vm_proven_e2e.rs`).
 - Mint authority is *derived* from control of a consumed authority cell, never a self-declared field.
 - **🟡 deploy-coupled:** the cryptographic nullifier set + on-VM UTXO-set retirement are the deploy
   layer; the reference model proves the rule, the on-chain enforcement ships at deploy.
@@ -119,6 +119,16 @@ to genuinely contribute.
   default). Block production continues during any finality stall.
   A Byzantine minority cannot finalize; wrong-height / reordered / empty blocks are rejected. Verify:
   `node/tests/byzantine.rs`, `two_node.rs`.
+- **A block is valid on one network, at that network's difficulty (2026-11-18).** Every block carries its
+  chain id, bound into the PoW header digest, and `validate_block` refuses another network's block
+  (`WrongChain`). Under PoW enforcement a seal must claim the chain's own bits (`Constitution::pow_bits`,
+  `PowBitsWrong`) before its hash is checked. Before this a seal was checked only against the bits it
+  named, so a producer could mine at a trivial target, `block_work` paid JUL and advanced the work clock on
+  the bits the producer chose, and a dev chain log replayed onto the testnet. Both checks are in the
+  rulebook, so the producer, a follower, a node booting from its log and a joiner all apply them. Reference
+  node only: no on-VM script reads a block header. A chain id separates networks only if their ids differ.
+  Verify: `node/tests/pow_enforcement.rs` (`a_seal_must_claim_the_chains_own_bits`,
+  `a_block_names_its_chain_and_the_header_binds_it`), `ARCHITECTURE.md` (every block names its chain).
 - **🔬 Equivocation accountability — predicate built, ON-FINALITY-PATH slashing NOT wired.** The
   double-vote *predicate* (`consensus::is_equivocation`) and the `slash` primitive exist and are tested,
   but the live finality gate (`runtime::finalizes_pos_pom`) is a **stateless weight predicate**: it takes
@@ -147,8 +157,8 @@ finality (the never-halt design goal, `docs/DESIGN-committee-attested-clock.md` 
 **The record and the franchise are different objects.**
 - The attribution record (who built what) is history: signed, hash-linked, replayed. Finality weight is
   what the law computes from it. The sketch already keeps them apart: `Node::finality_pom_weight`
-  (`node/src/runtime.rs:1146`) is its own map, filtered by the vesting cliff `W`
-  (`Constitution.vesting_w`, `runtime.rs:68`) and by landed refutations (`runtime.rs:1163`), while the
+  (`node/src/runtime.rs:1198`) is its own map, filtered by the vesting cliff `W`
+  (`Constitution.vesting_w`, `runtime.rs:68`) and by landed refutations (`runtime.rs:1215`), while the
   full attribution map still pays credit. A cell can earn credit and carry zero finality weight.
 - A fork that carries the record keeps every credit fact. That is what kills fork-as-theft: copying the
   network credits the people in it. It does not have to inherit the franchise, because franchise is an
@@ -164,13 +174,13 @@ finality (the never-halt design goal, `docs/DESIGN-committee-attested-clock.md` 
 
 **The capture premise is narrower than "60% wins".**
 - Standing alone can't finalize. Finality needs PoS+PoM weight of at least 2/3 and each of PoS and PoM
-  to supply at least half of its own dimension (`FINALITY_MIX`, `runtime.rs:1664`; `MIN_DIM_BPS = 5000`,
-  `runtime.rs:1676`). A captured standing set also needs half the stake, so part of the price of capture
+  to supply at least half of its own dimension (`FINALITY_MIX`, `runtime.rs:1725`; `MIN_DIM_BPS = 5000`,
+  `runtime.rs:1737`). A captured standing set also needs half the stake, so part of the price of capture
   is a market price, and honest capital holds a veto. The missed-vote decay below never weakens it.
 - Capital's share of the vote is fixed, not bought (2026-10-21). The 2/3 bar weighs each side as a
-  share of its own total (`finality::side_shares`, `runtime.rs:1697`, mirrored on-VM), so capital holds
+  share of its own total (`finality::side_shares`, `runtime.rs:1758`, mirrored on-VM), so capital holds
   exactly 1/3 of the finality vote once contribution weight exists and all of it at genesis
-  (`finality::capital_share`, `runtime.rs:1712`). Adding stake, or re-denominating it, moves no weight
+  (`finality::capital_share`, `runtime.rs:1773`). Adding stake, or re-denominating it, moves no weight
   between the sides. Before this the mix weighed raw stake against raw novelty counts, so the balance
   depended on units: with the test numbers capital's share of the bar ran toward 0 as data accumulated,
   and with stake in a smallest unit capital would have owned the bar. Two keys follow: capital's power
@@ -184,7 +194,7 @@ finality (the never-halt design goal, `docs/DESIGN-committee-attested-clock.md` 
   2/3 at once, so a captured early contribution side plus half the stake can finalize. The ramp that
   would phase it in is not designed (`ARCHITECTURE.md`, finality section).
 - Votes don't make invalid state valid. Finality chooses among blocks that already pass the rules
-  (`validate_block`, `runtime.rs:1252`; the on-VM type scripts), so a finality majority can censor or
+  (`validate_block`, `runtime.rs:1370`; the on-VM type scripts), so a finality majority can censor or
   reorder, not vote through a theft. Governance is a separate instrument (VIBE, `ARCHITECTURE.md:85`).
 - Farm-then-spend has a delay: fresh standing carries no finality weight until it survives the vesting
   window `W`, and a refutation that lands inside `W` removes it (built in the reference, inert by default).
@@ -198,16 +208,16 @@ finality (the never-halt design goal, `docs/DESIGN-committee-attested-clock.md` 
    the floor of every open chain.
 
 **Missed-finality-vote decay (the inactivity-leak analog).** Built in the reference, inert by default
-(`Constitution.leak_horizon = 0`, `runtime.rs:167`), not in the on-VM finalization mirror. Code:
-`finality::VoteLeak` (`runtime.rs:1860`), `finality::finalizes_pos_pom_leaking` (`runtime.rs:1929`),
-`Node::checkpoint_round` (`runtime.rs:1101`); tests in `node/tests/vote_leak.rs`. The decay scales
+(`Constitution.leak_horizon = 0`, `runtime.rs:177`), not in the on-VM finalization mirror. Code:
+`finality::VoteLeak` (`runtime.rs:1921`), `finality::finalizes_pos_pom_leaking` (`runtime.rs:1990`),
+`Node::checkpoint_round` (`runtime.rs:1153`); tests in `node/tests/vote_leak.rs`. The decay scales
 side shares taken against the unleaked totals, never shares recomputed after leaking (that would hand
 a leaked side its full weight back).
 - The gap. Heartbeat decay (`Constitution.horizon`, `consensus::effective_weight`, `node/src/lib.rs:4084`)
   keys to liveness, so a group holding more than a third of the combined finality weight that stays
   online and withholds its vote stalls finality on the 2/3 bar indefinitely.
 - Trigger: a finality stall. The decay runs only while rounds end without a finalized checkpoint, after
-  `leak_grace` stalled rounds (`runtime.rs:159`). While finality is live nobody is decayed, voter or
+  `leak_grace` stalled rounds (`runtime.rs:169`). While finality is live nobody is decayed, voter or
   not (`normal_operation_never_decays_anyone`).
 - Rate: each stalled round past the grace, every validator that did not vote for this chain's checkpoint
   gains one missed round, capped at `leak_horizon`. Its weight on the 2/3 bar is scaled by

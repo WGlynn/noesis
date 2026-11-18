@@ -4,7 +4,8 @@
 //! `validate_block` requires a valid work PROOF, `block_work` returns the seal's DERIVED chainwork
 //! (making JUL Lever-A live), and PoW stays out of finality. Flag-OFF parity is proven for free by
 //! the 323 lib + parity suites (they run with the default `pow_enforced=false`). The difficulty
-//! RETARGET rule + genesis bits are ⚑ M3, absent here. Each test names its anti-theater break.
+//! RETARGET rule is ⚑ M3, absent here; since 2026-11-18 a chain's fixed bits are a rulebook value
+//! (`Constitution::pow_bits`) every seal must claim. Each test names its anti-theater break.
 
 use noesis::commit_order::Committed;
 use noesis::runtime::finality::FINALITY_MIX;
@@ -47,7 +48,12 @@ fn mine(mut b: Block, bits: u32) -> Block {
 }
 
 fn enforced() -> Constitution {
-    Constitution { pow_enforced: true, ..Constitution::default() }
+    enforced_at(EASY_BITS)
+}
+
+/// A PoW-enforced rulebook whose chain difficulty is `bits`: every seal must claim exactly these.
+fn enforced_at(bits: u32) -> Constitution {
+    Constitution { pow_enforced: true, pow_bits: bits, ..Constitution::default() }
 }
 
 /// Under enforcement the seal must be a valid work PROOF: no seal ⇒ PowMissing, an unmet or malformed
@@ -64,7 +70,8 @@ fn enforced_requires_a_valid_work_proof() {
         "enforced + no seal ⇒ PowMissing"
     );
 
-    // (b) a seal claiming HARDER_BITS whose header does NOT meet that target ⇒ PowUnmet.
+    // (b) on a HARDER_BITS chain, a seal claiming HARDER_BITS whose header does NOT meet that target ⇒
+    // PowUnmet.
     let target = compact_to_target(HARDER_BITS).unwrap();
     let mut unmet = valid_block(1);
     unmet.pow = Some(PowSeal { bits: HARDER_BITS, nonce: 0 });
@@ -76,15 +83,23 @@ fn enforced_requires_a_valid_work_proof() {
     }
     assert!(header_digest(&unmet) > target, "constructed an unmet seal");
     assert!(
-        matches!(validate_block(&ledger, &unmet, &con), Err(Violation::PowUnmet)),
+        matches!(validate_block(&ledger, &unmet, &enforced_at(HARDER_BITS)), Err(Violation::PowUnmet)),
         "enforced + header does not meet its claimed target ⇒ PowUnmet"
     );
 
-    // (c) a malformed compact target (sign bit set) ⇒ PowUnmet.
+    // (c) a malformed compact target (sign bit set): bits other than the chain's ⇒ PowBitsWrong; and on a
+    // (misconfigured) chain whose own bits are malformed, a seal claiming them ⇒ PowUnmet, never a pass.
+    // `Node::new` refuses such a chain at genesis.
+    const MALFORMED: u32 = (3 << 24) | 0x0080_0001;
     let mut malformed = valid_block(1);
-    malformed.pow = Some(PowSeal { bits: (3 << 24) | 0x0080_0001, nonce: 0 });
+    malformed.pow = Some(PowSeal { bits: MALFORMED, nonce: 0 });
+    assert_eq!(
+        validate_block(&ledger, &malformed, &con),
+        Err(Violation::PowBitsWrong { expected: EASY_BITS, got: MALFORMED }),
+        "enforced + bits other than the chain's ⇒ PowBitsWrong"
+    );
     assert!(
-        matches!(validate_block(&ledger, &malformed, &con), Err(Violation::PowUnmet)),
+        matches!(validate_block(&ledger, &malformed, &enforced_at(MALFORMED)), Err(Violation::PowUnmet)),
         "enforced + malformed bits ⇒ PowUnmet"
     );
 
@@ -95,6 +110,61 @@ fn enforced_requires_a_valid_work_proof() {
         "enforced + a valid mined proof ⇒ accepted"
     );
     // ANTI-THEATER: make pow_check return Ok() unconditionally ⇒ (a),(b),(c) pass validation ⇒ RED.
+}
+
+/// Gap 1 (2026-11-18): the chain's difficulty is not the producer's to choose. A seal that claims EASIER
+/// bits than the chain's, valid for them (a cheap block, and `block_work` would pay JUL and advance the
+/// clock on those bits), is refused; so is a seal at HARDER bits than the chain's (Bitcoin's rule: the
+/// bits must equal what the chain requires; a lower hash than required is always fine). The same content
+/// mined at the chain's bits is accepted.
+#[test]
+fn a_seal_must_claim_the_chains_own_bits() {
+    let ledger = Ledger::new();
+    let cheap = mine(valid_block(1), EASY_BITS);
+    assert!(header_digest(&cheap) <= compact_to_target(EASY_BITS).unwrap(), "valid for the bits it claims");
+    assert_eq!(
+        validate_block(&ledger, &cheap, &enforced_at(HARDER_BITS)),
+        Err(Violation::PowBitsWrong { expected: HARDER_BITS, got: EASY_BITS }),
+        "a seal at easier bits than the chain's is refused, though valid for them"
+    );
+    let hard = mine(valid_block(1), HARDER_BITS);
+    assert_eq!(
+        validate_block(&ledger, &hard, &enforced_at(EASY_BITS)),
+        Err(Violation::PowBitsWrong { expected: EASY_BITS, got: HARDER_BITS }),
+        "a seal at harder bits than the chain's is refused too: the bits must equal the chain's"
+    );
+    assert!(validate_block(&ledger, &hard, &enforced_at(HARDER_BITS)).is_ok(), "the chain's own bits pass");
+    assert!(
+        apply_block(Ledger::new(), &cheap, &enforced_at(HARDER_BITS)).is_err(),
+        "the rulebook (apply_block) refuses it too, so no path mints JUL on it"
+    );
+    // ANTI-THEATER: drop the `seal.bits != c.pow_bits` check in pow_check ⇒ the cheap block validates on
+    // the HARDER chain ⇒ RED.
+}
+
+/// Gap 2 (2026-11-18): a block names its chain, the rulebook refuses another chain's block (checked first,
+/// whether or not PoW is enforced), and the header digest binds the id, so relabeling a block for another
+/// chain changes what its seal had to meet.
+#[test]
+fn a_block_names_its_chain_and_the_header_binds_it() {
+    let ledger = Ledger::new();
+    let on = |id: u64| Constitution { chain_id: id, ..enforced() };
+    let a = mine(valid_block(1).with_chain_id(0xa), EASY_BITS);
+    assert!(validate_block(&ledger, &a, &on(0xa)).is_ok(), "its own chain accepts it");
+    assert_eq!(
+        validate_block(&ledger, &a, &on(0xb)),
+        Err(Violation::WrongChain { expected: 0xb, got: 0xa }),
+        "another chain refuses it"
+    );
+    assert_eq!(
+        validate_block(&ledger, &valid_block(1).with_chain_id(0xa), &Constitution { chain_id: 0xb, ..Constitution::default() }),
+        Err(Violation::WrongChain { expected: 0xb, got: 0xa }),
+        "with PoW off too: the chain id is not a PoW rule"
+    );
+    let b = valid_block(1).with_chain_id(0xb);
+    assert_ne!(header_digest(&valid_block(1).with_chain_id(0xa)), header_digest(&b), "the chain id changes the header digest");
+    // ANTI-THEATER: drop the chain-id check in validate_block ⇒ the second and third asserts go RED; drop
+    // `chain_id` from header_digest ⇒ the last one does.
 }
 
 /// block_work returns the seal's DERIVED chainwork under enforcement (never a carried number), and
@@ -135,8 +205,10 @@ fn enforced_issuance_scales_with_mined_work() {
     let easy = mine(valid_block(1).with_coinbase(recipient.clone()), EASY_BITS);
     let harder = mine(valid_block(1).with_coinbase(recipient.clone()), HARDER_BITS);
 
+    // Two chains, one per difficulty: a seal must claim its own chain's bits.
     let after_easy = apply_block(Ledger::new(), &easy, &con).expect("easy coinbase block applies");
-    let after_harder = apply_block(Ledger::new(), &harder, &con).expect("harder coinbase block applies");
+    let after_harder =
+        apply_block(Ledger::new(), &harder, &enforced_at(HARDER_BITS)).expect("harder coinbase block applies");
 
     assert!(after_easy.jul_supply.issued() > 0, "a coinbase block under enforcement mints JUL");
     assert!(
@@ -158,8 +230,8 @@ fn work_clock_ceiling_clamps_clock_but_pays_full_reward() {
     let recipient = Script { code_hash: [9u8; 32], args: b"miner".to_vec() };
     let harder = mine(valid_block(1).with_coinbase(recipient), HARDER_BITS);
 
-    let capped = Constitution { pow_enforced: true, work_clock_ceiling: CEIL, ..Constitution::default() };
-    let uncapped = Constitution { pow_enforced: true, work_clock_ceiling: u64::MAX, ..Constitution::default() };
+    let capped = Constitution { work_clock_ceiling: CEIL, ..enforced_at(HARDER_BITS) };
+    let uncapped = Constitution { work_clock_ceiling: u64::MAX, ..enforced_at(HARDER_BITS) };
     let work = block_work(&harder, &capped);
     assert!(work > CEIL, "test premise: HARDER derived work ({work}) exceeds the ceiling ({CEIL})");
 

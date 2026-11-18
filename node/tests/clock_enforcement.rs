@@ -54,6 +54,7 @@ fn mine(mut b: Block, bits: u32) -> Block {
 fn clock_con() -> Constitution {
     Constitution {
         pow_enforced: true,
+        pow_bits: EASY_BITS, // every block here is mined at EASY_BITS; a seal must claim the chain's bits
         clock_enforced: true,
         work_clock_ceiling: CEIL,
         ..Constitution::default()

@@ -15,7 +15,7 @@ use noesis_core::pow::{
 
 fn empty_block(pow: Option<PowSeal>) -> Block {
     // A wire test needs a Block value, not a consensus-valid one (encode/decode never validates).
-    Block { height: 7, cells: vec![], coords: vec![], token_txs: vec![], coinbase: None, pow, timestamp: None, bonds: vec![], subblock_root: None, parent_hash: None }
+    Block { chain_id: 0, height: 7, cells: vec![], coords: vec![], token_txs: vec![], coinbase: None, pow, timestamp: None, bonds: vec![], subblock_root: None, parent_hash: None }
 }
 
 // ---- core target math ----
@@ -140,8 +140,14 @@ fn pow_seal_wire_roundtrips() {
 /// contract. This is the replay/restart-compatibility guarantee (identical to the coinbase precedent).
 #[test]
 fn pre_m2_block_log_decodes_pow_none() {
-    // A block line written before M2a-1 existed: no `pow` (and no `coinbase`) key at all.
-    let legacy = br#"{"height":7,"cells":[],"coords":[],"token_txs":[]}"#;
+    // A block line with no `pow` (and no `coinbase`) key at all. Since 2026-11-18 every block names its
+    // chain (`chain_id` is required on the wire), so the vector carries one; the serde-default contract
+    // under test is the `pow` field's. A line with no chain id no longer decodes, on purpose.
+    let legacy = br#"{"chain_id":0,"height":7,"cells":[],"coords":[],"token_txs":[]}"#;
+    assert!(
+        decode_block(br#"{"height":7,"cells":[],"coords":[],"token_txs":[]}"#).is_err(),
+        "a block that names no chain is refused"
+    );
     let decoded = decode_block(legacy).expect("a pre-M2 block log must still decode");
     assert!(decoded.pow.is_none(), "a missing pow field must default to None");
     assert!(decoded.coinbase.is_none(), "the coinbase serde-default precedent still holds");

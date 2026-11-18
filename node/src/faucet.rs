@@ -374,11 +374,14 @@ mod tests {
     use crate::commit_order::Committed;
     use crate::runtime::Node;
 
-    /// The testnet spec mined at dev's easy bits: the same constitution (binding on, PoW on), so every
-    /// rule is the testnet's, while each block seals in a few hashes. `pow_check` reads the seal's own
-    /// bits, so the blocks are valid testnet blocks.
+    /// The testnet spec at dev's easy bits: the testnet's constitution (binding on, PoW on, its chain id)
+    /// except the difficulty, so each block seals in a few hundred hashes. Since 2026-11-18 every seal
+    /// must claim its chain's bits, so these blocks are valid on this test chain and refused by the real
+    /// testnet (`PowBitsWrong`); nothing here depends on difficulty.
     fn fast_testnet() -> ChainSpec {
-        ChainSpec { genesis_bits: ChainSpec::dev().genesis_bits, ..ChainSpec::testnet() }
+        let mut spec = ChainSpec::testnet();
+        spec.constitution.pow_bits = ChainSpec::dev().genesis_bits();
+        spec
     }
 
     fn contribution(id: u64, contributor: &[u8; 32]) -> (Cell, Committed) {

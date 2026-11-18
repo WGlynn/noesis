@@ -403,7 +403,7 @@ impl ServerState {
 
     /// This node's chain id.
     pub fn chain_id(&self) -> u64 {
-        self.spec.chain_id
+        self.spec.chain_id()
     }
 
     /// The cumulative chain link through height `h` (zeros for genesis or a height this node lacks).
@@ -547,7 +547,7 @@ impl ServerState {
         }
         let next = since + frames.len() as u64;
         let head = json!({
-            "chain_id": self.spec.chain_id,
+            "chain_id": self.spec.chain_id(),
             "since": since,
             "tip": tip,
             "anchor": if since <= tip { Value::String(hex_encode(&self.link(since))) } else { Value::Null },
@@ -576,7 +576,7 @@ impl ServerState {
         if !self.node.constitution.control_binding {
             return Err(format!(
                 "chain 0x{:x} has control binding off, so anyone could spend the faucet's cells; no faucet here",
-                self.spec.chain_id
+                self.spec.chain_id()
             ));
         }
         self.faucet = Some(crate::faucet::Faucet::new(seed));
@@ -592,7 +592,7 @@ impl ServerState {
         let contributors: serde_json::Map<String, Value> =
             pom.iter().map(|(k, v)| (hex_encode(k), json!(v))).collect();
         json!({
-            "chain_id": self.spec.chain_id,
+            "chain_id": self.spec.chain_id(),
             "height": self.node.ledger.height,
             "work": work,
             "jul_issued": self.node.ledger.jul_supply.issued() / crate::jul::JUL_BASE_UNITS,
@@ -642,7 +642,7 @@ impl ServerState {
             .map(|(d, h)| json!({ "digest": hex_encode(d), "height": h }))
             .collect();
         json!({
-            "chain_id": self.spec.chain_id,
+            "chain_id": self.spec.chain_id(),
             "height": self.node.ledger.height,
             "jul_cells": jul_cells,
             "cells": cells,
@@ -703,12 +703,12 @@ impl ServerState {
     fn faucet_json(&mut self) -> Value {
         use crate::faucet;
         let Some(f) = self.faucet.as_mut() else {
-            return json!({ "enabled": false, "chain_id": self.spec.chain_id, "producer": self.producer });
+            return json!({ "enabled": false, "chain_id": self.spec.chain_id(), "producer": self.producer });
         };
         let balance = f.balance(&self.node.ledger.token_cells);
         json!({
             "enabled": true,
-            "chain_id": self.spec.chain_id,
+            "chain_id": self.spec.chain_id(),
             "balance_jul": (balance / crate::jul::JUL_BASE_UNITS) as u64,
             "drip_jul": (faucet::DRIP / crate::jul::JUL_BASE_UNITS) as u64,
             "waiting": f.waiting().len(),
@@ -1105,7 +1105,7 @@ pub fn serve_follower(addr: &str, store_path: &str, spec: ChainSpec, producer: &
 }
 
 fn serve(addr: &str, store_path: &str, spec: ChainSpec, producer: Option<&str>) {
-    let chain_id = spec.chain_id;
+    let chain_id = spec.chain_id();
     let producer = producer.map(|p| {
         crate::follow::normalize_producer_url(p).unwrap_or_else(|e| {
             eprintln!("noesisd: {e}");
@@ -1465,13 +1465,13 @@ mod tests {
         assert_eq!(state_of(&handle_request(&mut ServerState::new(), "GET", "/faucet", b"").2)["enabled"], false);
     }
 
-    /// The faucet route end to end on the testnet constitution (mined at dev's easy bits so the test is
-    /// quick; `pow_check` reads the seal's own bits): empty until a block pays it, a payout queued by
+    /// The faucet route end to end on the testnet constitution (at dev's easy bits so the test is quick):
+    /// empty until a block pays it, a payout queued by
     /// address and carried by the next contribution block, the per-address limit, and no change to
     /// anyone's standing.
     #[test]
     fn the_faucet_route_pays_a_newcomer_with_the_next_block_and_moves_no_standing() {
-        let fast = ChainSpec { genesis_bits: ChainSpec::dev().genesis_bits, ..ChainSpec::testnet() };
+        let fast = fast_testnet();
         let mut st = ServerState::with_spec(fast.clone()).with_faucet(crate::faucet::DEV_FAUCET_SEED).unwrap();
         st.clock = || 1_000;
         let newcomer = [0x7Au8; 32];
@@ -1869,9 +1869,12 @@ mod tests {
         "dune grass anchoring sand through winter storms",
     ];
 
-    /// The testnet constitution mined at dev's easy bits (`pow_check` reads the seal's own bits).
+    /// The testnet constitution at dev's easy bits, so tests mine in a few hundred hashes. Every seal must
+    /// claim its chain's bits, so the bits are the spec's own, not only what `mine` is handed.
     fn fast_testnet() -> ChainSpec {
-        ChainSpec { genesis_bits: ChainSpec::dev().genesis_bits, ..ChainSpec::testnet() }
+        let mut spec = ChainSpec::testnet();
+        spec.constitution.pow_bits = ChainSpec::dev().genesis_bits();
+        spec
     }
 
     fn tmp_log(tag: &str) -> std::path::PathBuf {
@@ -1979,13 +1982,23 @@ mod tests {
         assert_eq!(f.height(), 1);
         let before = f.state_digest();
         let genuine = page(&mut p, 1);
-        let mut hard = genuine.clone(); // a seal claiming a target its hash does not meet
-        hard["blocks"][0]["pow"]["bits"] = json!(0x0300_ffffu32);
+        let mut other_bits = genuine.clone(); // a seal claiming bits other than the chain's
+        other_bits["blocks"][0]["pow"]["bits"] = json!(0x0300_ffffu32);
+        // the chain's bits, and a nonce whose header digest misses the target
+        let mut unmet_block = crate::wire::decode_block(&serde_json::to_vec(&genuine["blocks"][0]).unwrap()).unwrap();
+        let target = noesis_core::pow::compact_to_target(spec.genesis_bits()).unwrap();
+        while crate::runtime::header_digest(&unmet_block) <= target {
+            unmet_block.pow.as_mut().unwrap().nonce += 1;
+        }
+        let mut unmet = genuine.clone();
+        unmet["blocks"][0] = serde_json::from_slice(&crate::wire::encode_block(&unmet_block)).unwrap();
         let mut bare = genuine.clone(); // no seal at all
         bare["blocks"][0]["pow"] = Value::Null;
         let mut skip = genuine.clone(); // block 3 offered as the next block
         skip["blocks"] = json!([genuine["blocks"][1].clone()]);
-        for (tampered, why) in [(hard, "PowUnmet"), (bare, "PowMissing"), (skip, "HeightMismatch")] {
+        for (tampered, why) in
+            [(other_bits, "PowBitsWrong"), (unmet, "PowUnmet"), (bare, "PowMissing"), (skip, "HeightMismatch")]
+        {
             let e = stopped(apply_page(&mut f, tampered.to_string().as_bytes()));
             assert!(e.contains(why) && e.contains("keeps its chain at height 1"), "{e}");
             assert_eq!((f.height(), f.state_digest()), (1, before.clone()), "nothing applied");
@@ -2066,7 +2079,7 @@ mod tests {
         let (_, blocks) = crate::store::load_blocks(&pp, &spec).unwrap();
         let mut b1 = blocks[0].clone();
         b1.cells[0].data = b"a different first contribution, about pine resin".to_vec();
-        let b1 = crate::chainspec::mine(b1, spec.genesis_bits);
+        let b1 = crate::chainspec::mine(b1, spec.genesis_bits());
         let rw = tmp_log("rw-q");
         for b in [&b1, &blocks[1], &blocks[2]] {
             crate::store::append_block(&rw, b).unwrap();
@@ -2111,6 +2124,48 @@ mod tests {
         for path in [pp, fp, rp, ep, tp] {
             let _ = std::fs::remove_file(path);
         }
+    }
+
+    /// Gap 1 (2026-11-18), follower path: a producer serves a block whose seal claims easier bits than
+    /// the chain spec and is valid for them. The follower refuses it, stops, and keeps its chain.
+    #[test]
+    fn a_follower_refuses_a_block_mined_at_easier_bits_than_the_spec() {
+        let spec = ChainSpec::dev();
+        let (mut p, pp) = producer_on(spec.clone(), "bits-p");
+        submit(&mut p, 0);
+        let (mut f, fp) = follower_on(spec.clone(), "bits-f");
+        let genuine = page(&mut p, 0);
+        let block = crate::wire::decode_block(&serde_json::to_vec(&genuine["blocks"][0]).unwrap()).unwrap();
+        let easier = 0x2100_ffffu32; // one exponent easier than dev's 0x2000ffff
+        let cheap = crate::chainspec::mine(block, easier);
+        assert!(crate::runtime::header_digest(&cheap) <= noesis_core::pow::compact_to_target(easier).unwrap());
+        let mut tampered = genuine.clone();
+        tampered["blocks"][0] = serde_json::from_slice(&crate::wire::encode_block(&cheap)).unwrap();
+        let e = stopped(apply_page(&mut f, tampered.to_string().as_bytes()));
+        assert!(e.contains("PowBitsWrong") && e.contains("0x2100ffff") && e.contains("keeps its chain at height 0"), "{e}");
+        assert_eq!(f.height(), 0, "nothing applied");
+        let (again, replayed) = ServerState::with_store(&fp, spec).unwrap();
+        assert_eq!((replayed, again.height()), (0, 0), "nothing reached the follower's store either");
+        assert_eq!(apply_page(&mut f, genuine.to_string().as_bytes()), Ok((1, false)), "the genuine page applies");
+        let _ = (std::fs::remove_file(&pp), std::fs::remove_file(&fp));
+    }
+
+    /// Gap 2 (2026-11-18), follower path: a page from another network whose `chain_id` field was
+    /// rewritten to the follower's (the page-level check reads the producer's word). The blocks still
+    /// name their own chain, so the follower refuses the first one and keeps its chain.
+    #[test]
+    fn a_follower_refuses_blocks_of_another_network_even_when_the_page_claims_its_chain_id() {
+        let mut other = ChainSpec::dev(); // the same rules, genesis and bits: another network
+        other.constitution.chain_id = 0xb0b;
+        let (mut q, qp) = producer_on(other, "net-q");
+        submit(&mut q, 0);
+        let (mut f, fp) = follower_on(ChainSpec::dev(), "net-f");
+        let mut v = page(&mut q, 0);
+        v["chain_id"] = json!(0xde0);
+        let e = stopped(apply_page(&mut f, v.to_string().as_bytes()));
+        assert!(e.contains("WrongChain") && e.contains("0xb0b") && e.contains("keeps its chain at height 0"), "{e}");
+        assert_eq!(f.height(), 0, "nothing applied");
+        let _ = (std::fs::remove_file(&qp), std::fs::remove_file(&fp));
     }
 
     /// A faucet payout is signed while it waits, and the faucet re-signs it freely until the block that

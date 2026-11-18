@@ -5,14 +5,14 @@ Status words: built, designed, open. Never rounded up. Every protocol number bel
 ## Where it stands (2026-11-17)
 
 **Devnet stage, running the testnet genesis.** One node, run by the project on its own machine,
-using the testnet chain spec (`ChainSpec::testnet()`, `node/src/chainspec.rs:146`):
+using the testnet chain spec (`ChainSpec::testnet()`, `node/src/chainspec.rs:164`):
 
-- chain id `0x7e57` (`chainspec.rs:170`). The dev chain has a different id (`0xde0`, `chainspec.rs:91`), so the two networks are told apart;
-- proof of work enforced in consensus (`pow_enforced: true`, `chainspec.rs:150`), so the testnet tests the real issuance model;
-- `genesis_bits` `0x1f00_ffff` (`chainspec.rs:176`), a placeholder that is harder than dev, not a measured mainnet difficulty;
+- chain id `0x7e57` (`chainspec.rs:172`). The dev chain has a different id (`0xde0`, `chainspec.rs:92`). Every block carries its chain id and the rulebook refuses another network's block, so a block or a chain log of one network is refused by the other (since 2026-11-18; before, blocks named no chain and a dev log loaded on the testnet genesis);
+- proof of work enforced in consensus (`pow_enforced: true`, `chainspec.rs:168`), so the testnet tests the real issuance model;
+- difficulty `0x1f00_ffff` (`pow_bits`, `chainspec.rs:177`), which every block's seal must claim (no retarget, so every height uses it; since 2026-11-18, before which a seal was checked only against the bits it named). About 1 hash in 65,536 meets it: a placeholder that is harder than dev, not a measured mainnet difficulty;
 - the identity issuer's authority cell, present from genesis (`chainspec.rs:59`). Identities minted under it get no PoM standing and no finality weight. A test checks this: `identity_mints_carry_zero_pom_and_zero_finality_weight`;
-- control binding on (`control_binding: true`, `chainspec.rs:153`): every spend of a cell must carry its owner's signature;
-- the block reward paid to the faucet, not to the placeholder validator key (`reward_to_faucet: true`, `chainspec.rs:183`). Each reward is locked by the faucet's own one-time key for that block. Who receives the reward changes no standing and no finality weight (test `the_reward_recipient_and_faucet_payouts_move_no_standing_and_no_finality_weight`).
+- control binding on (`control_binding: true`, `chainspec.rs:171`): every spend of a cell must carry its owner's signature;
+- the block reward paid to the faucet, not to the placeholder validator key (`reward_to_faucet: true`, `chainspec.rs:201`). Each reward is locked by the faucet's own one-time key for that block. Who receives the reward changes no standing and no finality weight (test `the_reward_recipient_and_faucet_payouts_move_no_standing_and_no_finality_weight`).
 
 Test JUL is worthless by construction: it mints from trivial CPU work, on a chain of its own.
 
@@ -31,7 +31,7 @@ A testnet is a network other people join. This is not one yet. What is missing, 
 
 Control binding is on for the testnet, in the reference node: a block that spends a cell without its
 owner's signature is invalid, for the producer and for every joiner that re-validates it
-(`Constitution::control_binding`, `node/src/runtime.rs:187`; test
+(`Constitution::control_binding`, `node/src/runtime.rs:197`; test
 `testnet_refuses_an_unsigned_spend_that_dev_accepts`). It is off on the dev chain. The four on-VM binding
 switches in `onchain/*` are still off. Turning them on is the go-live milestone and is decided by the
 maintainer, not by this list. Until then the on-chain rules are checked by the reference node, not yet
@@ -70,15 +70,15 @@ for this stage.
 
 - A follower asks the producer for `GET /blocks?since=<its height>` on the producer's one public port, so it
   works through the tunnel. A page holds at most 32 full blocks and about 1 MiB of block data
-  (`node/src/follow.rs:45-49`), and says whether more are waiting. An up-to-date follower asks again every
-  2 seconds (`follow.rs:52`), backing off to 30 seconds while the producer cannot be reached.
+  (`node/src/follow.rs:48-52`), and says whether more are waiting. An up-to-date follower asks again every
+  2 seconds (`follow.rs:55`), backing off to 30 seconds while the producer cannot be reached.
 - It runs every block through the producer's own acceptance path (`ChainSpec::accept_block`,
-  `node/src/chainspec.rs:264`): the proof-of-work seal against the target it names, token conservation,
-  every spend's signature (control binding), the finality gate. Standing on a follower is whatever its own
+  `node/src/chainspec.rs:282`): the block's chain id, the proof-of-work seal at the testnet's own difficulty,
+  token conservation, every spend's signature (control binding), the finality gate. Standing on a follower is whatever its own
   replay of the blocks gives; it is not taken on the producer's word.
 - It stops, keeps its chain, and says why (on its console and in `GET /state` under `replica.stopped`) when
   the producer serves a block it refuses, when the producer's chain is shorter than its own, when the chain
-  id differs, or when the producer's history differs from its own (a running hash over every block from
+  id on the page differs (each block's own chain id is checked as well, by the rulebook), or when the producer's history differs from its own (a running hash over every block from
   genesis, compared before each page). It never switches to the other history by itself.
 - A follower that restarts replays its own chain log and asks only for the blocks after it.
 - Submitting a contribution or asking the faucet at a follower returns HTTP 409 with the producer's URL. The
@@ -90,9 +90,7 @@ for this stage.
 
 What a follower cannot check: who made the chain (blocks carry no producer signature, so it trusts the URL,
 and TLS when the URL is https); who signed each contribution (the producer checks the wallet signature when
-the contribution arrives, and the block does not carry it); and whether a block was mined at the testnet's
-difficulty (the seal is checked against the target it names, and nothing compares that with the chain
-spec's). If the producer stops, the chain stops.
+the contribution arrives, and the block does not carry it). If the producer stops, the chain stops.
 
 ## Joining today
 

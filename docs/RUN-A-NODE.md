@@ -67,6 +67,10 @@ remove it yourself. If the log is damaged any other way (for example, whole bloc
 the node refuses to start, says at which byte, and leaves the file as it is: restore it from a copy, or
 start the node on a new chain log and keep the old one. A follower's chain log works the same way.
 
+A chain log belongs to one network: every block names its chain. Started with another `NOESIS_NET`, the
+node refuses to start, names both chain ids (dev is `0xde0`, testnet `0x7e57`) and leaves the file as it
+is. A chain log written before 2026-11-18 (blocks without a chain id) no longer loads.
+
 ## 3. Join another node (one-time sync)
 
 A seed serves its saved chain. A joiner downloads it and re-validates each block before replaying it
@@ -89,7 +93,7 @@ It prints `PEERS LISTENING <addr>`, and it reads the chain log fresh for each jo
 the chain as it stands when it connects.
 
 Both sides must use the same `NOESIS_NET`. If they differ, the joiner starts from a different genesis and
-the sync fails. Before commit 23d1d4e3 (2026-11-17) the joiner booted the dev genesis whatever
+the sync fails at the first block, with an error naming both chain ids (every block names its chain). Before commit 23d1d4e3 (2026-11-17) the joiner booted the dev genesis whatever
 `NOESIS_NET` said, so a testnet join failed this way; the test
 `testnet_joiner_boots_the_testnet_genesis_and_converges` covers it now.
 

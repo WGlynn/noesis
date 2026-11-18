@@ -33,6 +33,14 @@
    `internal/DESIGN-joint-decay-damping-rate.md`. Code comments + patent line 233 relabeled to match.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-11-18 (blocks bound to their chain spec: exact PoW bits and a chain id)**: two rulebook gaps
+  closed at height 0, before any testnet block. (1) A seal claiming any bits other than
+  `Constitution::pow_bits` is refused before its hash is checked (`Violation::PowBitsWrong`); before, a
+  producer chose its own difficulty, and `block_work` (JUL, work clock) trusted it. Exact equality, as in
+  Bitcoin; no retarget is wired. (2) Every block carries `chain_id`, bound first in the header digest
+  (domain `noesis-pow-hdr-v2`) and checked first in `validate_block` (`WrongChain`); a foreign chain log
+  refuses to boot and names both ids. In the rulebook, not the node, because store replay, joiner sync and
+  reorg call `validate_block` directly. Honest floor: neither rule is checked on-VM yet.
 - **2026-11-18 (chain log crash safety, the store hazard below)**: replay stopped at the first broken
   record and the node then appended after it, so after a crash mid-write (a torn last record) every block
   written after the restart was dropped at the next boot; the producer fell below its followers and

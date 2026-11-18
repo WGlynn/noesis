@@ -8,7 +8,10 @@
 //! produces nothing: submit, faucet and token-tx answer 409 with the producer's URL.
 //!
 //! What a follower checks on every page, before it applies anything:
-//! * the chain id is its own (another network is refused);
+//! * the page's chain id is its own (another network is refused). This is the producer's word, a quick
+//!   early stop with a plain message; the binding check is in the rulebook: every block names its chain
+//!   (`Block::chain_id`, bound into the header digest since 2026-11-18), so a block of another network
+//!   is refused by `accept_block` (`WrongChain`) even on a page that claims this node's id;
 //! * the producer's height is not below its own (a producer that lost or dropped blocks is refused);
 //! * the producer's chain link at the follower's height equals the follower's own ([`chain_link`]):
 //!   a cumulative hash over every header digest from genesis, so a rewrite of ANY block the follower

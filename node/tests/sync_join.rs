@@ -98,6 +98,29 @@ fn a_fresh_node_joins_a_peer_and_converges_to_identical_state() {
     );
 }
 
+/// Gap 2 (2026-11-18): a joiner on another network (same rules, another chain id) refuses the seed's
+/// first block, names both chains, and applies nothing.
+#[test]
+fn a_joiner_on_another_network_refuses_the_seeds_blocks_naming_both_chains() {
+    let (_seed, blocks) = build_seed(); // chain 0, the default rulebook's
+    let listener = Listener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let mut peer = listener.accept().unwrap();
+        let _ = serve(&mut peer, &blocks); // the joiner hangs up after the refusal
+    });
+    let mut joiner = genesis();
+    joiner.constitution.chain_id = 0xb0b;
+    let before = joiner.ledger.state_digest();
+    let mut peer = Peer::connect(addr).unwrap();
+    let err = sync_from(&mut peer, &mut joiner).expect_err("another network's blocks are refused");
+    drop(peer);
+    server.join().unwrap();
+    let msg = format!("{err:?}");
+    assert!(msg.contains("chain 0x0") && msg.contains("chain 0xb0b"), "{msg}");
+    assert_eq!((joiner.ledger.height, joiner.ledger.state_digest()), (0, before), "nothing applied");
+}
+
 #[test]
 fn joining_an_empty_seed_leaves_the_joiner_at_genesis() {
     // A seed with no blocks (genesis only) serves DONE immediately; the joiner stays at genesis and

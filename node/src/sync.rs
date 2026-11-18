@@ -86,10 +86,21 @@ pub fn sync_from(peer: &mut Peer, node: &mut Node) -> Result<usize, SyncError> {
                 let block = decode_block(&frame[1..])?;
                 // Re-verify against the rulebook (rules FOLLOWED) BEFORE applying: the joiner trusts
                 // the RULES, not the peer. A seed cannot make us apply a block our own validate rejects.
-                if !node.validate(&block) {
-                    return Err(SyncError::Protocol(
-                        "peer served a block that fails the rulebook (validation)".into(),
-                    ));
+                use crate::runtime::{validate_block, Violation};
+                match validate_block(&node.ledger, &block, &node.constitution) {
+                    Ok(()) => {}
+                    // every block names its chain (2026-11-18): say which two networks met
+                    Err(Violation::WrongChain { expected, got }) => {
+                        return Err(SyncError::Protocol(format!(
+                            "peer served a block of chain 0x{got:x}, and this node runs chain 0x{expected:x} \
+                             (both sides must use the same NOESIS_NET)"
+                        )));
+                    }
+                    Err(v) => {
+                        return Err(SyncError::Protocol(format!(
+                            "peer served a block that fails the rulebook (validation): {v:?}"
+                        )));
+                    }
                 }
                 node.apply(&block);
                 applied += 1;

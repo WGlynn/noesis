@@ -66,7 +66,9 @@ fn timestamp_wire_roundtrips_and_legacy_decodes_none() {
     let none = decode_block(&encode_block(&blk(7, None))).expect("decode a None-timestamp block");
     assert!(none.timestamp.is_none(), "a None timestamp round-trips as None");
 
-    let legacy = br#"{"height":7,"cells":[],"coords":[],"token_txs":[]}"#;
+    // No `timestamp` key. The vector names its chain: `chain_id` is required on the wire since 2026-11-18
+    // (a block that names no chain does not decode, pinned in `pow_arithmetic.rs`).
+    let legacy = br#"{"chain_id":0,"height":7,"cells":[],"coords":[],"token_txs":[]}"#;
     let dl = decode_block(legacy).expect("a pre-CLK block log must still decode");
     assert!(dl.timestamp.is_none(), "a missing timestamp field must default to None");
 }
