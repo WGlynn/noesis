@@ -41,7 +41,7 @@ restarts) and read the chain state. Running your own follower that stays in sync
 A reset starts a new genesis and discards the chain. The rules:
 
 1. **Before anyone outside the project joins,** the chain may be reset whenever a fix needs a new genesis.
-   Each reset is still announced in the repository (a line in `ROADMAP.md`), never silent.
+   Each reset is still announced in the repository, with a line in `ROADMAP.md` saying when and why.
 2. **After outside joiners,** a reset happens only for a consensus-breaking fix or a genesis change, and is
    announced at least 7 days ahead, with the reason.
 3. **The old chain is kept.** Its chain log is archived and published, so anything that happened on it stays
