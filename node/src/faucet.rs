@@ -121,7 +121,8 @@ pub fn seed_path() -> Option<PathBuf> {
     Some(PathBuf::from(home).join(".noesis").join("noesis-faucet-testnet.seed"))
 }
 
-/// Read a faucet seed file: 64 hex characters, the identity issuer's format. Errors name the path,
+/// Read a faucet seed file: 64 hex characters in plain text (`identity_mint::parse_seed`; the identity
+/// issuer's file can be sealed since wallet decision A8, this one cannot yet). Errors name the path,
 /// never the contents.
 pub fn load_seed(path: &Path) -> Result<[u8; 32], String> {
     let text = std::fs::read_to_string(path).map_err(|e| format!("cannot read the faucet seed {}: {e}", path.display()))?;

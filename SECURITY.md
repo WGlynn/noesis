@@ -357,6 +357,71 @@ the who-can-do-what table in `ARCHITECTURE.md`, identity keys):
   on (routes, the theft scenario, the rotation leaf at the door, a follower refusing a forged key operation or
   a thawed freeze, restart replay).
 
+### 7. The identity issuer's key, on a machine where AI agents run — built (the mint tool, 2026-11-18)
+
+The testnet's soulbound identity issuer signs with a seed file on the maintainer's PC, where agent sessions
+also run (`identity-mint`, `node/src/bin/identity_mint.rs`). In 2026's agent-wallet incidents the agent was the
+attack surface, not the cryptography: a prompt-injected agent spent from a wallet it held, and agents and
+malware read plain-text key files. The chain already bounds what this key can do: identities carry zero
+standing and zero finality weight, and a soulbound tx moves only its own collection (`ARCHITECTURE.md`,
+soulbound identities). Wallet decision A8 (Will, 2026-11-17) adds limits inside the tool. No consensus rule,
+genesis or wire format changed; the dev and testnet genesis token cells are pinned against HEAD `f4a942f2`
+(`genesis_token_cells_are_unchanged_by_the_issuer_key_limits`).
+
+- **Sealed at rest.** The seed file is AES-256-GCM under PBKDF2-SHA256 at 600,000 rounds with a random 16-byte
+  salt, the web wallet's scheme (`frontend/wallet.js`), with the file's public authority root bound as
+  associated data (`identity_mint.rs`, `seal_seed` / `open_seed`). `identity-mint encrypt-seed` converts a
+  plain file in place, in the web wallet's order: encrypt, decrypt and compare; write a sealed copy beside it
+  and read it back; only then overwrite the file and read it back; then remove the copy. A plain file still
+  works, with a warning.
+- **The passphrase is not in a file.** The tool reads it from a console with no echo and refuses a pipe or a
+  file, so an agent's shell, which has no console, cannot hand it over (checked: a piped passphrase is refused,
+  exit 2). If the issuer sets `NOESIS_ISSUER_PASSPHRASE`, that is his opt-in and the tool uses it.
+- **A typed confirmation for what is hard to undo.** A batch that re-tiers or revokes an identity, or mints a
+  serial as revoked (which bars that address from an identity), any `--abandon-pending`, and a `--daily-cap`
+  above the default sign only with `--confirm` and at least 8 hex characters of the operation digest that a
+  `--dry-run` of the same batch against the same chain printed. A dry run signs, writes and sends nothing.
+  Mints at the identity and member tiers need no confirmation, as before.
+- **A daily cap.** A state file signs at most 64 issuer operations per UTC day (each mint, re-tier or revoke
+  counts one; `DEFAULT_DAILY_CAP`, one full mint tx). Over it, records wait as `deferred`; with none left the
+  run stops (exit 6).
+- **No one-time key signs twice, across chain resets.** The authority's keys derive from (seed, generation)
+  only, so a chain reset to the same genesis puts the authority back at generation 0 under a key that already
+  signed. The tool used to delete its record once a tx landed, so a re-mint on the reset chain signed a second,
+  different digest with that key. Two Lamport signatures from one key let anyone build valid signatures over
+  other digests mixed from the two (`one_mint_limit_of_the_lock_args_rule_is_real`); forging a chosen tx then
+  still takes about 2^128 hash work, and each further reuse halves the exponent (derived in the wallet design,
+  not measured). The state file now keeps each generation's signed tx (and the digest of any tx given up with
+  `--abandon-pending`), and the tool no longer deletes it: at a
+  generation whose keys already signed, a run re-sends that exact tx (unless a confirmed `--abandon-pending`),
+  so a reset chain gets the issuer's earlier txs again in order, one per block, and fresh keys sign only past them.
+  A generation whose keys signed with no copy kept is refused (exit 5). The fix is in the tool, so the genesis
+  is unchanged. Test `after_a_reset_the_tool_resends_what_each_key_signed_instead_of_signing_again`: red at
+  `f4a942f2` (the tool exited 0 after signing a second generation-0 digest), green now.
+- **What it does not defend, said plainly.**
+  - The passphrase is the gate, and the rest are limits behind it. Once the issuer opts in with the variable
+    where an agent's commands run, the agent can run the tool; then the confirmation and the cap stop a blind
+    or one-shot injected run, not an agent that runs the dry run itself and reads the digest. The confirmation
+    checks that a person saw this exact operation; it is not a second key.
+  - A program that drives a pseudo-console can type into the prompt. The console rule keeps the passphrase out
+    of files, pipes and shell history; it does not prove a person typed it.
+  - The state file is neither secret nor authenticated. Whoever can edit or delete it resets the day's count,
+    and a deleted state file loses the record of what each key signed, so after a reset the tool could sign
+    generation 0 again. One seed used with two state files (two machines) is the same risk. Keep the state file
+    with the seed and back up both; after losing it, a reset needs a fresh issuer seed (a new genesis).
+  - Sealing stops a reader without the passphrase. It does not stop malware that records the passphrase as it
+    is typed or reads the seed from the tool's memory while it runs; memory is wiped on a best-effort basis.
+  - `encrypt-seed` overwrites the file it converts. Copies of the plain text elsewhere (a backup, the file
+    system's free blocks, an SSD's remapped cells) are untouched.
+  - The interactive prompt itself (Windows `ReadConsoleW`, elsewhere `stty -echo` on `/dev/tty`) needs a person
+    at a console to test; the automated tests cover its refusals and the opt-in variable.
+  - Designed, not built here: a deny rule in the agent harness so agent sessions cannot read `*.seed` files.
+  - The testnet faucet's seed is still plain text, read unattended at node start (open; `ARCHITECTURE.md`,
+    testnet faucet).
+- Verify: `cargo test -p noesis --lib identity_mint` (seal, migration, confirmation, budget, journal) and
+  `cargo test -p noesis --test identity_mint` (the real binaries: the reset replay, confirmation and the cap,
+  `encrypt-seed`, the genesis pin).
+
 > **Reviewer's shortcut:** the two legs to press hardest are **(1) the `v(S)` un-gameability proof**
 > (demonstrated for known vectors, isomorphism-invariance open) and **(2) the resource-DoS commit-deposit**
 > (incentive removed; memory/compute now bounded by the mempool cap; the economic-teeth deposit is

@@ -132,7 +132,7 @@ the soulbound side, never the transferable byte.
 ## Soulbound identities: token cells with zero standing (built 2026-11-17, reference node)
 
 Not PoM standing, and not a fourth token in the table above: an application credential (first
-collection `vibeswap-identity-v1`, `node/src/identity_mint.rs:33`, the Vibeswap chat's opt-in
+collection `vibeswap-identity-v1`, `node/src/identity_mint.rs:42`, the Vibeswap chat's opt-in
 identity with a member tier). Standard `TokenStandard::Soulbound` (`node/src/runtime.rs:355`; wire,
 digest and on-VM tag 3), rule `tokens::soulbound` (`node/src/tokens.rs:202`, `valid` at `:330`). One
 cell per serial in `Ledger.token_cells`; `data` = version, serial, tier (identity / member /
@@ -162,18 +162,35 @@ which consensus checks only once control binding is on (see the honest floor bel
   Fungible/Nft (open). Soulbound authority works differently. Each collection has exactly one
   authority cell. Genesis creates it (`chainspec.rs:45`, `:233`); no tx can create another. Every spend
   must re-create it with its generation number one higher, under any lock. So the tool locks
-  generation `g` with a key derived from (issuer seed, g) (`identity_mint.rs:56`), and each key signs
-  once. Identity cells get their own per-(g, serial) keys (`:61`).
+  generation `g` with a key derived from (issuer seed, g) (`identity_mint.rs:65`), and each key signs
+  once. Identity cells get their own per-(g, serial) keys (`:70`).
   Test: `soulbound_key_chain_mints_two_and_three_times_without_reusing_a_key` (`runtime.rs:3769`).
 - **Mint path.** A batch file (the bot's format) -> `identity-mint mint` reads `GET /tokens`
   (`rpc.rs:1097`) -> one tx, signed -> `POST /token-tx` (`rpc.rs:1116`; node-local policy: soulbound
   only, every input signed and verified, valid with all pending txs, queue of 16, `rpc.rs:102`) -> the
   next contribution block carries it (`chainspec.rs:256`). A token tx never makes a block alone
   (`EmptyBlock`, `runtime.rs:1425`, unchanged). Per tx at most 64 mints and 2 re-tiers
-  (`identity_mint.rs:42-43`) so the signed body fits `MAX_BODY` = 160 KiB (`rpc.rs:60`). The dev spec's
+  (`identity_mint.rs:51-52`) so the signed body fits `MAX_BODY` = 160 KiB (`rpc.rs:60`). The dev spec's
   authority uses a public dev seed; the testnet's root is `TESTNET_IDENTITY_AUTHORITY_ROOT`
   (`chainspec.rs:59`), its seed kept outside the repo. On-VM, the lock script maps the code hash to
   tag 3 (`onchain/locksig-typescript/src/main.rs:60-72`; `node/tests/ckb_vm_locksig.rs`).
+- **Limits on the issuer key (wallet decision A8, built 2026-11-18, in the tool only).** The seed file is
+  sealed at rest: AES-256-GCM under PBKDF2-SHA256, 600,000 rounds (`SEED_KDF_ITER`, `identity_mint.rs:133`),
+  the web wallet's scheme; `identity-mint encrypt-seed` converts a plain file in place and verifies the
+  sealed copy before the plain text goes (`encrypt_seed_file`, `:271`). The tool reads the passphrase only
+  from a console (it refuses a pipe or a file; a program that drives a pseudo-console still gets through, so
+  this keeps the passphrase out of files and pipes, not proof that a person typed it), or from
+  `NOESIS_ISSUER_PASSPHRASE` if the issuer opts in. A batch
+  that re-tiers or revokes, any `--abandon-pending`, and a raised `--daily-cap` sign only with
+  `--confirm <8+ hex>` of the digest a `--dry-run` printed (`confirm_matches`, `:563`). A state file signs at
+  most 64 operations per UTC day (`DEFAULT_DAILY_CAP`, `:580`). The state file (`Journal`, `:609`) keeps every
+  tx each generation's keys signed, and the tool no longer deletes it, so after a chain reset the tool
+  re-sends the recorded txs in order (one per block) and signs nothing new until it is past them (`step`,
+  `:665`); a lost or deleted state file loses that record (`SECURITY.md` section 7). The
+  authority's keys derive from (seed, generation) only, so before this a re-mint on a reset chain signed a
+  second digest with generation 0's key. No genesis, rule or wire format changed (the genesis token cells
+  are pinned, `genesis_token_cells_are_unchanged_by_the_issuer_key_limits`). What it does not cover:
+  `SECURITY.md` section 7.
 - **Honest floor.** Spend signatures are checked in the reference node's consensus on the testnet
   only: control binding (`Constitution::control_binding`, `runtime.rs:197`) is on in
   `ChainSpec::testnet()` (`chainspec.rs:187`) and off on dev. On the testnet a block that spends the
@@ -218,7 +235,9 @@ Testnet step 3 (`docs/TESTNET.md`), built as designed there: app layer, a funded
   contributor's own key bytes), with vesting W = 0 and W > 0, give identical cells, index root, PoM,
   work clock, finality weight and finality decision; folding JUL into `pom` breaks it (checked).
 - **Honest floor.** The seed is a plaintext file outside the repo (`~/.noesis/noesis-faucet-testnet.seed`
-  or `NOESIS_FAUCET_SEED`, `faucet.rs:116`), like the identity issuer's; encrypting it is open. Anyone can
+  or `NOESIS_FAUCET_SEED`, `faucet.rs:116`); unlike the identity issuer's (sealable since A8), it is read
+  unattended each time the producing node starts (a follower never reads it), so a passphrase typed at
+  each start would stop unattended restarts; protecting it is open. Anyone can
   name any 32 bytes as the address; only the holder of the one-time key whose Lamport root is those bytes
   can spend the payout, and the web wallet has no such key yet, so wallet holders can hold and see test
   JUL but not move it. The limits are per address and per window, so many addresses can still take the

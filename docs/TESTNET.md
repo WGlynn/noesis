@@ -154,7 +154,15 @@ A reset starts a new genesis and discards the chain. The rules:
 3. **The old chain is kept.** Its chain log is archived and published, so anything that happened on it stays
    checkable.
 4. **What carries over:** soulbound identities are re-minted from the issuer's records, with the same serials
-   and holders. Contributions can be resubmitted by their authors. Test JUL does not carry over: it is
+   and holders. When the new genesis keeps the same issuer authority (the same root in the chain spec), the
+   mint tool re-mints by re-sending the issuer's signed txs from the old chain, exactly as they were, in
+   order, one per contribution block: a run re-sends the next one and exits 4, and is run again after the next
+   block. Only past them does it sign anything new (unless the issuer confirms `--abandon-pending`), with keys
+   its record shows have never signed, because a one-time key that signs two different messages is weakened:
+   from the two signatures, others can build signatures it never made. The record is its state file
+   (`<seed-file>.pending.json`),
+   so that file is kept with the seed; if it is lost, the new genesis needs a new issuer seed instead, like
+   the faucet. Contributions can be resubmitted by their authors. Test JUL does not carry over: it is
    worthless by design.
 5. **No silent edits.** A genesis never changes without a reset, and a reset never happens without the steps
    above.

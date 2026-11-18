@@ -38,7 +38,8 @@
 - Testnet issuer key: seed at `~/.noesis/vibeswap-identity-issuer-testnet.seed` on Will's PC (outside the
   repo; never commit it; back it up). Public root `TESTNET_IDENTITY_AUTHORITY_ROOT` (chainspec.rs:52);
   `identity-mint root --seed <file>` must print `5407ffa5...27d6c7e`. The tool keeps
-  `<seed>.pending.json` beside it (one signed tx per generation; do not delete while a tx is pending).
+  `<seed>.pending.json` beside it (since wallet decision A8, 2026-11-18: every generation's signed tx,
+  never deleted by the tool; do not delete it either, it is what makes a re-mint after a reset safe).
 - Devnet E2E, run 2026-11-17 (git bash, release binaries, temp dir `$E2E`, nothing touches a real log):
   ```
   cargo build --release -p noesis --bin noesisd --bin identity-mint

@@ -28,6 +28,16 @@ tiny-keccak = { version = "2.0", features = ["keccak"] }
 # sparse-merkle-tree (audited on CKB mainnet) with its C blake2b removed — pure-Rust, so it
 # cross-compiles to RISC-V for the Phase-3 zkVM guest. Noesis plugs in `blake2b-ref` as the Hasher.
 sparse-merkle-tree = { path = "../onchain/vendor/sparse-merkle-tree" }
+# Wallet decision A8 (2026-11-18): the identity issuer's seed file is sealed at rest with the web
+# wallet's own scheme (frontend/wallet.js): PBKDF2-SHA256, 600,000 rounds, a random salt, then
+# AES-256-GCM. The tree had no AEAD and no PBKDF2, and hand-written crypto is the wrong saving, so
+# these are RustCrypto's: aes-gcm (audited by NCC Group, no significant findings), pbkdf2 + hmac.
+# sha2, getrandom and zeroize were already in the lockfile. Used by `identity_mint` only.
+aes-gcm = { version = "0.10", default-features = false, features = ["aes", "alloc"] }
+pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"] }
+sha2 = "0.10"
+getrandom = "0.2"
+zeroize = "1"
 
 [dev-dependencies]
 ckb-vm = "0.24"

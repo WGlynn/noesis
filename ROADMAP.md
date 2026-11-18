@@ -33,6 +33,15 @@
    `internal/DESIGN-joint-decay-damping-rate.md`. Code comments + patent line 233 relabeled to match.
 
 ## Adversarial-loop log (RSAW — newest first)
+- **2026-11-18 (wallet A8: limits on the agent-held issuer key)**: tool and state file only; no genesis,
+  rule or wire format changed (genesis token cells pinned by a test). The issuer seed can be sealed at rest
+  (`identity-mint encrypt-seed`, AES-256-GCM under PBKDF2-SHA256 600,000 rounds, verify before the plain
+  text goes); the passphrase is read only from a console or an opt-in env var. Re-tiers, revokes,
+  `--abandon-pending` and a raised cap need `--confirm` with the digest a dry run printed; 64 operations per
+  UTC day. Key reuse after a reset fixed: the state file keeps every signed tx and the tool re-sends them in
+  order rather than signing a second message with an already-used one-time key (red at HEAD). Honest floor:
+  the state file is plain and unauthenticated; the faucet seed stays plaintext (read unattended at start;
+  proposal: a separate Windows account); minting now needs Will at a console.
 - **2026-11-18 (wallet A1/A7 conformed to the approved design: rotation behind a delay, cold-key cancel and
   freeze)**: still additive against the deployed chain (`c5bf89f6`), no reset; the first cut below never ran
   on a live chain. A hot-key rotation is now pending for `Constitution::key_change_delay_blocks` (renamed from
