@@ -18,7 +18,11 @@ use noesis::{Cell, Script};
 /// Build a durable, length-framed block log at `path` with `n` finalized contribution blocks, via the
 /// SAME `store::append_block` path the live node uses. Returns nothing — the seed process reads it.
 fn build_durable_store(path: &Path, n: u64) {
-    let spec = ChainSpec::dev();
+    build_durable_store_on(ChainSpec::dev(), path, n)
+}
+
+/// [`build_durable_store`] on a chosen chain spec.
+fn build_durable_store_on(spec: ChainSpec, path: &Path, n: u64) {
     let (mut node, _keys) = spec.genesis_node();
     for i in 1..=n {
         node.submit(
@@ -119,4 +123,40 @@ fn listen_serves_the_durable_store_and_joiner_converges() {
         joiner_digest.contains("cells=[1, 2, 3]") && joiner_digest.contains("height=3"),
         "expected the durable 3-cell chain (height=3); digest was: {joiner_digest}"
     );
+}
+
+/// The testnet joiner (found 2026-11-17 while writing the run-a-node guide): `--connect` booted the
+/// DEV genesis whatever `NOESIS_NET` said, while `--listen <store>` booted the spec `NOESIS_NET`
+/// selects. So a stranger joining the testnet replayed testnet blocks onto a dev genesis and could
+/// not converge. Both sides now boot the same spec.
+#[test]
+fn testnet_joiner_boots_the_testnet_genesis_and_converges() {
+    let bin = env!("CARGO_BIN_EXE_noesisd");
+    let store = tmp_store("testnet");
+    build_durable_store_on(ChainSpec::testnet(), &store, 2);
+    let mut seed = Command::new(bin)
+        .env("NOESIS_NET", "testnet")
+        .arg("--listen")
+        .arg("127.0.0.1:0")
+        .arg(&store)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .expect("spawn testnet seed");
+    let (addr, seed_digest) = read_seed_ready(&mut seed);
+    let joiner = Command::new(bin)
+        .env("NOESIS_NET", "testnet")
+        .arg("--connect")
+        .arg(&addr)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .output()
+        .expect("run testnet joiner");
+    let _ = seed.kill();
+    let _ = seed.wait();
+    let _ = std::fs::remove_file(&store);
+    assert!(joiner.status.success(), "testnet joiner exited non-zero: {:?}", joiner.status);
+    let joiner_digest = extract_digest(&String::from_utf8_lossy(&joiner.stdout));
+    assert_eq!(seed_digest, joiner_digest, "testnet seed and joiner converged to different state");
+    assert!(joiner_digest.contains("height=2"), "expected the 2-block testnet chain; digest was: {joiner_digest}");
 }

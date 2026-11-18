@@ -50,8 +50,10 @@ use noesis::{Cell, Script};
 /// bonded PoS set each paired with its contributor key. PoM is NOT seeded — standing is earned, not
 /// pre-minted. A seed and a joiner MUST boot the same spec — genesis agreement is what makes the
 /// digests comparable at all.
+/// The joiner's genesis: the spec `NOESIS_NET` selects, the same one `--listen <store>` and
+/// `--serve-api` boot (it was always dev, so a testnet joiner could not converge; 2026-11-17).
 fn genesis() -> (Node, Vec<Vec<u8>>) {
-    ChainSpec::dev().genesis_node()
+    spec_from_env().genesis_node()
 }
 
 fn cell(id: u64, owner: &[u8], contributor: &[u8], parent: Option<u64>, ts: u64, data: &[u8]) -> Cell {
