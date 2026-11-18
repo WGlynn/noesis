@@ -209,6 +209,7 @@ The address is your identity. The key never leaves this browser.</pre>
       const s = await getJson("/state");
       lastState = s;
       renderChain(s);
+      await syncIndex();
       showWallet();
       $("live").textContent = "NOESIS  live  height " + s.height + "  JUL " + s.jul_issued + "  " + api();
     } catch (e) {
@@ -220,7 +221,19 @@ The address is your identity. The key never leaves this browser.</pre>
     getJson("/blocks").then((j) => renderBlocks(j.blocks || [])).catch(() => {});
   }
 
-  // ---- submit: the same signing path as before; the node runs the same check ----
+  // ---- one-time keys: never sign twice with one ----
+  // XMSS keys are one-time: two different messages signed with one key leak it. So (1) the chain's
+  // high-water mark wins over the local counter (GET /index/<address>), and (2) a key is spent the
+  // moment it signs, BEFORE the signature is sent, and never handed back, even if the node rejects it.
+  async function syncIndex() {
+    if (!wallet) return;
+    try {
+      const j = await getJson("/index/" + wallet.address);
+      if (j.highest_used != null && j.highest_used + 1 > wallet.nextIndex) { wallet.nextIndex = j.highest_used + 1; saveWallet(); }
+    } catch (e) { /* an older node without /index: keep the local counter */ }
+  }
+
+  // ---- submit: the node runs the same signature check ----
   async function submit() {
     const toast = $("toast");
     if (!wallet) return say(toast, "red", "Generate a wallet first.");
@@ -230,11 +243,16 @@ The address is your identity. The key never leaves this browser.</pre>
     $("send").disabled = true;
     say(toast, "", "signing...");
     try {
+      await syncIndex();
+      if (wallet.nextIndex >= C.LEAVES) throw new Error("this wallet has used all " + C.LEAVES + " one-time keys");
       if (!leaves) leaves = C.buildLeaves(wallet.seed);
       const index = wallet.nextIndex;
       const addr = C.hexDecode(wallet.address);
       const msg = C.contributionDigest(addr, index, C.utf8(data));
       const sig = C.xmssSign(wallet.seed, index, msg, leaves);
+      // spent from here on, whatever the node says: saved before the signature leaves this page
+      wallet.nextIndex = index + 1;
+      saveWallet();
       if (!C.xmssVerify(addr, msg, sig)) throw new Error("local signature self-check failed");
       say(toast, "", "mining...");
       const body = { address: wallet.address, index, ots_root: C.hexEncode(sig.ots_root), ots_sig: C.hexEncode(sig.ots_sig),
@@ -243,13 +261,12 @@ The address is your identity. The key never leaves this browser.</pre>
       const r = await fetch(api() + "/submit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const s = await r.json();
       if (!r.ok || s.error) throw new Error(s.error || "HTTP " + r.status);
-      wallet.nextIndex = index + 1; // accepted, so this one-time key is spent
-      saveWallet();
       $("what").value = "";
       say(toast, "grn", "Block " + s.block_height + " finalized. You hold " + ((s.contributors || {})[wallet.address] || 0) + " standing.");
       refresh();
     } catch (e) {
-      say(toast, "red", "Rejected: " + e.message);
+      say(toast, "red", "Rejected: " + e.message + " (that one-time key is spent; the next try uses a new one)");
+      showWallet();
     } finally {
       $("send").disabled = false;
     }

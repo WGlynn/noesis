@@ -567,6 +567,16 @@ pub fn handle_request(
                 Err(e) => out(400, json!({ "error": e })),
             }
         }
+        // A wallet's one-time-key high-water mark (wallet design decision 6): the highest leaf index
+        // this node has accepted for the address, or null. A wallet resumes at max(local, this + 1),
+        // so a lost or rolled-back local counter can never reuse a one-time key the chain already saw.
+        ("GET", p) if p.starts_with("/index/") => match hex_decode(&p["/index/".len()..]) {
+            Some(a) if a.len() == 32 => {
+                let addr = <[u8; 32]>::try_from(a.as_slice()).expect("checked length");
+                out(200, json!({ "address": hex_encode(&addr), "highest_used": state.used_index.get(&addr) }))
+            }
+            _ => out(400, json!({ "error": "the address must be 64 hex characters" })),
+        },
         ("GET", _) | ("POST", _) => out(404, json!({ "error": "not found" })),
         _ => out(405, json!({ "error": "method not allowed" })),
     }
@@ -781,6 +791,21 @@ mod tests {
         let v: serde_json::Value = serde_json::from_slice(&body).expect("questions.json is valid JSON");
         assert!(v["questions"].as_array().map(|a| !a.is_empty()).unwrap_or(false), "serves a non-empty question set");
         assert!(v["questions"][0]["q"].is_string(), "each question carries a `q` string");
+    }
+
+    #[test]
+    fn index_route_reports_the_highest_used_one_time_key() {
+        let mut st = ServerState::new();
+        let key = [0x33u8; 32];
+        let addr = addr_hex(&key);
+        let (s, _, b) = handle_request(&mut st, "GET", &format!("/index/{addr}"), b"");
+        assert_eq!(s, 200);
+        assert!(state_of(&b)["highest_used"].is_null(), "a fresh address has used no key");
+        assert_eq!(handle_request(&mut st, "POST", "/submit", &signed_body(&key, 0, "the first new idea, about harbor fog")).0, 200);
+        assert_eq!(handle_request(&mut st, "POST", "/submit", &signed_body(&key, 1, "a second, unrelated idea about kiln glazes")).0, 200);
+        let (_, _, b) = handle_request(&mut st, "GET", &format!("/index/{addr}"), b"");
+        assert_eq!(state_of(&b)["highest_used"], 1, "resume at 2");
+        assert_eq!(handle_request(&mut st, "GET", "/index/not-hex", b"").0, 400);
     }
 
     #[test]
