@@ -130,7 +130,14 @@ impl ChainSpec {
     /// `submission_deposit > 0`, + per-identity standing cap or an allowlist) first. Audit:
     /// `docs/SYBIL-SURFACE-deployed-franchise-2026-07-19.md`.
     pub fn testnet() -> Self {
-        let constitution = Constitution { pow_enforced: true, work_clock_ceiling: 1 << 40, ..Default::default() };
+        // genesis_unscored: the chain's first contribution earns no standing (Will 2026-11-17, "I just
+        // didn't want to take any money from genesis"); see `Constitution::genesis_unscored`.
+        let constitution = Constitution {
+            pow_enforced: true,
+            work_clock_ceiling: 1 << 40,
+            genesis_unscored: true,
+            ..Default::default()
+        };
 
         let keys: Vec<Vec<u8>> = vec![b"alice".to_vec(), b"bob".to_vec(), b"carol".to_vec()];
         let validators = keys

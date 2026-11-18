@@ -22,7 +22,7 @@
 use crate::commit_order::{canonical_order, is_canonical_order, Committed};
 use crate::consensus::{Mix, Validator, NCI, TWO_THIRDS_BPS};
 use crate::smt::{Hash, NoveltyIndex};
-use crate::{coverage, pom_scores_with_similarity_floor_q16, tokens, Cell, Script};
+use crate::{coverage, tokens, Cell, Script};
 use std::collections::{HashMap, HashSet};
 
 // ============ Constitution — how value is measured (the amendment frame) ============
@@ -165,6 +165,16 @@ pub struct Constitution {
     /// is exactly [`Node::checkpoint_finalizes`] and writes no state (the `horizon`/`vesting_w`
     /// precedent).
     pub leak_horizon: u64,
+    /// The genesis rule (Will 2026-11-17: "I just didn't want to take any money from genesis"). When
+    /// true, the chain's FIRST contribution cell earns no standing, in both the ledger attribution
+    /// (`Ledger::pom`) and finality weight ([`Node::finality_pom_weight`]). Keyed on that cell's id, not
+    /// its position, because the finality path scores a cleared subset. Only standing is zeroed: the
+    /// cell's coverage still counts as already said (a later copy of it scores zero too), and its
+    /// measured novelty is untouched (deposit resolution recomputes novelty itself, so a genesis bond
+    /// is refunded as before). One cell only: nothing comes before it, so the rule cannot be dodged.
+    /// A zero-for-every-root rule could be, since the scoring never reads `parent` and naming any
+    /// parent is free. Default `false` means INERT (byte-identical); on in `ChainSpec::testnet()`.
+    pub genesis_unscored: bool,
 }
 
 impl Default for Constitution {
@@ -186,6 +196,7 @@ impl Default for Constitution {
             clock_enforced: false, // inert: timestamp is inert additive data ⇒ byte-identical to pre-CLK-2
             leak_grace: 0,         // read only when leak_horizon > 0
             leak_horizon: 0,       // inert: no missed-vote decay, so checkpoint_round == checkpoint_finalizes
+            genesis_unscored: false, // inert: the first cell scores like any other ⇒ byte-identical
         }
     }
 }
@@ -1204,7 +1215,9 @@ impl Node {
             })
             .cloned()
             .collect();
-        pom_scores_with_similarity_floor_q16(&cleared, self.constitution.theta_sim_q16)
+        // the genesis rule keys on the CHAIN's first cell, not the first cleared one
+        let genesis = if self.constitution.genesis_unscored { self.ledger.cells.first().map(|c| c.id) } else { None };
+        crate::pom_scores_with_oracle_unscoring(&crate::NoveltyOracleV0, &cleared, self.constitution.theta_sim_q16, genesis)
     }
 
     /// Phase 3 (dispute-during-`W`): record a LANDED refutation so its target cell is excluded from
@@ -1571,7 +1584,8 @@ pub(crate) fn apply_transition(state: &mut Ledger, b: &Block, params: &Constitut
         state.last_timestamp = t;
     }
     // recompute PoM attribution over the full chain (integer Q16.16 similarity floor).
-    state.pom = pom_scores_with_similarity_floor_q16(&state.cells, params.theta_sim_q16);
+    let genesis = if params.genesis_unscored { state.cells.first().map(|c| c.id) } else { None };
+    state.pom = crate::pom_scores_with_oracle_unscoring(&crate::NoveltyOracleV0, &state.cells, params.theta_sim_q16, genesis);
     // Bound-B (L5): resolve commit-deposits by the SAME per-cell novelty the attribution just used. A
     // cell that banked ZERO novelty FORFEITS its bond — retire the escrowed JUL cell with no re-output
     // (burn = retirement, the existing JUL-burn shape); a cell that banked novelty is REFUNDED by
@@ -3063,6 +3077,46 @@ mod tests {
                 },
             )],
         )
+    }
+
+    /// [`carrier_for`] with chosen contribution text.
+    fn carrier_with(height: u64, contributor: &[u8], data: &[u8]) -> Block {
+        let mut b = carrier_for(height, contributor);
+        b.cells[0].data = data.to_vec();
+        Block::assemble(height, &[(b.cells[0].clone(), Committed { height, secret: [height as u8; 32] })])
+    }
+
+    /// The genesis rule (Will 2026-11-17, "I just didn't want to take any money from genesis"): with
+    /// `genesis_unscored`, the chain's first contribution earns no standing and no finality weight,
+    /// a later copy of its text still scores zero, the next contributor scores as usual, and the
+    /// genesis contributor's own later work earns standing. Off by default (byte-identical).
+    #[test]
+    fn genesis_unscored_takes_nothing_from_genesis() {
+        let genesis_text = b"the chain's first contribution, a fix with its counterfactual test";
+        let run = |rule: bool| {
+            let con = Constitution { genesis_unscored: rule, ..Constitution::default() };
+            let mut node = Node::new(0, vec![v(0, 0.0, 100.0, 100.0)], con);
+            node.apply(&carrier_with(1, b"founder", genesis_text));
+            node.apply(&carrier_with(2, b"second", b"an unrelated second contribution about tide tables"));
+            node.apply(&carrier_with(3, b"copier", genesis_text)); // a copy of the genesis text
+            node
+        };
+        let node = run(true);
+        let pom = |who: &[u8]| node.ledger.pom.get(who).copied().unwrap_or(0);
+        let fin = node.finality_pom_weight();
+        let finw = |who: &[u8]| fin.get(who).copied().unwrap_or(0);
+        assert_eq!(pom(b"founder"), 0, "genesis earns no standing");
+        assert_eq!(finw(b"founder"), 0, "genesis earns no finality weight");
+        assert_eq!(pom(b"copier"), 0, "the genesis text still counts as said: a copy scores zero");
+        assert!(pom(b"second") > 0 && finw(b"second") > 0, "the next contribution scores as usual");
+        // the genesis contributor's own later work earns standing
+        let mut node = node;
+        node.apply(&carrier_with(4, b"founder", b"the founder's later, genuinely new work on erosion"));
+        assert!(node.ledger.pom.get(&b"founder".to_vec()).copied().unwrap_or(0) > 0);
+        // rule off (the default): the first cell scores like any other
+        let off = run(false);
+        assert!(off.ledger.pom.get(&b"founder".to_vec()).copied().unwrap_or(0) > 0);
+        assert_eq!(off.ledger.pom.get(&b"second".to_vec()), node.ledger.pom.get(&b"second".to_vec()));
     }
 
     /// inc-M3-2 gate (DESIGN-M3 §5): `pow_enforced` with an INFINITE work_clock_ceiling must FAIL to

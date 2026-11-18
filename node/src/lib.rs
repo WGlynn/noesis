@@ -321,9 +321,23 @@ pub fn pom_scores_with_oracle<O: ValueOracle>(
     cells_in_commit_order: &[Cell],
     theta_sim_q16: u64,
 ) -> HashMap<Vec<u8>, u64> {
+    pom_scores_with_oracle_unscoring(oracle, cells_in_commit_order, theta_sim_q16, None)
+}
+
+/// [`pom_scores_with_oracle`] with one cell's STANDING zeroed (the genesis rule,
+/// `Constitution::genesis_unscored`). The oracle still sees every cell, so the unscored cell's
+/// coverage counts as already said and later copies of it score zero. `None` ⇒ identical to
+/// [`pom_scores_with_oracle`].
+pub fn pom_scores_with_oracle_unscoring<O: ValueOracle>(
+    oracle: &O,
+    cells_in_commit_order: &[Cell],
+    theta_sim_q16: u64,
+    unscored_cell: Option<u64>,
+) -> HashMap<Vec<u8>, u64> {
     let vals = oracle.cell_values(cells_in_commit_order, theta_sim_q16);
     let mut pom: HashMap<Vec<u8>, u64> = HashMap::new();
     for (c, v) in cells_in_commit_order.iter().zip(vals) {
+        let v = if Some(c.id) == unscored_cell { 0 } else { v };
         // saturating: standing must never wrap to a small value on u64 overflow (mirrors the
         // token-total clamps); byte-identical for any real novelty aggregate.
         let slot = pom.entry(c.type_script.args.clone()).or_insert(0);
