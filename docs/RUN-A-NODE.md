@@ -42,11 +42,19 @@ set NOESIS_NET=testnet
 target\release\noesisd.exe --serve-api 127.0.0.1:9955 %USERPROFILE%\.noesis\testnet-chain.log
 ```
 
-Open http://127.0.0.1:9955/ in a browser. From the page you can:
-- generate a wallet: a post-quantum hot key with 65,536 one-time keys, kept in that browser, and a
-  cold recovery key shown once for you to store offline (recovery itself is designed, not built);
+Open http://localhost:9955/ in a browser, that exact address. From the page you can:
+- generate a wallet: a post-quantum hot key with 65,536 one-time keys, kept in that browser encrypted
+  under a passphrase you choose (a passkey can be added as a second way to unlock), and a cold recovery
+  key shown once for you to store offline (recovery itself is designed, not built);
 - sign and submit a contribution, which the node mines into a block at once;
 - see the chain, the contribution graph, and the soulbound identities.
+
+One origin for the wallet: http://localhost:9955. A browser keeps storage separately for every exact
+origin (scheme, host and port) and binds a passkey to the host name, so http://127.0.0.1:9955, another
+port, or a tunnel URL has its own store, which does not hold the wallet made at localhost; a quick-tunnel
+URL also changes from run to run, and a passkey cannot be made on a bare IP address at all. At any other address the page still shows the chain but will
+not create a wallet, sign, or add a passkey, and it says why. The node still binds 127.0.0.1:9955;
+`localhost` reaches it.
 
 On the testnet, `POST /faucet {"address": "<64 hex>"}` asks the node's faucet for 10 test JUL; see
 `docs/TESTNET.md` (the faucet) for the limits and what the address must be.
@@ -91,9 +99,14 @@ the sync fails. Before commit 23d1d4e3 (2026-11-17) the joiner booted the dev ge
 - **On-chain enforcement.** The four on-VM binding switches are off, so the reference node checks the
   rules (on the testnet that includes every spend's signature) and the on-VM scripts do not yet enforce
   them. Turning them on is the go-live milestone.
-- **Wallet safety.** The wallet's secret key and its one-time-key counter live in browser storage. Do not
-  clear that storage, and do not restore an old copy of a wallet that has signed since: reusing a
-  one-time key weakens it. A safer wallet is being designed.
+- **Wallet safety.** The wallet's hot key is stored in the browser encrypted (built): AES-GCM under a
+  random data key, which the passphrase (PBKDF2-SHA256, 600,000 rounds, a random salt per wallet) and an
+  optional passkey (the WebAuthn PRF extension) each unlock. It is in memory only while unlocked; Lock,
+  or leaving the page, wipes it. The one-time-key counter is stored beside it in plain text, so it can be
+  saved before every signature. Still open: a malicious page or extension running while the wallet is
+  unlocked can read the key, and clearing browser storage loses the wallet unless you kept the hot key
+  (Show hot key, after unlock). Do not restore an old copy of a wallet that has signed since: reusing a
+  one-time key weakens it. Backups, key rotation and recovery with the cold key are designed, not built.
 
 ## Contributions and standing
 

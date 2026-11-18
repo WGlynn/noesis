@@ -53,6 +53,11 @@ const INDEX_HTML: &str = include_str!("../../frontend/index.html");
 /// The wallet's crypto (real hash-based keys), embedded and served at `/crypto.js`. Kept as its own
 /// file so it stays auditable and is parity-tested against the Rust `noesis_core::{lamport, xmss}`.
 const CRYPTO_JS: &str = include_str!("../../frontend/crypto.js");
+/// The wallet's storage door (`frontend/wallet.js`), embedded and served at `/wallet.js`: the only page
+/// code that touches the stored wallet. It keeps the hot seed encrypted at rest (a random data key wrapped
+/// by a passphrase and optionally a passkey) and the one-time-key counter. Like the page, it reaches a
+/// running node only through a rebuild, because it is compiled in.
+const WALLET_JS: &str = include_str!("../../frontend/wallet.js");
 /// Questions templated from the current doc corpus (`scripts/gen-questions.mjs`), embedded and served
 /// at `/questions.json`. The UI shuffles + flows them, seeded by chain height — a deterministic feed of
 /// open questions drawn from the repo's own docs. Regenerate when the docs change.
@@ -655,6 +660,7 @@ pub fn handle_request(
         // fetches are relative, so a single tunnel needs no CORS and no hardcoded node address).
         ("GET", "/") | ("GET", "/index.html") => (200, "text/html; charset=utf-8", INDEX_HTML.as_bytes().to_vec()),
         ("GET", "/crypto.js") => (200, "application/javascript; charset=utf-8", CRYPTO_JS.as_bytes().to_vec()),
+        ("GET", "/wallet.js") => (200, "application/javascript; charset=utf-8", WALLET_JS.as_bytes().to_vec()),
         ("GET", "/questions.json") => (200, "application/json; charset=utf-8", QUESTIONS_JSON.as_bytes().to_vec()),
         ("GET", "/state") => out(200, state.state_json()),
         ("GET", "/contributions") => out(200, state.contributions_json()),
@@ -1040,6 +1046,21 @@ mod tests {
         let (s2, c2, b2) = handle_request(&mut st, "GET", "/index.html", b"");
         assert_eq!((s2, c2), (200, "text/html; charset=utf-8"));
         assert_eq!(b2.len(), html.len());
+    }
+
+    #[test]
+    fn the_page_and_both_wallet_scripts_are_served_and_linked() {
+        let mut st = ServerState::new();
+        let (_, _, page) = handle_request(&mut st, "GET", "/", b"");
+        let page = String::from_utf8(page).expect("frontend is UTF-8");
+        for (path, marker) in [("/crypto.js", "NoesisCrypto"), ("/wallet.js", "NoesisWallet")] {
+            let (status, ctype, body) = handle_request(&mut st, "GET", path, b"");
+            assert_eq!((status, ctype), (200, "application/javascript; charset=utf-8"), "{path} is served");
+            assert!(String::from_utf8(body).expect("UTF-8").contains(marker), "{path} is the right file");
+            assert!(page.contains(&format!("<script src=\"{path}\"></script>")), "the page loads {path}");
+        }
+        // the wallet keeps the seed sealed, never in the old plain-text record
+        assert!(WALLET_JS.contains("noesis_wallet_v2_sealed") && WALLET_JS.contains("PBKDF2"));
     }
 
     #[test]

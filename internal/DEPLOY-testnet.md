@@ -113,10 +113,15 @@ For a real hostname + TLS, point a domain at the IP and front it with Caddy/ngin
     unchanged and deliberate: **testnet standing must NOT auto-translate to mainnet** (testnets are
     wiped; carrying test-earned standing invites farming). Carry the **key/address**, start mainnet
     **standing from zero**; any migration is a governance choice, not an accident.
-  - 🟡 **Web-wallet 2FA still to build (Will 2026-07-16, "later").** The secret key currently lives in
-    `localStorage` with a manual backup-your-seed reveal. Next: protect it with WebAuthn/passkeys
-    (device biometric / hardware key) — reuse the proven VibeSwap `useDeviceWallet` pattern. The real
-    keypair is the prerequisite and it's now in place.
+  - **Web-wallet encryption at rest: built 2026-11-17 (decision A4, design D2).** `frontend/wallet.js`
+    (served at `/wallet.js`) is the only page code that touches the stored wallet. The hot seed is
+    AES-GCM under a random data key; a passphrase (PBKDF2-SHA256, 600,000 rounds, random salt) and an
+    optional passkey (WebAuthn PRF through HKDF) each wrap that key, so the passkey gates the key itself
+    (VibeSwap's `useDeviceWallet` passkey gated only the UI, so it was not copied). An old plain-text v2
+    record migrates in place on first load. The page holds the wallet only at `http://localhost:9955`
+    (decision A5). Test: `node frontend/wallet-test.mjs`; WebAuthn there is a stub, so real browsers
+    and authenticators still need a manual check. Open: a live malicious page or extension can read the
+    key during an unlock.
 
 ## 5. The sequence to "friends are on it"
 
